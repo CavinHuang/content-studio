@@ -160,3 +160,9 @@ docker compose -f docker-compose.doocs.yml up -d
 增加单独授权的图片评审：上传本地已生成图像到配置的视觉理解模型，获得 `looks_consistent`、`needs_revision` 或 `uncertain` **建议**；不会自动批准图片或确认事实、版权和真实平台效果。未配置模型时仍可人工审阅。
 
 新增可选服务端环境变量 `CONTENT_IMAGE_REVIEW_BASE_URL`、`CONTENT_IMAGE_REVIEW_MODEL`、`CONTENT_IMAGE_REVIEW_API_KEY`；必须使用支持视觉消息的 OpenAI-compatible Chat Completions 服务，**不等同于 Nano Banana 的生成图接口**。详见 [V34 工程契约](docs/V34-VISUAL-CONSISTENCY-REVIEW.md)。
+
+## V37 · 系列视觉资产（Draft PR #8）
+
+在 `/illustrations` 创建/加入系列，管理带历史版本的视觉规范，主动共享已经批准的参考图，然后在同一系列的其他文章中选择参考图进行模型编辑。只有显式加入系列才能浏览和使用其图集；源图撤销批准或文章计划过期后立即停止提供引用。生成和编辑仍需要每次外部服务授权；图片不会自动通过人工审批或发布。详见 [V37 技术契约](docs/V37-VISUAL-SERIES.md)。
+
+此仓库仍是本地单用户版本，不可直接公开部署；真实外部图片模型、公众号与知乎的图片交付需要后续实测。
