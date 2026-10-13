@@ -110,7 +110,7 @@ export class IllustrationService {
   return {provider,role:row.role,style:row.style||'editorial',prompt:composeImagePrompt({title:project.title,role:row.role,scene:row.scene||row.prompt,style:row.style||'editorial',excerpt:source?.excerpt||'',provider,visualProfile:this.visualProfile(projectId)})+this._memoryPrompt(projectId),sourceRevision:row.master_revision,stale:row.master_revision!==project.channels.master.document.revision};
  }
  editPrompt(projectId,shotId,{expectedUpdatedAt,scene,style='editorial',provider='openai'}={}){
-  const row=this._shot(projectId,shotId),project=this._project(projectId),seriesFingerprint=this.series?.fingerprint(projectId)||'';
+  const row=this._shot(projectId,shotId),project=this._project(projectId);
   if(row.master_revision!==project.channels.master.document.revision)fail('Article changed; illustration plan is stale',409);
   if(typeof expectedUpdatedAt!=='string'||row.updated_at!==expectedUpdatedAt)fail('Illustration prompt changed; reload before editing',409);
   if(row.status==='generating')fail('Cannot edit while generating image',409);
@@ -122,7 +122,7 @@ export class IllustrationService {
   return this._present(this._shot(projectId,shotId));
  }
  async generate(projectId,shotId,{allowExternalAI=false,provider='openai',fallbackProviders=[],maxAttempts=1}={}){
-  const row=this._shot(projectId,shotId),project=this._project(projectId);
+  const row=this._shot(projectId,shotId),project=this._project(projectId),seriesFingerprint=this.series?.fingerprint(projectId)||'';
   if(row.master_revision!==project.channels.master.document.revision)fail('Article changed; illustration plan is stale',409);
   if(!allowExternalAI)fail('Explicit consent required before sending a contextual image prompt to a configured image provider',403);
   if(!['planned','failed'].includes(row.status))fail('Only planned or failed images can be generated',409);
