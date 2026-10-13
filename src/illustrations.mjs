@@ -110,6 +110,7 @@ export class IllustrationService {
   if(!allowExternalAI)fail('Explicit consent required before sending excerpts to a planning model',403);
   const project=this._project(projectId),doc=project.channels.master.document;
   if(!Number.isInteger(expectedMasterRevision)||expectedMasterRevision!==doc.revision)fail('Article changed; reload before planning illustrations',409);
+  if(!plannerConfigured())fail('Planner model is not configured',503);
   const original=slotPlan(project,doc,this.visualProfile(projectId));
   const reservation=this.budget.reserve(projectId,{kind:'plan',provider:'planner'});
   let scenes;
