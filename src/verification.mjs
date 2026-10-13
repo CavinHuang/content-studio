@@ -1,0 +1,49 @@
+import {randomUUID} from 'node:crypto';
+import {safeText} from './normalize.mjs';
+
+export class ValidationError extends Error {constructor(message,status=400){super(message);this.status=status;}}
+const bad=(m,s=400)=>{throw new ValidationError(m,s)};
+const STATUSES=['open','investigating','confirmed','rejected','inconclusive'];
+const KINDS=['reproduction','user_interview','usage_observation','document_review'];
+const RESULTS=['supports','contradicts','neutral'];
+const time=()=>new Date().toISOString();
+const clean=(s,max)=>safeText(s,max);
+const required=(s,name,min=1,max=1200)=>{if(typeof s!=='string'||s.trim().length<min||s.length>max)bad(`${name} must have ${min}-${max} characters`);return clean(s,max)};
+const optional=(s,max=1200)=>{if(s===undefined||s===null)return '';if(typeof s!=='string'||s.length>max)bad('Invalid field length');return clean(s,max)};
+const url=(s)=>{if(!s)return '';try{const u=new URL(s);if(!['https:','http:'].includes(u.protocol)||u.username||u.password||u.href.length>1200)bad('Invalid evidence URL');return u.href;}catch{bad('Invalid evidence URL')}};
+const iso=(s)=>{if(!s)return time();const d=new Date(s);if(!Number.isFinite(+d)||+d>Date.now()+86400000)bad('Invalid observation date');return d.toISOString()};
+const summaryRow=row=>({id:row.id,eventId:row.event_id,eventTitle:(()=>{try{return JSON.parse(row.event_snapshot||'{}').title||''}catch{return ''}})(),hypothesis:row.hypothesis,audience:row.audience,plan:row.plan,status:row.status,conclusion:row.conclusion,nextAction:row.next_action,version:row.version,createdAt:row.created_at,updatedAt:row.updated_at,decidedAt:row.decided_at});
+export class VerificationService{
+ constructor(store){this.store=store;this.db=store.db;this.db.exec(`
+ CREATE TABLE IF NOT EXISTS verification_cases(id TEXT PRIMARY KEY,event_id TEXT NOT NULL UNIQUE,event_snapshot TEXT NOT NULL DEFAULT '{}',hypothesis TEXT NOT NULL,audience TEXT NOT NULL DEFAULT '',plan TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'open',conclusion TEXT NOT NULL DEFAULT '',next_action TEXT NOT NULL DEFAULT '',version INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,decided_at TEXT);
+ CREATE TABLE IF NOT EXISTS verification_evidence(id TEXT PRIMARY KEY,case_id TEXT NOT NULL REFERENCES verification_cases(id),kind TEXT NOT NULL,result TEXT NOT NULL,observation TEXT NOT NULL,ref_url TEXT NOT NULL DEFAULT '',observed_at TEXT NOT NULL,created_at TEXT NOT NULL);
+ CREATE INDEX IF NOT EXISTS idx_verification_evidence_case ON verification_evidence(case_id);
+ CREATE TABLE IF NOT EXISTS verification_history(id TEXT PRIMARY KEY,case_id TEXT NOT NULL,action TEXT NOT NULL,detail TEXT NOT NULL,at TEXT NOT NULL);
+ `);if(!this.db.prepare("PRAGMA table_info(verification_cases)").all().some(x=>x.name==='event_snapshot'))this.db.exec("ALTER TABLE verification_cases ADD COLUMN event_snapshot TEXT NOT NULL DEFAULT '{}'");}
+ _history(id,action,detail){this.db.prepare('INSERT INTO verification_history VALUES (?,?,?,?,?)').run(randomUUID(),id,action,detail,time());}
+ _get(id){const row=this.db.prepare('SELECT * FROM verification_cases WHERE id=?').get(id);if(!row)bad('Verification case not found',404);return row;}
+ _expanded(row){const evidence=this.db.prepare('SELECT * FROM verification_evidence WHERE case_id=? ORDER BY created_at ASC,id ASC').all(row.id).map(x=>({id:x.id,kind:x.kind,result:x.result,observation:x.observation,referenceUrl:x.ref_url,observedAt:x.observed_at,createdAt:x.created_at}));const history=this.db.prepare('SELECT action,detail,at FROM verification_history WHERE case_id=? ORDER BY rowid ASC').all(row.id);
+ const firstHand=evidence.filter(x=>['reproduction','user_interview','usage_observation'].includes(x.kind));const userEvidence=evidence.filter(x=>['user_interview','usage_observation'].includes(x.kind)&&x.result==='supports');
+ return {...summaryRow(row),evidence,history,evidenceCount:evidence.length,firstHandCount:firstHand.length,hasDirectUserSignal:userEvidence.length>0,reproduced:evidence.some(x=>x.kind==='reproduction'&&x.result==='supports'),validatedUserProblem:row.status==='confirmed'&&userEvidence.length>0,verificationScope:'author-recorded; independent verification not performed'};}
+ get(id){return this._expanded(this._get(id));}
+ eventSnapshot(eventId){const row=this.db.prepare('SELECT event_snapshot FROM verification_cases WHERE event_id=?').get(eventId);if(!row)return null;try{const x=JSON.parse(row.event_snapshot);if(!x?.id||!Array.isArray(x.items))return null;return {...x,withdrawn:true,assessment:{...(x.assessment||{}),warning:'此事件已从当前信源池撤选；以下是建档时的历史材料，仅供复核，不能视作当前有效的精选内容。'}};}catch{return null}}
+ byEvent(eventId){const row=this.db.prepare('SELECT * FROM verification_cases WHERE event_id=?').get(eventId);return row?this._expanded(row):null;}
+ list(){return this.db.prepare('SELECT * FROM verification_cases ORDER BY updated_at DESC').all().map(x=>this._expanded(x));}
+ create(event,{hypothesis,audience='',plan=''}={}){if(!event||!event.id)bad('Event not found',404);const existing=this.byEvent(event.id);if(existing)return existing;
+ const id='vc_'+randomUUID(),t=time();const hyp=required(hypothesis,'Problem hypothesis',12,500),aud=optional(audience,220),p=optional(plan,1400);
+ try{this.db.prepare('INSERT INTO verification_cases (id,event_id,event_snapshot,hypothesis,audience,plan,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)').run(id,event.id,JSON.stringify({id:event.id,title:event.title,items:event.items,assessment:event.assessment}),hyp,aud,p,t,t);}catch(e){if(e.code==='ERR_SQLITE_ERROR'&&/UNIQUE/i.test(e.message))return this.byEvent(event.id);throw e;}
+ this._history(id,'created','Verification hypothesis registered; not verified');return this.get(id);}
+ update(id,{version,hypothesis,audience,plan,status}={}){const r=this._get(id);if(version!==r.version)bad('Version conflict: refresh before editing',409);if(['confirmed','rejected','inconclusive'].includes(r.status))bad('Decision locked; reopen before editing',409);
+ if(status!==undefined&&!['open','investigating'].includes(status))bad('Invalid working status');
+ const h=hypothesis===undefined?r.hypothesis:required(hypothesis,'Problem hypothesis',12,500),a=audience===undefined?r.audience:optional(audience,220),p=plan===undefined?r.plan:optional(plan,1400),s=status??r.status;
+ this.db.prepare('UPDATE verification_cases SET hypothesis=?,audience=?,plan=?,status=?,version=version+1,updated_at=? WHERE id=?').run(h,a,p,s,time(),id);this._history(id,'updated',`Updated hypothesis/plan (status ${s})`);return this.get(id);}
+ addEvidence(id,{version,kind,result,observation,referenceUrl='',observedAt}={}){const r=this._get(id);if(version!==r.version)bad('Version conflict: refresh before adding evidence',409);if(['confirmed','rejected','inconclusive'].includes(r.status))bad('Decision locked; reopen before adding evidence',409);if(!KINDS.includes(kind))bad('Invalid evidence type');if(!RESULTS.includes(result))bad('Invalid evidence result');
+ const note=required(observation,'Observation',20,1800),link=url(referenceUrl),when=iso(observedAt),eid='ve_'+randomUUID();
+ this.db.exec('BEGIN IMMEDIATE');try{this.db.prepare('INSERT INTO verification_evidence VALUES(?,?,?,?,?,?,?,?)').run(eid,id,kind,result,note,link,when,time());this.db.prepare("UPDATE verification_cases SET status='investigating',version=version+1,updated_at=? WHERE id=?").run(time(),id);this._history(id,'evidence_added',`${eid}: ${kind}/${result}`);this.db.exec('COMMIT');}catch(e){this.db.exec('ROLLBACK');throw e;}return this.get(id);}
+ decide(id,{version,status,conclusion,nextAction}={}){const r=this._get(id);if(version!==r.version)bad('Version conflict: refresh before deciding',409);if(!['confirmed','rejected','inconclusive'].includes(status))bad('Invalid decision status');if(['confirmed','rejected','inconclusive'].includes(r.status))bad('Decision already locked; reopen first',409);
+ const note=required(conclusion,'Decision rationale',20,1400),next=required(nextAction,'Next action',6,500),ev=this.get(id).evidence;
+ if(!ev.length)bad('At least one evidence record is required');if(status==='confirmed'&&!ev.some(x=>x.result==='supports'&&['reproduction','user_interview','usage_observation'].includes(x.kind)))bad('Confirmation requires a supporting first-hand record');if(status==='rejected'&&!ev.some(x=>x.result==='contradicts'&&['reproduction','user_interview','usage_observation'].includes(x.kind)))bad('Rejection requires a contradicting first-hand record');
+ this.db.exec('BEGIN IMMEDIATE');try{this.db.prepare('UPDATE verification_cases SET status=?,conclusion=?,next_action=?,decided_at=?,version=version+1,updated_at=? WHERE id=?').run(status,note,next,time(),time(),id);this._history(id,'decided',`Author decision: ${status}; ${note}`);this.db.exec('COMMIT');}catch(e){this.db.exec('ROLLBACK');throw e;}return this.get(id);}
+ reopen(id,{version,reason}={}){const r=this._get(id);if(version!==r.version)bad('Version conflict: refresh before reopening',409);if(!['confirmed','rejected','inconclusive'].includes(r.status))bad('Only decided cases can be reopened',409);const why=required(reason,'Reopen reason',12,500);this.db.exec('BEGIN IMMEDIATE');try{this.db.prepare("UPDATE verification_cases SET status='investigating',conclusion='',next_action='',decided_at=NULL,version=version+1,updated_at=? WHERE id=?").run(time(),id);this._history(id,'reopened',why);this.db.exec('COMMIT');}catch(e){this.db.exec('ROLLBACK');throw e;}return this.get(id);}
+ snapshotForBrief(eventId){const c=this.byEvent(eventId);if(!c)return null;return {caseId:c.id,caseVersion:c.version,hypothesis:c.hypothesis,status:c.status,conclusion:c.conclusion,nextAction:c.nextAction,evidence:c.evidence.map(({id,kind,result,observation,referenceUrl,observedAt})=>({id,kind,result,observation,referenceUrl,observedAt})),validatedUserProblem:c.validatedUserProblem,verificationScope:c.verificationScope,snapshotAt:time()};}
+}

@@ -1,0 +1,23 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {spawn} from 'node:child_process';import {mkdtempSync,rmSync} from 'node:fs';import {tmpdir} from 'node:os';import {join} from 'node:path';
+const tmp=mkdtempSync(join(tmpdir(),'cs25-http-')),port=54425,base=`http://127.0.0.1:${port}`;let proc;
+async function req(path,method='GET',body,headers={}){const r=await fetch(base+path,{method,headers:{...headers,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});let data;const t=await r.text();try{data=JSON.parse(t)}catch{data=t}return{status:r.status,data};}
+test('end-to-end HTTP: validation → knowledge → impacted article → feedback → new validation',async()=>{proc=spawn(process.execPath,['src/server.mjs'],{cwd:process.cwd(),env:{...process.env,PORT:String(port),DB_PATH:join(tmp,'test.sqlite'),ENABLE_SCENARIO:'1'},stdio:'ignore'});try{
+ let ready=false;for(let i=0;i<60;i++){try{if((await req('/api/health')).status===200){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,70))}assert.ok(ready);
+ let r=await req('/api/fixture/seed','POST',{});assert.equal(r.status,200);
+ r=await req('/api/events');assert.ok(r.data.events.length>0);const eid=r.data.events[0].id;
+ r=await req('/api/validations','POST',{eventId:eid,hypothesis:'A certain agent debugging failure cannot be understood without a trace'});assert.equal(r.status,201);let c=r.data;
+ r=await req('/api/knowledge','POST',{caseId:c.id,synthesis:'This text is long enough but should not be published without a locked research decision.',limitations:'No real-world trial was performed'});assert.equal(r.status,409);
+ r=await req('/api/validations/'+c.id+'/evidence','POST',{version:c.version,kind:'reproduction',result:'supports',observation:'In a controlled synthetic test, the UI omitted the failed tool response details.'});assert.equal(r.status,201);c=r.data;
+ r=await req('/api/validations/'+c.id+'/decision','POST',{version:c.version,status:'confirmed',conclusion:'A narrow local reproduction supports one symptom but cannot show common user demand.',nextAction:'Create bounded technical article'});assert.equal(r.status,200);c=r.data;
+ r=await req('/api/knowledge','POST',{caseId:c.id,synthesis:'A local synthetic reproduction supports the narrow symptom, not a general demand claim.',limitations:'No actual people were interviewed; sample test only.'});assert.equal(r.status,201);const k=r.data;assert.equal(k.revision,1);
+ r=await req('/api/briefs','POST',{eventId:eid});assert.equal(r.status,201);const brief=r.data;assert.equal(brief.verification.caseVersion,c.version);
+ r=await req('/api/content-references','POST',{briefId:brief.id,cardId:k.id,channel:'wechat',title:'Why Agent traces matter',status:'reported_published',reportedUrl:'https://mp.weixin.qq.com/s/demo'});assert.equal(r.status,201);const reference=r.data;assert.equal(reference.needsReview,false);
+ r=await req('/api/feedback','POST',{referenceId:reference.id,kind:'reader_question',summary:'One unnamed reader describes a repeat error in a non-production demo, requiring more investigation.',hypothesis:'Tool timeout debugging is difficult for some developers without trace IDs',privacyConfirmed:true});assert.equal(r.status,201);const feedback=r.data;
+ r=await req('/api/feedback/'+feedback.id+'/promote','POST',{});assert.equal(r.status,201);assert.equal(r.data.status,'open');assert.equal(r.data.evidenceCount,0);
+ r=await req('/api/validations/'+c.id+'/reopen','POST',{version:c.version,reason:'Subsequent release produced a contradictory local outcome'});assert.equal(r.status,200);const open=r.data;
+ r=await req('/api/knowledge');assert.equal(r.status,200);assert.equal(r.data.stats.needsReview,1);assert.equal(r.data.cards[0].needsRefresh,true);
+ r=await req('/api/content-references/'+reference.id+'/review','POST',{currentRevision:1,currentCaseVersion:c.version,action:'correction_planned',note:'Conflicting state should be reviewed before editing publication.'});assert.equal(r.status,409);
+ r=await req('/api/content-references/'+reference.id+'/review','POST',{currentRevision:1,currentCaseVersion:open.version,action:'correction_planned',note:'The updated run differs and requires a public correction review.'});assert.equal(r.status,200);assert.equal(r.data.needsReview,false);assert.equal(r.data.briefSnapshotOutdated,true);
+ r=await req('/knowledge');assert.equal(r.status,200);assert.match(r.data,/研究知识库/);
+ r=await req('/api/content-references','POST',{briefId:brief.id,cardId:k.id,channel:'wechat',title:'bad origin'},{origin:'https://evil.example'});assert.equal(r.status,403);
+ }finally{proc?.kill();rmSync(tmp,{recursive:true,force:true})}});

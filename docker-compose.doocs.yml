@@ -1,0 +1,7 @@
+# Local-only standalone mature WeChat formatter. Launch separately from Next.js.
+services:
+  wechat-markdown:
+    image: doocs/md:latest
+    ports:
+      - "127.0.0.1:8800:80"
+    restart: unless-stopped
