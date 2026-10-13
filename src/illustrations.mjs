@@ -137,7 +137,7 @@ export class IllustrationService {
   this.db.prepare("UPDATE article_illustration_shots SET scene=?,style=?,prompt=?,asset_id='',model='',provider='',status='planned',error='',review_json='',updated_at=? WHERE id=?").run(scene.trim(),style,prompt,updated,shotId);
   return this._present(this._shot(projectId,shotId));
  }
- async generate(projectId,shotId,{allowExternalAI=false,provider='openai',fallbackProviders=[],maxAttempts=1}={}){
+ async generate(projectId,shotId,{allowExternalAI=false,provider='openai',fallbackProviders=[],maxAttempts=1,shouldContinue=null}={}){
   const row=this._shot(projectId,shotId),project=this._project(projectId);
   if(row.master_revision!==project.channels.master.document.revision)fail('Article changed; illustration plan is stale',409);
   if(!allowExternalAI)fail('Explicit consent required before sending a contextual image prompt to a configured image provider',403);
@@ -153,6 +153,7 @@ export class IllustrationService {
   try{
    let lastError=null;
    for(let i=0;i<choices.length;i++){
+    if(typeof shouldContinue==='function'&&!shouldContinue())fail('Queue job cancelled; no further provider calls',409);
     const current=choices[i],start=Date.now();
     let reservation=null;
     try{
