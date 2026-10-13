@@ -70,8 +70,13 @@ export class ImageRequestBudget {
    return {id,dayUtc};
   }catch(e){this.db.exec('ROLLBACK');throw e}
  }
+ interruptGeneration(projectId,shotId){
+  // Recovery is explicit and is only called after the shot has passed its stale-age guard.
+  // Even interrupted entries continue consuming the daily allowance.
+  this.db.prepare("UPDATE image_request_ledger SET status='interrupted',finished_at=? WHERE project_id=? AND shot_id=? AND kind='generate' AND status='reserved'").run(this._at(),projectId,shotId);
+ }
  finish(id,status){
-  if(!['success','failed'].includes(status))reject('Invalid request completion state');
+  if(!['success','failed','interrupted'].includes(status))reject('Invalid request completion state');
   this.db.prepare("UPDATE image_request_ledger SET status=?,finished_at=? WHERE id=? AND status='reserved'").run(status,this._at(),id);
  }
 }
