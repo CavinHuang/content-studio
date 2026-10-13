@@ -70,19 +70,11 @@ npm run build      # Next.js 构建（需要 npm 安装依赖）
 
 注意：本次交付环境无法解析 `registry.npmjs.org`，所以无法安装 Next/React 包，**尚未执行真实 Next.js build 或浏览器渲染测试**。已经执行并通过的是 Node 领域服务、Route Handler 核心请求调度的自动化测试；首次联机后必须按 `docs/QA.md` 做 Next 浏览器验收。
 
-## GitHub 推送
+## GitHub 仓库和协作
 
-GitHub 连接的身份为 `CavinHuang`，目标仓库 `CavinHuang/content-studio`。当前对话中的 GitHub 连接器未提供“新建仓库”工具，因此远程仓库尚未创建，不能宣称已经 push。
+主仓库：[CavinHuang/content-studio](https://github.com/CavinHuang/content-studio)，`main` 是稳定主线。新功能通过独立分支和 Pull Request 评审后再合并。
 
-1. 在 GitHub 建一个**空的私有仓库** `content-studio`（不要勾选创建 README、License、gitignore）。
-2. 使用下面命令把此仓库推到 main：
-
-```bash
-git remote add origin https://github.com/CavinHuang/content-studio.git
-git push -u origin main
-```
-
-源码 ZIP 是不包含 `.git` 的纯净代码快照；若要保留已经创建的本地 `main` 提交历史，请使用附带的 **Git bundle** 克隆。参阅 `docs/GITHUB.md`。
+当前仓库是 **Public**。不要将个人 SQLite、私密研究素材、读者私信或 API Key 提交到公开仓库；当前工程为本地单用户实验版，不能直接公开部署。
 
 ## 工程交接
 
