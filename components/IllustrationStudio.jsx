@@ -7,19 +7,23 @@ async function api(path,method='GET',data){const r=await fetch(path,{method,cach
 const channels={wechat:'微信公众号',zhihu:'知乎'};
 export default function IllustrationStudio(){
  const query=useSearchParams();const [projects,setProjects]=useState([]),[projectId,setProjectId]=useState(''),[channel,setChannel]=useState('wechat');
+ const [provider,setProvider]=useState('openai'),[promptEdits,setPromptEdits]=useState({}),[promptPreviews,setPromptPreviews]=useState({});
  const [state,setState]=useState(null),[preview,setPreview]=useState(null),[mapping,setMapping]=useState({}),[consent,setConsent]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
  const root=`/api/illustrations/projects/${projectId}`;
- const reload=useCallback(async id=>{if(!id)return;setState(await api(`/api/illustrations/projects/${id}`));},[]);
+ const reload=useCallback(async id=>{if(!id)return;const data=await api(`/api/illustrations/projects/${id}`);setState(data);setProvider(current=>data.providers?.find(x=>x.id===current&&x.configured)?current:(data.providers?.find(x=>x.configured)?.id||current));},[]);
  useEffect(()=>{api('/api/editor/projects').then(x=>{const ps=x.projects||[];setProjects(ps);const fromQuery=query.get('project');setProjectId(fromQuery&&ps.some(p=>p.id===fromQuery)?fromQuery:ps[0]?.id||'');}).catch(e=>setMessage(e.message))},[query]);
- useEffect(()=>{setPreview(null);setState(null);reload(projectId).catch(e=>setMessage(e.message))},[projectId,reload]);
+ useEffect(()=>{setPreview(null);setState(null);setPromptEdits({});setPromptPreviews({});reload(projectId).catch(e=>setMessage(e.message))},[projectId,reload]);
  async function run(task){setBusy(true);setMessage('');try{await task();await reload(projectId)}catch(e){setMessage(e.message)}finally{setBusy(false)}}
  const current=projects.find(p=>p.id===projectId);
  async function generateAll(){if(!consent){setMessage('先明确同意向已配置的图片模型发送文章标题和章节摘要。');return}
   await run(async()=>{let failures=0;const shots=state?.shots||[];for(const shot of shots.filter(x=>x.status==='planned'||x.status==='failed')){
-   try{await api(`${root}/shots/${shot.id}/generate`,'POST',{allowExternalAI:true})}catch{failures++}
+   try{await api(`${root}/shots/${shot.id}/generate`,'POST',{allowExternalAI:true,provider})}catch{failures++}
    await reload(projectId);
   }setMessage(failures?`${failures} 张生成失败，请查看错误后重试。`:'配图生成完成。请逐张审阅并批准，再安排渠道映射。')});
  }
+ async function agentPlan(){if(!consent){setMessage('需授权将标题与章节摘要发送给外部文本规划模型。');return;}return run(()=>api(`${root}/agent-plan`,'POST',{expectedMasterRevision:state.sourceRevision,allowExternalAI:true}));}
+ async function savePrompt(shot){return run(()=>api(`${root}/shots/${shot.id}/prompt`,'PUT',{expectedUpdatedAt:shot.updatedAt,scene:promptEdits[shot.id]?.scene??shot.scene,style:promptEdits[shot.id]?.style??shot.style,provider}));}
+ async function viewPrompt(shot){setBusy(true);try{const v=await api(`${root}/shots/${shot.id}/prompt-preview?provider=${provider}`);setPromptPreviews(x=>({...x,[shot.id]:v.prompt}));setMessage('已展示该模型实际使用的提示词。');}catch(e){setMessage(e.message)}finally{setBusy(false)}}
  async function decide(id,decision){return run(()=>api(`${root}/shots/${id}/decision`,'POST',{decision}))}
  function setMap(id,field,v){setMapping(x=>({...x,[id]:{...x[id],[field]:v}}))}
  async function saveMapping(shot){return run(async()=>{const entry=mapping[shot.id]||{};await api(`/api/assets/${shot.assetId}/mappings/${channel}`,'PUT',{url:entry.url||'',note:entry.note||''})})}
@@ -27,29 +31,36 @@ export default function IllustrationStudio(){
  async function copyProposal(){try{await navigator.clipboard.writeText(preview.markdown);setMessage('含图 Markdown 已复制；请在 doocs/md 中排版，并按 V30 差异审阅导回。')}catch{setMessage('复制被浏览器拦截，请手动选择下方 Markdown。')}}
  return <div className="compose-root"><header className="compose-head"><div><Link href="/" className="compose-brand">◈ Content Studio</Link><span className="compose-divider">/</span>创作 · Agent 自动配图</div><div className="compose-right"><Link className="btn secondary" href={`/compose?project=${encodeURIComponent(projectId)}`}>返回 doocs/md 排版 ↗</Link></div></header>
  <main className="compose-container">
-  <div className="compose-intro"><div><span className="eyebrow">ILLUSTRATION AGENT · V32</span><h1>文章写好，交给 Agent 配图</h1><p>分析主稿 → 制定封面和章节配图方案 → 图片模型生成 → 人工审阅 → 素材映射 → doocs/md 排版。图像是概念插画，不是事实证据。</p></div><span className="compose-mode">本地素材库 · 渠道独立</span></div>
+  <div className="compose-intro"><div><span className="eyebrow">ILLUSTRATION AGENT · V33</span><h1>文章写好，交给 Agent 配图</h1><p>分析主稿 → 文本规划 Agent 给出场景与提示词 → 选择图片模型生成 → 人工审阅 → 素材映射 → doocs/md 排版。图像是概念插画，不是事实证据。</p></div><span className="compose-mode">本地素材库 · 渠道独立</span></div>
   {message&&<div className="compose-notice" role="status">{message}<button type="button" onClick={()=>setMessage('')}>×</button></div>}
   <div className="illustration-grid">
    <aside className="compose-panel"><div className="compose-panel-title">01 · 选择创作内容</div>
     <label>当前文章<select aria-label="配图文章" value={projectId} onChange={e=>setProjectId(e.target.value)}>{projects.map(x=><option value={x.id} key={x.id}>{x.title}</option>)}</select></label>
+    <label>图片生成供应商<select aria-label="图片供应商" value={provider} onChange={e=>{setProvider(e.target.value);setPromptPreviews({})}}>{(state?.providers||[{id:'openai',label:'OpenAI GPT Image',configured:false},{id:'gemini',label:'Google Nano Banana',configured:false},{id:'qwen',label:'Qwen Image',configured:false}]).map(p=><option key={p.id} value={p.id}>{p.label} · {p.model||'模型待配置'} {p.configured?'（可用）':'（未配置）'}</option>)}</select></label>
     <label>目标渠道<select aria-label="配图目标渠道" value={channel} onChange={e=>{setChannel(e.target.value);setPreview(null)}}><option value="wechat">微信公众号</option><option value="zhihu">知乎</option></select></label>
     {state?<><p className="illustration-status">主稿 v{state.sourceRevision}{state.stale?' · 方案已过期':' · 方案可用'}</p><p className="compose-muted">{current?.title}</p>
     <button className="btn primary compose-save" disabled={busy} onClick={()=>run(()=>api(`${root}/plan`,'POST',{expectedMasterRevision:state.sourceRevision}))}>{state.plan?'根据最新主稿重新规划':'分析文章并创建配图计划'}</button>
+    {state.plannerConfigured&&<button className="btn secondary compose-save" disabled={busy||!consent} onClick={agentPlan}>Agent 重新理解文章并生成视觉方案（外部文本模型）</button>}
     {state.stale&&<p className="compose-danger">文章正文已有变化。必须重新生成配图计划，旧图片会保留，但不自动关联到新文章。</p>}
     </>:<p className="compose-muted">请选择已有文章。</p>}
     <div className="compose-tip"><strong>计划与生成有什么区别？</strong><p>创建计划只在本地分析文章标题、段落，不上传内容。点击“调用图片模型”后，相关标题、章节摘要和提示词才会发给配置的图片服务。</p></div>
     <label className="compose-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/><span>我允许将所选文章的标题与章节摘要发送到配置的外部图片模型。已确认没有需要保密的内容。</span></label>
-    <p className="compose-muted">图片服务：{state?.configured?'已配置（凭据仅存在服务端）':'未配置。设置 CONTENT_IMAGE_API_* 环境变量后才可实际生成。'}</p>
-    <button className="btn secondary compose-save" disabled={busy||!state?.plan||state.stale||!consent||!state.configured||!state.shots.some(s=>['planned','failed'].includes(s.status))} onClick={generateAll}>{busy?'处理中…':'Agent 生成所有待处理配图'}</button>
+    <p className="compose-muted">图片服务：{state?.providers?.find(p=>p.id===provider)?.configured?`已配置 ${provider}（凭据仅在服务端）`:`${provider} 尚未配置 API Key`}; 文本策划模型：{state?.plannerConfigured?'已配置':'未配置，使用本地规划草案'}</p>
+    <button className="btn secondary compose-save" disabled={busy||!state?.plan||state.stale||!consent||!state?.providers?.find(p=>p.id===provider)?.configured||!state.shots.some(s=>['planned','failed'].includes(s.status))} onClick={generateAll}>{busy?'处理中…':'Agent 生成所有待处理配图'}</button>
    </aside>
    <section className="compose-panel"><div className="compose-panel-title">02 · 图片方案与人工审阅</div>
     {!state?.shots.length?<div className="illustration-empty">先选择文章并创建配图计划。默认规划一张封面图与最多两张重点章节插画，避免每段都塞图片。</div>:<div className="illustration-shots">{state.shots.map(shot=>{
-      const match=shot.asset?.mappings?.find(x=>x.channel===channel);return <article key={shot.id} className="illustration-shot"><div className="illustration-shot-art">{shot.asset?<img src={shot.asset.previewUrl} alt={shot.alt}/>:<div><span>◌</span><small>{shot.role==='cover'?'封面画面':'章节插画'}</small></div>}</div><div className="illustration-shot-info"><div className="illustration-shot-top"><strong>{shot.ordinal.toString().padStart(2,'0')} · {shot.role==='cover'?'文章封面':'章节插图'}</strong><span>{({planned:'待生成',generating:'正在生成',failed:'生成失败',generated:'待审阅',approved:'已批准',rejected:'已拒绝'})[shot.status]}</span></div><p>{shot.alt}</p><details><summary>查看 Agent 使用的图片生成提示词</summary><p>{shot.prompt}</p></details>
+      const match=shot.asset?.mappings?.find(x=>x.channel===channel);return <article key={shot.id} className="illustration-shot"><div className="illustration-shot-art">{shot.asset?<img src={shot.asset.previewUrl} alt={shot.alt}/>:<div><span>◌</span><small>{shot.role==='cover'?'封面画面':'章节插画'}</small></div>}</div><div className="illustration-shot-info"><div className="illustration-shot-top"><strong>{shot.ordinal.toString().padStart(2,'0')} · {shot.role==='cover'?'文章封面':'章节插图'}</strong><span>{shot.provider?`${shot.provider} · `:''}{({planned:'待生成',generating:'正在生成',failed:'生成失败',generated:'待审阅',approved:'已批准',rejected:'已拒绝'})[shot.status]}</span></div><p>{shot.alt}</p><div className="illustration-prompt-editor">
+        <label>画面内容 / Scene<textarea aria-label={`${shot.ordinal} 画面描述`} rows={3} value={promptEdits[shot.id]?.scene??shot.scene??''} onChange={e=>setPromptEdits(p=>({...p,[shot.id]:{...p[shot.id],scene:e.target.value}}))}/></label>
+        <label>视觉风格<select aria-label={`${shot.ordinal} 风格`} value={promptEdits[shot.id]?.style??shot.style??'editorial'} onChange={e=>setPromptEdits(p=>({...p,[shot.id]:{...p[shot.id],style:e.target.value}}))}><option value="editorial">高级杂志插画</option><option value="diagram">抽象结构示意</option><option value="abstract">抽象隐喻</option></select></label>
+        <div className="illustration-actions"><button className="btn secondary" disabled={busy||state.stale} onClick={()=>savePrompt(shot)}>保存视觉方案（重新生成前）</button><button className="btn secondary" disabled={busy} onClick={()=>viewPrompt(shot)}>预览 {provider} 提示词</button></div>
+        {promptPreviews[shot.id]&&<details open><summary>当前模型生成提示词</summary><textarea readOnly rows={5} value={promptPreviews[shot.id]}/></details>}
+       </div><details><summary>上次保存/生成的提示词</summary><p>{shot.prompt}</p></details>
       {shot.error&&<p className="compose-danger">{shot.error}</p>}
-      <div className="illustration-actions">{['planned','failed'].includes(shot.status)&&<button className="btn secondary" disabled={busy||!consent||!state.configured||state.stale} onClick={()=>run(()=>api(`${root}/shots/${shot.id}/generate`,'POST',{allowExternalAI:true}))}>生成图片</button>}
+      <div className="illustration-actions">{['planned','failed'].includes(shot.status)&&<button className="btn secondary" disabled={busy||!consent||!state?.providers?.find(p=>p.id===provider)?.configured||state.stale} onClick={()=>run(()=>api(`${root}/shots/${shot.id}/generate`,'POST',{allowExternalAI:true,provider}))}>生成图片</button>}
        {['generated','rejected'].includes(shot.status)&&<button className="btn primary" disabled={busy||state.stale} onClick={()=>decide(shot.id,'approve')}>批准使用</button>}
        {['generated','approved'].includes(shot.status)&&<button className="btn secondary" disabled={busy||state.stale} onClick={()=>decide(shot.id,'reject')}>不采用</button>}
-       {shot.asset&&<a className="btn secondary" href={shot.asset.previewUrl} download={`${shot.id}.png`}>保存图片</a>}
+       {shot.asset&&<a className="btn secondary" href={shot.asset.previewUrl} download={`${shot.id}.${shot.asset?.mime==='image/jpeg'?'jpg':shot.asset?.mime==='image/webp'?'webp':shot.asset?.mime==='image/gif'?'gif':'png'}`}>保存图片</a>}
       </div>
       {shot.status==='approved'&&<div className="illustration-mapping"><strong>目标平台素材映射 · {channels[channel]}</strong><p>先在 doocs/md 或平台素材库中手动上传图片，再登记由平台提供的公网 HTTPS 地址。</p><input value={mapping[shot.id]?.url??match?.url??''} onChange={e=>setMap(shot.id,'url',e.target.value)} placeholder="https://...（目标平台或授权图床地址）" aria-label={`${shot.ordinal} 图片 URL`}/><input value={mapping[shot.id]?.note??match?.note??''} onChange={e=>setMap(shot.id,'note',e.target.value)} placeholder="登记人工上传记录、日期或素材编号" aria-label={`${shot.ordinal} 上传记录`}/><button className="btn secondary" disabled={busy} onClick={()=>saveMapping(shot)}>保存该渠道映射</button>{match&&<p className="illustration-status">已登记地址；尚未验证平台显示效果</p>}</div>}
       </div></article>})}</div>}

@@ -134,3 +134,7 @@ docker compose -f docker-compose.doocs.yml up -d
 - **生成带图 Markdown 提案**：只能安全插入确切定位的已批准配图，缺失 URL 或找不到段落时明确显示未完成；不会覆盖正式渠道稿，仍须 V30 差异审阅及 V31 平台检查。
 
 详见 [`docs/V32-AUTO-ILLUSTRATION.md`](docs/V32-AUTO-ILLUSTRATION.md)。**AI 概念插画不能充当研究证据**，模型生成、素材复制和外部发布均不自动完成事实验证。
+
+### V33 · 多供应商图片 Agent 与提示词设计
+
+`/illustrations` 已支持按张选择 OpenAI GPT Image、Google Nano Banana 或 Qwen Image，逐张预览该供应商最终 Prompt、编辑视觉场景和风格，以及可选的文本规划模型来改写配图方案。外部调用需手动授权；图片返回本地私有素材库，不会被直接发布。详见 [V33 Agent 实现契约](docs/V33-ILLUSTRATION-AGENT.md) 与 `.env.example`。
