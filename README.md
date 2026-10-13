@@ -1,4 +1,4 @@
-# Content Studio · Next.js + doocs/md（V29）
+# Content Studio · Next.js + doocs/md（V30）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
@@ -113,3 +113,11 @@ docker compose -f docker-compose.doocs.yml up -d
 - 建议用本机 Docker/CLI 实例；主动选择公网站点前需评估隐私。第三方软件的主题、图床与微信粘贴兼容仍要实际测试。
 
 这一版是 **独立排版器交接集成**；不意味着 doocs/md 已作为 React 组件内嵌或支持全自动回存。
+
+## V30 — 导回差异审阅
+
+在 `/compose` 中从 doocs/md 导入 .md，先点击「检查导回内容与原文差异」，审阅正文改写、重排、链接和证据风险。内容改变时必须确认才可保存新排版修订；旧审核结果失效。
+
+参阅 [V30 技术契约](docs/V30-ROUNDTRIP-REVIEW.md) 与 [QA](docs/V30-QA.md)。Next.js 正式构建及微信/知乎真实后台兼容仍待联网验收。
+
+GitHub 主仓库：[CavinHuang/content-studio](https://github.com/CavinHuang/content-studio)。后续改动通过开发分支与 PR 评审，严禁提交私有数据和密钥。
