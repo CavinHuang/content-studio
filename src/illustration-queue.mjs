@@ -191,7 +191,7 @@ export class IllustrationQueue {
     // Freshness must be checked again at dispatch, never just at queue creation.
     const shot=this.illustrations._shot(row.project_id,row.shot_id);
     const project=this.illustrations._project(row.project_id);
-    if(shot.plan_id!==row.plan_id||shot.master_revision!==row.source_revision||
+    if(shot.plan_id!==row.plan_id||this.illustrations._latest(row.project_id)?.id!==row.plan_id||shot.master_revision!==row.source_revision||
        project.channels.master.document.revision!==row.source_revision||shot.updated_at!==row.shot_updated_at||
        !['planned','failed'].includes(shot.status)){
        this._finish(row,'obsolete','Article or image slot changed after queueing');
