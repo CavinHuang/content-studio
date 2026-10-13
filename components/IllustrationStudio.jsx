@@ -111,6 +111,7 @@ export default function IllustrationStudio(){
       </div>}
 
       <div className="illustration-actions">{['generated','approved','rejected'].includes(shot.status)&&state.reviewerConfigured&&<button className="btn secondary" disabled={busy||state.stale||!reviewConsent} onClick={()=>requestReview(shot)}>AI 辅助评审图片</button>}{['planned','failed'].includes(shot.status)&&<button className="btn secondary" disabled={busy||!consent||!state?.providers?.find(p=>p.id===provider)?.configured||state.stale} onClick={()=>run(()=>api(`${root}/shots/${shot.id}/generate`,'POST',{allowExternalAI:true,provider,...generationOptions()}))}>生成图片</button>}
+       {shot.status==='generating'&&<button className="btn secondary" disabled={busy||Date.now()-Date.parse(shot.updatedAt)<5*60*1000} title="超过 5 分钟且服务端不再执行时才能手动清理；不会自动重新调用模型" onClick={()=>run(()=>api(`${root}/shots/${shot.id}/recover`,'POST',{expectedUpdatedAt:shot.updatedAt}))}>标记中断 · 手动恢复任务</button>}
        {['generated','rejected'].includes(shot.status)&&<button className="btn primary" disabled={busy||state.stale} onClick={()=>decide(shot.id,'approve')}>批准使用</button>}
        {['generated','approved'].includes(shot.status)&&<button className="btn secondary" disabled={busy||state.stale} onClick={()=>decide(shot.id,'reject')}>不采用</button>}
        {shot.asset&&<a className="btn secondary" href={shot.asset.previewUrl} download={`${shot.id}.${shot.asset?.mime==='image/jpeg'?'jpg':shot.asset?.mime==='image/webp'?'webp':shot.asset?.mime==='image/gif'?'gif':'png'}`}>保存图片</a>}
