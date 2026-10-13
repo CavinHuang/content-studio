@@ -179,6 +179,23 @@ export class IllustrationService {
   }catch(e){this.db.prepare("UPDATE article_illustration_shots SET status='failed',error=?,updated_at=? WHERE id=?").run(String(e?.message||'Image generation failed').slice(0,220),now(),shotId);throw e;}
   finally{this.inflight.delete(shotId)}
  }
+ /** Explicitly clear a task abandoned by a process crash; never restart the provider call. */
+ recoverInterrupted(projectId,shotId,{expectedUpdatedAt}={}){
+  const row=this._shot(projectId,shotId);
+  if(row.master_revision!==this._project(projectId).channels.master.document.revision)fail('Source article changed; create a new illustration plan',409);
+  if(row.status!=='generating')fail('Only interrupted generating slots can be recovered',409);
+  if(this.inflight.has(shotId))fail('Image generation is still active in this process',409);
+  if(!expectedUpdatedAt||row.updated_at!==expectedUpdatedAt)fail('Image task changed; reload before recovery',409);
+  const since=Date.parse(row.updated_at);
+  if(!Number.isFinite(since)||Date.now()-since<5*60*1000)fail('Allow at least 5 minutes before marking an image request as interrupted',409);
+  const updated=new Date(Math.max(Date.now(),since+1)).toISOString();
+  this.db.exec('BEGIN IMMEDIATE');try{
+   this.budget.interruptGeneration(projectId,shotId);
+   this.db.prepare("UPDATE article_illustration_shots SET status='failed',error=?,updated_at=? WHERE id=? AND status='generating'").run('Previous generation interrupted. Provider outcome and billing are unknown. Review your provider dashboard before retrying.',updated,shotId);
+   this.db.exec('COMMIT');
+  }catch(e){this.db.exec('ROLLBACK');throw e}
+  return this._present(this._shot(projectId,shotId));
+ }
  async review(projectId,shotId,{allowExternalAI=false}={}){
   const row=this._shot(projectId,shotId),project=this._project(projectId);
   if(row.master_revision!==project.channels.master.document.revision)fail('Article changed; illustration plan is stale',409);
