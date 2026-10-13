@@ -10,8 +10,9 @@ export default function IllustrationStudio(){
  const query=useSearchParams();const [projects,setProjects]=useState([]),[projectId,setProjectId]=useState(''),[channel,setChannel]=useState('wechat');
  const [provider,setProvider]=useState('openai'),[promptEdits,setPromptEdits]=useState({}),[promptPreviews,setPromptPreviews]=useState({}),[editDrafts,setEditDrafts]=useState({}),[feedbackDrafts,setFeedbackDrafts]=useState({});
  const [state,setState]=useState(null),[preview,setPreview]=useState(null),[mapping,setMapping]=useState({}),[consent,setConsent]=useState(false),[reviewConsent,setReviewConsent]=useState(false),[fallback,setFallback]=useState(false),[profileDraft,setProfileDraft]=useState(null),[savedProfiles,setSavedProfiles]=useState([]),[seriesData,setSeriesData]=useState(null),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
+ const [budgetLimit,setBudgetLimit]=useState(12);
  const root=`/api/illustrations/projects/${projectId}`;
- const reload=useCallback(async id=>{if(!id)return;const data=await api(`/api/illustrations/projects/${id}`);setState(data);api(`/api/illustrations/projects/${id}/series`).then(setSeriesData).catch(()=>setSeriesData(null));setProfileDraft(current=>current||{name:data.visualProfile?.name||'',palette:data.visualProfile?.palette||'',mood:data.visualProfile?.mood||'',avoid:data.visualProfile?.avoid||''});setProvider(current=>data.providers?.find(x=>x.id===current&&x.configured)?current:(data.providers?.find(x=>x.configured)?.id||current));},[]);
+ const reload=useCallback(async id=>{if(!id)return;const data=await api(`/api/illustrations/projects/${id}`);setState(data);setBudgetLimit(data.requestBudget?.dailyLimit??12);api(`/api/illustrations/projects/${id}/series`).then(setSeriesData).catch(()=>setSeriesData(null));setProfileDraft(current=>current||{name:data.visualProfile?.name||'',palette:data.visualProfile?.palette||'',mood:data.visualProfile?.mood||'',avoid:data.visualProfile?.avoid||''});setProvider(current=>data.providers?.find(x=>x.id===current&&x.configured)?current:(data.providers?.find(x=>x.configured)?.id||current));},[]);
  useEffect(()=>{api('/api/editor/projects').then(x=>{const ps=x.projects||[];setProjects(ps);api('/api/illustrations/visual-profiles').then(v=>setSavedProfiles(v.profiles||[])).catch(()=>{});const fromQuery=query.get('project');setProjectId(fromQuery&&ps.some(p=>p.id===fromQuery)?fromQuery:ps[0]?.id||'');}).catch(e=>setMessage(e.message))},[query]);
  useEffect(()=>{setPreview(null);setState(null);setSeriesData(null);setPromptEdits({});setPromptPreviews({});setEditDrafts({});setFeedbackDrafts({});setProfileDraft(null);reload(projectId).catch(e=>setMessage(e.message))},[projectId,reload]);
  async function run(task){setBusy(true);setMessage('');try{await task();await reload(projectId)}catch(e){setMessage(e.message)}finally{setBusy(false)}}
@@ -24,6 +25,7 @@ export default function IllustrationStudio(){
  }
  function generationOptions(){const secondary=fallback?(state?.providers||[]).filter(p=>p.configured&&p.id!==provider).slice(0,2).map(p=>p.id):[];return {fallbackProviders:secondary,maxAttempts:secondary.length+1};}
  async function saveProfile(){return run(async()=>{await api(`${root}/visual-profile`,'PUT',{expectedRevision:state.visualProfile.revision,profile:profileDraft});api('/api/illustrations/visual-profiles').then(v=>setSavedProfiles(v.profiles||[])).catch(()=>{});setPromptPreviews({});})}
+ async function saveBudget(){return run(()=>api(`${root}/budget`,'PUT',{expectedRevision:state.requestBudget.revision,dailyLimit:budgetLimit}));}
  async function requestReview(shot){if(!reviewConsent){setMessage('请先单独授权向外部视觉评审模型发送图片。');return;}return run(()=>api(`${root}/shots/${shot.id}/review`,'POST',{allowExternalAI:true}));}
  async function agentPlan(){if(!consent){setMessage('需授权将标题与章节摘要发送给外部文本规划模型。');return;}return run(()=>api(`${root}/agent-plan`,'POST',{expectedMasterRevision:state.sourceRevision,allowExternalAI:true}));}
  async function savePrompt(shot){return run(()=>api(`${root}/shots/${shot.id}/prompt`,'PUT',{expectedUpdatedAt:shot.updatedAt,scene:promptEdits[shot.id]?.scene??shot.scene,style:promptEdits[shot.id]?.style??shot.style,provider}));}
@@ -46,7 +48,7 @@ export default function IllustrationStudio(){
  async function copyProposal(){try{await navigator.clipboard.writeText(preview.markdown);setMessage('含图 Markdown 已复制；请在 doocs/md 中排版，并按 V30 差异审阅导回。')}catch{setMessage('复制被浏览器拦截，请手动选择下方 Markdown。')}}
  return <div className="compose-root"><header className="compose-head"><div><Link href="/" className="compose-brand">◈ Content Studio</Link><span className="compose-divider">/</span>创作 · Agent 自动配图</div><div className="compose-right"><Link className="btn secondary" href={`/compose?project=${encodeURIComponent(projectId)}`}>返回 doocs/md 排版 ↗</Link></div></header>
  <main className="compose-container">
-  <div className="compose-intro"><div><span className="eyebrow">ILLUSTRATION AGENT · V37</span><h1>文章写好，交给 Agent 配图</h1><p>分析主稿 → 统一视觉规范 → 多模型配图与有限回退 → 参考图编辑 → 双图质量对比与作者反馈 → 视觉偏好记忆 → 图片质量辅助评审 → 人工批准 → 素材映射 → doocs/md 排版。图像是概念插画，不是事实证据。</p></div><span className="compose-mode">本地素材库 · 渠道独立</span></div>
+  <div className="compose-intro"><div><span className="eyebrow">ILLUSTRATION AGENT · V38</span><h1>文章写好，交给 Agent 配图</h1><p>分析主稿 → 统一视觉规范 → 多模型配图与有限回退 → 参考图编辑 → 双图质量对比与作者反馈 → 视觉偏好记忆 → 每日模型请求预算 → 图片质量辅助评审 → 人工批准 → 素材映射 → doocs/md 排版。图像是概念插画，不是事实证据。</p></div><span className="compose-mode">本地素材库 · 渠道独立</span></div>
   {message&&<div className="compose-notice" role="status">{message}<button type="button" onClick={()=>setMessage('')}>×</button></div>}
   <div className="illustration-grid">
    <aside className="compose-panel"><div className="compose-panel-title">01 · 选择创作内容</div>
@@ -66,6 +68,12 @@ export default function IllustrationStudio(){
      <button className="btn secondary compose-save" disabled={busy||state.stale} onClick={saveProfile}>保存视觉规范并重新确认图片</button>
     </div>}
     {!!state?.visualMemory?.preferences?.length&&<div className="compose-tip"><strong>作者确认的视觉偏好记忆 · {state.visualMemory.preferences.length} 条</strong><p>这些文字来自你勾选“记住偏好”的候选反馈，仅作用于这篇文章后续配图和修改提示词，不会自动决定采用或发表。</p>{state.visualMemory.preferences.map((item,i)=><p key={i} className="compose-muted">{item.rating==='candidate_better'?'候选更好':item.rating==='reference_better'?'参考图更好':'需要调整'} · {item.note}</p>)}</div>}
+    {state?.requestBudget&&<div className="compose-tip"><strong>外部模型请求预算 · UTC {state.requestBudget.dayUtc}</strong>
+     <p>今日已占用 <b>{state.requestBudget.used}</b> / {state.requestBudget.dailyLimit} 次；剩余 {state.requestBudget.remaining} 次。生成失败、重试、规划及视觉模型调用均可能计费，因此请求一经预留即计入额度。这不是人民币或美元费用估算。</p>
+     {state.requestBudget.reserved>0&&<p className="compose-muted">{state.requestBudget.reserved} 次请求仍标记为处理中（例如进程中断），默认不自动释放。</p>}
+     <label>每日最多允许的模型请求次数（1–100）<input aria-label="每日外部模型请求上限" type="number" min="1" max="100" step="1" value={budgetLimit} onChange={e=>setBudgetLimit(Number(e.target.value))}/></label>
+     <button className="btn secondary compose-save" disabled={busy||!Number.isInteger(budgetLimit)||budgetLimit<1||budgetLimit>100} onClick={saveBudget}>保存每日请求上限</button>
+    </div>}
     <div className="compose-tip"><strong>计划与生成有什么区别？</strong><p>创建计划只在本地分析文章标题、段落，不上传内容。点击“调用图片模型”后，相关标题、章节摘要和提示词才会发给配置的图片服务。</p></div>
     <label className="compose-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/><span>我允许将所选文章的标题与章节摘要发送到配置的外部图片模型。已确认没有需要保密的内容。</span></label>
     <label className="compose-consent"><input type="checkbox" checked={fallback} onChange={e=>setFallback(e.target.checked)}/><span>主模型遇到限流／服务异常时，允许尝试其他已配置供应商（每张图最多 3 次 API 调用；可能产生额外费用）。</span></label>
