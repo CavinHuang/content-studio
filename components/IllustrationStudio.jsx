@@ -8,19 +8,22 @@ const channels={wechat:'微信公众号',zhihu:'知乎'};
 export default function IllustrationStudio(){
  const query=useSearchParams();const [projects,setProjects]=useState([]),[projectId,setProjectId]=useState(''),[channel,setChannel]=useState('wechat');
  const [provider,setProvider]=useState('openai'),[promptEdits,setPromptEdits]=useState({}),[promptPreviews,setPromptPreviews]=useState({});
- const [state,setState]=useState(null),[preview,setPreview]=useState(null),[mapping,setMapping]=useState({}),[consent,setConsent]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
+ const [state,setState]=useState(null),[preview,setPreview]=useState(null),[mapping,setMapping]=useState({}),[consent,setConsent]=useState(false),[reviewConsent,setReviewConsent]=useState(false),[fallback,setFallback]=useState(false),[profileDraft,setProfileDraft]=useState(null),[savedProfiles,setSavedProfiles]=useState([]),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
  const root=`/api/illustrations/projects/${projectId}`;
- const reload=useCallback(async id=>{if(!id)return;const data=await api(`/api/illustrations/projects/${id}`);setState(data);setProvider(current=>data.providers?.find(x=>x.id===current&&x.configured)?current:(data.providers?.find(x=>x.configured)?.id||current));},[]);
- useEffect(()=>{api('/api/editor/projects').then(x=>{const ps=x.projects||[];setProjects(ps);const fromQuery=query.get('project');setProjectId(fromQuery&&ps.some(p=>p.id===fromQuery)?fromQuery:ps[0]?.id||'');}).catch(e=>setMessage(e.message))},[query]);
- useEffect(()=>{setPreview(null);setState(null);setPromptEdits({});setPromptPreviews({});reload(projectId).catch(e=>setMessage(e.message))},[projectId,reload]);
+ const reload=useCallback(async id=>{if(!id)return;const data=await api(`/api/illustrations/projects/${id}`);setState(data);setProfileDraft(current=>current||{name:data.visualProfile?.name||'',palette:data.visualProfile?.palette||'',mood:data.visualProfile?.mood||'',avoid:data.visualProfile?.avoid||''});setProvider(current=>data.providers?.find(x=>x.id===current&&x.configured)?current:(data.providers?.find(x=>x.configured)?.id||current));},[]);
+ useEffect(()=>{api('/api/editor/projects').then(x=>{const ps=x.projects||[];setProjects(ps);api('/api/illustrations/visual-profiles').then(v=>setSavedProfiles(v.profiles||[])).catch(()=>{});const fromQuery=query.get('project');setProjectId(fromQuery&&ps.some(p=>p.id===fromQuery)?fromQuery:ps[0]?.id||'');}).catch(e=>setMessage(e.message))},[query]);
+ useEffect(()=>{setPreview(null);setState(null);setPromptEdits({});setPromptPreviews({});setProfileDraft(null);reload(projectId).catch(e=>setMessage(e.message))},[projectId,reload]);
  async function run(task){setBusy(true);setMessage('');try{await task();await reload(projectId)}catch(e){setMessage(e.message)}finally{setBusy(false)}}
  const current=projects.find(p=>p.id===projectId);
  async function generateAll(){if(!consent){setMessage('先明确同意向已配置的图片模型发送文章标题和章节摘要。');return}
   await run(async()=>{let failures=0;const shots=state?.shots||[];for(const shot of shots.filter(x=>x.status==='planned'||x.status==='failed')){
-   try{await api(`${root}/shots/${shot.id}/generate`,'POST',{allowExternalAI:true,provider})}catch{failures++}
+   try{await api(`${root}/shots/${shot.id}/generate`,'POST',{allowExternalAI:true,provider,...generationOptions()})}catch{failures++}
    await reload(projectId);
   }setMessage(failures?`${failures} 张生成失败，请查看错误后重试。`:'配图生成完成。请逐张审阅并批准，再安排渠道映射。')});
  }
+ function generationOptions(){const secondary=fallback?(state?.providers||[]).filter(p=>p.configured&&p.id!==provider).slice(0,2).map(p=>p.id):[];return {fallbackProviders:secondary,maxAttempts:secondary.length+1};}
+ async function saveProfile(){return run(async()=>{await api(`${root}/visual-profile`,'PUT',{expectedRevision:state.visualProfile.revision,profile:profileDraft});api('/api/illustrations/visual-profiles').then(v=>setSavedProfiles(v.profiles||[])).catch(()=>{});setPromptPreviews({});})}
+ async function requestReview(shot){if(!reviewConsent){setMessage('请先单独授权向外部视觉评审模型发送图片。');return;}return run(()=>api(`${root}/shots/${shot.id}/review`,'POST',{allowExternalAI:true}));}
  async function agentPlan(){if(!consent){setMessage('需授权将标题与章节摘要发送给外部文本规划模型。');return;}return run(()=>api(`${root}/agent-plan`,'POST',{expectedMasterRevision:state.sourceRevision,allowExternalAI:true}));}
  async function savePrompt(shot){return run(()=>api(`${root}/shots/${shot.id}/prompt`,'PUT',{expectedUpdatedAt:shot.updatedAt,scene:promptEdits[shot.id]?.scene??shot.scene,style:promptEdits[shot.id]?.style??shot.style,provider}));}
  async function viewPrompt(shot){setBusy(true);try{const v=await api(`${root}/shots/${shot.id}/prompt-preview?provider=${provider}`);setPromptPreviews(x=>({...x,[shot.id]:v.prompt}));setMessage('已展示该模型实际使用的提示词。');}catch(e){setMessage(e.message)}finally{setBusy(false)}}
@@ -31,7 +34,7 @@ export default function IllustrationStudio(){
  async function copyProposal(){try{await navigator.clipboard.writeText(preview.markdown);setMessage('含图 Markdown 已复制；请在 doocs/md 中排版，并按 V30 差异审阅导回。')}catch{setMessage('复制被浏览器拦截，请手动选择下方 Markdown。')}}
  return <div className="compose-root"><header className="compose-head"><div><Link href="/" className="compose-brand">◈ Content Studio</Link><span className="compose-divider">/</span>创作 · Agent 自动配图</div><div className="compose-right"><Link className="btn secondary" href={`/compose?project=${encodeURIComponent(projectId)}`}>返回 doocs/md 排版 ↗</Link></div></header>
  <main className="compose-container">
-  <div className="compose-intro"><div><span className="eyebrow">ILLUSTRATION AGENT · V33</span><h1>文章写好，交给 Agent 配图</h1><p>分析主稿 → 文本规划 Agent 给出场景与提示词 → 选择图片模型生成 → 人工审阅 → 素材映射 → doocs/md 排版。图像是概念插画，不是事实证据。</p></div><span className="compose-mode">本地素材库 · 渠道独立</span></div>
+  <div className="compose-intro"><div><span className="eyebrow">ILLUSTRATION AGENT · V34</span><h1>文章写好，交给 Agent 配图</h1><p>分析主稿 → 统一视觉规范 → 多模型配图与有限回退 → 图片质量辅助评审 → 人工批准 → 素材映射 → doocs/md 排版。图像是概念插画，不是事实证据。</p></div><span className="compose-mode">本地素材库 · 渠道独立</span></div>
   {message&&<div className="compose-notice" role="status">{message}<button type="button" onClick={()=>setMessage('')}>×</button></div>}
   <div className="illustration-grid">
    <aside className="compose-panel"><div className="compose-panel-title">01 · 选择创作内容</div>
@@ -43,8 +46,16 @@ export default function IllustrationStudio(){
     {state.plannerConfigured&&<button className="btn secondary compose-save" disabled={busy||!consent} onClick={agentPlan}>Agent 重新理解文章并生成视觉方案（外部文本模型）</button>}
     {state.stale&&<p className="compose-danger">文章正文已有变化。必须重新生成配图计划，旧图片会保留，但不自动关联到新文章。</p>}
     </>:<p className="compose-muted">请选择已有文章。</p>}
+    {state?.visualProfile&&profileDraft&&<div className="compose-tip"><strong>系列文章视觉规范 · v{state.visualProfile.revision}</strong>
+     <p>同一篇文章的封面和章节图复用同一套视觉规范。修改后当前计划的旧图将退回待生成；历史记录保留。</p>
+     {!!savedProfiles.filter(x=>x.projectId!==projectId).length&&<label>复用其他文章的视觉规范<select aria-label="从已有文章复用视觉规范" defaultValue="" onChange={e=>{const p=savedProfiles.find(x=>x.projectId===e.target.value);if(p)setProfileDraft({name:p.name,palette:p.palette,mood:p.mood,avoid:p.avoid})}}><option value="">选择已有规范…</option>{savedProfiles.filter(x=>x.projectId!==projectId).map(x=><option key={x.projectId} value={x.projectId}>{x.name} · v{x.revision}</option>)}</select></label>}
+     {[['name','规范名称'],['palette','主要配色'],['mood','画面氛围'],['avoid','禁止元素']].map(([field,label])=><label key={field}>{label}<input value={profileDraft[field]||''} onChange={e=>setProfileDraft(p=>({...p,[field]:e.target.value}))}/></label>)}
+     <button className="btn secondary compose-save" disabled={busy||state.stale} onClick={saveProfile}>保存视觉规范并重新确认图片</button>
+    </div>}
     <div className="compose-tip"><strong>计划与生成有什么区别？</strong><p>创建计划只在本地分析文章标题、段落，不上传内容。点击“调用图片模型”后，相关标题、章节摘要和提示词才会发给配置的图片服务。</p></div>
     <label className="compose-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/><span>我允许将所选文章的标题与章节摘要发送到配置的外部图片模型。已确认没有需要保密的内容。</span></label>
+    <label className="compose-consent"><input type="checkbox" checked={fallback} onChange={e=>setFallback(e.target.checked)}/><span>主模型遇到限流／服务异常时，允许尝试其他已配置供应商（每张图最多 3 次 API 调用；可能产生额外费用）。</span></label>
+    <label className="compose-consent"><input type="checkbox" checked={reviewConsent} onChange={e=>setReviewConsent(e.target.checked)}/><span>额外授权将图片和配图提示词发送给视觉质量评审模型（单独付费调用，不会自动批准发布）。</span></label>
     <p className="compose-muted">图片服务：{state?.providers?.find(p=>p.id===provider)?.configured?`已配置 ${provider}（凭据仅在服务端）`:`${provider} 尚未配置 API Key`}; 文本策划模型：{state?.plannerConfigured?'已配置':'未配置，使用本地规划草案'}</p>
     <button className="btn secondary compose-save" disabled={busy||!state?.plan||state.stale||!consent||!state?.providers?.find(p=>p.id===provider)?.configured||!state.shots.some(s=>['planned','failed'].includes(s.status))} onClick={generateAll}>{busy?'处理中…':'Agent 生成所有待处理配图'}</button>
    </aside>
@@ -57,7 +68,9 @@ export default function IllustrationStudio(){
         {promptPreviews[shot.id]&&<details open><summary>当前模型生成提示词</summary><textarea readOnly rows={5} value={promptPreviews[shot.id]}/></details>}
        </div><details><summary>上次保存/生成的提示词</summary><p>{shot.prompt}</p></details>
       {shot.error&&<p className="compose-danger">{shot.error}</p>}
-      <div className="illustration-actions">{['planned','failed'].includes(shot.status)&&<button className="btn secondary" disabled={busy||!consent||!state?.providers?.find(p=>p.id===provider)?.configured||state.stale} onClick={()=>run(()=>api(`${root}/shots/${shot.id}/generate`,'POST',{allowExternalAI:true,provider}))}>生成图片</button>}
+      {shot.review&&<div className="compose-tip"><strong>质量辅助评审 · {shot.review.kind==='vision'?'视觉模型':'文件校验'}</strong><p>{shot.review.reason||shot.review.issues?.join('；')||'仍需要人工核查'}</p><p>结论：{shot.review.verdict||shot.review.status} · 不能代替人工审核或事实证据</p></div>}
+      {!!shot.attempts?.length&&<details><summary>生成尝试历史 · {shot.attempts.length} 次</summary>{shot.attempts.map((a,i)=><p key={i} className="compose-muted">{a.provider} · {a.result==='success'?'成功':'失败'} · {a.elapsedMs}ms {a.error?'· '+a.error:''}</p>)}</details>}
+      <div className="illustration-actions">{['generated','approved','rejected'].includes(shot.status)&&state.reviewerConfigured&&<button className="btn secondary" disabled={busy||state.stale||!reviewConsent} onClick={()=>requestReview(shot)}>AI 辅助评审图片</button>}{['planned','failed'].includes(shot.status)&&<button className="btn secondary" disabled={busy||!consent||!state?.providers?.find(p=>p.id===provider)?.configured||state.stale} onClick={()=>run(()=>api(`${root}/shots/${shot.id}/generate`,'POST',{allowExternalAI:true,provider,...generationOptions()}))}>生成图片</button>}
        {['generated','rejected'].includes(shot.status)&&<button className="btn primary" disabled={busy||state.stale} onClick={()=>decide(shot.id,'approve')}>批准使用</button>}
        {['generated','approved'].includes(shot.status)&&<button className="btn secondary" disabled={busy||state.stale} onClick={()=>decide(shot.id,'reject')}>不采用</button>}
        {shot.asset&&<a className="btn secondary" href={shot.asset.previewUrl} download={`${shot.id}.${shot.asset?.mime==='image/jpeg'?'jpg':shot.asset?.mime==='image/webp'?'webp':shot.asset?.mime==='image/gif'?'gif':'png'}`}>保存图片</a>}

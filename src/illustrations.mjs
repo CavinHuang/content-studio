@@ -5,6 +5,7 @@ import {randomUUID} from 'node:crypto';
 import {ValidationError} from './verification.mjs';
 import {anyImageProvider,configuredProviders,generateProviderImage} from './image-providers.mjs';
 import {composeImagePrompt,plannerConfigured,planScenesWithModel} from './illustration-agent.mjs';
+import {DEFAULT_VISUAL_PROFILE,validateVisualProfile,localImageCheck,imageQualityConfigured,visionReviewImage} from './visual-quality.mjs';
 
 const fail=(message,status=400)=>{throw new ValidationError(message,status)};
 const now=()=>new Date().toISOString();
@@ -15,14 +16,14 @@ const maxExcerpts=140;
 export function illustrationsConfigured(){return anyImageProvider();}
 // Kept for V32 callers/tests; V33 dispatches to provider-specific implementations.
 export async function requestImageGeneration(prompt,options){return generateProviderImage(prompt,options)}
-function slotPlan(project,doc){
+function slotPlan(project,doc,visualProfile){
  const paragraphs=(doc.paragraphs||[]).filter(x=>normalize(x.text).length>18);
  const indexes=[Math.max(0,Math.floor(paragraphs.length/3)),Math.max(0,Math.floor(paragraphs.length*2/3))];
  const slots=[{role:'cover',paragraphId:'',excerpt:project.title,alt:`${project.title}：概念封面插画`,scene:`Create an editorial metaphor for the central theme of ${normalize(project.title).slice(0,130)}; one visual focus with generous whitespace`,style:'editorial'}];
  for(const index of [...new Set(indexes)]){const p=paragraphs[index];if(!p)continue;const caption=normalize(p.text).slice(0,maxExcerpts);
  slots.push({role:'section',paragraphId:p.id,excerpt:caption,alt:`章节概念配图：${caption.slice(0,40)}`,scene:`An editorial illustration communicating the section's central technical concept: ${caption}`,style:'editorial'});
  }
- return slots.slice(0,3).map((shot,i)=>({...shot,ordinal:i+1,prompt:composeImagePrompt({...shot,title:project.title})}));
+ return slots.slice(0,3).map((shot,i)=>({...shot,ordinal:i+1,prompt:composeImagePrompt({...shot,title:project.title,visualProfile})}));
 }
 export class IllustrationService {
  constructor(store,editorial,assets,generator=requestImageGeneration){this.db=store.db;this.editorial=editorial;this.assets=assets;this.generator=generator;this.inflight=new Set();this.db.exec(`
@@ -30,18 +31,46 @@ export class IllustrationService {
  CREATE INDEX IF NOT EXISTS idx_illustration_plans_project ON article_illustration_plans(project_id,created_at);
  CREATE TABLE IF NOT EXISTS article_illustration_shots(id TEXT PRIMARY KEY,plan_id TEXT NOT NULL,role TEXT NOT NULL,ordinal INTEGER NOT NULL,paragraph_id TEXT NOT NULL,alt TEXT NOT NULL,prompt TEXT NOT NULL,status TEXT NOT NULL,asset_id TEXT NOT NULL DEFAULT '',model TEXT NOT NULL DEFAULT '',error TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
  CREATE INDEX IF NOT EXISTS idx_illustration_shots_plan ON article_illustration_shots(plan_id,ordinal);
+ CREATE TABLE IF NOT EXISTS article_illustration_profiles(project_id TEXT PRIMARY KEY,revision INTEGER NOT NULL,profile_json TEXT NOT NULL,updated_at TEXT NOT NULL);
+ CREATE TABLE IF NOT EXISTS article_illustration_attempts(id TEXT PRIMARY KEY,shot_id TEXT NOT NULL,provider TEXT NOT NULL,model TEXT NOT NULL,result TEXT NOT NULL,elapsed_ms INTEGER NOT NULL,error TEXT NOT NULL,created_at TEXT NOT NULL);
+ CREATE INDEX IF NOT EXISTS idx_illustration_attempts_shot ON article_illustration_attempts(shot_id,created_at);
+
  `);
  const fields=this.db.prepare('PRAGMA table_info(article_illustration_shots)').all().map(x=>x.name);
- for(const [name,type] of [['scene',"TEXT NOT NULL DEFAULT ''"],['style',"TEXT NOT NULL DEFAULT 'editorial'"],['provider',"TEXT NOT NULL DEFAULT ''"]])if(!fields.includes(name))this.db.exec(`ALTER TABLE article_illustration_shots ADD COLUMN ${name} ${type}`);
+ for(const [name,type] of [['scene',"TEXT NOT NULL DEFAULT ''"],['style',"TEXT NOT NULL DEFAULT 'editorial'"],['provider',"TEXT NOT NULL DEFAULT ''"],['review_json',"TEXT NOT NULL DEFAULT ''"]])if(!fields.includes(name))this.db.exec(`ALTER TABLE article_illustration_shots ADD COLUMN ${name} ${type}`);
+ }
+ visualProfiles(){return this.db.prepare('SELECT project_id,revision,profile_json FROM article_illustration_profiles ORDER BY rowid DESC LIMIT 50').all().map(row=>({projectId:row.project_id,revision:row.revision,...JSON.parse(row.profile_json)}));}
+ visualProfile(projectId){this._project(projectId);const row=this.db.prepare('SELECT * FROM article_illustration_profiles WHERE project_id=?').get(projectId);return row?{...JSON.parse(row.profile_json),revision:row.revision,updatedAt:row.updated_at}:{...DEFAULT_VISUAL_PROFILE,revision:0,updatedAt:null};}
+ setVisualProfile(projectId,{expectedRevision,profile}={}){
+  const before=this.visualProfile(projectId);if(!Number.isInteger(expectedRevision)||before.revision!==expectedRevision)fail('Visual style changed; reload before updating',409);
+  const value=validateVisualProfile(profile),time=now();
+  if(this.inflight.size){const shots=this._latest(projectId);if(shots&&this.db.prepare("SELECT 1 FROM article_illustration_shots WHERE plan_id=? AND status='generating' LIMIT 1").get(shots.id))fail('Cannot change visual profile while generating images',409);}
+  this.db.exec('BEGIN IMMEDIATE');try{
+   this.db.prepare('INSERT INTO article_illustration_profiles VALUES(?,?,?,?) ON CONFLICT(project_id) DO UPDATE SET revision=excluded.revision,profile_json=excluded.profile_json,updated_at=excluded.updated_at').run(projectId,expectedRevision+1,JSON.stringify(value),time);
+   const plan=this._latest(projectId);if(plan){
+    const project=this._project(projectId),visualProfile={...value,revision:expectedRevision+1};
+    for(const row of this.db.prepare('SELECT * FROM article_illustration_shots WHERE plan_id=?').all(plan.id)){
+     const fresh=composeImagePrompt({title:project.title,role:row.role,scene:row.scene,style:row.style,visualProfile});
+     const changedAt=new Date(Math.max(Date.now(),Date.parse(row.updated_at)+1)).toISOString();
+     this.db.prepare("UPDATE article_illustration_shots SET status='planned',asset_id='',model='',provider='',error='',review_json='',prompt=?,updated_at=? WHERE id=?").run(fresh,changedAt,row.id);
+    }
+   }
+   this.db.exec('COMMIT');
+  }catch(e){this.db.exec('ROLLBACK');throw e}
+  return this.get(projectId);
+ }
+ attempts(projectId,shotId){this._shot(projectId,shotId);return this.db.prepare('SELECT provider,model,result,elapsed_ms AS elapsedMs,error,created_at AS createdAt FROM article_illustration_attempts WHERE shot_id=? ORDER BY rowid').all(shotId);}
+ _attempt(shotId,provider,result,elapsed,model='',error=''){
+  this.db.prepare('INSERT INTO article_illustration_attempts VALUES(?,?,?,?,?,?,?,?)').run('ia_'+randomUUID(),shotId,provider,String(model).slice(0,100),result,Math.max(0,Math.round(elapsed)),String(error).slice(0,160),now());
  }
  _project(projectId){return this.editorial.get(projectId);}
  _latest(projectId){return this.db.prepare('SELECT * FROM article_illustration_plans WHERE project_id=? ORDER BY rowid DESC LIMIT 1').get(projectId);}
  _shot(projectId,id){const row=this.db.prepare('SELECT s.*,p.project_id,p.master_revision FROM article_illustration_shots s JOIN article_illustration_plans p ON p.id=s.plan_id WHERE s.id=? AND p.project_id=?').get(id,projectId);if(!row)fail('Illustration task not found',404);return row;}
- _present(row){return {id:row.id,role:row.role,ordinal:row.ordinal,paragraphId:row.paragraph_id,alt:row.alt,prompt:row.prompt,status:row.status,assetId:row.asset_id||null,asset:row.asset_id?this.assets.get(row.asset_id):null,model:row.model||null,provider:row.provider||null,scene:row.scene||'',style:row.style||'editorial',error:row.error||null,updatedAt:row.updated_at};}
+ _present(row){return {id:row.id,role:row.role,ordinal:row.ordinal,paragraphId:row.paragraph_id,alt:row.alt,prompt:row.prompt,status:row.status,assetId:row.asset_id||null,asset:row.asset_id?this.assets.get(row.asset_id):null,model:row.model||null,provider:row.provider||null,scene:row.scene||'',style:row.style||'editorial',error:row.error||null,review:row.review_json?JSON.parse(row.review_json):null,attempts:this.attempts(row.project_id||this.db.prepare('SELECT project_id FROM article_illustration_plans WHERE id=?').get(row.plan_id).project_id,row.id),updatedAt:row.updated_at};}
  get(projectId){const project=this._project(projectId),plan=this._latest(projectId),revision=project.channels.master.document.revision;
-  if(!plan)return {projectId,title:project.title,sourceRevision:revision,plan:null,stale:false,shots:[],configured:illustrationsConfigured(),providers:configuredProviders(),plannerConfigured:plannerConfigured(),requiresConsent:true};
+  if(!plan)return {projectId,title:project.title,sourceRevision:revision,visualProfile:this.visualProfile(projectId),reviewerConfigured:imageQualityConfigured(),plan:null,stale:false,shots:[],configured:illustrationsConfigured(),providers:configuredProviders(),plannerConfigured:plannerConfigured(),requiresConsent:true};
   const rows=this.db.prepare('SELECT * FROM article_illustration_shots WHERE plan_id=? ORDER BY ordinal').all(plan.id);
-  return {projectId,title:project.title,sourceRevision:revision,plan:{id:plan.id,masterRevision:plan.master_revision,createdAt:plan.created_at},stale:plan.master_revision!==revision,shots:rows.map(x=>this._present(x)),configured:illustrationsConfigured(),providers:configuredProviders(),plannerConfigured:plannerConfigured(),requiresConsent:true};
+  return {projectId,title:project.title,sourceRevision:revision,visualProfile:this.visualProfile(projectId),reviewerConfigured:imageQualityConfigured(),plan:{id:plan.id,masterRevision:plan.master_revision,createdAt:plan.created_at},stale:plan.master_revision!==revision,shots:rows.map(x=>this._present(x)),configured:illustrationsConfigured(),providers:configuredProviders(),plannerConfigured:plannerConfigured(),requiresConsent:true};
  }
  _insertPlan(projectId,doc,slots){const id='ip_'+randomUUID(),time=now();
   this.db.exec('BEGIN IMMEDIATE');try{
@@ -53,20 +82,20 @@ export class IllustrationService {
  }
  plan(projectId,{expectedMasterRevision}={}){const project=this._project(projectId),doc=project.channels.master.document;
   if(!Number.isInteger(expectedMasterRevision)||expectedMasterRevision!==doc.revision)fail('Article changed; reload before creating illustration plan',409);
-  return this._insertPlan(projectId,doc,slotPlan(project,doc));
+  return this._insertPlan(projectId,doc,slotPlan(project,doc,this.visualProfile(projectId)));
  }
  async agentPlan(projectId,{expectedMasterRevision,allowExternalAI=false}={}){
   if(!allowExternalAI)fail('Explicit consent required before sending excerpts to a planning model',403);
   const project=this._project(projectId),doc=project.channels.master.document;
   if(!Number.isInteger(expectedMasterRevision)||expectedMasterRevision!==doc.revision)fail('Article changed; reload before planning illustrations',409);
-  const original=slotPlan(project,doc),scenes=await planScenesWithModel(project,doc,original);
+  const original=slotPlan(project,doc,this.visualProfile(projectId)),scenes=await planScenesWithModel(project,doc,original);
   if(this._project(projectId).channels.master.document.revision!==doc.revision)fail('Article changed while planning illustrations',409);
-  return this._insertPlan(projectId,doc,original.map((slot,i)=>({...slot,...scenes[i],prompt:composeImagePrompt({...slot,...scenes[i],title:project.title})})));
+  return this._insertPlan(projectId,doc,original.map((slot,i)=>({...slot,...scenes[i],prompt:composeImagePrompt({...slot,...scenes[i],title:project.title,visualProfile:this.visualProfile(projectId)})})));
  }
  previewPrompt(projectId,shotId,provider='openai'){
   const row=this._shot(projectId,shotId),project=this._project(projectId);
-  const source=slotPlan(project,project.channels.master.document).find(x=>x.role===row.role&&x.paragraphId===row.paragraph_id);
-  return {provider,role:row.role,style:row.style||'editorial',prompt:composeImagePrompt({title:project.title,role:row.role,scene:row.scene||row.prompt,style:row.style||'editorial',excerpt:source?.excerpt||'',provider}),sourceRevision:row.master_revision,stale:row.master_revision!==project.channels.master.document.revision};
+  const source=slotPlan(project,project.channels.master.document,this.visualProfile(projectId)).find(x=>x.role===row.role&&x.paragraphId===row.paragraph_id);
+  return {provider,role:row.role,style:row.style||'editorial',prompt:composeImagePrompt({title:project.title,role:row.role,scene:row.scene||row.prompt,style:row.style||'editorial',excerpt:source?.excerpt||'',provider,visualProfile:this.visualProfile(projectId)}),sourceRevision:row.master_revision,stale:row.master_revision!==project.channels.master.document.revision};
  }
  editPrompt(projectId,shotId,{expectedUpdatedAt,scene,style='editorial',provider='openai'}={}){
   const row=this._shot(projectId,shotId),project=this._project(projectId);
@@ -74,29 +103,63 @@ export class IllustrationService {
   if(typeof expectedUpdatedAt!=='string'||row.updated_at!==expectedUpdatedAt)fail('Illustration prompt changed; reload before editing',409);
   if(row.status==='generating')fail('Cannot edit while generating image',409);
   if(typeof scene!=='string'||scene.trim().length<12||scene.length>800)fail('Visual scene must be 12-800 characters');
-  const source=slotPlan(project,project.channels.master.document).find(x=>x.role===row.role&&x.paragraphId===row.paragraph_id);
-  const prompt=composeImagePrompt({title:project.title,role:row.role,excerpt:source?.excerpt||'',scene,style,provider});
+  const source=slotPlan(project,project.channels.master.document,this.visualProfile(projectId)).find(x=>x.role===row.role&&x.paragraphId===row.paragraph_id);
+  const prompt=composeImagePrompt({title:project.title,role:row.role,excerpt:source?.excerpt||'',scene,style,provider,visualProfile:this.visualProfile(projectId)});
   const updated=new Date(Math.max(Date.now(),Date.parse(row.updated_at)+1)).toISOString();
-  this.db.prepare("UPDATE article_illustration_shots SET scene=?,style=?,prompt=?,asset_id='',model='',provider='',status='planned',error='',updated_at=? WHERE id=?").run(scene.trim(),style,prompt,updated,shotId);
+  this.db.prepare("UPDATE article_illustration_shots SET scene=?,style=?,prompt=?,asset_id='',model='',provider='',status='planned',error='',review_json='',updated_at=? WHERE id=?").run(scene.trim(),style,prompt,updated,shotId);
   return this._present(this._shot(projectId,shotId));
  }
- async generate(projectId,shotId,{allowExternalAI=false,provider='openai'}={}){
+ async generate(projectId,shotId,{allowExternalAI=false,provider='openai',fallbackProviders=[],maxAttempts=1}={}){
   const row=this._shot(projectId,shotId),project=this._project(projectId);
   if(row.master_revision!==project.channels.master.document.revision)fail('Article changed; illustration plan is stale',409);
-  if(!allowExternalAI)fail('Explicit consent required before sending a contextual image prompt to the configured provider',403);
+  if(!allowExternalAI)fail('Explicit consent required before sending a contextual image prompt to a configured image provider',403);
   if(!['planned','failed'].includes(row.status))fail('Only planned or failed images can be generated',409);
+  if(!['openai','gemini','qwen'].includes(provider))fail('Unsupported image provider');
+  if(!Array.isArray(fallbackProviders)||fallbackProviders.length>2||fallbackProviders.some(x=>!['openai','gemini','qwen'].includes(x)))fail('Invalid fallback provider list');
+  if(!Number.isInteger(maxAttempts)||maxAttempts<1||maxAttempts>3)fail('maxAttempts must be 1-3');
+  const choices=[...new Set([provider,...fallbackProviders])].slice(0,maxAttempts);
+  // Explicit configured provider selection. A custom test generator can be injected without real keys.
+  if(this.generator===requestImageGeneration){const ready=new Set(configuredProviders().filter(x=>x.configured).map(x=>x.id));if(choices.some(x=>!ready.has(x)))fail('One or more image providers are not configured',503);}
   if(this.inflight.has(shotId))fail('Image generation is already in progress',409);
-  this.inflight.add(shotId);
-  this.db.prepare("UPDATE article_illustration_shots SET status='generating',error='',updated_at=? WHERE id=?").run(now(),shotId);
+  this.inflight.add(shotId);this.db.prepare("UPDATE article_illustration_shots SET status='generating',error='',review_json='',updated_at=? WHERE id=?").run(now(),shotId);
   try{
-   const response=await this.generator(composeImagePrompt({title:project.title,role:row.role,scene:row.scene||row.prompt,style:row.style||'editorial',provider}),{provider,role:row.role});
-   if(this._project(projectId).channels.master.document.revision!==row.master_revision)fail('Article changed during image generation; renew the illustration plan',409);
-   const head=Buffer.from(response.base64.slice(0,24),'base64');const extension=head[0]===0xff&&head[1]===0xd8?'jpg':head.toString('ascii',0,4)==='RIFF'?'webp':'png';
-   const asset=this.assets.upload({name:`article-${row.role}-${row.ordinal}.${extension}`,alt:row.alt,base64:response.base64});
-   this.db.prepare("UPDATE article_illustration_shots SET status='generated',asset_id=?,model=?,provider=?,prompt=?,updated_at=? WHERE id=?").run(asset.id,String(response.model||'configured-image-provider').slice(0,100),response.provider||provider,composeImagePrompt({title:project.title,role:row.role,scene:row.scene||row.prompt,style:row.style||'editorial',provider}),now(),shotId);
-   return this._present(this._shot(projectId,shotId));
+   let lastError=null;
+   for(let i=0;i<choices.length;i++){
+    const current=choices[i],start=Date.now();
+    try{
+     const prompt=composeImagePrompt({title:project.title,role:row.role,scene:row.scene||row.prompt,style:row.style||'editorial',provider:current,visualProfile:this.visualProfile(projectId)});
+     const response=await this.generator(prompt,{provider:current,role:row.role});
+     if(this._project(projectId).channels.master.document.revision!==row.master_revision)fail('Article changed during image generation; renew the illustration plan',409);
+     if(!response?.base64||typeof response.base64!=='string')fail('Image provider returned invalid image data',502);
+     const head=Buffer.from(response.base64.slice(0,24),'base64');const extension=head[0]===0xff&&head[1]===0xd8?'jpg':head.toString('ascii',0,4)==='RIFF'?'webp':'png';
+     const asset=this.assets.upload({name:`article-${row.role}-${row.ordinal}.${extension}`,alt:row.alt,base64:response.base64});
+     this._attempt(shotId,current,'success',Date.now()-start,response.model||'', '');
+     this.db.prepare("UPDATE article_illustration_shots SET status='generated',asset_id=?,model=?,provider=?,prompt=?,review_json=?,updated_at=? WHERE id=?").run(asset.id,String(response.model||'configured-image-provider').slice(0,100),response.provider||current,prompt,JSON.stringify({...localImageCheck(asset),advisoryOnly:true,kind:'local',checkedAt:now()}),now(),shotId);
+     return this._present(this._shot(projectId,shotId));
+    }catch(e){lastError=e;
+     const safeError=String(e?.message||'Image generation failed').slice(0,160).replace(/(Bearer\s+)[^\s]+/gi,'$1[redacted]');
+     this._attempt(shotId,current,'failed',Date.now()-start,'',safeError);
+     // Only retry transient provider/network responses, never invalid image or stale source.
+     if(![429,502,503,504].includes(Number(e?.status))||/Article changed|invalid image data|Unsupported image bytes|Invalid PNG/.test(safeError))break;
+    }
+   }
+   throw lastError||new Error('Image generation failed');
   }catch(e){this.db.prepare("UPDATE article_illustration_shots SET status='failed',error=?,updated_at=? WHERE id=?").run(String(e?.message||'Image generation failed').slice(0,220),now(),shotId);throw e;}
   finally{this.inflight.delete(shotId)}
+ }
+ async review(projectId,shotId,{allowExternalAI=false}={}){
+  const row=this._shot(projectId,shotId),project=this._project(projectId);
+  if(row.master_revision!==project.channels.master.document.revision)fail('Article changed; illustration plan is stale',409);
+  if(!['generated','approved','rejected'].includes(row.status)||!row.asset_id)fail('Generate an image before requesting quality review',409);
+  if(!allowExternalAI)fail('Explicit image-sharing consent required for vision review',403);
+  if(!imageQualityConfigured())fail('Vision reviewer is not configured',503);
+  const asset=this.assets.get(row.asset_id),data=this.assets.preview(row.asset_id);
+  const result=await visionReviewImage({asset,body:data.body,prompt:row.prompt,profile:this.visualProfile(projectId)});
+  const current=this._shot(projectId,shotId);
+  if(current.asset_id!==row.asset_id||current.updated_at!==row.updated_at)fail('Image changed while being reviewed; reload first',409);
+  const recorded={...result,kind:'vision',checkedAt:now()};
+  this.db.prepare("UPDATE article_illustration_shots SET review_json=?,status='generated' WHERE id=?").run(JSON.stringify(recorded),shotId);
+  return this._present(this._shot(projectId,shotId));
  }
  decide(projectId,shotId,{decision}={}){
   const row=this._shot(projectId,shotId),project=this._project(projectId);

@@ -138,3 +138,13 @@ docker compose -f docker-compose.doocs.yml up -d
 ### V33 · 多供应商图片 Agent 与提示词设计
 
 `/illustrations` 已支持按张选择 OpenAI GPT Image、Google Nano Banana 或 Qwen Image，逐张预览该供应商最终 Prompt、编辑视觉场景和风格，以及可选的文本规划模型来改写配图方案。外部调用需手动授权；图片返回本地私有素材库，不会被直接发布。详见 [V33 Agent 实现契约](docs/V33-ILLUSTRATION-AGENT.md) 与 `.env.example`。
+
+## V34 · 视觉规范、图片质量辅助评审、显式多模型回退
+
+`/illustrations` 新增每篇文章的视觉规范（支持从其他文章显式复制风格），封面与章节图共用画面配色和氛围。修改规范会使旧配图退回待生成，**不会继续沿用旧图批准**。
+
+生成失败时可由作者自行勾选“有限多模型回退”：最多尝试 3 个已配置、互不重复的供应商；只对限流/临时服务故障尝试下一个，生成尝试记录可在配图卡片展开查看。每次 API 调用可能产生费用。
+
+增加单独授权的图片评审：上传本地已生成图像到配置的视觉理解模型，获得 `looks_consistent`、`needs_revision` 或 `uncertain` **建议**；不会自动批准图片或确认事实、版权和真实平台效果。未配置模型时仍可人工审阅。
+
+新增可选服务端环境变量 `CONTENT_IMAGE_REVIEW_BASE_URL`、`CONTENT_IMAGE_REVIEW_MODEL`、`CONTENT_IMAGE_REVIEW_API_KEY`；必须使用支持视觉消息的 OpenAI-compatible Chat Completions 服务，**不等同于 Nano Banana 的生成图接口**。详见 [V34 工程契约](docs/V34-VISUAL-CONSISTENCY-REVIEW.md)。
