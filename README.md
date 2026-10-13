@@ -1,4 +1,4 @@
-# Content Studio · Next.js 首版迁移（V28）
+# Content Studio · Next.js + doocs/md（V29）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
