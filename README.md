@@ -52,7 +52,7 @@ npm start
 |---|---|---|---|
 | 今日、全局导航 | 已迁移 | 状态 / 文章 / 研究 | 本地状态 |
 | 信息源与事件发现 | 已迁移 | 实时同步 / 事件 / Brief | 外部连通性待验收 |
-| 统一文章编辑 | 已迁移：段落编辑、保存、版本切换 | SQLite 版本和冲突检查 | 富文本块待迁移 |
+| 统一文章编辑 | 主创作入口为 /compose；/editor 负责证据和复核 | SQLite 版本和冲突检查 | 富文本块待迁移 |
 | 双渠道审核 / 导出 | 已迁移 | 四项审核 / 快照 / URL 报告 | 平台不自动发布 |
 | 复盘与知识总览 | 已迁移总览 | 验证 / 知识 / 反馈 | 深度操作可打开兼容页 |
 | 精准证据锚点与更正 | 保留兼容页 | V26/V27 APIs 不变 | 原生 Next 交互尚待接入 |
@@ -70,11 +70,9 @@ npm run build      # Next.js 构建（需要 npm 安装依赖）
 
 注意：本次交付环境无法解析 `registry.npmjs.org`，所以无法安装 Next/React 包，**尚未执行真实 Next.js build 或浏览器渲染测试**。已经执行并通过的是 Node 领域服务、Route Handler 核心请求调度的自动化测试；首次联机后必须按 `docs/QA.md` 做 Next 浏览器验收。
 
-## GitHub 仓库和协作
+## GitHub 推送
 
-主仓库：[CavinHuang/content-studio](https://github.com/CavinHuang/content-studio)，`main` 是稳定主线。新功能通过独立分支和 Pull Request 评审后再合并。
-
-当前仓库是 **Public**。不要将个人 SQLite、私密研究素材、读者私信或 API Key 提交到公开仓库；当前工程为本地单用户实验版，不能直接公开部署。
+GitHub 连接的身份为 `CavinHuang`，目标仓库 `CavinHuang/content-studio`。远程仓库现已创建且 V29 全量源码已提交到 `main`：https://github.com/CavinHuang/content-studio 。后续功能开发使用独立分支 + Pull Request，避免未经评审直接覆盖主分支。当前仓库公开，不能把任何个人数据、SQLite 或密钥提交到 GitHub。
 
 ## 工程交接
 
@@ -106,14 +104,33 @@ docker compose -f docker-compose.doocs.yml up -d
 
 这一版是 **独立排版器交接集成**；不意味着 doocs/md 已作为 React 组件内嵌或支持全自动回存。
 
-## V30 — 导回差异审阅
 
-在 `/compose` 中从 doocs/md 导入 .md，先点击「检查导回内容与原文差异」，审阅正文改写、重排、链接和证据风险。内容改变时必须确认才可保存新排版修订；旧审核结果失效。
+## V30 · 排版 Markdown 导回前差异审阅
 
-参阅 [V30 技术契约](docs/V30-ROUNDTRIP-REVIEW.md) 与 [QA](docs/V30-QA.md)。Next.js 正式构建及微信/知乎真实后台兼容仍待联网验收。
+- 进入 `/compose`，选择渠道稿，在 doocs/md 中排版，导回 `.md` 或手动粘贴。
+- **先点击「检查导回内容与原文差异」**：服务端返回未匹配的原文段落、新增/改变的 Markdown 块、链接与图片地址、原句重排和现有证据的待核对状态。
+- 文字变化时作者需逐项检查并勾选确认，然后保存新的渠道布局版本。没有服务端审阅令牌的变更提交会被拒绝（409）。
+- 每次导回的审阅摘要保存到 `editorial_layout_review_history` 并关联不可变 `editorial_layout_history`，供日后追溯。
+- 即使文字完全一致，证据和事实也**不会自动认证**。旧渠道的事实／隐私／引用权利／布局检查在任何导回后失效，且不会自动向平台发布。
+- 这一分析是保守的文本比对，**不是完整 Markdown AST 或事实核查器**。复杂排版可能出现误报；图片、外链变化需要人工核对；复制到真实微信公众号/知乎的排版兼容尚未验收。
 
-GitHub 主仓库：[CavinHuang/content-studio](https://github.com/CavinHuang/content-studio)。后续改动通过开发分支与 PR 评审，严禁提交私有数据和密钥。
+参阅 `docs/V30-ROUNDTRIP-REVIEW.md`。
 
-## V31 渠道排版预检
+## V31 · 排版渠道兼容性预检（继续基于 doocs/md）
 
-在 `/compose` 导回 Markdown 后执行静态兼容检查：本地图片、危险 URL 和未闭合代码围栏阻止保存；表格、代码及远程图片必须在真实微信／知乎后台人工验证。可导出带稿件哈希的自报测试记录（JSON），不会自动视作平台验证或已发表。参见 `docs/V31-COMPATIBILITY.md`。
+- 在 `/compose` 导回 doocs Markdown 后，V30 内容差异与 V31 兼容检查一并展示。
+- 本地图片、动态 HTML、危险 URL、未闭合代码围栏会阻断**存档该渠道新版本**，即使作者已勾选其他确认项。
+- 表格、代码、引用、外部图片不被假定为“复制到微信/知乎一定可用”，而是需要人工到真实平台测试。
+- 可下载每渠道独立的人工测试记录 JSON，注明内容哈希及证据。实际测试尚未执行。
+- 测试：`node --test test/markdown-compat.test.mjs`，详见 `docs/V31-COMPATIBILITY.md`、`docs/fixtures/`。
+
+## V32 · 写完文章后由 Agent 自动配图
+
+进入 `/compose` 点击「Agent 自动配图」，或直接访问 `/illustrations?project=<project-id>`。
+
+- **生成计划（离线）**：依据当前主稿生成封面和最多两张章节概念插画的提示词，不会发送数据到模型。
+- **模型生成（可选，真实生成）**：配置 `.env.local` 中的 `CONTENT_IMAGE_API_BASE_URL`、`CONTENT_IMAGE_API_KEY`、`CONTENT_IMAGE_MODEL` 后，由作者明确勾选发送摘要的授权，逐张调用图像模型并保存在本地素材库。未配置时不能生成图片，不会出现伪造结果。
+- **人工批准与跨渠道映射**：作者选定图片，为公众号、知乎分别登记在 doocs/md／目标平台手动上传后的 HTTPS 地址；平台是否转存成功必须实测。
+- **生成带图 Markdown 提案**：只能安全插入确切定位的已批准配图，缺失 URL 或找不到段落时明确显示未完成；不会覆盖正式渠道稿，仍须 V30 差异审阅及 V31 平台检查。
+
+详见 [`docs/V32-AUTO-ILLUSTRATION.md`](docs/V32-AUTO-ILLUSTRATION.md)。**AI 概念插画不能充当研究证据**，模型生成、素材复制和外部发布均不自动完成事实验证。
