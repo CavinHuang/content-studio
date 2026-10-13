@@ -4,6 +4,10 @@
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
 
+## V35 · 参考图编辑与候选对比
+
+`/illustrations` 增加独立的参考图编辑流程：选择当前配图或同配图位候选图、填写修改指令、通过 OpenAI / Nano Banana / Qwen 编辑接口生成**新候选**，保留原图并进行人工取舍。选择候选后不自动批准，新图不会继承旧素材的平台映射。每次编辑单独授权、单次 API 调用，无隐式回退。参见 `docs/V35-REFERENCE-EDITING.md`。
+
 ## 技术栈
 
 - **Next.js 16.2 系列 / React 19 / App Router**。新页面使用原生 React 组件和响应式 CSS，不是旧 HTML iframe。

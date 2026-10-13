@@ -59,3 +59,11 @@
 @media(max-width:1200px){.illustration-grid{grid-template-columns:240px minmax(0,1fr)}.illustration-grid>aside:last-child{grid-column:2}}
 @media(max-width:800px){.illustration-grid{grid-template-columns:1fr}.illustration-grid>aside:last-child{grid-column:auto}.illustration-shot{grid-template-columns:125px minmax(0,1fr)}.illustration-shot-art{height:125px}}
 @media(max-width:490px){.illustration-shot{display:block}.illustration-shot-art{height:165px;margin-bottom:14px}}
+
+/* V35 candidate comparison, intentionally secondary to writing UI */
+.illustration-candidate-list {display:grid;gap:12px;margin-top:14px;}
+.illustration-candidate {display:grid;grid-template-columns:minmax(92px,160px) 1fr;gap:14px;padding:12px;border:1px solid var(--line,#e1e5e1);border-radius:12px;background:#fafbf9;align-items:start;}
+.illustration-candidate img {width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;}
+.illustration-candidate strong {display:block;margin-bottom:8px;font-size:13px;}
+.illustration-candidate p {overflow-wrap:anywhere;}
+@media(max-width:640px){.illustration-candidate{grid-template-columns:1fr;}.illustration-candidate img{max-height:240px;}}

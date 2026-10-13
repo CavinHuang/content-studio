@@ -56,3 +56,40 @@ export async function generateProviderImage(prompt,{provider='openai',role='sect
  if(!url)bad('Qwen returned neither image bytes nor download URL',502);
  return {base64:await qwenDownload(url),model:config.model,provider};
 }
+
+
+/** V35 reference-driven editing: input is a local approved/generated image's bytes.
+ * Provider protocols differ; Qwen uses generations.image rather than /images/edits.
+ * One explicit API call only, no implicit provider fallback or automatic promotion.
+ */
+export async function editProviderImage(prompt,{provider='openai',role='section',referenceBytes,referenceMime}={}){
+ if(!['openai','gemini','qwen'].includes(provider))bad('Unsupported image edit provider');
+ const config=settings()[provider];if(!config?.key||!config.model)bad(`${provider} image provider is not configured`,503);
+ if(typeof prompt!=='string'||prompt.trim().length<12||prompt.length>12000)bad('Image edit prompt must be 12-12000 characters');
+ const bytes=Buffer.isBuffer(referenceBytes)?referenceBytes:Buffer.from(referenceBytes||[]);
+ if(bytes.length<24||bytes.length>MAX_IMAGE||!['image/png','image/jpeg','image/webp'].includes(referenceMime))bad('Reference must be a supported local image (PNG/JPEG/WebP, <=6 MiB)',422);
+ const prefix=referenceMime==='image/png'?bytes.subarray(0,8).equals(Buffer.from('89504e470d0a1a0a','hex')):referenceMime==='image/jpeg'?bytes.subarray(0,3).equals(Buffer.from('ffd8ff','hex')):bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP';
+ if(!prefix)bad('Reference image MIME does not match bytes',422);
+ if(provider==='openai'){
+  const url=endpoint(config.url,'images/edits');const form=new FormData();form.append('model',config.model);form.append('prompt',prompt);form.append('n','1');
+  const ext={ 'image/png':'png','image/jpeg':'jpg','image/webp':'webp' }[referenceMime];
+  form.append('image',new Blob([bytes],{type:referenceMime}),`reference.${ext}`);
+  let response;try{response=await fetch(url,{method:'POST',headers:{authorization:`Bearer ${config.key}`},body:form,signal:AbortSignal.timeout(180000),redirect:'error'})}catch{bad('Image edit provider request failed or timed out',502)}
+  if(!response.ok)bad(`Image edit provider HTTP ${response.status}`,response.status===429?429:502);
+  let result;try{result=JSON.parse((await boundedResponse(response)).toString('utf8'))}catch(e){if(e instanceof ValidationError)throw e;bad('Image edit provider returned invalid JSON',502)}
+  if(!result?.data?.[0]?.b64_json)bad('OpenAI edit returned no image bytes',502);
+  return {base64:decode(result.data[0].b64_json),provider,model:config.model};
+ }
+ const imageData=bytes.toString('base64');
+ if(provider==='gemini'){
+  const result=await callJson(endpoint(config.url,`models/${encodeURIComponent(config.model)}:generateContent`),{'x-goog-api-key':config.key},{contents:[{role:'user',parts:[{text:prompt},{inlineData:{mimeType:referenceMime,data:imageData}}]}],generationConfig:{responseModalities:['IMAGE'],imageConfig:{aspectRatio:role==='cover'?'16:9':'3:2'}}});
+  const parts=result?.candidates?.[0]?.content?.parts||[];const out=parts.find(p=>!p.thought&&p.inlineData?.data&&p.inlineData.mimeType?.startsWith('image/'))?.inlineData.data;
+  if(!out)bad('Nano Banana edit returned no image bytes',502);
+  return {base64:decode(out),provider,model:config.model};
+ }
+ // Qwen 3.0 I2I documents the image extension on images/generations.
+ const result=await callJson(endpoint(config.url,'images/generations'),{authorization:`Bearer ${config.key}`},{model:config.model,prompt,image:`data:${referenceMime};base64,${imageData}`,n:1},600000);
+ if(result?.data?.[0]?.b64_json)return {base64:decode(result.data[0].b64_json),provider,model:config.model};
+ if(!result?.data?.[0]?.url)bad('Qwen edit returned no image URL or bytes',502);
+ return {base64:await qwenDownload(result.data[0].url),provider,model:config.model};
+}

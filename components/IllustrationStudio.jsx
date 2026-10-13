@@ -7,12 +7,12 @@ async function api(path,method='GET',data){const r=await fetch(path,{method,cach
 const channels={wechat:'微信公众号',zhihu:'知乎'};
 export default function IllustrationStudio(){
  const query=useSearchParams();const [projects,setProjects]=useState([]),[projectId,setProjectId]=useState(''),[channel,setChannel]=useState('wechat');
- const [provider,setProvider]=useState('openai'),[promptEdits,setPromptEdits]=useState({}),[promptPreviews,setPromptPreviews]=useState({});
+ const [provider,setProvider]=useState('openai'),[promptEdits,setPromptEdits]=useState({}),[promptPreviews,setPromptPreviews]=useState({}),[editDrafts,setEditDrafts]=useState({});
  const [state,setState]=useState(null),[preview,setPreview]=useState(null),[mapping,setMapping]=useState({}),[consent,setConsent]=useState(false),[reviewConsent,setReviewConsent]=useState(false),[fallback,setFallback]=useState(false),[profileDraft,setProfileDraft]=useState(null),[savedProfiles,setSavedProfiles]=useState([]),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
  const root=`/api/illustrations/projects/${projectId}`;
  const reload=useCallback(async id=>{if(!id)return;const data=await api(`/api/illustrations/projects/${id}`);setState(data);setProfileDraft(current=>current||{name:data.visualProfile?.name||'',palette:data.visualProfile?.palette||'',mood:data.visualProfile?.mood||'',avoid:data.visualProfile?.avoid||''});setProvider(current=>data.providers?.find(x=>x.id===current&&x.configured)?current:(data.providers?.find(x=>x.configured)?.id||current));},[]);
  useEffect(()=>{api('/api/editor/projects').then(x=>{const ps=x.projects||[];setProjects(ps);api('/api/illustrations/visual-profiles').then(v=>setSavedProfiles(v.profiles||[])).catch(()=>{});const fromQuery=query.get('project');setProjectId(fromQuery&&ps.some(p=>p.id===fromQuery)?fromQuery:ps[0]?.id||'');}).catch(e=>setMessage(e.message))},[query]);
- useEffect(()=>{setPreview(null);setState(null);setPromptEdits({});setPromptPreviews({});setProfileDraft(null);reload(projectId).catch(e=>setMessage(e.message))},[projectId,reload]);
+ useEffect(()=>{setPreview(null);setState(null);setPromptEdits({});setPromptPreviews({});setEditDrafts({});setProfileDraft(null);reload(projectId).catch(e=>setMessage(e.message))},[projectId,reload]);
  async function run(task){setBusy(true);setMessage('');try{await task();await reload(projectId)}catch(e){setMessage(e.message)}finally{setBusy(false)}}
  const current=projects.find(p=>p.id===projectId);
  async function generateAll(){if(!consent){setMessage('先明确同意向已配置的图片模型发送文章标题和章节摘要。');return}
@@ -28,13 +28,19 @@ export default function IllustrationStudio(){
  async function savePrompt(shot){return run(()=>api(`${root}/shots/${shot.id}/prompt`,'PUT',{expectedUpdatedAt:shot.updatedAt,scene:promptEdits[shot.id]?.scene??shot.scene,style:promptEdits[shot.id]?.style??shot.style,provider}));}
  async function viewPrompt(shot){setBusy(true);try{const v=await api(`${root}/shots/${shot.id}/prompt-preview?provider=${provider}`);setPromptPreviews(x=>({...x,[shot.id]:v.prompt}));setMessage('已展示该模型实际使用的提示词。');}catch(e){setMessage(e.message)}finally{setBusy(false)}}
  async function decide(id,decision){return run(()=>api(`${root}/shots/${id}/decision`,'POST',{decision}))}
+ function setEdit(id,field,value){setEditDrafts(old=>({...old,[id]:{...old[id],[field]:value}}));}
+ async function editShot(shot){const draft=editDrafts[shot.id]||{};const referenceAssetId=draft.referenceAssetId||shot.assetId;
+  return run(()=>api(`${root}/shots/${shot.id}/candidates`,'POST',{allowExternalAI:true,expectedUpdatedAt:shot.updatedAt,referenceAssetId,provider,instruction:draft.instruction||''}));
+ }
+ async function decideCandidate(shot,candidate,decision){return run(()=>api(`${root}/shots/${shot.id}/candidates/${candidate.id}/decision`,'POST',{decision,expectedUpdatedAt:shot.updatedAt}));}
+
  function setMap(id,field,v){setMapping(x=>({...x,[id]:{...x[id],[field]:v}}))}
  async function saveMapping(shot){return run(async()=>{const entry=mapping[shot.id]||{};await api(`/api/assets/${shot.assetId}/mappings/${channel}`,'PUT',{url:entry.url||'',note:entry.note||''})})}
  async function buildHandoff(){setBusy(true);setMessage('');try{setPreview(await api(`${root}/handoff/${channel}`))}catch(e){setPreview(null);setMessage(e.message)}finally{setBusy(false)}}
  async function copyProposal(){try{await navigator.clipboard.writeText(preview.markdown);setMessage('含图 Markdown 已复制；请在 doocs/md 中排版，并按 V30 差异审阅导回。')}catch{setMessage('复制被浏览器拦截，请手动选择下方 Markdown。')}}
  return <div className="compose-root"><header className="compose-head"><div><Link href="/" className="compose-brand">◈ Content Studio</Link><span className="compose-divider">/</span>创作 · Agent 自动配图</div><div className="compose-right"><Link className="btn secondary" href={`/compose?project=${encodeURIComponent(projectId)}`}>返回 doocs/md 排版 ↗</Link></div></header>
  <main className="compose-container">
-  <div className="compose-intro"><div><span className="eyebrow">ILLUSTRATION AGENT · V34</span><h1>文章写好，交给 Agent 配图</h1><p>分析主稿 → 统一视觉规范 → 多模型配图与有限回退 → 图片质量辅助评审 → 人工批准 → 素材映射 → doocs/md 排版。图像是概念插画，不是事实证据。</p></div><span className="compose-mode">本地素材库 · 渠道独立</span></div>
+  <div className="compose-intro"><div><span className="eyebrow">ILLUSTRATION AGENT · V35</span><h1>文章写好，交给 Agent 配图</h1><p>分析主稿 → 统一视觉规范 → 多模型配图与有限回退 → 参考图编辑与候选比较 → 图片质量辅助评审 → 人工批准 → 素材映射 → doocs/md 排版。图像是概念插画，不是事实证据。</p></div><span className="compose-mode">本地素材库 · 渠道独立</span></div>
   {message&&<div className="compose-notice" role="status">{message}<button type="button" onClick={()=>setMessage('')}>×</button></div>}
   <div className="illustration-grid">
    <aside className="compose-panel"><div className="compose-panel-title">01 · 选择创作内容</div>
@@ -70,6 +76,21 @@ export default function IllustrationStudio(){
       {shot.error&&<p className="compose-danger">{shot.error}</p>}
       {shot.review&&<div className="compose-tip"><strong>质量辅助评审 · {shot.review.kind==='vision'?'视觉模型':'文件校验'}</strong><p>{shot.review.reason||shot.review.issues?.join('；')||'仍需要人工核查'}</p><p>结论：{shot.review.verdict||shot.review.status} · 不能代替人工审核或事实证据</p></div>}
       {!!shot.attempts?.length&&<details><summary>生成尝试历史 · {shot.attempts.length} 次</summary>{shot.attempts.map((a,i)=><p key={i} className="compose-muted">{a.provider} · {a.result==='success'?'成功':'失败'} · {a.elapsedMs}ms {a.error?'· '+a.error:''}</p>)}</details>}
+      {shot.asset&&<div className="compose-tip illustration-variations">
+       <strong>参考图迭代 · 保留原图，候选图人工择优</strong>
+       <p>只会将当前配图或此配图的候选版本作为参考图。编辑生成一次调用一笔独立费用；不会自动替换已批准图片。</p>
+       <label>参考图片<select aria-label={`${shot.ordinal} 参考图`} value={editDrafts[shot.id]?.referenceAssetId||shot.assetId} onChange={e=>setEdit(shot.id,'referenceAssetId',e.target.value)}>
+        <option value={shot.assetId}>当前正式图片</option>{(shot.candidates||[]).map(c=><option key={c.id} value={c.assetId}>候选 · {c.provider} · {c.createdAt}</option>)}
+       </select></label>
+       <label>修改要求<textarea rows={3} aria-label={`${shot.ordinal} 图片修改指令`} placeholder="例如：保留构图，只将背景调整为米白色，弱化装饰元素，突出中心主体。" value={editDrafts[shot.id]?.instruction||''} onChange={e=>setEdit(shot.id,'instruction',e.target.value)}/></label>
+       <button className="btn secondary" disabled={busy||state.stale||!consent||!(editDrafts[shot.id]?.instruction?.trim().length>=12)||!state?.providers?.find(p=>p.id===provider)?.configured} onClick={()=>editShot(shot)}>使用 {provider} 根据参考图生成候选</button>
+       {!!shot.candidates?.length&&<div className="illustration-candidate-list">{shot.candidates.map(candidate=><div className="illustration-candidate" key={candidate.id}>
+        <img src={candidate.asset.previewUrl} alt={`${shot.alt}·编辑候选`}/><div><strong>{candidate.provider} · {({generated:'待选择',selected:'已选入正式配图',rejected:'已拒绝'})[candidate.status]}</strong><p>{candidate.instruction}</p><p className="compose-muted">生成：{candidate.createdAt} · 参考图哈希：{candidate.referenceAssetId.slice(0,17)}…</p>
+        {candidate.status==='generated'&&<div className="illustration-actions"><button className="btn primary" disabled={busy||state.stale} onClick={()=>decideCandidate(shot,candidate,'select')}>采用为当前配图（仍需人工批准）</button><button className="btn secondary" disabled={busy} onClick={()=>decideCandidate(shot,candidate,'reject')}>拒绝该候选</button></div>}
+        </div></div>)}</div>}
+       {!!shot.editAttempts?.length&&<details><summary>图片编辑审计 · {shot.editAttempts.length} 次</summary>{shot.editAttempts.map((a,i)=><p className="compose-muted" key={i}>{a.provider} · {a.result==='success'?'生成成功':'失败'} · {a.elapsedMs}ms {a.error?' · '+a.error:''}</p>)}</details>}
+      </div>}
+
       <div className="illustration-actions">{['generated','approved','rejected'].includes(shot.status)&&state.reviewerConfigured&&<button className="btn secondary" disabled={busy||state.stale||!reviewConsent} onClick={()=>requestReview(shot)}>AI 辅助评审图片</button>}{['planned','failed'].includes(shot.status)&&<button className="btn secondary" disabled={busy||!consent||!state?.providers?.find(p=>p.id===provider)?.configured||state.stale} onClick={()=>run(()=>api(`${root}/shots/${shot.id}/generate`,'POST',{allowExternalAI:true,provider,...generationOptions()}))}>生成图片</button>}
        {['generated','rejected'].includes(shot.status)&&<button className="btn primary" disabled={busy||state.stale} onClick={()=>decide(shot.id,'approve')}>批准使用</button>}
        {['generated','approved'].includes(shot.status)&&<button className="btn secondary" disabled={busy||state.stale} onClick={()=>decide(shot.id,'reject')}>不采用</button>}
