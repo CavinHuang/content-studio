@@ -139,7 +139,7 @@ export class IllustrationQueue {
  retry(jobId,{allowExternalAI=false}={}){
   if(!allowExternalAI)fail('Explicit permission required for another image request',403);
   const row=this._job(jobId);
-  if(!['failed','blocked_budget','obsolete'].includes(row.status))fail('Only failed, budget-blocked or obsolete queue jobs may be retried',409);
+  if(!['failed','blocked_budget'].includes(row.status))fail('Only failed or budget-blocked queue jobs may be retried',409);
   const shot=this.illustrations._shot(row.project_id,row.shot_id),project=this.illustrations._project(row.project_id);
   if(shot.plan_id!==this.illustrations._latest(row.project_id)?.id||shot.master_revision!==project.channels.master.document.revision)fail('Old illustration plan is not reusable; replan and enqueue',409);
   if(!['planned','failed'].includes(shot.status))fail('Image slot must be manually recovered before retrying',409);
@@ -154,8 +154,8 @@ export class IllustrationQueue {
  // Explicit action required for first start AND for resuming after server restart.
  start({allowExternalAI=false}={}){
   if(!allowExternalAI)fail('Explicit consent required to start or resume queued external calls',403);
+  this.stopping=false;
   if(!this.running){
-   this.stopping=false;
    this.running=Promise.resolve().then(()=>this._drain()).finally(()=>{this.running=null});
   }
   return this.get();
@@ -179,7 +179,7 @@ export class IllustrationQueue {
  _finish(row,status,error=''){
   const was=this._job(row.id);
   const decision=was.cancel_requested?'cancelled':status;
-  this.db.prepare('UPDATE illustration_queue_jobs SET status=?,error=?,finished_at=? WHERE id=? AND status=\'running\'').run(decision,safeError({message:error}),stamp(),row.id);
+  this.db.prepare('UPDATE illustration_queue_jobs SET status=?,error=?,finished_at=? WHERE id=? AND status=\'running\'').run(decision,error?safeError({message:error}):'',stamp(),row.id);
   this._event(row.id,decision,decision==='cancelled'?'completed_after_cancel_request':status==='completed'?'generated_not_approved':'manual_review_required');
   return decision;
  }
@@ -200,7 +200,7 @@ export class IllustrationQueue {
     await this.illustrations.generate(row.project_id,row.shot_id,{
      allowExternalAI:true,provider:row.provider,
      fallbackProviders:JSON.parse(row.fallback_json),maxAttempts:row.max_attempts,
-     shouldContinue:()=>!this._job(row.id).cancel_requested&&!this.stopping
+     shouldContinue:()=>!this._job(row.id).cancel_requested
     });
     this._finish(row,'completed','');
    }catch(e){
