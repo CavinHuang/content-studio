@@ -1,5 +1,5 @@
 /** V37: explicitly shared, versioned visual series. Local single-user app, NOT multi-tenant ACL. */
-import {randomUUID} from 'node:crypto';
+import {randomUUID,createHash} from 'node:crypto';
 import {ValidationError} from './verification.mjs';
 import {validateVisualProfile} from './visual-quality.mjs';
 
@@ -65,12 +65,13 @@ export class VisualSeriesService {
  details(id,projectId){
   this._requireMember(id,projectId);const row=this._series(id);
   const versions=this.db.prepare('SELECT revision,profile_json AS profile,created_at AS createdAt FROM visual_series_versions WHERE series_id=? ORDER BY revision DESC LIMIT 30').all(id).map(x=>({...x,profile:JSON.parse(x.profile)}));
-  const references=this.db.prepare('SELECT * FROM visual_series_references WHERE series_id=? ORDER BY rowid DESC LIMIT 40').all(id).map(x=>({id:x.id,sourceProjectId:x.source_project_id,assetId:x.asset_id,asset:this.assets.get(x.asset_id),caption:x.caption,createdAt:x.created_at}));
+  const references=this._activeReferences(id).slice(0,40).map(x=>({id:x.id,sourceProjectId:x.source_project_id,assetId:x.asset_id,asset:this.assets.get(x.asset_id),caption:x.caption,createdAt:x.created_at}));
   return {id,name:row.name,revision:row.revision,profile:JSON.parse(row.profile_json),versions,references,members:this.db.prepare('SELECT COUNT(*) AS n FROM visual_series_members WHERE series_id=?').get(id).n,notice:'Reference images are only exposed to explicitly joined articles. No images are transmitted to AI by joining.'};
  }
  forProject(projectId){const seriesId=this._member(projectId);return seriesId?this.details(seriesId,projectId):null}
  /** Stable membership/version signature for async generation or editing. */
- fingerprint(projectId){const id=this._member(projectId);if(!id)return '';const row=this._series(id);const refs=this.db.prepare('SELECT COUNT(*) AS n, COALESCE(MAX(rowid),0) AS last FROM visual_series_references WHERE series_id=?').get(id);return [id,row.revision,refs.n,refs.last].join(':')}
+ _activeReferences(id){return this.db.prepare('SELECT * FROM visual_series_references WHERE series_id=? ORDER BY rowid DESC').all(id).filter(ref=>{try{if(this._member(ref.source_project_id)!==id)return false;const shot=this.illustrations._shot(ref.source_project_id,ref.shot_id),project=this._project(ref.source_project_id);return shot.status==='approved'&&shot.asset_id===ref.asset_id&&shot.master_revision===project.channels.master.document.revision&&this.illustrations._latest(ref.source_project_id)?.id===shot.plan_id;}catch{return false}})}
+ fingerprint(projectId){const id=this._member(projectId);if(!id)return '';const row=this._series(id);const active=this._activeReferences(id).map(x=>x.id+':'+x.asset_id).sort().join('|');return id+':'+row.revision+':'+createHash('sha256').update(active).digest('hex').slice(0,24)}
  addReference(id,{projectId,shotId,caption,expectedRevision}={}){
   this._requireMember(id,projectId);
   if(this._series(id).revision!==expectedRevision)fail('Series changed; reload before sharing a reference',409);
