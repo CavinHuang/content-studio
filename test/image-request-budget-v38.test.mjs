@@ -91,3 +91,27 @@ test('image editing uses the same request budget as generation, with no implicit
  assert.equal((await (await req(core,base+'/budget')).json()).used,2);
  assert.equal((await req(core,`${base}/shots/${shot.id}/candidates`,'POST',{allowExternalAI:true,expectedUpdatedAt:generated.updatedAt,referenceAssetId:generated.assetId,provider:'openai',instruction:'请稍微增加图像对比度，保持原有配色。'})).status,429);
 });
+
+test('manual recovery clears an abandoned generating slot but keeps possible charges counted',async t=>{
+ const {core,base,article}=await setup(t);
+ const plan=await (await req(core,base+'/plan','POST',{expectedMasterRevision:1})).json(),shot=plan.shots[0];
+ const tooRecent=new Date().toISOString();
+ const db=core.store.db;
+ db.prepare("UPDATE article_illustration_shots SET status='generating',updated_at=? WHERE id=?").run(tooRecent,shot.id);
+ const endpoint=`${base}/shots/${shot.id}/recover`;
+ assert.equal((await req(core,endpoint,'POST',{expectedUpdatedAt:tooRecent})).status,409,'live tasks must not be forcibly reclaimed');
+ const staleAt=new Date(Date.now()-11*60*1000).toISOString();
+ db.prepare('UPDATE article_illustration_shots SET updated_at=? WHERE id=?').run(staleAt,shot.id);
+ const reservation=core.illustrations.budget.reserve(article.id,{shotId:shot.id,kind:'generate',provider:'openai'});
+ assert.ok(reservation.id);
+ assert.equal((await req(core,endpoint,'POST',{expectedUpdatedAt:'wrong'})).status,409);
+ const recovered=await req(core,endpoint,'POST',{expectedUpdatedAt:staleAt});
+ assert.equal(recovered.status,200);
+ const value=await recovered.json();assert.equal(value.status,'failed');
+ assert.match(value.error,/Provider outcome and billing are unknown/);
+ const quota=await (await req(core,base+'/budget')).json();
+ assert.equal(quota.used,1,'do not return possibly charged request to budget');
+ assert.equal(quota.reserved,0);
+ assert.equal(quota.recent[0].status,'interrupted');
+ assert.equal((await req(core,endpoint,'POST',{expectedUpdatedAt:staleAt})).status,409,'recovery must not be replayed');
+});
