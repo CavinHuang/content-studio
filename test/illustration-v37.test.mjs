@@ -113,3 +113,18 @@ test('V37 validates series profile fields, reference captions and cross-series m
  assert.equal((await req(x.c,x.path+'/references','POST',{projectId:x.p.id,shotId:shot.id,caption:'too short',expectedRevision:1})).status,400);
  assert.equal((await req(x.c,'/api/illustrations/series/'+another.id+'?projectId='+x.p.id)).status,403);
 });
+
+test('V37 revoked approval hides the old gallery reference and blocks cross-article image reuse',async t=>{
+ const x=await setup(t);
+ for(const projectId of [x.p.id,x.q.id])assert.equal((await req(x.c,x.path+'/members','POST',{projectId,expectedRevision:1})).status,200);
+ const source=await planAndApprove(x.c,x.p,png);
+ const shared=await json(x.c,x.path+'/references','POST',{projectId:x.p.id,shotId:source.id,caption:'Muted editorial illustration with strong negative space',expectedRevision:1});
+ assert.equal(shared.status,201);
+ const recipient=await planAndApprove(x.c,x.q,other);
+ assert.equal((await json(x.c,x.path+'?projectId='+x.q.id)).value.references.length,1);
+ const revoked=await req(x.c,'/api/illustrations/projects/'+x.p.id+'/shots/'+source.id+'/decision','POST',{decision:'reject'});
+ assert.equal(revoked.status,200);
+ assert.equal((await json(x.c,x.path+'?projectId='+x.q.id)).value.references.length,0);
+ const edit={allowExternalAI:true,expectedUpdatedAt:recipient.updatedAt,referenceAssetId:source.assetId,provider:'openai',instruction:'Preserve the overall subject while increasing whitespace around edges'};
+ assert.equal((await req(x.c,'/api/illustrations/projects/'+x.q.id+'/shots/'+recipient.id+'/candidates','POST',edit)).status,403);
+});
