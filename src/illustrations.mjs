@@ -50,7 +50,7 @@ export class IllustrationService {
  }
  /** Explicit opt-in only. Private feedback never crosses project boundaries. */
  visualMemory(projectId){this._project(projectId);const items=this.db.prepare('SELECT candidate_id AS candidateId,rating,note,created_at AS createdAt FROM article_illustration_feedback WHERE project_id=? AND remember=1 ORDER BY rowid DESC LIMIT 6').all(projectId);return {projectId,preferences:items};}
- _memoryPrompt(projectId){return preferencePrompt(this.visualMemory(projectId).preferences.map(x=>x.note));}
+ _memoryPrompt(projectId){return preferencePrompt(this.visualMemory(projectId).preferences.map(x=>x.note))+(this.series?.promptForProject(projectId)||'');}
  visualProfiles(){return this.db.prepare('SELECT project_id,revision,profile_json FROM article_illustration_profiles ORDER BY rowid DESC LIMIT 50').all().map(row=>({projectId:row.project_id,revision:row.revision,...JSON.parse(row.profile_json)}));}
  visualProfile(projectId){this._project(projectId);const row=this.db.prepare('SELECT * FROM article_illustration_profiles WHERE project_id=?').get(projectId);return row?{...JSON.parse(row.profile_json),revision:row.revision,updatedAt:row.updated_at}:{...DEFAULT_VISUAL_PROFILE,revision:0,updatedAt:null};}
  setVisualProfile(projectId,{expectedRevision,profile}={}){
@@ -80,9 +80,9 @@ export class IllustrationService {
  _shot(projectId,id){const row=this.db.prepare('SELECT s.*,p.project_id,p.master_revision FROM article_illustration_shots s JOIN article_illustration_plans p ON p.id=s.plan_id WHERE s.id=? AND p.project_id=?').get(id,projectId);if(!row)fail('Illustration task not found',404);return row;}
  _present(row){return {candidates:this.candidates(row.project_id||this.db.prepare('SELECT project_id FROM article_illustration_plans WHERE id=?').get(row.plan_id).project_id,row.id),id:row.id,role:row.role,ordinal:row.ordinal,paragraphId:row.paragraph_id,alt:row.alt,prompt:row.prompt,status:row.status,assetId:row.asset_id||null,asset:row.asset_id?this.assets.get(row.asset_id):null,model:row.model||null,provider:row.provider||null,scene:row.scene||'',style:row.style||'editorial',error:row.error||null,review:row.review_json?JSON.parse(row.review_json):null,editAttempts:this.editAttempts(row.project_id||this.db.prepare('SELECT project_id FROM article_illustration_plans WHERE id=?').get(row.plan_id).project_id,row.id),attempts:this.attempts(row.project_id||this.db.prepare('SELECT project_id FROM article_illustration_plans WHERE id=?').get(row.plan_id).project_id,row.id),updatedAt:row.updated_at};}
  get(projectId){const project=this._project(projectId),plan=this._latest(projectId),revision=project.channels.master.document.revision;
-  if(!plan)return {projectId,title:project.title,sourceRevision:revision,visualProfile:this.visualProfile(projectId),reviewerConfigured:imageQualityConfigured(),comparatorConfigured:compareConfigured(),visualMemory:this.visualMemory(projectId),plan:null,stale:false,shots:[],configured:illustrationsConfigured(),providers:configuredProviders(),plannerConfigured:plannerConfigured(),requiresConsent:true};
+  if(!plan)return {projectId,title:project.title,sourceRevision:revision,visualProfile:this.visualProfile(projectId),reviewerConfigured:imageQualityConfigured(),comparatorConfigured:compareConfigured(),visualMemory:this.visualMemory(projectId),visualSeries:this.series?.forProject(projectId)||null,plan:null,stale:false,shots:[],configured:illustrationsConfigured(),providers:configuredProviders(),plannerConfigured:plannerConfigured(),requiresConsent:true};
   const rows=this.db.prepare('SELECT * FROM article_illustration_shots WHERE plan_id=? ORDER BY ordinal').all(plan.id);
-  return {projectId,title:project.title,sourceRevision:revision,visualProfile:this.visualProfile(projectId),reviewerConfigured:imageQualityConfigured(),comparatorConfigured:compareConfigured(),visualMemory:this.visualMemory(projectId),plan:{id:plan.id,masterRevision:plan.master_revision,createdAt:plan.created_at},stale:plan.master_revision!==revision,shots:rows.map(x=>this._present(x)),configured:illustrationsConfigured(),providers:configuredProviders(),plannerConfigured:plannerConfigured(),requiresConsent:true};
+  return {projectId,title:project.title,sourceRevision:revision,visualProfile:this.visualProfile(projectId),reviewerConfigured:imageQualityConfigured(),comparatorConfigured:compareConfigured(),visualMemory:this.visualMemory(projectId),visualSeries:this.series?.forProject(projectId)||null,plan:{id:plan.id,masterRevision:plan.master_revision,createdAt:plan.created_at},stale:plan.master_revision!==revision,shots:rows.map(x=>this._present(x)),configured:illustrationsConfigured(),providers:configuredProviders(),plannerConfigured:plannerConfigured(),requiresConsent:true};
  }
  _insertPlan(projectId,doc,slots){const id='ip_'+randomUUID(),time=now();
   this.db.exec('BEGIN IMMEDIATE');try{
@@ -110,7 +110,7 @@ export class IllustrationService {
   return {provider,role:row.role,style:row.style||'editorial',prompt:composeImagePrompt({title:project.title,role:row.role,scene:row.scene||row.prompt,style:row.style||'editorial',excerpt:source?.excerpt||'',provider,visualProfile:this.visualProfile(projectId)})+this._memoryPrompt(projectId),sourceRevision:row.master_revision,stale:row.master_revision!==project.channels.master.document.revision};
  }
  editPrompt(projectId,shotId,{expectedUpdatedAt,scene,style='editorial',provider='openai'}={}){
-  const row=this._shot(projectId,shotId),project=this._project(projectId);
+  const row=this._shot(projectId,shotId),project=this._project(projectId),seriesFingerprint=this.series?.fingerprint(projectId)||'';
   if(row.master_revision!==project.channels.master.document.revision)fail('Article changed; illustration plan is stale',409);
   if(typeof expectedUpdatedAt!=='string'||row.updated_at!==expectedUpdatedAt)fail('Illustration prompt changed; reload before editing',409);
   if(row.status==='generating')fail('Cannot edit while generating image',409);
@@ -142,6 +142,7 @@ export class IllustrationService {
      const prompt=composeImagePrompt({title:project.title,role:row.role,scene:row.scene||row.prompt,style:row.style||'editorial',provider:current,visualProfile:this.visualProfile(projectId)})+this._memoryPrompt(projectId);
      const response=await this.generator(prompt,{provider:current,role:row.role});
      if(this._project(projectId).channels.master.document.revision!==row.master_revision)fail('Article changed during image generation; renew the illustration plan',409);
+     if((this.series?.fingerprint(projectId)||'')!==seriesFingerprint)fail('Visual series changed while generating; retry with current references',409);
      if(!response?.base64||typeof response.base64!=='string')fail('Image provider returned invalid image data',502);
      const head=Buffer.from(response.base64.slice(0,24),'base64');const extension=head[0]===0xff&&head[1]===0xd8?'jpg':head.toString('ascii',0,4)==='RIFF'?'webp':'png';
      const asset=this.assets.upload({name:`article-${row.role}-${row.ordinal}.${extension}`,alt:row.alt,base64:response.base64});
@@ -219,14 +220,14 @@ export class IllustrationService {
  editAttempts(projectId,shotId){this._shot(projectId,shotId);return this.db.prepare('SELECT provider,result,error,elapsed_ms AS elapsedMs,created_at AS createdAt FROM article_illustration_edits WHERE shot_id=? ORDER BY rowid DESC LIMIT 20').all(shotId);}
  _editLog(shotId,assetId,provider,result,error,elapsed){this.db.prepare('INSERT INTO article_illustration_edits VALUES(?,?,?,?,?,?,?,?)').run('ie_'+randomUUID(),shotId,assetId,provider,result,String(error||'').slice(0,160),Math.max(0,Math.round(elapsed)),now());}
  async editImage(projectId,shotId,{allowExternalAI=false,expectedUpdatedAt,referenceAssetId,provider='openai',instruction}={}){
-  const row=this._shot(projectId,shotId),project=this._project(projectId),profile=this.visualProfile(projectId);
+  const row=this._shot(projectId,shotId),project=this._project(projectId),profile=this.visualProfile(projectId),seriesFingerprint=this.series?.fingerprint(projectId)||'';
   if(!allowExternalAI)fail('Explicit consent required before sending a reference image to an external model',403);
   if(row.master_revision!==project.channels.master.document.revision)fail('Article changed; refresh image plan',409);
   if(!expectedUpdatedAt||row.updated_at!==expectedUpdatedAt)fail('Image changed; reload before editing',409);
   if(!['generated','approved','rejected'].includes(row.status)||!row.asset_id)fail('Generate an image before editing',409);
   if(typeof instruction!=='string'||instruction.trim().length<12||instruction.length>800)fail('Image edit instruction must be 12-800 characters');
   if(!['openai','gemini','qwen'].includes(provider))fail('Unsupported image edit provider');
-  const known=[row.asset_id,...this.db.prepare('SELECT asset_id FROM article_illustration_candidates WHERE shot_id=?').all(shotId).map(x=>x.asset_id)];
+  const known=[row.asset_id,...this.db.prepare('SELECT asset_id FROM article_illustration_candidates WHERE shot_id=?').all(shotId).map(x=>x.asset_id),...(this.series?.sharedAssetIds(projectId)||[])];
   if(typeof referenceAssetId!=='string'||!known.includes(referenceAssetId))fail('Reference image does not belong to this article image slot',403);
   if(this.editor===editProviderImage&&!configuredProviders().some(x=>x.id===provider&&x.configured))fail('Image edit provider is not configured',503);
   if(this.inflight.has(shotId))fail('Image operation is already in progress',409);
@@ -238,7 +239,7 @@ export class IllustrationService {
   try{
    const response=await this.editor(prompt,{provider,role:row.role,referenceBytes:reference.body,referenceMime:record.mime});
    const current=this._shot(projectId,shotId),currentProfile=this.visualProfile(projectId);
-   if(current.updated_at!==expectedUpdatedAt||current.master_revision!==this._project(projectId).channels.master.document.revision||currentProfile.revision!==profile.revision)fail('Image or visual style changed during edit; candidate not saved',409);
+   if(current.updated_at!==expectedUpdatedAt||current.master_revision!==this._project(projectId).channels.master.document.revision||currentProfile.revision!==profile.revision||(this.series?.fingerprint(projectId)||'')!==seriesFingerprint)fail('Image, article or visual series changed during edit; candidate not saved',409);
    if(typeof response?.base64!=='string')fail('Image editor returned no image bytes',502);
    const alt=`${row.alt}（候选修改）`;const asset=this.assets.upload({name:`candidate-${shotId}.png`,alt,base64:response.base64});
    const id='ic_'+randomUUID();this.db.prepare('INSERT INTO article_illustration_candidates VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id,shotId,referenceAssetId,asset.id,response.provider||provider,String(response.model||'image-edit').slice(0,100),instruction.trim(),prompt,'generated',row.master_revision,profile.revision,expectedUpdatedAt,now());
