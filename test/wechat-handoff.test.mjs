@@ -6,6 +6,12 @@ import {dispatchApi} from '../lib/api.mjs';
 
 const request=(path,core,method='GET',data)=>dispatchApi(new Request('http://localhost:4312'+path,{method,headers:data?{'content-type':'application/json'}:{},body:data?JSON.stringify(data):undefined}),core);
 async function setup(t){const c=createCore(':memory:');t.after(()=>c.close());return c;}
+async function previewAndSave(c,pid,ch,expectedLayoutRevision,expectedDocumentRevision,markdown){
+ const route=`/api/composer/projects/${pid}/${ch}`;
+ const res=await request(route+'/review',c,'POST',{expectedLayoutRevision,expectedDocumentRevision,markdown});
+ assert.equal(res.status,200);const a=await res.json();
+ return request(route,c,'PUT',{expectedLayoutRevision,expectedDocumentRevision,markdown,reviewToken:a.reviewToken,acknowledgeDrift:a.requiresHumanReview});
+}
 
 test('handoff renders source without dropping paragraph text',()=>{
  const markdown=markdownFromDocument('版本标题',[{text:'事实段落。'},{text:'证据摘要。'}]);
@@ -22,7 +28,7 @@ test('channel drafts preserve revision, keep isolated, and check optimistic lock
  const p=await (await request('/api/editor/projects',c,'POST',{title:'测试 doocs Markdown 交接'})).json();
  let w=await (await request(`/api/composer/projects/${p.id}/wechat`,c)).json();
  assert.equal(w.layoutRevision,0);assert.equal(w.sourceDocumentRevision,1);
- let r=await request(`/api/composer/projects/${p.id}/wechat`,c,'PUT',{expectedLayoutRevision:0,expectedDocumentRevision:1,markdown:'# 首个微信排版稿\n\n- 列表\n\n```js\nconsole.log(1)\n```'});
+ let r=await previewAndSave(c,p.id,'wechat',0,1,'# 首个微信排版稿\n\n- 列表\n\n```js\nconsole.log(1)\n```');
  assert.equal(r.status,200);w=await r.json();assert.equal(w.layoutRevision,1);
  const z=await (await request(`/api/composer/projects/${p.id}/zhihu`,c)).json();assert.equal(z.layoutRevision,0);assert.doesNotMatch(z.markdown,/首个微信排版稿/);
  r=await request(`/api/composer/projects/${p.id}/wechat`,c,'PUT',{expectedLayoutRevision:0,expectedDocumentRevision:1,markdown:'# 覆盖内容'});assert.equal(r.status,409);
@@ -35,7 +41,7 @@ test('stale source revision blocked and saving does not overwrite source paragra
  const c=await setup(t);
  const p=await (await request('/api/editor/projects',c,'POST',{title:'源稿更新与排版稿隔离'})).json();
  const before=p.channels.wechat.document.paragraphs;
- const w=await (await request(`/api/composer/projects/${p.id}/wechat`,c,'PUT',{expectedLayoutRevision:0,expectedDocumentRevision:1,markdown:'# 修改后\n\n真实的新排版内容'})).json();
+ const w=await (await previewAndSave(c,p.id,'wechat',0,1,'# 修改后\n\n真实的新排版内容')).json();
  assert.equal(w.layoutRevision,1);
  let updated=await request(`/api/editor/projects/${p.id}/wechat/document`,c,'PUT',{expectedRevision:1,paragraphs:[{...before[0],text:'这是另一个本地源段落，新版文章记录。'}]});
  assert.equal(updated.status,200);
