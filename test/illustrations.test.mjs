@@ -78,6 +78,7 @@ test('image provider uses configured server-only credentials, parses true b64 ou
   const result=await requestImageGeneration('Draw an illustration');assert.equal(result.base64,png);assert.equal(result.model,'illustration-test');
   assert.equal(seen[0].url,'https://image.example.org/v1/images/generations');assert.equal(seen[0].headers.authorization,'Bearer not-a-real-secret');
   assert.match(JSON.stringify(seen[0].body),/illustration-test/);
+  assert.equal(Object.hasOwn(seen[0].body,'response_format'),false,'GPT Image models always return base64; deprecated response_format must not be sent');
   globalThis.fetch=async()=>Response.json({data:[{url:'https://unknown.example/image.png'}]});
   await assert.rejects(()=>requestImageGeneration('Draw another'),/no base64 image/);
   process.env.CONTENT_IMAGE_API_BASE_URL='http://outside.example/v1/';

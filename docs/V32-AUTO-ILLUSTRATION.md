@@ -21,7 +21,7 @@ CONTENT_IMAGE_MODEL=<支持 images/generations 且响应 b64_json 的图像模�
 CONTENT_IMAGE_API_KEY=<secret>
 ```
 
-密钥**只在服务端读取**；不要写入 `NEXT_PUBLIC_` 环境变量，也不要提交 `.env.local`。模型必须支持 `images/generations` 的 `b64_json` 返回。调用失败时保留失败状态供手动重试；无配置时仍可离线生成方案、不能凭空生成图片。
+密钥**只在服务端读取**；不要写入 `NEXT_PUBLIC_` 环境变量，也不要提交 `.env.local`。模型必须支持 `images/generations` 的 `b64_json` 返回。GPT Image 系列默认返回 base64，**不得发送已弃用的 `response_format` 参数**；当前官方接口可参考 `gpt-image-1.5`。调用失败时保留失败状态供手动重试；无配置时仍可离线生成方案、不能凭空生成图片。
 
 ## 关键状态和安全契约
 

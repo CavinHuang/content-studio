@@ -18,7 +18,7 @@ export async function requestImageGeneration(prompt){
  let endpoint;try{const base=new URL(c.baseUrl.endsWith('/')?c.baseUrl:c.baseUrl+'/');endpoint=new URL('images/generations',base);}catch{fail('Invalid image API base URL',503)}
  if(!['https:','http:'].includes(endpoint.protocol))fail('Invalid image generation endpoint protocol',503);
  if(endpoint.protocol==='http:'&&!['localhost','127.0.0.1','[::1]'].includes(endpoint.hostname))fail('Remote image generation endpoint must use HTTPS',503);
- const response=await fetch(endpoint,{method:'POST',headers:{'authorization':`Bearer ${c.apiKey}`,'content-type':'application/json'},body:JSON.stringify({model:c.model,prompt,size:'1024x1024',n:1,response_format:'b64_json'}),signal:AbortSignal.timeout(75000),redirect:'error'});
+ const response=await fetch(endpoint,{method:'POST',headers:{'authorization':`Bearer ${c.apiKey}`,'content-type':'application/json'},body:JSON.stringify({model:c.model,prompt,size:'1024x1024',n:1}),signal:AbortSignal.timeout(150000),redirect:'error'});
  if(!response.ok)fail(`Image provider returned HTTP ${response.status}`,502);
  if(Number(response.headers.get('content-length'))>12_000_000)fail('Image provider response exceeds the configured safety limit',502);
  const json=await response.json();const encoded=json?.data?.[0]?.b64_json;
