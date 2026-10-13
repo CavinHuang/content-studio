@@ -10,7 +10,8 @@ V38 extends the newer V37 **opt-in visual series PR #9**, NOT `main`. Local, tru
 4. The quota is reserved and committed **before** calling the external provider. If the daily cap is reached, the request fails with **HTTP 429** and the provider is not called. A fallback attempt must reserve again, so a single user action can consume multiple reservations.
 5. The ledger intentionally stores only project, slot, provider, request type, UTC day, start/end timestamps and `reserved/success/failed` states. No API key, source prompt, generated image bytes, cost, or inferred billing figures are saved.
 6. Requests that failed or remained `reserved` after a crash **stay counted**. Actual provider charging is not observable by this app, so the ledger means *requests reserved*, not successful generations, total dollars or confirmed billable invoices.
-7. Changing the cap below the current usage is allowed, but further calls are blocked until a new UTC day or the author raises the cap. No automatic publication, image approval, or sending data occurs merely from adjusting the limit.
+7. A process crash may leave an image slot in `generating`. After 5 minutes (and only if it is no longer in flight in this process), the author may explicitly mark that slot as interrupted. This **does not retry** the provider, it changes the slot to `failed`, and marks its request ledger row as `interrupted` without refunding quota. Provider outcome and billing remain unknown; inspect the provider dashboard before retrying.
+8. Changing the cap below the current usage is allowed, but further calls are blocked until a new UTC day or the author raises the cap. No automatic publication, image approval, or sending data occurs merely from adjusting the limit.
 
 ## API contracts
 
@@ -19,12 +20,13 @@ V38 extends the newer V37 **opt-in visual series PR #9**, NOT `main`. Local, tru
 | GET | `/api/illustrations/projects/:projectId/budget` | Day summary and last 15 reservations |
 | PUT | `/api/illustrations/projects/:projectId/budget` | `{expectedRevision,dailyLimit}` — update cap via optimistic concurrency |
 | GET | `/api/illustrations/projects/:projectId` | Existing payload gains `requestBudget` summary |
+| POST | `/api/illustrations/projects/:projectId/shots/:shotId/recover` | `{expectedUpdatedAt}` — explicit recovery of a generating slot older than 5 minutes, no external request |
 
 Only valid local editorial projects may use these endpoints. The existing localhost/Origin guard remains enforced. This is **not** authenticated multiuser accounting or a spending guarantee. Providers can charge different amounts per request or charge for failures, and planning/vision may cost differently from generated art.
 
 ## Verification and limitations
 
-- Tests: `test/image-request-budget-v38.test.mjs` exercises UTC midnight rollover, stale budget revision, insufficient consent, exhausted quota, fallback stopping, edits sharing the cap, and no plaintext prompts/images in the ledger.
+- Tests: `test/image-request-budget-v38.test.mjs` exercises UTC midnight rollover, stale budget revision, insufficient consent, exhausted quota, fallback stopping, edits sharing the cap, and no plaintext prompts/images in the ledger; explicit recovery of abandoned generation without refunds or provider retries.
 - Run `npm run check && npm test && npm run build` in Node 22.13+ with Next.js installed; use CI as the build source of truth when external packages are unavailable locally.
 - New migrations are additive: `image_request_limits` and `image_request_ledger`. Existing article and evidence revisions remain untouched.
 - Live OpenAI GPT Image / Nano Banana / Qwen Image requests and WeChat/Zhihu image pasting still need explicit keys, billing consent and platform QA. No live paid tests are implied by successful mock/unit/Next build.
