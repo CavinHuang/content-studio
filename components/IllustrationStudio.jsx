@@ -9,10 +9,10 @@ const channels={wechat:'微信公众号',zhihu:'知乎'};
 export default function IllustrationStudio(){
  const query=useSearchParams();const [projects,setProjects]=useState([]),[projectId,setProjectId]=useState(''),[channel,setChannel]=useState('wechat');
  const [provider,setProvider]=useState('openai'),[promptEdits,setPromptEdits]=useState({}),[promptPreviews,setPromptPreviews]=useState({}),[editDrafts,setEditDrafts]=useState({}),[feedbackDrafts,setFeedbackDrafts]=useState({});
- const [state,setState]=useState(null),[preview,setPreview]=useState(null),[mapping,setMapping]=useState({}),[consent,setConsent]=useState(false),[reviewConsent,setReviewConsent]=useState(false),[fallback,setFallback]=useState(false),[profileDraft,setProfileDraft]=useState(null),[savedProfiles,setSavedProfiles]=useState([]),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
+ const [state,setState]=useState(null),[preview,setPreview]=useState(null),[mapping,setMapping]=useState({}),[consent,setConsent]=useState(false),[reviewConsent,setReviewConsent]=useState(false),[fallback,setFallback]=useState(false),[profileDraft,setProfileDraft]=useState(null),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
  const root=`/api/illustrations/projects/${projectId}`;
  const reload=useCallback(async id=>{if(!id)return;const data=await api(`/api/illustrations/projects/${id}`);setState(data);setProfileDraft(current=>current||{name:data.visualProfile?.name||'',palette:data.visualProfile?.palette||'',mood:data.visualProfile?.mood||'',avoid:data.visualProfile?.avoid||''});setProvider(current=>data.providers?.find(x=>x.id===current&&x.configured)?current:(data.providers?.find(x=>x.configured)?.id||current));},[]);
- useEffect(()=>{api('/api/editor/projects').then(x=>{const ps=x.projects||[];setProjects(ps);api('/api/illustrations/visual-profiles').then(v=>setSavedProfiles(v.profiles||[])).catch(()=>{});const fromQuery=query.get('project');setProjectId(fromQuery&&ps.some(p=>p.id===fromQuery)?fromQuery:ps[0]?.id||'');}).catch(e=>setMessage(e.message))},[query]);
+ useEffect(()=>{api('/api/editor/projects').then(x=>{const ps=x.projects||[];setProjects(ps);const fromQuery=query.get('project');setProjectId(fromQuery&&ps.some(p=>p.id===fromQuery)?fromQuery:ps[0]?.id||'');}).catch(e=>setMessage(e.message))},[query]);
  useEffect(()=>{setPreview(null);setState(null);setPromptEdits({});setPromptPreviews({});setEditDrafts({});setFeedbackDrafts({});setProfileDraft(null);reload(projectId).catch(e=>setMessage(e.message))},[projectId,reload]);
  async function run(task){setBusy(true);setMessage('');try{await task();await reload(projectId)}catch(e){setMessage(e.message)}finally{setBusy(false)}}
  const current=projects.find(p=>p.id===projectId);
@@ -23,7 +23,7 @@ export default function IllustrationStudio(){
   }setMessage(failures?`${failures} 张生成失败，请查看错误后重试。`:'配图生成完成。请逐张审阅并批准，再安排渠道映射。')});
  }
  function generationOptions(){const secondary=fallback?(state?.providers||[]).filter(p=>p.configured&&p.id!==provider).slice(0,2).map(p=>p.id):[];return {fallbackProviders:secondary,maxAttempts:secondary.length+1};}
- async function saveProfile(){return run(async()=>{await api(`${root}/visual-profile`,'PUT',{expectedRevision:state.visualProfile.revision,profile:profileDraft});api('/api/illustrations/visual-profiles').then(v=>setSavedProfiles(v.profiles||[])).catch(()=>{});setPromptPreviews({});})}
+ async function saveProfile(){return run(async()=>{await api(`${root}/visual-profile`,'PUT',{expectedRevision:state.visualProfile.revision,profile:profileDraft});setPromptPreviews({});})}
  async function requestReview(shot){if(!reviewConsent){setMessage('请先单独授权向外部视觉评审模型发送图片。');return;}return run(()=>api(`${root}/shots/${shot.id}/review`,'POST',{allowExternalAI:true}));}
  async function agentPlan(){if(!consent){setMessage('需授权将标题与章节摘要发送给外部文本规划模型。');return;}return run(()=>api(`${root}/agent-plan`,'POST',{expectedMasterRevision:state.sourceRevision,allowExternalAI:true}));}
  async function savePrompt(shot){return run(()=>api(`${root}/shots/${shot.id}/prompt`,'PUT',{expectedUpdatedAt:shot.updatedAt,scene:promptEdits[shot.id]?.scene??shot.scene,style:promptEdits[shot.id]?.style??shot.style,provider}));}
@@ -60,7 +60,6 @@ export default function IllustrationStudio(){
     </>:<p className="compose-muted">请选择已有文章。</p>}
     {state?.visualProfile&&profileDraft&&<div className="compose-tip"><strong>系列文章视觉规范 · v{state.visualProfile.revision}</strong>
      <p>同一篇文章的封面和章节图复用同一套视觉规范。修改后当前计划的旧图将退回待生成；历史记录保留。</p>
-     {!!savedProfiles.filter(x=>x.projectId!==projectId).length&&<label>复用其他文章的视觉规范<select aria-label="从已有文章复用视觉规范" defaultValue="" onChange={e=>{const p=savedProfiles.find(x=>x.projectId===e.target.value);if(p)setProfileDraft({name:p.name,palette:p.palette,mood:p.mood,avoid:p.avoid})}}><option value="">选择已有规范…</option>{savedProfiles.filter(x=>x.projectId!==projectId).map(x=><option key={x.projectId} value={x.projectId}>{x.name} · v{x.revision}</option>)}</select></label>}
      {[['name','规范名称'],['palette','主要配色'],['mood','画面氛围'],['avoid','禁止元素']].map(([field,label])=><label key={field}>{label}<input value={profileDraft[field]||''} onChange={e=>setProfileDraft(p=>({...p,[field]:e.target.value}))}/></label>)}
      <button className="btn secondary compose-save" disabled={busy||state.stale} onClick={saveProfile}>保存视觉规范并重新确认图片</button>
     </div>}
