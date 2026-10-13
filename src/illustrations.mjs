@@ -6,6 +6,7 @@ import {ValidationError} from './verification.mjs';
 import {anyImageProvider,configuredProviders,generateProviderImage,editProviderImage} from './image-providers.mjs';
 import {composeImagePrompt,plannerConfigured,planScenesWithModel} from './illustration-agent.mjs';
 import {DEFAULT_VISUAL_PROFILE,validateVisualProfile,localImageCheck,imageQualityConfigured,visionReviewImage} from './visual-quality.mjs';
+import {compareImagePair,compareConfigured,validateAuthorFeedback,preferencePrompt} from './image-feedback.mjs';
 
 const fail=(message,status=400)=>{throw new ValidationError(message,status)};
 const now=()=>new Date().toISOString();
@@ -38,11 +39,18 @@ export class IllustrationService {
  CREATE INDEX IF NOT EXISTS idx_illustration_candidates_shot ON article_illustration_candidates(shot_id,created_at);
  CREATE TABLE IF NOT EXISTS article_illustration_edits(id TEXT PRIMARY KEY,shot_id TEXT NOT NULL,reference_asset_id TEXT NOT NULL,provider TEXT NOT NULL,result TEXT NOT NULL,error TEXT NOT NULL,elapsed_ms INTEGER NOT NULL,created_at TEXT NOT NULL);
  CREATE INDEX IF NOT EXISTS idx_illustration_edits_shot ON article_illustration_edits(shot_id,created_at);
+ CREATE TABLE IF NOT EXISTS article_illustration_comparisons(id TEXT PRIMARY KEY,shot_id TEXT NOT NULL,candidate_id TEXT NOT NULL,reference_asset_id TEXT NOT NULL,asset_id TEXT NOT NULL,assessment_json TEXT NOT NULL,created_at TEXT NOT NULL);
+ CREATE INDEX IF NOT EXISTS idx_illustration_comparison_candidate ON article_illustration_comparisons(candidate_id,created_at);
+ CREATE TABLE IF NOT EXISTS article_illustration_feedback(id TEXT PRIMARY KEY,project_id TEXT NOT NULL,shot_id TEXT NOT NULL,candidate_id TEXT NOT NULL UNIQUE,rating TEXT NOT NULL,note TEXT NOT NULL,remember INTEGER NOT NULL,created_at TEXT NOT NULL);
+ CREATE INDEX IF NOT EXISTS idx_illustration_feedback_project ON article_illustration_feedback(project_id,created_at);
 
  `);
  const fields=this.db.prepare('PRAGMA table_info(article_illustration_shots)').all().map(x=>x.name);
  for(const [name,type] of [['scene',"TEXT NOT NULL DEFAULT ''"],['style',"TEXT NOT NULL DEFAULT 'editorial'"],['provider',"TEXT NOT NULL DEFAULT ''"],['review_json',"TEXT NOT NULL DEFAULT ''"]])if(!fields.includes(name))this.db.exec(`ALTER TABLE article_illustration_shots ADD COLUMN ${name} ${type}`);
  }
+ /** Explicit opt-in only. Private feedback never crosses project boundaries. */
+ visualMemory(projectId){this._project(projectId);const items=this.db.prepare('SELECT candidate_id AS candidateId,rating,note,created_at AS createdAt FROM article_illustration_feedback WHERE project_id=? AND remember=1 ORDER BY rowid DESC LIMIT 6').all(projectId);return {projectId,preferences:items};}
+ _memoryPrompt(projectId){return preferencePrompt(this.visualMemory(projectId).preferences.map(x=>x.note));}
  visualProfiles(){return this.db.prepare('SELECT project_id,revision,profile_json FROM article_illustration_profiles ORDER BY rowid DESC LIMIT 50').all().map(row=>({projectId:row.project_id,revision:row.revision,...JSON.parse(row.profile_json)}));}
  visualProfile(projectId){this._project(projectId);const row=this.db.prepare('SELECT * FROM article_illustration_profiles WHERE project_id=?').get(projectId);return row?{...JSON.parse(row.profile_json),revision:row.revision,updatedAt:row.updated_at}:{...DEFAULT_VISUAL_PROFILE,revision:0,updatedAt:null};}
  setVisualProfile(projectId,{expectedRevision,profile}={}){
@@ -72,9 +80,9 @@ export class IllustrationService {
  _shot(projectId,id){const row=this.db.prepare('SELECT s.*,p.project_id,p.master_revision FROM article_illustration_shots s JOIN article_illustration_plans p ON p.id=s.plan_id WHERE s.id=? AND p.project_id=?').get(id,projectId);if(!row)fail('Illustration task not found',404);return row;}
  _present(row){return {candidates:this.candidates(row.project_id||this.db.prepare('SELECT project_id FROM article_illustration_plans WHERE id=?').get(row.plan_id).project_id,row.id),id:row.id,role:row.role,ordinal:row.ordinal,paragraphId:row.paragraph_id,alt:row.alt,prompt:row.prompt,status:row.status,assetId:row.asset_id||null,asset:row.asset_id?this.assets.get(row.asset_id):null,model:row.model||null,provider:row.provider||null,scene:row.scene||'',style:row.style||'editorial',error:row.error||null,review:row.review_json?JSON.parse(row.review_json):null,editAttempts:this.editAttempts(row.project_id||this.db.prepare('SELECT project_id FROM article_illustration_plans WHERE id=?').get(row.plan_id).project_id,row.id),attempts:this.attempts(row.project_id||this.db.prepare('SELECT project_id FROM article_illustration_plans WHERE id=?').get(row.plan_id).project_id,row.id),updatedAt:row.updated_at};}
  get(projectId){const project=this._project(projectId),plan=this._latest(projectId),revision=project.channels.master.document.revision;
-  if(!plan)return {projectId,title:project.title,sourceRevision:revision,visualProfile:this.visualProfile(projectId),reviewerConfigured:imageQualityConfigured(),plan:null,stale:false,shots:[],configured:illustrationsConfigured(),providers:configuredProviders(),plannerConfigured:plannerConfigured(),requiresConsent:true};
+  if(!plan)return {projectId,title:project.title,sourceRevision:revision,visualProfile:this.visualProfile(projectId),reviewerConfigured:imageQualityConfigured(),comparatorConfigured:compareConfigured(),visualMemory:this.visualMemory(projectId),plan:null,stale:false,shots:[],configured:illustrationsConfigured(),providers:configuredProviders(),plannerConfigured:plannerConfigured(),requiresConsent:true};
   const rows=this.db.prepare('SELECT * FROM article_illustration_shots WHERE plan_id=? ORDER BY ordinal').all(plan.id);
-  return {projectId,title:project.title,sourceRevision:revision,visualProfile:this.visualProfile(projectId),reviewerConfigured:imageQualityConfigured(),plan:{id:plan.id,masterRevision:plan.master_revision,createdAt:plan.created_at},stale:plan.master_revision!==revision,shots:rows.map(x=>this._present(x)),configured:illustrationsConfigured(),providers:configuredProviders(),plannerConfigured:plannerConfigured(),requiresConsent:true};
+  return {projectId,title:project.title,sourceRevision:revision,visualProfile:this.visualProfile(projectId),reviewerConfigured:imageQualityConfigured(),comparatorConfigured:compareConfigured(),visualMemory:this.visualMemory(projectId),plan:{id:plan.id,masterRevision:plan.master_revision,createdAt:plan.created_at},stale:plan.master_revision!==revision,shots:rows.map(x=>this._present(x)),configured:illustrationsConfigured(),providers:configuredProviders(),plannerConfigured:plannerConfigured(),requiresConsent:true};
  }
  _insertPlan(projectId,doc,slots){const id='ip_'+randomUUID(),time=now();
   this.db.exec('BEGIN IMMEDIATE');try{
@@ -99,7 +107,7 @@ export class IllustrationService {
  previewPrompt(projectId,shotId,provider='openai'){
   const row=this._shot(projectId,shotId),project=this._project(projectId);
   const source=slotPlan(project,project.channels.master.document,this.visualProfile(projectId)).find(x=>x.role===row.role&&x.paragraphId===row.paragraph_id);
-  return {provider,role:row.role,style:row.style||'editorial',prompt:composeImagePrompt({title:project.title,role:row.role,scene:row.scene||row.prompt,style:row.style||'editorial',excerpt:source?.excerpt||'',provider,visualProfile:this.visualProfile(projectId)}),sourceRevision:row.master_revision,stale:row.master_revision!==project.channels.master.document.revision};
+  return {provider,role:row.role,style:row.style||'editorial',prompt:composeImagePrompt({title:project.title,role:row.role,scene:row.scene||row.prompt,style:row.style||'editorial',excerpt:source?.excerpt||'',provider,visualProfile:this.visualProfile(projectId)})+this._memoryPrompt(projectId),sourceRevision:row.master_revision,stale:row.master_revision!==project.channels.master.document.revision};
  }
  editPrompt(projectId,shotId,{expectedUpdatedAt,scene,style='editorial',provider='openai'}={}){
   const row=this._shot(projectId,shotId),project=this._project(projectId);
@@ -131,7 +139,7 @@ export class IllustrationService {
    for(let i=0;i<choices.length;i++){
     const current=choices[i],start=Date.now();
     try{
-     const prompt=composeImagePrompt({title:project.title,role:row.role,scene:row.scene||row.prompt,style:row.style||'editorial',provider:current,visualProfile:this.visualProfile(projectId)});
+     const prompt=composeImagePrompt({title:project.title,role:row.role,scene:row.scene||row.prompt,style:row.style||'editorial',provider:current,visualProfile:this.visualProfile(projectId)})+this._memoryPrompt(projectId);
      const response=await this.generator(prompt,{provider:current,role:row.role});
      if(this._project(projectId).channels.master.document.revision!==row.master_revision)fail('Article changed during image generation; renew the illustration plan',409);
      if(!response?.base64||typeof response.base64!=='string')fail('Image provider returned invalid image data',502);
@@ -175,7 +183,38 @@ export class IllustrationService {
  }
  /** Candidate revisions are immutable; the accepted asset remains untouched until an explicit selection. */
  candidates(projectId,shotId){this._shot(projectId,shotId);const rows=this.db.prepare('SELECT * FROM article_illustration_candidates WHERE shot_id=? ORDER BY rowid DESC LIMIT 20').all(shotId);
-  return rows.map(row=>({id:row.id,assetId:row.asset_id,asset:this.assets.get(row.asset_id),referenceAssetId:row.reference_asset_id,provider:row.provider,model:row.model,instruction:row.instruction,prompt:row.prompt,status:row.status,createdAt:row.created_at,sourceRevision:row.master_revision,profileRevision:row.profile_revision}));
+  return rows.map(row=>({id:row.id,assetId:row.asset_id,asset:this.assets.get(row.asset_id),referenceAssetId:row.reference_asset_id,referenceAsset:this.assets.get(row.reference_asset_id),comparison:this.latestComparison(row.id),feedback:this.candidateFeedback(row.id),provider:row.provider,model:row.model,instruction:row.instruction,prompt:row.prompt,status:row.status,createdAt:row.created_at,sourceRevision:row.master_revision,profileRevision:row.profile_revision}));
+ }
+ latestComparison(candidateId){const row=this.db.prepare('SELECT * FROM article_illustration_comparisons WHERE candidate_id=? ORDER BY rowid DESC LIMIT 1').get(candidateId);return row?{id:row.id,...JSON.parse(row.assessment_json),createdAt:row.created_at}:null;}
+ candidateFeedback(candidateId){const row=this.db.prepare('SELECT rating,note,remember,created_at AS createdAt FROM article_illustration_feedback WHERE candidate_id=?').get(candidateId);return row?{...row,remember:!!row.remember}:null;}
+ _candidate(projectId,shotId,candidateId){this._shot(projectId,shotId);const row=this.db.prepare('SELECT * FROM article_illustration_candidates WHERE id=? AND shot_id=?').get(candidateId,shotId);if(!row)fail('Candidate not found in this image slot',404);return row;}
+ async compareCandidate(projectId,shotId,candidateId,{allowExternalAI=false,expectedUpdatedAt}={}){
+  const shot=this._shot(projectId,shotId),candidate=this._candidate(projectId,shotId,candidateId),profile=this.visualProfile(projectId);
+  if(!allowExternalAI)fail('Explicit two-image transmission consent is required',403);
+  if(!compareConfigured())fail('Vision image comparison is not configured',503);
+  if(!expectedUpdatedAt||shot.updated_at!==expectedUpdatedAt)fail('Image changed; reload comparison',409);
+  if(shot.master_revision!==this._project(projectId).channels.master.document.revision||candidate.master_revision!==shot.master_revision||candidate.profile_revision!==profile.revision)fail('Candidate is stale',409);
+  if(!['generated','selected'].includes(candidate.status))fail('Only active candidates can be assessed',409);
+  if(this.inflight.has(shotId))fail('Image operation already running',409);
+  const image=id=>{const asset=this.assets.get(id);return {mime:asset.mime,body:this.assets.preview(id).body}};
+  this.inflight.add(shotId);
+  try{
+   const assessment=await compareImagePair({reference:image(candidate.reference_asset_id),candidate:image(candidate.asset_id),instruction:candidate.instruction,profile});
+   const after=this._shot(projectId,shotId),again=this._candidate(projectId,shotId,candidateId);
+   if(after.updated_at!==expectedUpdatedAt||again.status!==candidate.status||profile.revision!==this.visualProfile(projectId).revision||after.master_revision!==this._project(projectId).channels.master.document.revision)fail('Candidate or article changed during image comparison',409);
+   const id='iq_'+randomUUID();this.db.prepare('INSERT INTO article_illustration_comparisons VALUES(?,?,?,?,?,?,?)').run(id,shotId,candidateId,candidate.reference_asset_id,candidate.asset_id,JSON.stringify(assessment),now());
+   return this.latestComparison(candidateId);
+  }finally{this.inflight.delete(shotId)}
+ }
+ submitCandidateFeedback(projectId,shotId,candidateId,{expectedUpdatedAt,...value}={}){
+  const shot=this._shot(projectId,shotId),candidate=this._candidate(projectId,shotId,candidateId),profile=this.visualProfile(projectId);
+  const {rating,note,remember}=validateAuthorFeedback(value);
+  if(!expectedUpdatedAt||shot.updated_at!==expectedUpdatedAt)fail('Image changed; refresh before recording feedback',409);
+  if(shot.master_revision!==this._project(projectId).channels.master.document.revision||candidate.master_revision!==shot.master_revision||candidate.profile_revision!==profile.revision)fail('Article or visual profile changed; old candidate is stale',409);
+  if(this.inflight.has(shotId))fail('Wait for image operation to finish',409);
+  if(this.candidateFeedback(candidateId))fail('Feedback already recorded; history is immutable',409);
+  const id='if_'+randomUUID();this.db.prepare('INSERT INTO article_illustration_feedback VALUES(?,?,?,?,?,?,?,?)').run(id,projectId,shotId,candidateId,rating,note,remember?1:0,now());
+  return {feedback:this.candidateFeedback(candidateId),memory:this.visualMemory(projectId)};
  }
  editAttempts(projectId,shotId){this._shot(projectId,shotId);return this.db.prepare('SELECT provider,result,error,elapsed_ms AS elapsedMs,created_at AS createdAt FROM article_illustration_edits WHERE shot_id=? ORDER BY rowid DESC LIMIT 20').all(shotId);}
  _editLog(shotId,assetId,provider,result,error,elapsed){this.db.prepare('INSERT INTO article_illustration_edits VALUES(?,?,?,?,?,?,?,?)').run('ie_'+randomUUID(),shotId,assetId,provider,result,String(error||'').slice(0,160),Math.max(0,Math.round(elapsed)),now());}
@@ -194,7 +233,7 @@ export class IllustrationService {
   const reference=this.assets.preview(referenceAssetId);const record=this.assets.get(referenceAssetId);
   if(!['image/png','image/jpeg','image/webp'].includes(record.mime))fail('Unsupported reference image format',422);
   // Editing respects the original visual identity but never asks the model to invent evidence.
-  const prompt=`Edit the supplied reference illustration for a Chinese technology article. Keep the established visual identity: ${profile.name}, palette ${profile.palette}, mood ${profile.mood}, avoid ${profile.avoid}. Art-director instruction: ${instruction.trim()}. Preserve the recognizable subject and composition except for the requested modification. No fabricated screenshots, data, people, logos, or unreadable written labels. The output is a conceptual editorial illustration, not documentary evidence.`;
+  const prompt=`Edit the supplied reference illustration for a Chinese technology article. Keep the established visual identity: ${profile.name}, palette ${profile.palette}, mood ${profile.mood}, avoid ${profile.avoid}. Art-director instruction: ${instruction.trim()}. Preserve the recognizable subject and composition except for the requested modification. No fabricated screenshots, data, people, logos, or unreadable written labels. The output is a conceptual editorial illustration, not documentary evidence.`+this._memoryPrompt(projectId);
   this.inflight.add(shotId);const start=Date.now();
   try{
    const response=await this.editor(prompt,{provider,role:row.role,referenceBytes:reference.body,referenceMime:record.mime});

@@ -67,3 +67,12 @@
 .illustration-candidate strong {display:block;margin-bottom:8px;font-size:13px;}
 .illustration-candidate p {overflow-wrap:anywhere;}
 @media(max-width:640px){.illustration-candidate{grid-template-columns:1fr;}.illustration-candidate img{max-height:240px;}}
+
+/* V36: evidence-labeled side-by-side image comparison and human preference capture. */
+.illustration-compare-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:start;}
+.illustration-compare-pair figure{min-width:0;margin:0;}
+.illustration-compare-pair figcaption{font-size:11px;color:var(--muted,#66746d);margin-top:6px;}
+.illustration-candidate:has(.illustration-compare-pair){grid-template-columns:minmax(180px,38%) minmax(0,1fr);}
+.illustration-feedback{display:grid;gap:8px;padding:12px 0;border-top:1px solid var(--line,#e1e5e1);}
+.illustration-feedback textarea{width:100%;}
+@media(max-width:850px){.illustration-candidate:has(.illustration-compare-pair){grid-template-columns:1fr;}}
