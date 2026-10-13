@@ -7,6 +7,7 @@ import {anyImageProvider,configuredProviders,generateProviderImage,editProviderI
 import {composeImagePrompt,plannerConfigured,planScenesWithModel} from './illustration-agent.mjs';
 import {DEFAULT_VISUAL_PROFILE,validateVisualProfile,localImageCheck,imageQualityConfigured,visionReviewImage} from './visual-quality.mjs';
 import {compareImagePair,compareConfigured,validateAuthorFeedback,preferencePrompt} from './image-feedback.mjs';
+import {VisualSeriesService} from './visual-series.mjs';
 
 const fail=(message,status=400)=>{throw new ValidationError(message,status)};
 const now=()=>new Date().toISOString();
@@ -45,12 +46,15 @@ export class IllustrationService {
  CREATE INDEX IF NOT EXISTS idx_illustration_feedback_project ON article_illustration_feedback(project_id,created_at);
 
  `);
+ this.series=new VisualSeriesService(this.db,this.editorial,this.assets);
+ const candidateFields=this.db.prepare('PRAGMA table_info(article_illustration_candidates)').all().map(x=>x.name);
+ if(!candidateFields.includes('reference_is_shared'))this.db.exec('ALTER TABLE article_illustration_candidates ADD COLUMN reference_is_shared INTEGER NOT NULL DEFAULT 0');
  const fields=this.db.prepare('PRAGMA table_info(article_illustration_shots)').all().map(x=>x.name);
  for(const [name,type] of [['scene',"TEXT NOT NULL DEFAULT ''"],['style',"TEXT NOT NULL DEFAULT 'editorial'"],['provider',"TEXT NOT NULL DEFAULT ''"],['review_json',"TEXT NOT NULL DEFAULT ''"]])if(!fields.includes(name))this.db.exec(`ALTER TABLE article_illustration_shots ADD COLUMN ${name} ${type}`);
  }
  /** Explicit opt-in only. Private feedback never crosses project boundaries. */
- visualMemory(projectId){this._project(projectId);const items=this.db.prepare('SELECT candidate_id AS candidateId,rating,note,created_at AS createdAt FROM article_illustration_feedback WHERE project_id=? AND remember=1 ORDER BY rowid DESC LIMIT 6').all(projectId);return {projectId,preferences:items};}
- _memoryPrompt(projectId){return preferencePrompt(this.visualMemory(projectId).preferences.map(x=>x.note));}
+ visualMemory(projectId){this._project(projectId);const items=this.db.prepare('SELECT id,candidate_id AS candidateId,rating,note,created_at AS createdAt FROM article_illustration_feedback WHERE project_id=? AND remember=1 ORDER BY rowid DESC LIMIT 6').all(projectId);return {projectId,preferences:items};}
+ _memoryPrompt(projectId){return preferencePrompt(this.visualMemory(projectId).preferences.map(x=>x.note))+this.series.seriesMemoryPrompt(projectId);}
  visualProfiles(){return this.db.prepare('SELECT project_id,revision,profile_json FROM article_illustration_profiles ORDER BY rowid DESC LIMIT 50').all().map(row=>({projectId:row.project_id,revision:row.revision,...JSON.parse(row.profile_json)}));}
  visualProfile(projectId){this._project(projectId);const row=this.db.prepare('SELECT * FROM article_illustration_profiles WHERE project_id=?').get(projectId);return row?{...JSON.parse(row.profile_json),revision:row.revision,updatedAt:row.updated_at}:{...DEFAULT_VISUAL_PROFILE,revision:0,updatedAt:null};}
  setVisualProfile(projectId,{expectedRevision,profile}={}){
@@ -59,6 +63,7 @@ export class IllustrationService {
   if(this.inflight.size){const shots=this._latest(projectId);if(shots&&this.db.prepare("SELECT 1 FROM article_illustration_shots WHERE plan_id=? AND status='generating' LIMIT 1").get(shots.id))fail('Cannot change visual profile while generating images',409);}
   this.db.exec('BEGIN IMMEDIATE');try{
    this.db.prepare('INSERT INTO article_illustration_profiles VALUES(?,?,?,?) ON CONFLICT(project_id) DO UPDATE SET revision=excluded.revision,profile_json=excluded.profile_json,updated_at=excluded.updated_at').run(projectId,expectedRevision+1,JSON.stringify(value),time);
+   this.series.revokeProjectReferences(projectId); // a changed style unapproves current images
    const plan=this._latest(projectId);if(plan){
     const project=this._project(projectId),visualProfile={...value,revision:expectedRevision+1};
     for(const row of this.db.prepare('SELECT * FROM article_illustration_shots WHERE plan_id=?').all(plan.id)){
@@ -86,6 +91,7 @@ export class IllustrationService {
  }
  _insertPlan(projectId,doc,slots){const id='ip_'+randomUUID(),time=now();
   this.db.exec('BEGIN IMMEDIATE');try{
+   this.series.revokeProjectReferences(projectId); // old article image anchors are no longer current
    this.db.prepare('INSERT INTO article_illustration_plans VALUES(?,?,?,?)').run(id,projectId,doc.revision,time);
    for(const shot of slots)this.db.prepare(`INSERT INTO article_illustration_shots(id,plan_id,role,ordinal,paragraph_id,alt,prompt,status,asset_id,model,error,created_at,updated_at,scene,style,provider) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run('il_'+randomUUID(),id,shot.role,shot.ordinal,shot.paragraphId,shot.alt,shot.prompt,'planned','','','',time,time,shot.scene,shot.style,'');
    this.db.exec('COMMIT');
@@ -118,6 +124,7 @@ export class IllustrationService {
   const source=slotPlan(project,project.channels.master.document,this.visualProfile(projectId)).find(x=>x.role===row.role&&x.paragraphId===row.paragraph_id);
   const prompt=composeImagePrompt({title:project.title,role:row.role,excerpt:source?.excerpt||'',scene,style,provider,visualProfile:this.visualProfile(projectId)});
   const updated=new Date(Math.max(Date.now(),Date.parse(row.updated_at)+1)).toISOString();
+  if(row.asset_id)this.series.revokeProjectReferences(projectId,row.asset_id);
   this.db.prepare("UPDATE article_illustration_shots SET scene=?,style=?,prompt=?,asset_id='',model='',provider='',status='planned',error='',review_json='',updated_at=? WHERE id=?").run(scene.trim(),style,prompt,updated,shotId);
   return this._present(this._shot(projectId,shotId));
  }
@@ -170,6 +177,7 @@ export class IllustrationService {
   const current=this._shot(projectId,shotId);
   if(current.asset_id!==row.asset_id||current.updated_at!==row.updated_at)fail('Image changed while being reviewed; reload first',409);
   const recorded={...result,kind:'vision',checkedAt:now()};
+  if(row.status==='approved')this.series.revokeProjectReferences(projectId,row.asset_id);
   this.db.prepare("UPDATE article_illustration_shots SET review_json=?,status='generated' WHERE id=?").run(JSON.stringify(recorded),shotId);
   return this._present(this._shot(projectId,shotId));
  }
@@ -178,13 +186,15 @@ export class IllustrationService {
   if(row.master_revision!==project.channels.master.document.revision)fail('Article changed; plan must be renewed',409);
   if(!['approve','reject'].includes(decision))fail('Decision must be approve or reject');
   if(!['generated','approved','rejected'].includes(row.status))fail('Generate this image before approval',409);
+  if(decision==='reject'&&row.asset_id)this.series.revokeProjectReferences(projectId,row.asset_id);
   this.db.prepare('UPDATE article_illustration_shots SET status=?,updated_at=? WHERE id=?').run(decision==='approve'?'approved':'rejected',now(),shotId);
   return this._present(this._shot(projectId,shotId));
  }
  /** Candidate revisions are immutable; the accepted asset remains untouched until an explicit selection. */
  candidates(projectId,shotId){this._shot(projectId,shotId);const rows=this.db.prepare('SELECT * FROM article_illustration_candidates WHERE shot_id=? ORDER BY rowid DESC LIMIT 20').all(shotId);
-  return rows.map(row=>({id:row.id,assetId:row.asset_id,asset:this.assets.get(row.asset_id),referenceAssetId:row.reference_asset_id,referenceAsset:this.assets.get(row.reference_asset_id),comparison:this.latestComparison(row.id),feedback:this.candidateFeedback(row.id),provider:row.provider,model:row.model,instruction:row.instruction,prompt:row.prompt,status:row.status,createdAt:row.created_at,sourceRevision:row.master_revision,profileRevision:row.profile_revision}));
+  return rows.map(row=>({id:row.id,assetId:row.asset_id,asset:this.assets.get(row.asset_id),referenceAssetId:row.reference_asset_id,referenceAsset:this._canSeeReference(projectId,shotId,row.reference_asset_id,!!row.reference_is_shared)?this.assets.get(row.reference_asset_id):null,comparison:this.latestComparison(row.id),feedback:this.candidateFeedback(row.id),provider:row.provider,model:row.model,instruction:row.instruction,prompt:row.prompt,status:row.status,createdAt:row.created_at,sourceRevision:row.master_revision,profileRevision:row.profile_revision}));
  }
+ _canSeeReference(projectId,shotId,assetId,shared=false){if(shared){try{this.series.assertReference(projectId,assetId);return true}catch{return false}}const shot=this._shot(projectId,shotId);if(shot.asset_id===assetId||this.db.prepare('SELECT 1 FROM article_illustration_candidates WHERE shot_id=? AND asset_id=?').get(shotId,assetId))return true;try{this.series.assertReference(projectId,assetId);return true}catch{return false}}
  latestComparison(candidateId){const row=this.db.prepare('SELECT * FROM article_illustration_comparisons WHERE candidate_id=? ORDER BY rowid DESC LIMIT 1').get(candidateId);return row?{id:row.id,...JSON.parse(row.assessment_json),createdAt:row.created_at}:null;}
  candidateFeedback(candidateId){const row=this.db.prepare('SELECT rating,note,remember,created_at AS createdAt FROM article_illustration_feedback WHERE candidate_id=?').get(candidateId);return row?{...row,remember:!!row.remember}:null;}
  _candidate(projectId,shotId,candidateId){this._shot(projectId,shotId);const row=this.db.prepare('SELECT * FROM article_illustration_candidates WHERE id=? AND shot_id=?').get(candidateId,shotId);if(!row)fail('Candidate not found in this image slot',404);return row;}
@@ -227,7 +237,9 @@ export class IllustrationService {
   if(typeof instruction!=='string'||instruction.trim().length<12||instruction.length>800)fail('Image edit instruction must be 12-800 characters');
   if(!['openai','gemini','qwen'].includes(provider))fail('Unsupported image edit provider');
   const known=[row.asset_id,...this.db.prepare('SELECT asset_id FROM article_illustration_candidates WHERE shot_id=?').all(shotId).map(x=>x.asset_id)];
-  if(typeof referenceAssetId!=='string'||!known.includes(referenceAssetId))fail('Reference image does not belong to this article image slot',403);
+  const shared=typeof referenceAssetId==='string'&&!known.includes(referenceAssetId);
+  if(typeof referenceAssetId!=='string'||!referenceAssetId)fail('Reference image is required',400);
+  if(shared)this.series.assertReference(projectId,referenceAssetId);
   if(this.editor===editProviderImage&&!configuredProviders().some(x=>x.id===provider&&x.configured))fail('Image edit provider is not configured',503);
   if(this.inflight.has(shotId))fail('Image operation is already in progress',409);
   const reference=this.assets.preview(referenceAssetId);const record=this.assets.get(referenceAssetId);
@@ -239,9 +251,10 @@ export class IllustrationService {
    const response=await this.editor(prompt,{provider,role:row.role,referenceBytes:reference.body,referenceMime:record.mime});
    const current=this._shot(projectId,shotId),currentProfile=this.visualProfile(projectId);
    if(current.updated_at!==expectedUpdatedAt||current.master_revision!==this._project(projectId).channels.master.document.revision||currentProfile.revision!==profile.revision)fail('Image or visual style changed during edit; candidate not saved',409);
+   if(shared)this.series.assertReference(projectId,referenceAssetId); // revocation during paid API call blocks candidate storage
    if(typeof response?.base64!=='string')fail('Image editor returned no image bytes',502);
    const alt=`${row.alt}（候选修改）`;const asset=this.assets.upload({name:`candidate-${shotId}.png`,alt,base64:response.base64});
-   const id='ic_'+randomUUID();this.db.prepare('INSERT INTO article_illustration_candidates VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id,shotId,referenceAssetId,asset.id,response.provider||provider,String(response.model||'image-edit').slice(0,100),instruction.trim(),prompt,'generated',row.master_revision,profile.revision,expectedUpdatedAt,now());
+   const id='ic_'+randomUUID();this.db.prepare('INSERT INTO article_illustration_candidates(id,shot_id,reference_asset_id,asset_id,provider,model,instruction,prompt,status,master_revision,profile_revision,shot_updated_at,created_at,reference_is_shared) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id,shotId,referenceAssetId,asset.id,response.provider||provider,String(response.model||'image-edit').slice(0,100),instruction.trim(),prompt,'generated',row.master_revision,profile.revision,expectedUpdatedAt,now(),shared?1:0);
    this._editLog(shotId,referenceAssetId,provider,'success','',Date.now()-start);
    return {candidate:this.candidates(projectId,shotId).find(x=>x.id===id),shot:this._present(this._shot(projectId,shotId))};
   }catch(e){this._editLog(shotId,referenceAssetId,provider,'failed',String(e?.message||'Image edit failed').replace(/(Bearer\s+)[^\s]+/gi,'$1[redacted]'),Date.now()-start);throw e;}
@@ -260,12 +273,14 @@ export class IllustrationService {
    this.db.prepare("UPDATE article_illustration_candidates SET status='rejected' WHERE id=?").run(candidateId);return this._present(this._shot(projectId,shotId));
   }
   if(candidate.status!=='generated')fail('Only unselected candidates can be chosen',409);
+  if(!this._canSeeReference(projectId,shotId,candidate.reference_asset_id,!!candidate.reference_is_shared))fail('Shared reference revoked before candidate selection',403);
   // Do not use old candidate after an unrelated edit of the main shot.
   if(row.asset_id!==candidate.reference_asset_id&&candidate.shot_updated_at!==row.updated_at)fail('Reference image has changed; create a new candidate',409);
   const updated=new Date(Math.max(Date.now(),Date.parse(row.updated_at)+1)).toISOString();
   this.db.exec('BEGIN IMMEDIATE');try{
    this.db.prepare("UPDATE article_illustration_candidates SET status='generated' WHERE shot_id=? AND status='selected'").run(shotId);
    this.db.prepare("UPDATE article_illustration_candidates SET status='selected' WHERE id=?").run(candidateId);
+   if(row.asset_id)this.series.revokeProjectReferences(projectId,row.asset_id);
    this.db.prepare("UPDATE article_illustration_shots SET asset_id=?,provider=?,model=?,prompt=?,status='generated',review_json='',error='',updated_at=? WHERE id=?").run(candidate.asset_id,candidate.provider,candidate.model,candidate.prompt,updated,shotId);
    this.db.exec('COMMIT');
   }catch(e){this.db.exec('ROLLBACK');throw e}
