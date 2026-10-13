@@ -1,6 +1,6 @@
 {
   "name": "content-studio",
-  "version": "0.38.0",
+  "version": "0.39.0",
   "private": true,
   "type": "module",
   "description": "Next.js App Router, source-aware personal publishing studio",
@@ -11,7 +11,7 @@
     "dev": "next dev -H 127.0.0.1 -p 4312",
     "build": "next build",
     "start": "next start -H 127.0.0.1 -p 4312",
-    "check": "node --check lib/api.mjs && node --check lib/core.mjs && node --check src/editorial.mjs && node --check src/store.mjs && node --check src/image-request-budget.mjs && node --check src/illustrations.mjs",
+    "check": "node --check lib/api.mjs && node --check lib/core.mjs && node --check src/editorial.mjs && node --check src/store.mjs && node --check src/image-request-budget.mjs && node --check src/illustrations.mjs && node --check src/illustration-queue.mjs",
     "test": "node --test test/*.test.mjs",
     "test:next-api": "node --test test/next-api.test.mjs",
     "legacy:dev": "node src/server.mjs"
