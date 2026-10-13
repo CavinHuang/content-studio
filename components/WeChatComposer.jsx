@@ -12,7 +12,7 @@ export default function WeChatComposer(){
  const query=useSearchParams();
  const [projects,setProjects]=useState([]),[projectId,setProjectId]=useState(''),[channel,setChannel]=useState('wechat');
  const [layout,setLayout]=useState(null),[importText,setImportText]=useState('');
- const [audit,setAudit]=useState(null),[ackRisk,setAckRisk]=useState(false);
+ const [audit,setAudit]=useState(null),[ackRisk,setAckRisk]=useState(false),[manualResult,setManualResult]=useState({});
  const [busy,setBusy]=useState(false),[notice,setNotice]=useState(''),[showEmbed,setShowEmbed]=useState(false),[allowCloud,setAllowCloud]=useState(false);
  const current=useMemo(()=>projects.find(p=>p.id===projectId),[projectId,projects]);
  const loadProjects=useCallback(async()=>{const data=await getJSON('/api/editor/projects');setProjects(data.projects||[]);return data.projects||[];},[]);
@@ -20,18 +20,23 @@ export default function WeChatComposer(){
  useEffect(()=>{if(!projectId)return;let ok=true;setLayout(null);setImportText('');setAudit(null);setAckRisk(false);getJSON(`/api/composer/projects/${projectId}/${channel}`).then(v=>{if(ok)setLayout(v)}).catch(e=>{if(ok)setNotice(e.message)});return()=>{ok=false}},[projectId,channel]);
 
  const auditCurrent=!!audit&&audit.previewMarkdown===importText;
+ const compatibility=auditCurrent?audit.compatibility:null;
+ const blockers=compatibility?.summary?.blockers||0;
+ function setEvidence(id,field,value){setManualResult(old=>{const row={...old[id],[field]:value};if(row.status==='passed'&&(!row.evidence||row.evidence.trim().length<8))row.status='pending';return {...old,[id]:row};});}
+ function exportQa(){if(!compatibility)return;const checks=compatibility.manualChecklist.map(c=>({...c,status:manualResult[c.id]?.status||'pending',evidence:manualResult[c.id]?.evidence||''}));const packet={kind:'author-recorded-paste-test',projectId,channel,layoutRevision:layout?.layoutRevision,contentHash:compatibility.contentHash,recordedAt:new Date().toISOString(),scope:'Manual, self-reported observation; platform was not independently verified',checks,summary:compatibility.summary,issues:compatibility.issues};const blob=new Blob([JSON.stringify(packet,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='content-studio-'+channel+'-paste-test.json';a.click();URL.revokeObjectURL(url);setNotice('已导出人工测试记录，仅为作者自行记录，不代表平台核验成功。')}
+
  async function reviewMarkdown(){
   if(!layout||importText.trim().length<5)return;
   setBusy(true);setNotice('');setAudit(null);setAckRisk(false);
   try{
    const result=await getJSON(`/api/composer/projects/${projectId}/${channel}/review`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedLayoutRevision:layout.layoutRevision,expectedDocumentRevision:layout.sourceDocumentRevision,markdown:importText})});
-   setAudit({...result,previewMarkdown:importText});
+   setAudit({...result,previewMarkdown:importText});setManualResult({});
    setNotice(result.requiresHumanReview?'差异已分析：有内容或证据需要人工核对。审阅并确认后才能保存。':'差异已分析：文字与当前来源段落一致。仍须完成渠道发布审核。');
   }catch(e){setNotice(e.message)}finally{setBusy(false)}
  }
  async function update(){if(!layout||!auditCurrent||(audit.requiresHumanReview&&!ackRisk))return;setBusy(true);setNotice('');try{
    const data=await getJSON(`/api/composer/projects/${projectId}/${channel}`,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({expectedLayoutRevision:layout.layoutRevision,expectedDocumentRevision:layout.sourceDocumentRevision,markdown:importText,reviewToken:audit.reviewToken,acknowledgeDrift:ackRisk})});
-   setLayout(data);setImportText('');setAudit(null);setAckRisk(false);
+   setLayout(data);setImportText('');setAudit(null);setAckRisk(false);setManualResult({});
    setNotice('已保存独立 Markdown 排版版本。本渠道事实、隐私、版权和布局检查均需要重新确认；外部平台未发表。');
   }catch(e){setNotice(e.message)}finally{setBusy(false)}}
  async function copyMarkdown(){try{await navigator.clipboard.writeText(layout?.markdown||'');setNotice('Markdown 已复制。请在 doocs/md 编辑器中粘贴，再通过其排版与复制功能交付。');}catch{setNotice('浏览器不允许自动复制，请下载 Markdown 后导入排版器。')}}
@@ -62,7 +67,7 @@ export default function WeChatComposer(){
      </section>
      <aside className="compose-panel"><div className="compose-panel-title">03 · 保存排版修订</div><p className="compose-muted">doocs/md 不提供我们可依赖的双向同步接口。排版完成后，请导出 Markdown 或粘贴 Markdown 保存；上传操作不会自动修改旧正文的证据锚点。</p>
        <label className="compose-upload">导入排版器的 .md 文件<input type="file" accept=".md,.markdown,text/markdown,text/plain" onChange={chooseFile}/></label>
-       <textarea aria-label="待保存的排版 Markdown" placeholder="或粘贴从 doocs/md 导出的 Markdown。这里仅用于导入，不是另一个排版编辑器。" value={importText} onChange={e=>{setImportText(e.target.value);setAudit(null);setAckRisk(false)}} rows={8}/>
+       <textarea aria-label="待保存的排版 Markdown" placeholder="或粘贴从 doocs/md 导出的 Markdown。这里仅用于导入，不是另一个排版编辑器。" value={importText} onChange={e=>{setImportText(e.target.value);setAudit(null);setAckRisk(false);setManualResult({})}} rows={8}/>
        
 <button className="btn secondary compose-save" disabled={busy||!layout||importText.trim().length<5} onClick={reviewMarkdown}>{busy?'分析中…':'检查导回内容与原文差异'}</button>
        {auditCurrent&&<div className="compose-audit" aria-live="polite">
@@ -73,10 +78,19 @@ export default function WeChatComposer(){
            {audit.newLinks.map((url,i)=><div className="compose-audit-item" key={`link-${i}`}><span>新增外部链接或图片地址</span><p>{url}</p></div>)}
            {audit.addedBlocks.slice(0,12).map((x,i)=><div className="compose-audit-item" key={`${x.line}-${i}`}><span>导回内容 · 第 {x.line} 行 · {x.kind}</span><p>{x.excerpt}</p></div>)}
          </div>
+         {compatibility&&<div className="compose-compat" aria-label="排版兼容预检">
+          <strong>V31 · 渠道兼容性预检（非平台验收）</strong>
+          <div className="compose-compat-metrics"><span><b>{compatibility.summary.blockers}</b>阻断</span><span><b>{compatibility.summary.warnings}</b>警告</span><span><b>{compatibility.summary.manualSignals}</b>人工检查</span></div>
+          {compatibility.issues.map((i,n)=><div className={'compose-compat-issue '+i.severity} key={i.rule+'-'+i.line+'-'+n}><span>{i.severity==='block'?'阻断':i.severity==='warning'?'提醒':'需实测'} · 第{i.line}行</span><p>{i.detail}</p></div>)}
+          <details className="compose-compat-details"><summary>真实平台人工验证清单 · {labels[channel]}</summary>
+          <p className="compose-muted">通过状态只是作者自报，证据需来自实际平台截图或操作记录。无授权账号时保持“待检查”。</p>
+          {compatibility.manualChecklist.map(c=><div className="compose-compat-check" key={c.id}><div>{c.label}</div><select aria-label={c.label+' 状态'} value={manualResult[c.id]?.status||'pending'} onChange={e=>setEvidence(c.id,'status',e.target.value)}><option value="pending">待验证</option><option value="passed" disabled={(manualResult[c.id]?.evidence||'').trim().length<8}>作者记录：通过</option><option value="failed">作者记录：失败</option></select><input aria-label={c.label+' 证据'} value={manualResult[c.id]?.evidence||''} onChange={e=>setEvidence(c.id,'evidence',e.target.value)} placeholder="平台、日期、截图/记录编号" maxLength={500}/></div>)}
+          <button type="button" className="btn secondary compose-save" onClick={exportQa}>下载测试记录 JSON</button></details>
+         </div>}
          <p className="compose-audit-limit">{audit.limitations}</p>
          {audit.requiresHumanReview&&<label className="compose-risk-check"><input type="checkbox" checked={ackRisk} onChange={e=>setAckRisk(e.target.checked)}/><span>我已检查以上文字差异及相关证据。理解保存不会证明事实正确、不会继承修改部分的证据核验，且必须重新完成本渠道发布审核。</span></label>}
        </div>}
-       <button className="btn primary compose-save" disabled={busy||!auditCurrent||(audit.requiresHumanReview&&!ackRisk)} onClick={update}>{busy?'保存中…':'保存为新的排版版本'}</button>
+       <button className="btn primary compose-save" disabled={busy||!auditCurrent||blockers>0||(audit.requiresHumanReview&&!ackRisk)} onClick={update}>{busy?'保存中…':'保存为新的排版版本'}</button>
        <p className="compose-warning">⚠ 差异审阅只比较文字，不能自动辨别事实正误；引用、图片、表格、代码与微信实际渲染还要人工检查。此 Markdown 会单独版本化，不会自动取代段落证据快照。旧的纯文本 HTML 导出将被阻止，避免误交付与排版稿不一致的内容。</p>
        <Link className="compose-research-link" href={`/editor?project=${encodeURIComponent(projectId)}&channel=${channel}`}>返回人工证据核查 →</Link>
      </aside>

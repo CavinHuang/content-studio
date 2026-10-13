@@ -1,9 +1,9 @@
 name: CI
 on:
   push:
-    branches: [main]
+    branches: [main, 'feat/v31-*']
   pull_request:
-    branches: [main]
+    branches: [main, 'feat/v30-*']
 jobs:
   test-and-build:
     runs-on: ubuntu-latest

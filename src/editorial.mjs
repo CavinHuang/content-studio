@@ -3,6 +3,7 @@ import {ValidationError} from './verification.mjs';
 import {safeText} from './normalize.mjs';
 import {markdownFromDocument,validateHandoffMarkdown} from '../lib/wechat-handoff.mjs';
 import {analyzeMarkdownRoundtrip} from '../lib/markdown-audit.mjs';
+import {compatibilityPreflight} from '../lib/markdown-compat.mjs';
 const fail=(message,status=400)=>{throw new ValidationError(message,status)};
 const now=()=>new Date().toISOString();
 const channels=['master','wechat','zhihu'];
@@ -100,7 +101,8 @@ export class EditorialService{
   const prev=this.db.prepare('SELECT revision FROM editorial_layout_drafts WHERE reference_id=?').get(ref.id);
   if(!Number.isInteger(expectedLayoutRevision)||expectedLayoutRevision!==(prev?.revision||0))fail('Layout draft revision conflict: reload',409);
   if(!Number.isInteger(expectedDocumentRevision)||expectedDocumentRevision!==doc.revision)fail('Source document changed: review before importing',409);
-  return analyzeMarkdownRoundtrip({title:this._project(id).title,paragraphs:doc.paragraphs,claims:this.precision.claims(ref.id),markdown,documentRevision:doc.revision,layoutRevision:prev?.revision||0});
+  const audit=analyzeMarkdownRoundtrip({title:this._project(id).title,paragraphs:doc.paragraphs,claims:this.precision.claims(ref.id),markdown,documentRevision:doc.revision,layoutRevision:prev?.revision||0});
+  return {...audit,compatibility:compatibilityPreflight(markdown,channel)};
  }
  saveLayoutDraft(id,channel,{expectedLayoutRevision,expectedDocumentRevision,markdown,reviewToken,acknowledgeDrift=false}={}){
   if(channel==='master')fail('Typesetting handoff belongs to publishing channels');
@@ -110,11 +112,12 @@ export class EditorialService{
   if(!Number.isInteger(expectedDocumentRevision)||expectedDocumentRevision!==doc.revision)fail('Source document changed: review before importing',409);
   const content=validateHandoffMarkdown(markdown);
   const audit=this.reviewLayoutDraft(id,channel,{expectedLayoutRevision,expectedDocumentRevision,markdown:content});
+  if(!audit.compatibility.canSaveLocally)fail('Markdown compatibility preflight blocked unsafe or nonportable content; revise before saving',422);
   if(audit.requiresHumanReview && (!acknowledgeDrift || reviewToken!==audit.reviewToken))fail('Review Markdown differences and acknowledge changes before importing',409);
   const rev=(prev?.revision||0)+1,at=now();
   this.db.exec('BEGIN IMMEDIATE');try{
    this.db.prepare('INSERT INTO editorial_layout_history VALUES(?,?,?,?,?,?)').run('lh_'+randomUUID(),ref.id,rev,doc.revision,content,at);
-   this.db.prepare('INSERT INTO editorial_layout_review_history VALUES(?,?,?,?)').run(ref.id,rev,JSON.stringify({summary:audit.summary,hasMaterialDrift:audit.hasMaterialDrift,requiresHumanReview:audit.requiresHumanReview,acknowledgedByAuthor:!!acknowledgeDrift,scope:'Author-reviewed text diff; not independent fact-checking'}),at);
+   this.db.prepare('INSERT INTO editorial_layout_review_history VALUES(?,?,?,?)').run(ref.id,rev,JSON.stringify({summary:audit.summary,hasMaterialDrift:audit.hasMaterialDrift,requiresHumanReview:audit.requiresHumanReview,acknowledgedByAuthor:!!acknowledgeDrift,compatibility:{summary:audit.compatibility.summary,features:audit.compatibility.features,contentHash:audit.compatibility.contentHash,platformVerified:false},scope:'Static preflight and author-reviewed text diff; platform not verified'}),at);
    this.db.prepare(`INSERT INTO editorial_layout_drafts VALUES(?,?,?,?,?) ON CONFLICT(reference_id) DO UPDATE SET revision=excluded.revision,source_document_revision=excluded.source_document_revision,markdown=excluded.markdown,updated_at=excluded.updated_at`).run(ref.id,rev,doc.revision,content,at);
    this.db.prepare("UPDATE editorial_channel_refs SET checklist_json=?,status='draft',reported_url='',updated_at=? WHERE id=?")
     .run(JSON.stringify({factual:false,privacy:false,rights:false,layout:false}),at,ref.id);
@@ -123,6 +126,7 @@ export class EditorialService{
   }catch(e){this.db.exec('ROLLBACK');throw e}
   return this.layoutDraft(id,channel);
  }
+ layoutCompatibility(id,channel){const draft=this.layoutDraft(id,channel);return {...compatibilityPreflight(draft.markdown,channel),projectId:id,layoutRevision:draft.layoutRevision,sourceDocumentRevision:draft.sourceDocumentRevision,isSourceOutdated:draft.isSourceOutdated};}
  layoutHistory(id,channel){const ref=this._channel(id,channel);return this.db.prepare('SELECT h.revision,h.source_document_revision,h.created_at,r.review_json FROM editorial_layout_history h LEFT JOIN editorial_layout_review_history r ON r.reference_id=h.reference_id AND r.revision=h.revision WHERE h.reference_id=? ORDER BY h.revision DESC').all(ref.id).map(({review_json,...row})=>({...row,importReview:review_json?parse(review_json):null}));}
  _canExport(id,channel){if(channel==='master')fail('Master draft is not a publishing destination');const r=this._channel(id,channel),doc=this.precision.document(r.id),c=parse(r.checklist_json),claims=this.precision.claims(r.id),tasks=this.precision.tasks().filter(t=>t.referenceId===r.id);const problems=[];
  if(this.db.prepare('SELECT revision FROM editorial_layout_drafts WHERE reference_id=?').get(r.id))problems.push('此渠道已进入 doocs/md 排版流程，旧纯文本 HTML 导出已禁用；请在排版器复制排版成品并到真实平台核查');

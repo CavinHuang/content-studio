@@ -113,3 +113,7 @@ docker compose -f docker-compose.doocs.yml up -d
 参阅 [V30 技术契约](docs/V30-ROUNDTRIP-REVIEW.md) 与 [QA](docs/V30-QA.md)。Next.js 正式构建及微信/知乎真实后台兼容仍待联网验收。
 
 GitHub 主仓库：[CavinHuang/content-studio](https://github.com/CavinHuang/content-studio)。后续改动通过开发分支与 PR 评审，严禁提交私有数据和密钥。
+
+## V31 渠道排版预检
+
+在 `/compose` 导回 Markdown 后执行静态兼容检查：本地图片、危险 URL 和未闭合代码围栏阻止保存；表格、代码及远程图片必须在真实微信／知乎后台人工验证。可导出带稿件哈希的自报测试记录（JSON），不会自动视作平台验证或已发表。参见 `docs/V31-COMPATIBILITY.md`。
