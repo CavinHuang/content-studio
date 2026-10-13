@@ -1,6 +1,7 @@
 'use client';
 import {useCallback,useEffect,useState} from 'react';
 import Link from 'next/link';
+import VisualSeriesPanel from './VisualSeriesPanel';
 import {useSearchParams} from 'next/navigation';
 
 async function api(path,method='GET',data){const r=await fetch(path,{method,cache:'no-store',headers:data?{'content-type':'application/json'}:{},body:data?JSON.stringify(data):undefined});const v=await r.json().catch(()=>({}));if(!r.ok)throw Error(v.error||`HTTP ${r.status}`);return v;}
@@ -45,7 +46,7 @@ export default function IllustrationStudio(){
  async function copyProposal(){try{await navigator.clipboard.writeText(preview.markdown);setMessage('含图 Markdown 已复制；请在 doocs/md 中排版，并按 V30 差异审阅导回。')}catch{setMessage('复制被浏览器拦截，请手动选择下方 Markdown。')}}
  return <div className="compose-root"><header className="compose-head"><div><Link href="/" className="compose-brand">◈ Content Studio</Link><span className="compose-divider">/</span>创作 · Agent 自动配图</div><div className="compose-right"><Link className="btn secondary" href={`/compose?project=${encodeURIComponent(projectId)}`}>返回 doocs/md 排版 ↗</Link></div></header>
  <main className="compose-container">
-  <div className="compose-intro"><div><span className="eyebrow">ILLUSTRATION AGENT · V36</span><h1>文章写好，交给 Agent 配图</h1><p>分析主稿 → 统一视觉规范 → 多模型配图与有限回退 → 参考图编辑 → 双图质量对比与作者反馈 → 视觉偏好记忆 → 图片质量辅助评审 → 人工批准 → 素材映射 → doocs/md 排版。图像是概念插画，不是事实证据。</p></div><span className="compose-mode">本地素材库 · 渠道独立</span></div>
+  <div className="compose-intro"><div><span className="eyebrow">ILLUSTRATION AGENT · V37</span><h1>文章写好，交给 Agent 配图</h1><p>分析主稿 → 统一视觉规范 → 多模型配图与有限回退 → 参考图编辑 → 双图质量对比与作者反馈 → 视觉偏好记忆 → 图片质量辅助评审 → 人工批准 → 素材映射 → doocs/md 排版。图像是概念插画，不是事实证据。</p></div><span className="compose-mode">本地素材库 · 渠道独立</span></div>
   {message&&<div className="compose-notice" role="status">{message}<button type="button" onClick={()=>setMessage('')}>×</button></div>}
   <div className="illustration-grid">
    <aside className="compose-panel"><div className="compose-panel-title">01 · 选择创作内容</div>
@@ -63,6 +64,7 @@ export default function IllustrationStudio(){
      {[['name','规范名称'],['palette','主要配色'],['mood','画面氛围'],['avoid','禁止元素']].map(([field,label])=><label key={field}>{label}<input value={profileDraft[field]||''} onChange={e=>setProfileDraft(p=>({...p,[field]:e.target.value}))}/></label>)}
      <button className="btn secondary compose-save" disabled={busy||state.stale} onClick={saveProfile}>保存视觉规范并重新确认图片</button>
     </div>}
+    <VisualSeriesPanel key={projectId} projectId={projectId} state={state} projects={projects} onChange={()=>reload(projectId)}/>
     {!!state?.visualMemory?.preferences?.length&&<div className="compose-tip"><strong>作者确认的视觉偏好记忆 · {state.visualMemory.preferences.length} 条</strong><p>这些文字来自你勾选“记住偏好”的候选反馈，仅作用于这篇文章后续配图和修改提示词，不会自动决定采用或发表。</p>{state.visualMemory.preferences.map((item,i)=><p key={i} className="compose-muted">{item.rating==='candidate_better'?'候选更好':item.rating==='reference_better'?'参考图更好':'需要调整'} · {item.note}</p>)}</div>}
     <div className="compose-tip"><strong>计划与生成有什么区别？</strong><p>创建计划只在本地分析文章标题、段落，不上传内容。点击“调用图片模型”后，相关标题、章节摘要和提示词才会发给配置的图片服务。</p></div>
     <label className="compose-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/><span>我允许将所选文章的标题与章节摘要发送到配置的外部图片模型。已确认没有需要保密的内容。</span></label>
@@ -84,9 +86,9 @@ export default function IllustrationStudio(){
       {!!shot.attempts?.length&&<details><summary>生成尝试历史 · {shot.attempts.length} 次</summary>{shot.attempts.map((a,i)=><p key={i} className="compose-muted">{a.provider} · {a.result==='success'?'成功':'失败'} · {a.elapsedMs}ms {a.error?'· '+a.error:''}</p>)}</details>}
       {shot.asset&&<div className="compose-tip illustration-variations">
        <strong>参考图迭代 · 保留原图，候选图人工择优</strong>
-       <p>只会将当前配图或此配图的候选版本作为参考图。编辑生成一次调用一笔独立费用；不会自动替换已批准图片。</p>
+       <p>可选择当前配图、历史候选或当前系列明确共享的参考图。编辑生成一次调用一笔独立费用；不会自动替换已批准图片。</p>
        <label>参考图片<select aria-label={`${shot.ordinal} 参考图`} value={editDrafts[shot.id]?.referenceAssetId||shot.assetId} onChange={e=>setEdit(shot.id,'referenceAssetId',e.target.value)}>
-        <option value={shot.assetId}>当前正式图片</option>{(shot.candidates||[]).map(c=><option key={c.id} value={c.assetId}>候选 · {c.provider} · {c.createdAt}</option>)}
+        <option value={shot.assetId}>当前正式图片</option>{(shot.candidates||[]).map(c=><option key={c.id} value={c.assetId}>候选 · {c.provider} · {c.createdAt}</option>)}{(state?.visualSeries?.references||[]).filter(x=>x.assetId!==shot.assetId).map(ref=><option key={ref.id} value={ref.assetId}>系列参考 · {ref.caption.slice(0,40)}</option>)}
        </select></label>
        <label>修改要求<textarea rows={3} aria-label={`${shot.ordinal} 图片修改指令`} placeholder="例如：保留构图，只将背景调整为米白色，弱化装饰元素，突出中心主体。" value={editDrafts[shot.id]?.instruction||''} onChange={e=>setEdit(shot.id,'instruction',e.target.value)}/></label>
        <button className="btn secondary" disabled={busy||state.stale||!consent||!(editDrafts[shot.id]?.instruction?.trim().length>=12)||!state?.providers?.find(p=>p.id===provider)?.configured} onClick={()=>editShot(shot)}>使用 {provider} 根据参考图生成候选</button>
