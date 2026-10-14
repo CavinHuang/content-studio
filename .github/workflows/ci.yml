@@ -18,8 +18,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Verify canonical V30-V47 Git ancestry (no merges)
+      - name: Verify canonical candidate stack (before mainline integration)
+        if: github.ref != 'refs/heads/main'
         run: npm run verify:stack
+      - name: Verify integrated mainline (after merge)
+        if: github.ref == 'refs/heads/main'
+        run: npm run verify:main
       - name: Install dependencies
         run: npm install --no-audit --no-fund
       - name: Domain & API tests
@@ -30,6 +34,8 @@ jobs:
         run: npm run test:release
       - name: V47 restored-database cross-channel integration acceptance
         run: npm run test:integration
+      - name: V48 merged mainline safety regressions
+        run: npm run test:mainline
       - name: Syntax checks
         run: npm run check
       - name: Build Next.js App Router
