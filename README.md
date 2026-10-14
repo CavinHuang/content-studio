@@ -1,8 +1,15 @@
-# Content Studio · Next.js + doocs/md（V67）
+# Content Studio · Next.js + doocs/md（V68）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V68 · 候选 SQLite 文件与生产数据库身份隔离
+
+- V67 操作员验收新增强制 `--candidate-db=绝对路径`，先通过真实文件设备号与 inode 检查候选库不是源库、硬链接别名、软链接或受保护备份目录里的文件，再开展远端候选进程探测和任何私有备份操作。
+- `/api/health` 使用**当前 SQLite 连接本身**的 `PRAGMA database_list` 读取打开的数据库文件信息，再用本次启动 nonce 生成不暴露路径的数据库身份摘要；V64 探针仅转发这个已校验的匿名身份值。
+- V67 在备份/回滚前后核对运行实例上报的数据库身份，与操作者选择的独立候选库相同，防止实际使用生产数据库或在演练过程中更换连接。单入口报告输出 `candidateDatabaseIsolated=true` 但仍不会签署发布批准。
+- 专项 11 项真实 SQLite/文件系统测试涵盖硬链接别名、软链接、相同内容不同文件、错误候选进程身份与 WAL 读写。详见 [V68 候选数据库隔离说明](docs/V68-CANDIDATE-DATABASE-ISOLATION.md)。
 
 ## V67 · 单入口串联真实主机、独立进程与隔离回滚技术验收
 

@@ -143,6 +143,7 @@ export async function probeServingBuild(input,{
   marker?.artifactDigestSha256!==local.artifactDigestSha256||
   marker?.dependencyLockSha256!==local.dependencyLockSha256||
   marker?.buildId!==local.buildId||
+  !/^[a-f0-9]{64}$/.test(marker?.databaseIdentity||'')||
   !/^[a-f0-9]{32}$/.test(marker?.runNonce||'')||
   !Number.isInteger(marker?.pid)||marker.pid<1)
   throw Error('Local Next.js process does not identify the verified build');
@@ -152,6 +153,7 @@ export async function probeServingBuild(input,{
  return {kind:'content-studio-v64-serving-build-probe',schemaVersion:1,
   candidateCommit:args.sha,artifactDigestSha256:local.artifactDigestSha256,
   buildId:local.buildId,dependencyLockSha256:local.dependencyLockSha256,
+  observedDatabaseIdentity:marker.databaseIdentity,
   observedProcessPid:marker.pid,
   observedNonce:marker.runNonce,localBuildIntegrityVerified:true,
   servingProcessDeclarationMatchesBuild:true,

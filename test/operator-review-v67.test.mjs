@@ -4,13 +4,19 @@ import {mkdtempSync,mkdirSync,writeFileSync,chmodSync,rmSync,readFileSync} from 
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {blankHostInventory,inspectHostReadiness} from '../scripts/host-inventory-v66.mjs';
-import {reviewOperatorRelease,parseReviewArgs,requireHostReview,
+import {reviewOperatorRelease as realReviewOperatorRelease,parseReviewArgs,requireHostReview,
  requireRuntimeReview,requirePreparedReview} from '../scripts/operator-review-v67.mjs';
 
 const sha='a'.repeat(40),other='b'.repeat(40);
+const reviewOperatorRelease=(input,opts={})=>
+ realReviewOperatorRelease(input,{
+  separate:()=>({candidateSeparatedFromSource:true}),
+  isolate:()=>({candidateIsolated:true,connectedCandidateIdentityMatched:true}),
+  ...opts
+ });
 const privateText='SYNTHETIC_PRIVATE_TEXT_NOT_IN_RESULT';
 function entries(){
- return ['--sha='+sha,'--db=/private/studio.sqlite',
+ return ['--sha='+sha,'--db=/private/studio.sqlite','--candidate-db=/secure/isolated-candidate.sqlite',
  '--backup-dir=/secure/backup','--scratch-dir=/secure/scratch',
  '--review=/secure/review.json','--inventory=/secure/inventory.json',
  '--url=http://127.0.0.1:4312/'];
@@ -33,7 +39,7 @@ const runtime=()=>({
  localBuildIntegrityVerified:true,servingProcessDeclarationMatchesBuild:true,
  independentProcessBinaryAttestation:false,
  artifactDigestSha256:'c'.repeat(64),dependencyLockSha256:'d'.repeat(64),
- buildId:'synthetic-next-build',observedProcessPid:1234,
+ buildId:'synthetic-next-build',observedDatabaseIdentity:'b'.repeat(64),observedProcessPid:1234,
  observedNonce:'e'.repeat(32),...safe
 });
 const backup=()=>({
@@ -51,6 +57,7 @@ test('V67 accepts only pinned SHA, five absolute paths and loopback URL',()=>{
  assert.equal(parseReviewArgs(entries()).url,'http://127.0.0.1:4312');
  for(const bad of [[],[...entries(),'--sha='+sha],
   entries().map(x=>x.startsWith('--db=')?'--db=relative':x),
+  entries().map(x=>x.startsWith('--candidate-db=')?'--candidate-db=relative':x),
   entries().map(x=>x.startsWith('--url=')?'--url=https://example.com':x),
   [...entries(),'--token=PRIVATE']])
   assert.throws(()=>parseReviewArgs(bad));
@@ -147,7 +154,7 @@ test('V67 real V66 filesystem preflight on synthetic private files rejects unsaf
   rollbackOwnerReviewed:true,localOnlyAccessReviewed:true}));
  mkdirSync(join(cwd,'.github','workflows'),{recursive:true});
  writeFileSync(join(cwd,'.github','workflows','ci.yml'),'name: test\njobs:\n  test: {}\n');
- const opts={sha,db,backupDir,scratchDir,review,inventory,url:'http://127.0.0.1:4312'};
+ const opts={sha,db,candidateDb:join(cwd,'isolated-candidate.sqlite'),backupDir,scratchDir,review,inventory,url:'http://127.0.0.1:4312'};
  const deps2={host:async o=>inspectHostReadiness(o,{
   cwd,checkout:()=>true,head:()=>sha,lock:()=>({lockSha256:'b'.repeat(64)})
  }),runtime:async()=>runtime(),prepare:async()=>backup()};

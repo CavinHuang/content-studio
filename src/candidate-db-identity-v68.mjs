@@ -42,13 +42,10 @@ export function activeDatabaseIdentity(core,runNonce){
   return fileIdentityDigest(main.file,runNonce);
  }catch{return null}
 }
-export function verifyCandidateIsolation({
- sourceDb,candidateDb,observedIdentity,runNonce,backupDir,scratchDir
-}){
- if(!NONCE.test(runNonce||'')||!DIGEST.test(observedIdentity||'')||
-  !absolute(sourceDb)||!absolute(candidateDb)||
+export function checkCandidateFileSeparation({sourceDb,candidateDb,backupDir,scratchDir}){
+ if(!absolute(sourceDb)||!absolute(candidateDb)||
   !absolute(backupDir)||!absolute(scratchDir))
-  throw Error('Candidate SQLite file identity arguments invalid');
+  throw Error('Explicit absolute source and candidate SQLite paths required');
  const source=identity(sourceDb),candidate=identity(candidateDb);
  const backup=realpathSync(backupDir),scratch=realpathSync(scratchDir);
  if(source.canonical===candidate.canonical||
@@ -56,6 +53,14 @@ export function verifyCandidateIsolation({
   within(candidate.canonical,backup)||within(candidate.canonical,scratch)||
   within(source.canonical,backup)||within(source.canonical,scratch))
   throw Error('Candidate SQLite aliases the source or protected recovery storage');
+ return {candidateSeparatedFromSource:true,privatePathsIncluded:false};
+}
+export function verifyCandidateIsolation({
+ sourceDb,candidateDb,observedIdentity,runNonce,backupDir,scratchDir
+}){
+ if(!NONCE.test(runNonce||'')||!DIGEST.test(observedIdentity||''))
+  throw Error('Candidate SQLite file identity arguments invalid');
+ checkCandidateFileSeparation({sourceDb,candidateDb,backupDir,scratchDir});
  const expected=fileIdentityDigest(candidateDb,runNonce);
  if(observedIdentity!==expected||observedIdentity===fileIdentityDigest(sourceDb,runNonce))
   throw Error('Running candidate does not use the independently selected SQLite file');

@@ -11,6 +11,7 @@ import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {getHeadSha,verifyBuildReceipt,probeServingBuild} from '../scripts/build-provenance-v64.mjs';
+import {fileIdentityDigest} from '../src/candidate-db-identity-v68.mjs';
 
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 async function port(){
@@ -69,6 +70,8 @@ test('V64 actual guarded production Next.js process announces same sealed Git SH
   assert.equal(ready.runtimeBuild.artifactDigestSha256,sealed.artifactDigestSha256);
   assert.equal(ready.runtimeBuild.dependencyLockSha256,sealed.dependencyLockSha256);
   assert.equal(ready.runtimeBuild.buildId,sealed.buildId);
+  assert.equal(ready.runtimeBuild.databaseIdentity,
+   fileIdentityDigest(join(dir,'isolated.sqlite'),ready.runtimeBuild.runNonce));
   let probed;
   try{probed=await probeServingBuild({sha,url:base})}
   catch(error){
@@ -84,6 +87,7 @@ test('V64 actual guarded production Next.js process announces same sealed Git SH
     '; count='+lines.length+'; '+String(error.message).slice(0,90));
   }
   assert.equal(probed.servingProcessDeclarationMatchesBuild,true);
+  assert.equal(probed.observedDatabaseIdentity,ready.runtimeBuild.databaseIdentity);
   assert.equal(probed.independentProcessBinaryAttestation,false);
   assert.equal(probed.mergeAuthorized,false);
   assert.equal(probed.productionReady,false);
