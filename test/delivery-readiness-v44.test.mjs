@@ -168,3 +168,82 @@ test('image delivery remains blocked without approval, current quality, saved ro
  assert.equal(view.steps.find(x=>x.id==='images').status,'blocked','unreviewed other shots still block');
  assert.equal(view.platformVerified,false);assert.equal(view.published,false);
 });
+
+function uniquePng(index){
+ const buffer=Buffer.from(png,'base64');
+ const tag=Buffer.from('v44-'+index),block=Buffer.concat([Buffer.from('tEXt'),tag]);
+ let crc=0xffffffff;for(const byte of block){crc^=byte;for(let i=0;i<8;i++)crc=(crc>>>1)^((crc&1)?0xedb88320:0)}
+ const chunk=Buffer.alloc(4+block.length+4);chunk.writeUInt32BE(tag.length,0);block.copy(chunk,4);chunk.writeUInt32BE((crc^0xffffffff)>>>0,4+block.length);
+ return Buffer.concat([buffer.subarray(0,buffer.length-12),chunk,buffer.subarray(buffer.length-12)]).toString('base64');
+}
+test('fully reviewed illustrated WeChat article reaches author-only readiness; mapping changes stale the snapshot',async t=>{
+ const {core,article,root,illu}=await setup(t);
+ const planned=await read(await request(core,illu+'/plan','POST',{expectedMasterRevision:1}));
+ assert.equal(planned.status,201);
+ const plan=planned.shots;
+ for(let index=0;index<plan.length;index++){
+  core.illustrations.generator=async(_prompt,{provider})=>({base64:uniquePng(index),provider,model:'v44-synthetic'});
+  const generated=await request(core,illu+'/shots/'+plan[index].id+'/generate','POST',{allowExternalAI:true});
+  assert.equal(generated.status,200);
+  const approved=await request(core,illu+'/shots/'+plan[index].id+'/decision','POST',{decision:'approve'});
+  assert.equal(approved.status,200);
+  const current=await read(await request(core,illu));
+  const shot=current.shots[index];
+  assert.equal(shot.status,'approved');
+  const mapped=await request(core,'/api/assets/'+shot.assetId+'/mappings/wechat','PUT',{
+   url:'https://cdn.example.org/v44-quality-'+index+'.png',note:'作者手工登记的模拟渠道图片映射地址'
+  });
+  assert.equal(mapped.status,200);
+  const rating=await request(core,illu+'/shots/'+shot.id+'/quality-reviews','POST',{
+   assetId:shot.assetId,expectedAssetSha256:shot.asset.sha256,
+   expectedShotUpdatedAt:shot.updatedAt,expectedSourceRevision:current.sourceRevision,
+   expectedProfileRevision:current.visualProfile.revision,
+   ratings:qualityRatings,riskFlags:[],rightsReviewed:true,factualReviewed:true,
+   recommendation:'recommended',note:'作者人工检查图片与文字一致，素材权利及移动端可读性也已评估。'
+  });
+  assert.equal(rating.status,201);
+ }
+ let view=await read(await request(core,root));
+ assert.equal(view.steps.find(s=>s.id==='images').status,'ready');
+ assert.equal(view.steps.find(s=>s.id==='roundtrip').status,'blocked');
+ assert.equal(view.steps.find(s=>s.id==='platform').status,'blocked');
+ const proposal=await read(await request(core,illu+'/handoff/wechat'));
+ assert.equal(proposal.ready,true);
+ await importLayout(core,article,'wechat',proposal.markdown);
+ await checkAll(core,article);
+ const rec=await read(await request(core,illu+'/image-roundtrip/wechat'));
+ assert.equal(rec.ready,true);
+ view=await read(await request(core,root));
+ assert.equal(view.steps.find(s=>s.id==='roundtrip').status,'ready');
+ assert.equal(view.steps.find(s=>s.id==='platform').status,'blocked');
+ const qa=await read(await request(core,illu+'/handoff-qa/wechat'));
+ assert.equal(qa.readyForManualQA,true);
+ const savedQa=await request(core,illu+'/handoff-qa/wechat','POST',{
+  expectedSourceRevision:qa.sourceRevision,expectedLayoutRevision:qa.layoutRevision,
+  expectedProposalSha256:qa.proposalSha256,
+  checks:{rightsReviewed:true,uploadConfirmed:true,desktopPasteConfirmed:true,mobilePreviewConfirmed:true},
+  note:'作者在示例流程中记录了桌面编辑与手机端显示的手工验收；非自动平台验证。'
+ });
+ assert.equal(savedQa.status,201);
+ const ready=await read(await request(core,root));
+ assert.equal(ready.ready,true);
+ assert.equal(ready.blockers,0);
+ assert.equal(ready.decision,'ready_for_author_final_review');
+ assert.equal(ready.platformVerified,false);
+ assert.equal(ready.published,false);
+ const snapshot=await read(await request(core,root+'/snapshots','POST',{
+  expectedFingerprint:ready.fingerprint,acknowledgeLocalOnly:true,
+  note:'该示例完成了本地稿件、图片和平台作者记录检查，但没有真实发表。'
+ }));
+ assert.equal(snapshot.status,201);
+ const first=await read(await request(core,illu));
+ const mapping=await request(core,'/api/assets/'+first.shots[0].assetId+'/mappings/wechat','PUT',{
+  url:'https://cdn.example.org/v44-replacement-image.png',note:'作者重新上传了一个不同的渠道图片地址'
+ });
+ assert.equal(mapping.status,200);
+ const stale=await read(await request(core,root));
+ assert.equal(stale.ready,false);
+ assert.equal(stale.latestSnapshot.current,false);
+ assert.ok(stale.steps.find(s=>s.id==='roundtrip').issues.includes('saved_markdown_image_reconciliation_failed'));
+ assert.ok(stale.steps.find(s=>s.id==='platform').issues.includes('current_author_platform_qa_pass_required'));
+});
