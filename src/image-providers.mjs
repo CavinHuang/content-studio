@@ -16,9 +16,9 @@ function endpoint(value,route){let x;try{x=new URL(value.endsWith('/')?value:val
 const MAX_JSON=11_000_000,MAX_IMAGE=6*1024*1024;
 // Narrow host check. A random service under aliyuncs.com is not necessarily an image object store.
 function isAlibabaOssHost(host){
- const value=String(host||'').toLowerCase().replace(/\\.$/,'');
- return /^[a-z0-9][a-z0-9.-]*\\.oss-(?:[a-z0-9-]+)\\.aliyuncs\\.com$/.test(value)||
-        /^[a-z0-9][a-z0-9.-]*\\.oss\\.aliyuncs\\.com$/.test(value);
+ const value=String(host||'').toLowerCase().replace(/\.$/,'');
+ return /^[a-z0-9][a-z0-9.-]*\.oss-(?:[a-z0-9-]+)\.aliyuncs\.com$/.test(value)||
+        /^[a-z0-9][a-z0-9.-]*\.oss\.aliyuncs\.com$/.test(value);
 }
 // Disclose a safe HTTP status only, never provider response bodies/headers containing secrets.
 // Only rate limits and transient upstream failures should trigger paid fallback attempts.
