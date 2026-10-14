@@ -18,7 +18,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Verify canonical V30-V46 Git ancestry (no merges)
+      - name: Verify canonical V30-V47 Git ancestry (no merges)
         run: npm run verify:stack
       - name: Install dependencies
         run: npm install --no-audit --no-fund
