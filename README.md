@@ -1,8 +1,15 @@
-# Content Studio · Next.js + doocs/md（V56）
+# Content Studio · Next.js + doocs/md（V57）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V57 · 备份恢复后的真实生产启动验收
+
+- 在现有统一 Draft PR #26 新增 `npm run test:staging:v57`：从真实 WAL 安全备份恢复独立的旧版 SQLite，使用**生产构建的 Next.js 进程**和 `runtime-guard` 对恢复副本启动、读取历史文章与 PNG、执行 V52 新表迁移并重启。
+- 对比原始源库迁移前后的结构、行数和全部历史数据指纹，检查历史正文、图片二进制、渠道映射及备份均未被更改；伪造的备份清单必须在生产进程启动之前拒绝恢复。
+- CI 使用合成内容和随机本机端口。它证实真实生产二进制能在**恢复副本**运行，但不代表真实用户数据库、托管环境或第三方发布已通过。
+- 详见 [V57 恢复库生产启动验收](docs/V57-RESTORED-PRODUCTION-STAGING.md)。
 
 ## V56 · 真实 SQLite 文件恢复与旧备份检测
 
