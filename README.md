@@ -1,8 +1,16 @@
-# Content Studio · Next.js + doocs/md（V46）
+# Content Studio · Next.js + doocs/md（V47）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V47 · 恢复副本上的完整业务验收
+
+- 新增 `npm run release:rehearse -- --db=/绝对路径/content-studio.sqlite`：使用 SQLite 一致性备份创建一次性恢复副本，加载 V47 业务服务，遍历历史文章，再用合成项目模拟 **公众号与知乎两条完整交付流程**。
+- 在运行新服务、模拟写入之前和之后核对**所有原有业务表的逐行内容指纹**（包含图片 BLOB），防止原数据库中的文章、素材、渠道映射或审核证据遭到悄然改写。模拟项目只出现在一次性副本中，结束自动删除。
+- `npm run release:admission -- --db=/路径/内容库.sqlite --backup=/路径/备份.sqlite --rehearse --integration` 将额外执行本轮应用级验收并标注候选版状态，但 **`productionReady`、`platformVerified` 始终为 false**，不会调用真实付费图片模型或访问发布平台。
+- 检查真实私人数据库时请使用受信任、临时存储加密的机器：演练期间临时副本包含明文草稿和图片，删除临时副本并不等同于对磁盘安全擦除。
+- 详见 [V47 业务集成验收及操作手册](docs/V47-RESTORED-DATA-ACCEPTANCE.md)。此阶段只验证候选分支，历史 Draft PR 仍未合并主分支。
 
 ## V46 · 集成候选版验收
 
