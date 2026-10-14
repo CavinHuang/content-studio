@@ -1,8 +1,16 @@
-# Content Studio · Next.js + doocs/md（V58）
+# Content Studio · Next.js + doocs/md（V59）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V59 · GitHub CI 与本地发布证据核验
+
+- 新增只读 GitHub API 核验：严格比较统一 Draft PR #26 的 HEAD、所在分支、既定 `main` 基线以及**同一提交**的 push/PR 两类 CI；同一事件较新的失败或未完成结果不能被旧成功结果覆盖。
+- 增加 `npm run release:remote:v59 -- --sha=<当前完整 SHA> --operator-evidence=<受保护的 V55 JSON 绝对路径>`，只有提供相同 SHA 的本地发布证据时才标记技术证据齐全。可不提供 JSON 查看远端检查，但退出码仍为非零。
+- 全过程只读，不调用模型、CDN 或发布平台；令牌仅发送固定 `api.github.com` 域名，所有路径与敏感内容不进入报告。
+- 此命令**无法独立检查外部托管平台、Webhooks、操作者身份或上线批准**。即使技术证据齐全，`mergeAuthorized`、`deployAuthorized`、`productionReady` 都保持 false；PR 必须保持 Draft。
+- `npm run test:release:v59` 为离线负面场景测试；详见 [V59 发布证据核验](docs/V59-REMOTE-RELEASE-EVIDENCE.md)。
 
 ## V58 · 本地 API 入口安全边界
 
