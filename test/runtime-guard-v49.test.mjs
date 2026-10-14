@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync,rmSync,symlinkSync} from 'node:fs';
+import {mkdtempSync,rmSync,symlinkSync,writeFileSync} from 'node:fs';
+import {spawnSync} from 'node:child_process';
+import {resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {auditLocalRuntime,assertLocalRuntime,startLocalRuntime} from '../scripts/runtime-guard.mjs';
@@ -66,4 +68,25 @@ test('V49 runtime launcher forces loopback binding, strips legacy remote and dem
  assert.equal(config.env.CONTENT_STUDIO_ALLOW_REMOTE,'0');
  assert.equal(config.env.ENABLE_SCENARIO,'0');
  assert.equal(config.cwd,cwd);
+});
+
+test('V49 actual CLI checks Next dotenv files before start and never emits secret values',t=>{
+ const cwd=fixture(t),secret='STUDIO_V49_TEST_ONLY_PASSWORD_DO_NOT_LOG';
+ writeFileSync(join(cwd,'.env.local'),[
+  'CONTENT_STUDIO_ALLOW_REMOTE=1',
+  'NEXT_PUBLIC_ACCESS_TOKEN='+secret,
+  'ENABLE_SCENARIO=1'
+ ].join('\n'));
+ const script=resolve('scripts/runtime-guard.mjs');
+ const result=spawnSync(process.execPath,[script,'preflight'],{
+  cwd,encoding:'utf8',timeout:10000,
+  env:{PATH:process.env.PATH||'',HOME:process.env.HOME||'',NODE_ENV:'production'}
+ });
+ assert.equal(result.status,78,result.stderr);
+ const parsed=JSON.parse(result.stdout);
+ assert.equal(parsed.ready,false);
+ assert.ok(parsed.problems.includes('unauthenticated_remote_access_opt_in_forbidden'));
+ assert.ok(parsed.problems.includes('fixture_seed_endpoint_must_be_disabled_for_production'));
+ assert.ok(parsed.problems.includes('public_environment_contains_secret_like_names'));
+ assert.equal((result.stdout+result.stderr).includes(secret),false);
 });
