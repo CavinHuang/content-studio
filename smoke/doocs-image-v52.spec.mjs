@@ -99,7 +99,7 @@ test('V52 real doocs image preview and downloaded Markdown preserve mapped chann
  await expect(cm).toBeVisible();
  await cm.fill(copied);
  await expect(editor.locator('#output')).toContainText(marker,{timeout:20000});
- const img=editor.locator('#output img').filter({hasNot:editor.locator('img[data-nonexistent]')}).first();
+ const img=editor.locator('#output img').first();
  await expect(img).toHaveAttribute('src',imageURL,{timeout:15000});
  await img.scrollIntoViewIfNeeded();
  await expect.poll(async()=>img.evaluate(element=>element.complete&&element.naturalWidth>0),{timeout:15000}).toBe(true);
