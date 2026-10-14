@@ -1,8 +1,15 @@
-# Content Studio · Next.js + doocs/md（V47）
+# Content Studio · Next.js + doocs/md（V48）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V48 · 主分支集成与双阶段 CI
+
+- 将 V30–V47 这条经审查的线性历史整理为 **一个面向 main 的集成候选版本**，保留原始提交，而非把 18 个 Draft PR 反复 squash/rebase。V37 沿 PR #9 进入集成，PR #8 属于独立备选，不能混入。
+- 解决集成后遗留的 Git 校验误报：新增 `npm run verify:integration`，在合并前检查完整堆叠分支，在合并后检查主线的不可变提交祖先；以后从 main 发起的 PR 也会使用正确模式。增加 `npm run verify:main` 对主线独立复核。
+- 主分支实际 CI 仍执行 Node/API、恢复、发布安全、恢复副本业务集成、Next.js 构建及 Chromium E2E；**CI 通过并不意味着生产平台已部署或支付模型已验证**。
+- 具体集成流程、可验证的提交锚点、失败回退与仍需人工完成的验收，见 [V48 主分支集成说明](docs/V48-MAINLINE-INTEGRATION.md)。
 
 ## V47 · 恢复副本上的完整业务验收
 
