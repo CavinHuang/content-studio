@@ -10,7 +10,7 @@
 - 本地 CLI：`npm run db:preflight`（只读健康检查），`npm run db:backup`（自动写入忽略版本控制的 `data/backups/`），`npm run db:restore -- --from=... --to=...`（**仅恢复到新的、不存在的路径**），`npm run db:rehearse`（临时库模拟备份、恢复与当前版本初始化）。
 - 如需要检查指定数据库路径，可以追加 `-- --db=/绝对路径/内容库.sqlite`。进行任何正式升级前，请保留离线、独立位置的备份，并先核验清单；不要提交数据库、备份、测试报告或私有文章到 GitHub。
 - V45 要求 Node.js **22.16+** 才能使用内置 `node:sqlite.backup`。备份/恢复工具不会替换正在运行的原数据库，不是无人值守升级器，也不代表已完成真实生产数据库的演练。
-- 详见 [V45 升级与灾备操作手册](docs/V45-DATABASE-RECOVERY.md)。
+- 详见 [V45 升级与灾备操作手册](docs/V45-DATABASE-RECOVERY.md) 和 [连续 PR 合并顺序与 V37 分叉说明](docs/V45-STACK-INTEGRATION-PLAN.md)。
 
 ## V44 · 统一交付验收
 
@@ -49,14 +49,14 @@
 ## 技术栈
 
 - **Next.js 16.2 系列 / React 19 / App Router**。新页面使用原生 React 组件和响应式 CSS，不是旧 HTML iframe。
-- **Node.js 22.13+ 自带 `node:sqlite`**，共享原 V27 SQLite 领域服务与全部既有业务规则。
+- **Node.js 22.16+ 自带 `node:sqlite`**，共享原 V27 SQLite 领域服务与全部既有业务规则。
 - 同源 Route Handlers：`/api/[...parts]` → `lib/api.mjs` → `src/*.mjs`。
 - 本地 SQLite 持久化，默认数据库 `data/content-studio.sqlite`；**不同版本操作同一数据库前务必备份**。
 
 ## 本机启动
 
 ```bash
-# Node.js >=22.13
+# Node.js >=22.16
 npm install
 npm run dev
 # 打开 http://127.0.0.1:4312
