@@ -1,3 +1,4 @@
+import {readFile} from 'node:fs/promises';
 /**
  * V51: true integration against the public doocs/md Docker image.
  *
@@ -68,7 +69,32 @@ test('V51 takes actual Content Studio Markdown into live doocs CodeMirror and re
  const after=await stillStored.json();
  expect(after.markdown).toBe(saved.markdown);
  expect(after.layoutRevision).toBe(saved.layoutRevision);
- // A preview in doocs is not Content Studio publication/verified platform QA.
+
+ // Exercise doocs/md's own menu-driven export, not a programmatically
+ // re-created Markdown string. Then review/import the actual downloaded file
+ // via Content Studio's version-bound Markdown API.
+ await doocs.getByRole('menuitem',{name:/^(文件|File)$/}).first().click();
+ await doocs.getByRole('menuitem',{name:/^(导出|Export)$/}).first().hover();
+ const exportedFile=doocs.waitForEvent('download',{timeout:15000});
+ await doocs.getByRole('menuitem',{name:/Markdown/i}).first().click();
+ const download=await exportedFile;
+ const exported=await readFile(await download.path(),'utf8');
+ expect(exported).toContain(marker);
+ expect(exported).toContain(articleText);
+ const review=await request.post('/api/composer/projects/'+project.id+'/wechat/review',{
+  data:{expectedLayoutRevision:saved.layoutRevision,
+   expectedDocumentRevision:saved.sourceDocumentRevision,markdown:exported}});
+ expect(review.ok()).toBeTruthy();
+ const checked=await review.json();
+ const imported=await request.put('/api/composer/projects/'+project.id+'/wechat',{
+  data:{expectedLayoutRevision:saved.layoutRevision,
+   expectedDocumentRevision:saved.sourceDocumentRevision,
+   markdown:exported,reviewToken:checked.reviewToken,acknowledgeDrift:true}});
+ expect(imported.ok()).toBeTruthy();
+ const returned=await request.get('/api/composer/projects/'+project.id+'/wechat');
+ expect((await returned.json()).markdown).toBe(exported);
+
+ // A real external Markdown editor export is not a publishing-platform QA.
  const readiness=await request.get('/api/delivery/projects/'+project.id+'/wechat');
  const report=await readiness.json();
  expect(report.platformVerified).toBe(false);
