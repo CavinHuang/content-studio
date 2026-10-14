@@ -138,8 +138,14 @@ export async function rehearseUpgrade(sourcePath,{openWithCore}={}){
    const core=openWithCore(restored);
    try{
     const after=(await inspectDatabase(restored,{includeTableNames:true})).tables;
-    for(const [table,count] of Object.entries(before))if(after[table]!==count)
-     stop('Upgrade altered historical row count for table '+table);
+    // Startup registers newly supported default connectors into source_state.
+    // That one additive change is expected; all other existing business row
+    // counts must be preserved. Rehearsal alone does not certify semantic
+    // equality: a separate legacy document round-trip test covers that.
+    for(const [table,count] of Object.entries(before)){
+     if(table==='source_state'&&after[table]>=count)continue;
+     if(after[table]!==count)stop('Upgrade altered historical row count for table '+table);
+    }
     newTables=Object.keys(after).filter(k=>!(k in before));
     upgraded=true;
    }finally{core.close()}
