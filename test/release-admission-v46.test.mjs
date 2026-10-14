@@ -52,7 +52,7 @@ test('V46 backup corrupt or upgrade failed is distinctly blocked even with valid
 });
 test('V46 admission argument parsing rejects ambiguous or untrusted parameters',()=>{
  assert.deepEqual(parseAdmissionArgs(['--db=/tmp/private.sqlite','--backup=/tmp/safe.sqlite','--rehearse']),{
-  db:'/tmp/private.sqlite',backup:'/tmp/safe.sqlite',rehearse:true
+  db:'/tmp/private.sqlite',backup:'/tmp/safe.sqlite',rehearse:true,integration:false
  });
  assert.throws(()=>parseAdmissionArgs(['--execute-paid']),/Use --db=/);
  assert.throws(()=>parseAdmissionArgs(['--rehearse','--rehearse']),/Duplicate/);
