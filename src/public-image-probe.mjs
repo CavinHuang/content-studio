@@ -70,7 +70,7 @@ function sniffImage(buf,type){
 }
 export async function probePublicImage(input,{lookup=systemLookup,transport=httpsRequest,timeoutMs=TIMEOUT_MS}={}){
  const base={status:'blocked',networkCalls:0,bytesRead:0,
-  fullImageDownloaded:false,cdnReachabilityVerified:false,
+  fullImageDownloaded:false,imageResponseObserved:false,cdnReachabilityVerified:false,
   browserRenderVerified:false,platformVerified:false,published:false};
  const candidate=validateImageProbeURL(input);
  if(!candidate.valid)return {...base,reason:candidate.reason};
@@ -125,7 +125,7 @@ export async function probePublicImage(input,{lookup=systemLookup,transport=http
      const format=sniffImage(bytes,contentType);
      finish(format
       ?{status:'image_response_observed',reason:'partial_or_complete_image_header',
-        httpStatus:statusCode,bytesRead:bytes.length,mime:format,cdnReachabilityVerified:true}
+        httpStatus:statusCode,bytesRead:bytes.length,mime:format,imageResponseObserved:true}
       :{status:'unavailable',reason:'image_signature_mismatch',httpStatus:statusCode,bytesRead:bytes.length});
     });
     response.once('error',()=>finish({status:'unavailable',reason:'network_response_error'}));
@@ -148,7 +148,8 @@ export async function inspectMappedChannelImages({
  for(const url of eligible) {
   const check=await probe(url);
   results.push({url,status:check.status,reason:check.reason||null,httpStatus:check.httpStatus??null,
-   bytesRead:check.bytesRead||0,mime:check.mime||null,cdnReachabilityVerified:check.cdnReachabilityVerified===true,
+   bytesRead:check.bytesRead||0,mime:check.mime||null,imageResponseObserved:check.imageResponseObserved===true,
+   cdnReachabilityVerified:false,
    platformVerified:false,browserRenderVerified:false});
  }
  return {kind:'content-studio-v53-author-initiated-image-check',
