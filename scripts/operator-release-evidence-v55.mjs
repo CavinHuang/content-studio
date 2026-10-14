@@ -72,6 +72,9 @@ export function composeReleaseEvidence({git,local,manual}={}){
  if(local.database?.status!=='passed')problems.push('database_inspection_incomplete');
  if(local.backup?.status!=='passed'||local.backup?.manifestVerified!==true)
   problems.push('wal_backup_manifest_not_verified');
+ if(!local.backup?.schemaSha256||!local.database?.schemaSha256||
+    local.backup.schemaSha256!==local.database.schemaSha256)
+  problems.push('backup_schema_mismatch');
  if(local.upgrade?.status!=='passed'||local.upgrade?.historicalRowsPreserved!==true||
     local.upgrade?.sourceUntouched!==true||local.upgrade?.temporaryCopiesDeleted!==true)
   problems.push('restored_copy_upgrade_unverified');
