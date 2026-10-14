@@ -36,6 +36,7 @@ export default function WeChatComposer(){
  const imageAuditUrl=projectId?`/api/composer/projects/${projectId}/${channel}/image-audit`:null;
  const checkImageMappings=async()=>{
   if(!imageAuditUrl)return;
+  setNetworkReport(null);setNetworkConsent(false);
   setCheckingImageAudit(true);
   try{setImageAudit(await getJSON(imageAuditUrl))}
   catch{setImageAudit({status:'unavailable',summary:{total:0}})}
