@@ -105,3 +105,27 @@
 .queue-job .btn{font-size:12px}
 @media(max-width:1150px){.queue-layout{grid-template-columns:repeat(2,minmax(0,1fr))}.queue-jobs{grid-column:1/-1}}
 @media(max-width:720px){.queue-layout{grid-template-columns:minmax(0,1fr)}.queue-jobs{grid-column:auto}.queue-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* V44 /delivery: restrained action-first handoff review, no status confetti. */
+.delivery-readiness-controls{display:flex;align-items:end;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+.delivery-readiness-controls>label{display:flex;flex-direction:column;gap:6px;flex:1 1 180px;min-width:180px}
+.delivery-readiness-controls select{width:100%}
+.delivery-readiness-controls>.btn{min-height:41px}
+.delivery-readiness-summary{display:flex;align-items:center;flex-wrap:wrap;gap:10px 22px;padding:12px 0}
+.delivery-readiness-summary strong{font-size:18px}
+.delivery-readiness-summary span{font-size:12px;color:var(--muted)}
+.delivery-readiness-steps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.delivery-readiness-step{border:1px solid var(--line);border-radius:9px;padding:15px;min-width:0}
+.delivery-readiness-step[data-status="blocked"]{border-left:3px solid #ab6548}
+.delivery-readiness-step[data-status="ready"]{border-left:3px solid var(--brand)}
+.delivery-readiness-step[data-status="skipped"]{border-left:3px solid var(--muted)}
+.delivery-readiness-step-head{display:flex;align-items:center;gap:10px}
+.delivery-readiness-step-head>div{flex:1;min-width:0}
+.delivery-readiness-step-head strong{font-size:13px;line-height:1.6}
+.delivery-readiness-step-head p{margin:3px 0 0}
+.delivery-readiness-step-head>.btn{font-size:12px;white-space:nowrap}
+.delivery-readiness-index{flex:0 0 24px;height:24px;display:grid;place-items:center;border-radius:6px;background:var(--panel);color:var(--muted);font-size:11px}
+.delivery-readiness-step>p{font-size:12px;overflow-wrap:anywhere;padding-left:34px;margin:10px 0 0}
+.delivery-readiness-history{border-top:1px solid var(--line);margin-top:17px;padding-top:14px}
+.delivery-readiness-history p{margin:8px 0}
+@media(max-width:720px){.delivery-readiness-steps{grid-template-columns:minmax(0,1fr)}.delivery-readiness-step-head>.btn{padding:7px 9px}.delivery-readiness-summary{align-items:flex-start;flex-direction:column}}
