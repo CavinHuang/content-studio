@@ -29,7 +29,7 @@ function fixture(t){
  ]});
  const asset=core.assets.upload({name:'v56.png',alt:'V56合成 PNG',base64:image});
  core.assets.setMapping(asset.id,'wechat',{url:'https://cdn.example.org/v56-first.png',note:'这是一条 V56 合成图片的人工映射说明，不代表远程上传'});
- core.assets.setMapping(asset.id,'wechat',{url:'https://cdn.example.org/v56-second.png',note:'合成更改映射'});
+ core.assets.setMapping(asset.id,'wechat',{url:'https://cdn.example.org/v56-second.png',note:'V56 合成数据：记录第二次图片映射地址变更，未真实上传'});
  core.store.db.exec('PRAGMA wal_autocheckpoint=0');
  core.store.db.prepare('INSERT INTO briefs VALUES(?,?,?,?)')
   .run('br_v56_test','v56',new Date().toISOString(),JSON.stringify({secret:'SYNTHETIC_PRIVATE_SENTINEL_8F22'}));
