@@ -46,10 +46,12 @@ async function startServer(port,db){
  for(const stream of [child.stdout,child.stderr])
   stream.on('data',buf=>{if(output.length<18)output.push(String(buf).slice(0,160))});
  const url='http://127.0.0.1:'+port;
+ let lastStatus='no_http_response';
  for(let attempt=0;attempt<130;attempt++){
   if(child.exitCode!==null||child.signalCode!==null)throw Error('Staged Next.js exited before ready');
   try{
    const response=await fetch(url+'/api/health',{signal:AbortSignal.timeout(850)});
+   lastStatus='HTTP '+response.status;
    if(response.ok()){
     const info=await response.json();
     assert.equal(info.framework,'nextjs');
@@ -60,7 +62,8 @@ async function startServer(port,db){
   await pause(250);
  }
  await stopServer(child);
- throw Error('Staged Next.js on restored copy did not become healthy');
+ throw Error('Staged Next.js on restored copy did not become healthy: '+lastStatus+'; startup='+
+  output.join('|').replaceAll(db,'<restored-copy>').slice(0,1200));
 }
 async function stopServer(child){
  if(!child||child.exitCode!==null||child.signalCode!==null)return;
