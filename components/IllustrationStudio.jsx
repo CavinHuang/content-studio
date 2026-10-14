@@ -2,6 +2,7 @@
 import {useCallback,useEffect,useState} from 'react';
 import Link from 'next/link';
 import VisualSeriesPanel from './VisualSeriesPanel';
+import QualityEvidencePanel from './QualityEvidencePanel';
 import {useSearchParams} from 'next/navigation';
 
 async function api(path,method='GET',data){const r=await fetch(path,{method,cache:'no-store',headers:data?{'content-type':'application/json'}:{},body:data?JSON.stringify(data):undefined});const v=await r.json().catch(()=>({}));if(!r.ok)throw Error(v.error||`HTTP ${r.status}`);return v;}
@@ -64,7 +65,7 @@ export default function IllustrationStudio(){
  async function copyProposal(){try{await navigator.clipboard.writeText(preview.markdown);setMessage('含图 Markdown 已复制；请在 doocs/md 中排版，并按 V30 差异审阅导回。')}catch{setMessage('复制被浏览器拦截，请手动选择下方 Markdown。')}}
  return <div className="compose-root"><header className="compose-head"><div><Link href="/" className="compose-brand">◈ Content Studio</Link><span className="compose-divider">/</span>创作 · Agent 自动配图</div><div className="compose-right"><Link className="btn secondary" href="/illustrations/queue">跨文章任务队列 ↗</Link> <Link className="btn secondary" href={`/compose?project=${encodeURIComponent(projectId)}`}>返回 doocs/md 排版 ↗</Link></div></header>
  <main className="compose-container">
-  <div className="compose-intro"><div><span className="eyebrow">ILLUSTRATION AGENT · V42</span><h1>文章写好，交给 Agent 配图</h1><p>分析主稿 → 统一视觉规范 → 多模型配图与有限回退 → 参考图编辑 → 双图质量对比与作者反馈 → 视觉偏好记忆 → 每日模型请求预算 → 图片质量辅助评审 → 人工批准 → 素材映射 → doocs/md 排版。图像是概念插画，不是事实证据。</p></div><span className="compose-mode">本地素材库 · 渠道独立</span></div>
+  <div className="compose-intro"><div><span className="eyebrow">ILLUSTRATION AGENT · V43</span><h1>文章写好，交给 Agent 配图</h1><p>分析主稿 → 统一视觉规范 → 多模型配图与有限回退 → 参考图编辑 → 双图质量对比与作者反馈 → 视觉偏好记忆 → 每日模型请求预算 → 图片质量辅助评审 → 人工批准 → 素材映射 → doocs/md 排版。图像是概念插画，不是事实证据。</p></div><span className="compose-mode">本地素材库 · 渠道独立</span></div>
   {message&&<div className="compose-notice" role="status">{message}<button type="button" onClick={()=>setMessage('')}>×</button></div>}
   <div className="illustration-grid">
    <aside className="compose-panel"><div className="compose-panel-title">01 · 选择创作内容</div>
@@ -145,6 +146,7 @@ export default function IllustrationStudio(){
      {preview&&<div className="illustration-preview"><div className="compose-data"><span>已定位插图</span><strong>{preview.inserted.length}</strong></div><div className="compose-data"><span>缺少渠道图片地址</span><strong>{preview.unmapped.length}</strong></div><div className="compose-data"><span>段落无法定位</span><strong>{preview.unplaced.length}</strong></div>
       {preview.ready?<p className="illustration-status">已生成只读 Markdown 提案，可复制交给 doocs/md。</p>:<p className="compose-danger">仍有未映射或无法定位图片，请补全或手工调整。不会自动修改正式渠道稿。</p>}
       <textarea readOnly rows={9} aria-label="带图 Markdown 预览" value={preview.markdown}/><button className="btn secondary compose-save" disabled={!preview.ready} onClick={copyProposal}>复制带图 Markdown</button></div>}
+     <QualityEvidencePanel projectId={projectId} channel={channel} state={state}/>
      <div className="compose-tip"><strong>V42 · 离线图片技术体检</strong>
       <p>根据本地素材检查像素尺寸、目标比例、文件大小、替代文字，并列出已有模型候选。只核对文件技术属性，不评价画面美感、事实正确性或版权。</p>
       <button className="btn secondary compose-save" disabled={busy||!state?.plan} onClick={checkTechnical}>离线检查配图与候选素材</button>
