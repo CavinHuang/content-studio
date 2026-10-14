@@ -11,7 +11,7 @@
     "dev": "next dev -H 127.0.0.1 -p 4312",
     "build": "next build",
     "start": "next start -H 127.0.0.1 -p 4312",
-    "check": "node --check lib/api.mjs && node --check lib/core.mjs && node --check src/editorial.mjs && node --check src/store.mjs && node --check src/image-request-budget.mjs && node --check src/illustrations.mjs && node --check src/illustration-queue.mjs && node --check src/illustration-delivery-qa.mjs && node --check src/image-providers.mjs && node --check scripts/paid-image-smoke.mjs && node --check src/illustration-technical-audit.mjs && node --check src/image-quality-ledger.mjs && node --check src/image-roundtrip-reconciliation.mjs && node --check src/delivery-readiness.mjs && node --check scripts/db-safety.mjs && node --check scripts/verify-stack.mjs",
+    "check": "node --check lib/api.mjs && node --check lib/core.mjs && node --check src/editorial.mjs && node --check src/store.mjs && node --check src/image-request-budget.mjs && node --check src/illustrations.mjs && node --check src/illustration-queue.mjs && node --check src/illustration-delivery-qa.mjs && node --check src/image-providers.mjs && node --check scripts/paid-image-smoke.mjs && node --check src/illustration-technical-audit.mjs && node --check src/image-quality-ledger.mjs && node --check src/image-roundtrip-reconciliation.mjs && node --check src/delivery-readiness.mjs && node --check scripts/db-safety.mjs && node --check scripts/verify-stack.mjs && node --check scripts/release-admission.mjs",
     "test": "node --test test/*.test.mjs",
     "test:next-api": "node --test test/next-api.test.mjs",
     "legacy:dev": "node src/server.mjs",
@@ -23,7 +23,8 @@
     "db:rehearse": "node scripts/db-safety.mjs rehearse",
     "test:recovery": "node --test test/db-safety-v45.test.mjs",
     "verify:stack": "node scripts/verify-stack.mjs",
-    "test:release": "node --test test/release-gates-v46.test.mjs"
+    "test:release": "node --test test/release-gates-v46.test.mjs test/release-admission-v46.test.mjs",
+    "release:admission": "node scripts/release-admission.mjs"
   },
   "dependencies": {
     "next": "^16.2.0",
