@@ -18,12 +18,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Verify canonical candidate stack (before mainline integration)
-        if: github.ref != 'refs/heads/main'
-        run: npm run verify:stack
-      - name: Verify integrated mainline (after merge)
-        if: github.ref == 'refs/heads/main'
-        run: npm run verify:main
+      - name: Verify V30-V48 lineage before or after integration
+        run: npm run verify:integration
       - name: Install dependencies
         run: npm install --no-audit --no-fund
       - name: Domain & API tests
