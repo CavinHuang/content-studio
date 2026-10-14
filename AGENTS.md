@@ -16,3 +16,5 @@
 - V51: Real doocs/md compatibility smoke uses pinned Docker image `doocs/md:2.1.0`, two localhost services, and synthetic article fixture only. Never test against private user DB or automatically upload to cloud image beds. Keep actual platform/external export verification marked unverified.
 
 - V52: when a channel image URL changes, preserve the former mapping in content_asset_mapping_history atomically; never automatically rewrite saved author-reviewed Markdown. Run npm run test:images:v52 and npm run test:doocs:real. Browser image URL fixture is intercepted, NOT a verified public CDN. Always distinguish source/editing success from real WeChat/Zhihu publication and access.
+
+- V53: Public image observations are an explicit author opt-in only: saved current-mapping HTTPS URLs, max 3 per action, DNS all-address public validation, pinned HTTPS lookup, TLS cert verification, no redirects, short hard deadline and small byte budget. Do not let user request bodies specify fetch URLs or promote header observations into CDN, WeChat/Zhihu or publishing verification. Run npm run test:images:v53.
