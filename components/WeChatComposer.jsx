@@ -16,6 +16,7 @@ export default function WeChatComposer(){
  const [busy,setBusy]=useState(false),[notice,setNotice]=useState(''),[showEmbed,setShowEmbed]=useState(false),[allowCloud,setAllowCloud]=useState(false);
  const [doocsStatus,setDoocsStatus]=useState(null),[checkingDoocs,setCheckingDoocs]=useState(false);
  const [imageAudit,setImageAudit]=useState(null),[checkingImageAudit,setCheckingImageAudit]=useState(false);
+ const [networkConsent,setNetworkConsent]=useState(false),[networkReport,setNetworkReport]=useState(null),[checkingNetwork,setCheckingNetwork]=useState(false);
  const current=useMemo(()=>projects.find(p=>p.id===projectId),[projectId,projects]);
  const loadProjects=useCallback(async()=>{const data=await getJSON('/api/editor/projects');setProjects(data.projects||[]);return data.projects||[];},[]);
  useEffect(()=>{loadProjects().then(ps=>{const p=query.get('project');if(p&&ps.some(x=>x.id===p))setProjectId(p);else if(ps.length)setProjectId(ps[0].id);if(labels[query.get('channel')])setChannel(query.get('channel'));}).catch(e=>setNotice(e.message));},[loadProjects,query]);
@@ -47,6 +48,19 @@ export default function WeChatComposer(){
    .catch(()=>{if(active)setImageAudit({status:'unavailable',summary:{total:0}})});
   return()=>{active=false};
  },[imageAuditUrl,layout?.layoutRevision]);
+ const verifyPublicImageHeaders=async()=>{
+  if(!projectId||!layout||!networkConsent)return;
+  setCheckingNetwork(true);setNetworkReport(null);
+  try{
+   const report=await getJSON(`/api/composer/projects/${projectId}/${channel}/image-network-check`,{
+    method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify({acknowledgeExternalRequests:true,expectedLayoutRevision:layout.layoutRevision})
+   });
+   setNetworkReport(report);
+  }catch(e){setNotice('图片网络检查未完成：'+e.message)}
+  finally{setCheckingNetwork(false);setNetworkConsent(false)}
+ };
+ useEffect(()=>{setNetworkReport(null);setNetworkConsent(false)},[imageAuditUrl,layout?.layoutRevision]);
  const mappedImages=imageAudit?.summary;
  const imageAuditLabel=!mappedImages?'图片映射状态加载中':
   imageAudit?.status==='unavailable'?'图片映射检查暂不可用，请重试':
@@ -103,6 +117,19 @@ export default function WeChatComposer(){
          <span>图片映射 · {imageAuditLabel}</span>
          <button type="button" className="btn secondary" disabled={checkingImageAudit} onClick={checkImageMappings} style={{marginLeft:12}}>{checkingImageAudit?'检查中…':'复查图片链接'}</button>
          {mappedImages?.stale>0&&<p>本地映射历史提示已有图片地址变化。旧排版稿不会自动替换，请重新审阅并导回。</p>}
+         {mappedImages?.current>0&&<>
+          <label className="compose-consent"><input type="checkbox" data-testid="v53-network-consent" checked={networkConsent} onChange={e=>setNetworkConsent(e.target.checked)}/>
+           我同意本次向当前稿件已映射的公网 HTTPS 图片地址发送最多 3 次有限 GET 请求；不会上传正文，也不代表平台验证。</label>
+          <button type="button" className="btn secondary" onClick={verifyPublicImageHeaders}
+           disabled={!networkConsent||checkingNetwork||mappedImages.current>3} data-testid="v53-check-image-network">
+           {checkingNetwork?'检查中…':'检查公网图片响应'}
+          </button>
+          {mappedImages.current>3&&<p>此稿已有超过 3 条当前图片映射，请分批整理后再检查。</p>}
+         </>}
+         {networkReport&&<div data-testid="v53-network-results">
+          <p>外部请求 {networkReport.networkCalls} 次：检测图片响应 {networkReport.results.filter(r=>r.imageResponseObserved).length} 条，失败或被拦截 {networkReport.results.filter(r=>!r.imageResponseObserved).length} 条。仅检查部分响应字节，不代表 CDN 持续可用或微信、知乎已验证。</p>
+          {networkReport.results.map((r,i)=><p key={i}>图片 {i+1}：{r.imageResponseObserved?'响应包含图片文件头':'无法确认图片响应'}（{r.reason||'header observed'}）</p>)}
+         </div>}
        </div>}
        <div className="compose-excerpt"><div className="compose-excerpt-head"><strong>当前交接内容预览</strong><span>只读 · {layout?.markdown?.length||0} 字</span></div><pre>{layout?.markdown||'请选择一个已有项目'}</pre></div>
      </section>
