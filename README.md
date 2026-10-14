@@ -1,8 +1,16 @@
-# Content Studio · Next.js + doocs/md（V43）
+# Content Studio · Next.js + doocs/md（V45）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V45 · 数据库升级与恢复可靠性
+
+- 为 SQLite WAL 模式添加 **真实一致性备份**、SHA256 清单和数据库完整性验证，严禁直接复制正在写入的 `.sqlite` 文件冒充备份。
+- 本地 CLI：`npm run db:preflight`（只读健康检查），`npm run db:backup`（自动写入忽略版本控制的 `data/backups/`），`npm run db:restore -- --from=... --to=...`（**仅恢复到新的、不存在的路径**），`npm run db:rehearse`（临时库模拟备份、恢复与当前版本初始化）。
+- 如需要检查指定数据库路径，可以追加 `-- --db=/绝对路径/内容库.sqlite`。进行任何正式升级前，请保留离线、独立位置的备份，并先核验清单；不要提交数据库、备份、测试报告或私有文章到 GitHub。
+- V45 要求 Node.js **22.16+** 才能使用内置 `node:sqlite.backup`。备份/恢复工具不会替换正在运行的原数据库，不是无人值守升级器，也不代表已完成真实生产数据库的演练。
+- 详见 [V45 升级与灾备操作手册](docs/V45-DATABASE-RECOVERY.md)。
 
 ## V44 · 统一交付验收
 
