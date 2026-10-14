@@ -11,3 +11,11 @@ out/
 /coverage/
 /playwright-report/
 /test-results/
+
+# V45 backups/restore exercises contain sensitive local article and image data.
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.sqlite.manifest.json
+/data/backups/

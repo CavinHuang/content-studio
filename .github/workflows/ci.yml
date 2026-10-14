@@ -1,27 +1,52 @@
 name: CI
 on:
   push:
-    branches: [main]
+    branches: [main, 'feat/**']
   pull_request:
-    branches: [main]
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Set up Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Verify V30-V48 lineage before or after integration
+        run: npm run verify:integration
       - name: Install dependencies
         run: npm install --no-audit --no-fund
       - name: Domain & API tests
         run: npm test
+      - name: V45 backup, restore and migration rehearsal
+        run: npm run test:recovery
+      - name: V46 release integrity and negative-tamper regressions
+        run: npm run test:release
+      - name: V47 restored-database cross-channel integration acceptance
+        run: npm run test:integration
+      - name: V48 merged mainline safety regressions
+        run: npm run test:mainline
       - name: Syntax checks
         run: npm run check
       - name: Build Next.js App Router
         run: npm run build
+      - name: Install Chromium for browser E2E
+        run: npx playwright install --with-deps chromium
+      - name: Browser E2E (synthetic local content, no paid API)
+        run: npm run test:e2e
+      - name: Upload browser failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-v41-artifacts
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 5
+          if-no-files-found: ignore
