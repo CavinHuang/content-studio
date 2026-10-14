@@ -44,7 +44,19 @@ export function providerContractPreflight(){
 async function boundedResponse(response,cap=MAX_JSON){const type=Number(response.headers.get('content-length'));if(type>cap)bad('Provider response exceeds image size limit',502);
  let bytes=0;const parts=[];if(!response.body)bad('Empty image response',502);for await(const chunk of response.body){bytes+=chunk.length;if(bytes>cap){await response.body.cancel?.().catch(()=>{});bad('Provider response exceeds image size limit',502)}parts.push(chunk)}return Buffer.concat(parts);
 }
-const decode=b64=>{if(typeof b64!=='string'||!b64||b64.length>8_500_000||!/^[A-Za-z0-9+/]+={0,2}$/.test(b64)||b64.length%4!==0)bad('Provider returned invalid base64 image',502);const buf=Buffer.from(b64,'base64');if(buf.length<24||buf.length>MAX_IMAGE)bad('Provider image exceeds local asset limits',502);return b64;};
+function imageMagic(buffer){
+ if(buffer.subarray(0,8).equals(Buffer.from('89504e470d0a1a0a','hex')))return 'image/png';
+ if(buffer.subarray(0,3).equals(Buffer.from('ffd8ff','hex')))return 'image/jpeg';
+ if(buffer.toString('ascii',0,4)==='RIFF'&&buffer.toString('ascii',8,12)==='WEBP')return 'image/webp';
+ return null;
+}
+const decode=b64=>{
+ if(typeof b64!=='string'||!b64||b64.length>8_500_000||!/^[A-Za-z0-9+/]+={0,2}$/.test(b64)||b64.length%4!==0)bad('Provider returned invalid base64 image',502);
+ const buf=Buffer.from(b64,'base64');
+ if(buf.length<24||buf.length>MAX_IMAGE)bad('Provider image exceeds local asset limits',502);
+ if(!imageMagic(buf))bad('Provider returned unsupported image bytes',502);
+ return b64;
+};
 async function callJson(url,headers,body,timeoutMs=180000){let response;try{response=await fetch(url,{method:'POST',headers:{'content-type':'application/json',...headers},body:JSON.stringify(body),signal:AbortSignal.timeout(timeoutMs),redirect:'error'})}catch{bad('Image provider request failed or timed out',502,true)}
  if(!response.ok)providerHttpError('Image provider',response.status);
  let data;try{data=JSON.parse((await boundedResponse(response)).toString('utf8'))}catch(e){if(e instanceof ValidationError)throw e;bad('Provider returned invalid JSON',502)}return data;
@@ -54,6 +66,8 @@ async function qwenDownload(value){let u;try{u=new URL(value)}catch{bad('Qwen re
  if(u.protocol!=='https:'||u.username||u.password||u.port&&u.port!=='443'||!isAlibabaOssHost(u.hostname))bad('Qwen image URL does not match trusted Alibaba OSS hosts',502);
  let response;try{response=await fetch(u,{method:'GET',redirect:'error',signal:AbortSignal.timeout(60000)})}catch{bad('Could not download Qwen temporary image',502,true)}
  if(!response.ok)providerHttpError('Qwen temporary image',response.status);
+ const responseType=(response.headers.get('content-type')||'').split(';')[0].trim().toLowerCase();
+ if(responseType&&!['image/png','image/jpeg','image/webp','application/octet-stream','binary/octet-stream'].includes(responseType))bad('Qwen temporary image returned unexpected content type',502);
  const bytes=await boundedResponse(response,MAX_IMAGE+1);if(bytes.length>MAX_IMAGE)bad('Qwen image exceeds asset size limit',502);
  return decode(bytes.toString('base64'));
 }
