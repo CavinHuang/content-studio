@@ -1,8 +1,16 @@
-# Content Studio · Next.js + doocs/md（V54）
+# Content Studio · Next.js + doocs/md（V55）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V55 · 真实运行机器发布证据与脱敏报告
+
+- 保持 V49–V55 在同一个面向 `main` 的统一 Draft PR #26，不再叠加新的待合并分支。
+- 新增 `npm run release:evidence:v55 -- --db=... --backup=... --review=...`：只在真实运行机器上由操作者提供**明确的原数据库、备份路径和对应当前 Git SHA 的部署审查记录**后执行。工具复用 V45–V47 的 SQLite 完整性、备份清单、恢复副本升级和合成业务回归，并输出无文章内容、无密钥、无路径的 JSON 报告。
+- 检查备份和源数据库的结构摘要必须一致；审查文件缺失、提交 SHA 变化或数据检查未通过时拒绝认定证据齐全，且不会把人工声明冒充第三方自动部署验证。
+- `mergeAuthorized`、`deployAuthorized` 和 `productionReady` 始终为 false；CI 只测试合成数据。实际部署审批依旧需要操作者核对外部平台。
+- 操作指引：[V55 本地发布证据采集手册](docs/V55-OPERATOR-RELEASE-EVIDENCE.md)。
 
 ## V54 · 合并前历史验证与统一集成候选
 
