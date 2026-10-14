@@ -1,6 +1,6 @@
 /** Server-only image backends. Never serialize keys into UI responses. */
 import {ValidationError} from './verification.mjs';
-const bad=(message,status=400)=>{throw new ValidationError(message,status)};
+const bad=(message,status=400,retryable=false)=>{const error=new ValidationError(message,status);error.retryable=retryable;throw error};
 const base=x=>String(x||'').trim();
 const settings=()=>({
  openai:{key:base(process.env.CONTENT_IMAGE_OPENAI_API_KEY||process.env.CONTENT_IMAGE_API_KEY),model:base(process.env.CONTENT_IMAGE_OPENAI_MODEL||process.env.CONTENT_IMAGE_MODEL||'gpt-image-2'),url:base(process.env.CONTENT_IMAGE_OPENAI_BASE_URL||process.env.CONTENT_IMAGE_API_BASE_URL||'https://api.openai.com/v1/')},
@@ -14,19 +14,46 @@ function endpoint(value,route){let x;try{x=new URL(value.endsWith('/')?value:val
  if(x.username||x.password)bad('Image provider URL cannot contain credentials',503);return x;
 }
 const MAX_JSON=11_000_000,MAX_IMAGE=6*1024*1024;
+// Narrow host check. A random service under aliyuncs.com is not necessarily an image object store.
+function isAlibabaOssHost(host){
+ const value=String(host||'').toLowerCase().replace(/\\.$/,'');
+ return /^[a-z0-9][a-z0-9.-]*\\.oss-(?:[a-z0-9-]+)\\.aliyuncs\\.com$/.test(value)||
+        /^[a-z0-9][a-z0-9.-]*\\.oss\\.aliyuncs\\.com$/.test(value);
+}
+// Disclose a safe HTTP status only, never provider response bodies/headers containing secrets.
+// Only rate limits and transient upstream failures should trigger paid fallback attempts.
+function providerHttpError(context,status){
+ const transient=status===408||status===425||status===429||status>=500&&status<=599;
+ const localStatus=status===429?429:transient?502:status===401?401:status===403?403:422;
+ bad(`${context} HTTP ${status}`,localStatus,transient);
+}
+/** Local-only protocol readiness; does not fetch, bill, or upload content. */
+export function providerContractPreflight(){
+ return Object.entries(settings()).map(([id,setting])=>{
+  const contract={openai:{generation:'POST /images/generations',editing:'POST /images/edits (multipart)',response:'data[0].b64_json'},
+   gemini:{generation:'POST models/:model:generateContent',editing:'POST models/:model:generateContent (inlineData)',response:'candidates[].content.parts[].inlineData'},
+   qwen:{generation:'POST /images/generations',editing:'POST /images/generations (image data URI)',response:'data[0].url or b64_json; constrained HTTPS OSS download'}}[id];
+  const problems=[];
+  if(!setting.key)problems.push('missing_api_key');
+  if(!setting.model)problems.push('missing_model');
+  try{endpoint(setting.url,id==='gemini'?`models/${encodeURIComponent(setting.model)}:generateContent`:'images/generations')}
+  catch{problems.push('invalid_base_url')}
+  return {id,model:setting.model,configured:problems.length===0,problems,contract,liveApiChecked:false,mayIncurCost:false};
+ });
+}
 async function boundedResponse(response,cap=MAX_JSON){const type=Number(response.headers.get('content-length'));if(type>cap)bad('Provider response exceeds image size limit',502);
  let bytes=0;const parts=[];if(!response.body)bad('Empty image response',502);for await(const chunk of response.body){bytes+=chunk.length;if(bytes>cap){await response.body.cancel?.().catch(()=>{});bad('Provider response exceeds image size limit',502)}parts.push(chunk)}return Buffer.concat(parts);
 }
 const decode=b64=>{if(typeof b64!=='string'||!b64||b64.length>8_500_000||!/^[A-Za-z0-9+/]+={0,2}$/.test(b64)||b64.length%4!==0)bad('Provider returned invalid base64 image',502);const buf=Buffer.from(b64,'base64');if(buf.length<24||buf.length>MAX_IMAGE)bad('Provider image exceeds local asset limits',502);return b64;};
-async function callJson(url,headers,body,timeoutMs=180000){let response;try{response=await fetch(url,{method:'POST',headers:{'content-type':'application/json',...headers},body:JSON.stringify(body),signal:AbortSignal.timeout(timeoutMs),redirect:'error'})}catch{bad('Image provider request failed or timed out',502)}
- if(!response.ok)bad(`Image provider HTTP ${response.status}`,response.status===429?429:502);
+async function callJson(url,headers,body,timeoutMs=180000){let response;try{response=await fetch(url,{method:'POST',headers:{'content-type':'application/json',...headers},body:JSON.stringify(body),signal:AbortSignal.timeout(timeoutMs),redirect:'error'})}catch{bad('Image provider request failed or timed out',502,true)}
+ if(!response.ok)providerHttpError('Image provider',response.status);
  let data;try{data=JSON.parse((await boundedResponse(response)).toString('utf8'))}catch(e){if(e instanceof ValidationError)throw e;bad('Provider returned invalid JSON',502)}return data;
 }
 async function qwenDownload(value){let u;try{u=new URL(value)}catch{bad('Qwen returned invalid image URL',502)}
  // Qwen's returned links are expiring OSS links. Strict allowlist avoids SSRF and credential leakage.
- if(u.protocol!=='https:'||u.username||u.password||u.port&&u.port!=='443'||!u.hostname.toLowerCase().endsWith('.aliyuncs.com'))bad('Qwen image URL does not match trusted Alibaba OSS hosts',502);
- let response;try{response=await fetch(u,{method:'GET',redirect:'error',signal:AbortSignal.timeout(60000)})}catch{bad('Could not download Qwen temporary image',502)}
- if(!response.ok)bad(`Qwen temporary image returned HTTP ${response.status}`,502);
+ if(u.protocol!=='https:'||u.username||u.password||u.port&&u.port!=='443'||!isAlibabaOssHost(u.hostname))bad('Qwen image URL does not match trusted Alibaba OSS hosts',502);
+ let response;try{response=await fetch(u,{method:'GET',redirect:'error',signal:AbortSignal.timeout(60000)})}catch{bad('Could not download Qwen temporary image',502,true)}
+ if(!response.ok)providerHttpError('Qwen temporary image',response.status);
  const bytes=await boundedResponse(response,MAX_IMAGE+1);if(bytes.length>MAX_IMAGE)bad('Qwen image exceeds asset size limit',502);
  return decode(bytes.toString('base64'));
 }
@@ -74,8 +101,8 @@ export async function editProviderImage(prompt,{provider='openai',role='section'
   const url=endpoint(config.url,'images/edits');const form=new FormData();form.append('model',config.model);form.append('prompt',prompt);form.append('n','1');
   const ext={ 'image/png':'png','image/jpeg':'jpg','image/webp':'webp' }[referenceMime];
   form.append('image',new Blob([bytes],{type:referenceMime}),`reference.${ext}`);
-  let response;try{response=await fetch(url,{method:'POST',headers:{authorization:`Bearer ${config.key}`},body:form,signal:AbortSignal.timeout(180000),redirect:'error'})}catch{bad('Image edit provider request failed or timed out',502)}
-  if(!response.ok)bad(`Image edit provider HTTP ${response.status}`,response.status===429?429:502);
+  let response;try{response=await fetch(url,{method:'POST',headers:{authorization:`Bearer ${config.key}`},body:form,signal:AbortSignal.timeout(180000),redirect:'error'})}catch{bad('Image edit provider request failed or timed out',502,true)}
+  if(!response.ok)providerHttpError('Image edit provider',response.status);
   let result;try{result=JSON.parse((await boundedResponse(response)).toString('utf8'))}catch(e){if(e instanceof ValidationError)throw e;bad('Image edit provider returned invalid JSON',502)}
   if(!result?.data?.[0]?.b64_json)bad('OpenAI edit returned no image bytes',502);
   return {base64:decode(result.data[0].b64_json),provider,model:config.model};
