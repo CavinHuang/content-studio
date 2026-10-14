@@ -9,6 +9,7 @@ import {DEFAULT_VISUAL_PROFILE,validateVisualProfile,localImageCheck,imageQualit
 import {compareImagePair,compareConfigured,validateAuthorFeedback,preferencePrompt} from './image-feedback.mjs';
 import {VisualSeriesService} from './visual-series.mjs';
 import {ImageRequestBudget} from './image-request-budget.mjs';
+import {markdownImageTokens} from './image-roundtrip-reconciliation.mjs';
 
 const fail=(message,status=400)=>{throw new ValidationError(message,status)};
 const now=()=>new Date().toISOString();
@@ -332,9 +333,19 @@ export class IllustrationService {
   if(data.stale)fail('Article has changed; illustration plan is stale',409);
   const draft=this.editorial.layoutDraft(projectId,channel);
   let markdown=draft.markdown;const unplaced=[],unmapped=[],inserted=[];
+  // Existing imported images should not be duplicated on a second proposal.
+  // Count by URL to handle repeated use of one asset across multiple slots.
+  const existing=markdownImageTokens(markdown),consumed=new Map();
   const approved=data.shots.filter(s=>s.status==='approved');
   for(const shot of approved){const mapping=shot.asset?.mappings?.find(x=>x.channel===channel);
    if(!mapping){unmapped.push(shot.id);continue;}
+   const key=mapping.url.replace(/%28/gi,'(').replace(/%29/gi,')');
+   const alreadyUsed=consumed.get(key)||0;
+   if(existing.filter(t=>t.url===key).length>alreadyUsed){
+    consumed.set(key,alreadyUsed+1);
+    inserted.push({id:shot.id,assetId:shot.assetId,after:shot.role==='cover'?'cover':shot.paragraphId,alreadyPresent:true});
+    continue;
+   }
    const alt=shot.alt.replace(/[\[\]\\\r\n]/g,' ');
    const safeUrl=mapping.url.replace(/\(/g,'%28').replace(/\)/g,'%29');
    const img=`![${alt}](${safeUrl})`;
