@@ -38,6 +38,8 @@ jobs:
         run: npm run check
       - name: V54 consolidation admission negative regressions
         run: npm run test:integration:v54
+      - name: V55 real-host release packet negative regressions (synthetic, no private data)
+        run: npm run test:release:v55
       - name: V50 offline interop and prebundle security regressions
         run: npm run test:interop
       - name: V52 channel image mapping drift and history safety
