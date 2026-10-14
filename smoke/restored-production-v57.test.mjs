@@ -53,7 +53,7 @@ async function startServer(port,db){
    const response=await fetch(url+'/api/health',{signal:AbortSignal.timeout(850)});
    lastStatus='HTTP '+response.status;
    firstHttp??={status:response.status,type:response.headers.get('content-type')};
-   if(response.ok()){
+   if(response.ok){
     const info=await response.json();
     lastStatus='health='+JSON.stringify({framework:info.framework,mode:info.mode,ok:info.ok});
     if(info.framework==='nextjs'&&info.mode==='local-only')return {child,url};
