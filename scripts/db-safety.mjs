@@ -86,16 +86,23 @@ function snapshot(db){
   schemaSha256:sha(JSON.stringify(tables)),rowCountsSha256:sha(JSON.stringify(counts)),
   missingCoreTables:MINIMUM_TABLES.filter(t=>!counts.hasOwnProperty(t)),tables:counts};
 }
-export async function inspectDatabase(path,{includeTableNames=false}={}){
+export async function inspectDatabase(path,{includeTableNames=false,includeContentDigest=false}={}){
  const file=resolve(path);await regularFile(file);
  const db=new DatabaseSync(file,{readOnly:true});
  try{
-  const audit=snapshot(db);
-  const {tables,...safe}=audit;
-  return {file:basename(file),...safe,...(includeTableNames?{tables}:{}),readOnly:true};
+  // Keep schema, counts and (optional) every-row content hashes in one
+  // consistent read transaction even when the source uses WAL concurrently.
+  db.exec('BEGIN');
+  try{
+   const audit=snapshot(db);
+   const {tables,...safe}=audit;
+   const contentSha256=includeContentDigest?sha(JSON.stringify(businessFingerprints(db).data)):null;
+   return {file:basename(file),...safe,...(includeTableNames?{tables}:{}),
+    ...(includeContentDigest?{contentSha256}:{}),readOnly:true};
+  }finally{db.exec('ROLLBACK')}
  }finally{db.close()}
 }
-export async function verifyBackup(backupPath,{requireManifest=true}={}){
+export async function verifyBackup(backupPath,{requireManifest=true,includeContentDigest=false}={}){
  const input=resolve(backupPath);
  const info=await regularFile(input);
  const metaPath=input+'.manifest.json';
@@ -108,7 +115,7 @@ export async function verifyBackup(backupPath,{requireManifest=true}={}){
   if(info.size!==manifest.bytes)stop('Backup size does not match manifest');
   if(await digestFile(input)!==manifest.sha256)stop('Backup SHA256 mismatch');
  }
- const inspected=await inspectDatabase(input);
+ const inspected=await inspectDatabase(input,{includeContentDigest});
  if(manifest&&(inspected.schemaSha256!==manifest.schemaSha256||
     inspected.rowCountsSha256!==manifest.rowCountsSha256||
     inspected.rowCount!==manifest.rowCount))stop('Backup contents diverge from recorded schema and row-count checks');
