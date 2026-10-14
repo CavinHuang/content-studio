@@ -12,16 +12,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Set up Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Verify canonical V30-V46 Git ancestry (no merges)
+        run: npm run verify:stack
       - name: Install dependencies
         run: npm install --no-audit --no-fund
       - name: Domain & API tests
         run: npm test
       - name: V45 backup, restore and migration rehearsal
         run: npm run test:recovery
+      - name: V46 release integrity and negative-tamper regressions
+        run: npm run test:release
       - name: Syntax checks
         run: npm run check
       - name: Build Next.js App Router
