@@ -7,6 +7,7 @@ import {fileURLToPath} from 'node:url';
 import {inspectDatabase,verifyBackup,rehearseUpgrade} from './db-safety.mjs';
 import {providerContractPreflight} from '../src/image-providers.mjs';
 import {createCore} from '../lib/core.mjs';
+import {integrationRehearsal} from './integration-rehearsal.mjs';
 
 const manualStages=[
  ['provider_live_smoke','Explicitly consent to one paid request per provider, inspect actual output and provider billing dashboard'],
@@ -17,20 +18,21 @@ const manualStages=[
  ['actual_release','Obtain explicit operator authorization before any merge/deploy/publication']
 ];
 export function parseAdmissionArgs(args=[]){
- const out={rehearse:false};
+ const out={rehearse:false,integration:false};
  for(const arg of args){
   if(arg==='--rehearse'){if(out.rehearse)throw Error('Duplicate --rehearse');out.rehearse=true;continue}
+  if(arg==='--integration'){if(out.integration)throw Error('Duplicate --integration');out.integration=true;continue}
   const match=arg.match(/^--(db|backup)=(.+)$/);
-  if(!match||out[match[1]])throw Error('Use --db=PATH [--backup=PATH] [--rehearse]');
+  if(!match||out[match[1]])throw Error('Use --db=PATH [--backup=PATH] [--rehearse] [--integration]');
   out[match[1]]=match[2];
  }
  return out;
 }
-export async function releaseAdmission(args,{inspect=inspectDatabase,verify=verifyBackup,rehearsal=rehearseUpgrade,providers=providerContractPreflight,openWithCore=createCore}={}){
+export async function releaseAdmission(args,{inspect=inspectDatabase,verify=verifyBackup,rehearsal=rehearseUpgrade,integration=integrationRehearsal,providers=providerContractPreflight,openWithCore=createCore}={}){
  const opts=Array.isArray(args)?parseAdmissionArgs(args):args;
  const local=[],warnings=[];
  const dbPath=resolve(opts.db||process.env.CONTENT_STUDIO_DB_PATH||join(process.cwd(),'data','content-studio.sqlite'));
- let database=null,archive=null,upgrade=null;
+ let database=null,archive=null,upgrade=null,integrated=null;
  try{
   const data=await inspect(dbPath);
   database={status:data.integrity==='ok'?'passed':'blocked',tables:data.tableCount,rows:data.rowCount,
@@ -57,13 +59,25 @@ export async function releaseAdmission(args,{inspect=inspectDatabase,verify=veri
    if(upgrade.status!=='passed')local.push('upgrade_rehearsal_failed');
   }catch{local.push('upgrade_rehearsal_failed');upgrade={status:'blocked'}}
  }else{local.push('upgrade_rehearsal_not_requested');upgrade={status:'not_checked'}}
+ if(opts.integration){
+  if(database?.status!=='passed')local.push('cannot_integrate_without_valid_db');
+  else try{
+   const evidence=await integration(dbPath);
+   integrated={status:evidence.existingRowsUnchanged&&evidence.sourceUntouched&&evidence.syntheticOnly?'passed':'blocked',
+    historicProjectsInspected:evidence.historicProjectsInspected,historicRowsProtected:evidence.historicRowsProtected,
+    historicalRowsUnchanged:evidence.existingRowsUnchanged,syntheticOnly:evidence.syntheticOnly,
+    simulatedChannels:evidence.synthetic?.textOnly?.channels+evidence.synthetic?.illustrated?.channels,
+    paidModelRequests:0,platformVerified:false};
+   if(integrated.status!=='passed')local.push('integration_rehearsal_failed');
+  }catch{local.push('integration_rehearsal_failed');integrated={status:'blocked'}}
+ }else integrated={status:'not_checked'};
  const contracts=providers().map(p=>({provider:p.id,model:p.model,locallyConfigured:!!p.configured,
   problems:p.problems,liveApiChecked:false,chargeChecked:false}));
  // No user/account content or API key values are included in this report.
- return {kind:'content-studio-v46-release-admission',scope:'read-only-local-and-disposable-upgrade-copy',
-  database,backup:archive,upgrade,providerContracts:contracts,localBlockers:[...new Set(local)],
+ return {kind:'content-studio-v47-release-admission',scope:'read-only-local-and-disposable-upgrade-copy',
+  database,backup:archive,upgrade,integration:integrated,providerContracts:contracts,localBlockers:[...new Set(local)],
   warnings,manualAcceptance:manualStages.map(([id,description])=>({id,status:'unverified',description})),
-  localGatesPassed:local.length===0,productionReady:false,deployAuthorized:false,
+  localGatesPassed:local.length===0,candidateGatesPassed:local.length===0&&integrated.status==='passed',productionReady:false,deployAuthorized:false,
   platformVerified:false,paidModelRequests:0,
   message:'Passing local checks cannot certify billing, external editors, platform publishing, data ownership or deployment authority.'};
 }
