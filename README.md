@@ -1,8 +1,16 @@
-# Content Studio · Next.js + doocs/md（V69）
+# Content Studio · Next.js + doocs/md（V70）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V70 · 真实不同 UID 的 Next.js 候选进程与 V67 串联验证
+
+- 新增构建后 smoke：GitHub Ubuntu 临时目录内创建源库和候选库，以 `nobody` **真实不同 POSIX UID** 运行完整 Next.js 候选服务 `candidate-start`，与操作者模拟账号隔离。
+- 完全复制当前已锁定且经过哈希保护的 Next 产物和运行依赖到测试账号拥有的临时工作区；通过真实 HTTP `/api/health` 观察 SQLite 连接身份、源码 SHA、BUILD_ID、依赖锁与动态 OS 读权限拒绝。
+- 使用真实 V64 回环进程探针、V66 主机文件系统预检、V68 身份核验、V69 源库 UID/权限检查执行 V67 **前后两轮**；同时验证健康接口 OS 证明丢失时备份步骤不得开始。
+- V70 将 V62 备份结果刻意替换为合成桩，V62 自身的真实 WAL 备份/隔离回滚仍由独立 CI 套件覆盖，因此本轮并不声称完成操作者真实主机的全链路备份验收。
+- 仅在 CI 使用独立账号、临时合成 SQLite 与动态端口；不会复制私有用户数据库或启动真实生产服务。详见 [V70 真实多 UID 候选联调](docs/V70-SEPARATE-UID-CANDIDATE-SMOKE.md)。
 
 ## V69 · 分离 POSIX 系统用户的候选数据库访问权限
 
