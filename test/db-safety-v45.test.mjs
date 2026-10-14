@@ -81,20 +81,25 @@ test('V45 backup and restore reject corrupted backup content and missing or forg
  rmSync(a.manifest);
  await assert.rejects(()=>verifyBackup(out),/manifest missing or invalid/);
 });
-test('V45 rehearsal migrates a synthetic legacy SQLite, retains previous article rows and does not change live source',async t=>{
+test('V45 rehearsal upgrades a V29-like partial schema without touching preexisting article revisions',async t=>{
  const dir=fresh(t),db=join(dir,'legacy.sqlite');
  const store=new Store(db);
  const verify=new VerificationService(store);
  const knowledge=new KnowledgeService(store,verify);
  const precision=new PrecisionService(store,verify,knowledge);
  const editorial=new EditorialService(store,knowledge,precision);editorial.attachPrecision();
- const article=editorial.create({title:'迁移前已保存的历史文章',paragraphs:[{text:'V27 legacy user data must survive later schema registration.'}]});
+ const article=editorial.create({title:'迁移前已保存的历史文章',paragraphs:[{text:'Historical user data must survive later schema registration.'}]});
+ // Main/V29 predates the V30 review-history table; remove the current helper's
+ // extra table so this fixture exercises a real absence found in the old branch.
+ store.db.exec('DROP TABLE IF EXISTS editorial_layout_review_history');
  store.close();
  const sourceBefore=await inspectDatabase(db,{includeTableNames:true});
  assert.ok(sourceBefore.missingCoreTables.includes('article_illustration_plans'));
+ assert.equal(Object.hasOwn(sourceBefore.tables,'editorial_layout_review_history'),false);
  const report=await rehearseUpgrade(db,{openWithCore:createCore});
  assert.equal(report.verified,true);
  assert.equal(report.upgradeOpenedSuccessfully,true);
+ assert.ok(report.newTables.includes('editorial_layout_review_history'));
  assert.ok(report.newTables.includes('article_image_quality_reviews'));
  assert.ok(report.newTables.includes('delivery_readiness_snapshots'));
  const sourceAfter=await inspectDatabase(db,{includeTableNames:true});
@@ -102,7 +107,7 @@ test('V45 rehearsal migrates a synthetic legacy SQLite, retains previous article
  const upgraded=createCore(db);
  try{
   assert.equal(upgraded.editorial.get(article.id).title,article.title);
-  assert.equal(upgraded.editorial.get(article.id).channels.master.document.paragraphs[0].text,'V27 legacy user data must survive later schema registration.');
+  assert.equal(upgraded.editorial.get(article.id).channels.master.document.paragraphs[0].text,'Historical user data must survive later schema registration.');
   assert.equal(upgraded.store.db.prepare('SELECT COUNT(*) AS n FROM delivery_readiness_snapshots').get().n,0);
  }finally{upgraded.close()}
 });
