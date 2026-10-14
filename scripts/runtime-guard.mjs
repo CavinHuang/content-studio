@@ -20,7 +20,7 @@ export function auditLocalRuntime({env=process.env,version=process.versions.node
  const problems=[],warnings=[];
  const match=String(version).match(/^(\d+)\.(\d+)\.(\d+)/);
  const parts=match?.slice(1).map(Number)||[];
- if(parts[0]!==22||parts[1]<16)problems.push('requires_node_22_16_or_later_in_22_x');
+ if(parts.length!==3||parts[0]<22||(parts[0]===22&&parts[1]<16))problems.push('requires_node_22_16_or_later_in_22_x');
  if(env.CONTENT_STUDIO_ALLOW_REMOTE==='1')problems.push('unauthenticated_remote_access_opt_in_forbidden');
  if(hasValue(env.CONTENT_STUDIO_DB_PATH)&&env.CONTENT_STUDIO_DB_PATH.trim()===':memory:')problems.push('nonpersistent_database_forbidden');
  if(hasValue(env.DB_PATH))warnings.push('legacy_DB_PATH_ignored_by_next_app');
@@ -60,26 +60,37 @@ export async function startLocalRuntime({env=process.env,cwd=process.cwd(),spawn
  const argv=[bin,'start','-H','127.0.0.1','-p',String(audit.port)];
  const child=spawnChild(process.execPath,argv,{cwd,env:{...env,CONTENT_STUDIO_ALLOW_REMOTE:'0',ENABLE_SCENARIO:'0'},stdio:'inherit'});
  const forward=sig=>{if(!child.killed)child.kill(sig)};
- process.once('SIGINT',()=>forward('SIGINT'));
- process.once('SIGTERM',()=>forward('SIGTERM'));
+ const onInt=()=>forward('SIGINT'),onTerm=()=>forward('SIGTERM');
+ process.once('SIGINT',onInt);
+ process.once('SIGTERM',onTerm);
  return new Promise((done,reject)=>{
   child.once('error',reject);
   child.once('exit',(code,signal)=>{
-   process.removeAllListeners('SIGINT');
-   process.removeAllListeners('SIGTERM');
+   process.removeListener('SIGINT',onInt);
+   process.removeListener('SIGTERM',onTerm);
    done(code??(signal?128:1));
   });
  });
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
- const command=process.argv[2];
- if(command==='preflight'){
-  const result=auditLocalRuntime();
-  console.log(JSON.stringify(result,null,2));
-  if(!result.ready)process.exitCode=78;
- }else if(command==='start'){
-  startLocalRuntime().then(code=>{process.exitCode=code}).catch(error=>{
-   console.error('Local runtime denied: '+String(error?.message||'unknown').slice(0,220));process.exitCode=78
-  });
- }else{console.error('Usage: node scripts/runtime-guard.mjs preflight|start');process.exitCode=2}
+ // Next resolves .env.production.local, .env.local, .env.production and .env
+ // internally. Resolve the exact same precedence BEFORE checking settings:
+ // otherwise an unsafe toggle hidden in .env.local could bypass the guard.
+ (async()=>{
+  const command=process.argv[2];
+  if(!['preflight','start'].includes(command)){
+   console.error('Usage: node scripts/runtime-guard.mjs preflight|start');
+   process.exitCode=2;return;
+  }
+  const {loadEnvConfig}=await import('@next/env');
+  loadEnvConfig(process.cwd(),false);
+  if(command==='preflight'){
+   const result=auditLocalRuntime();
+   console.log(JSON.stringify(result,null,2));
+   if(!result.ready)process.exitCode=78;
+  }else process.exitCode=await startLocalRuntime();
+ })().catch(error=>{
+  console.error('Local runtime denied: '+String(error?.message||'unknown').slice(0,220));
+  process.exitCode=78;
+ });
 }
