@@ -38,6 +38,8 @@ jobs:
         run: npm run test:interop
       - name: V52 channel image mapping drift and history safety
         run: npm run test:images:v52
+      - name: V53 consented DNS-pinned CDN probe security tests
+        run: npm run test:images:v53
       - name: V50 verify no browser-visible secrets before production bundling
         run: npm run build:preflight
       - name: Build Next.js App Router
