@@ -115,6 +115,7 @@ test('V64 matches local file receipt to actual health response declaration',asyn
 test('V64 blocks forged process SHA, digest, nonce and HTTP error',async t=>{
  const f=fixture(t),receipt=sealBuild(f.cwd,{sha}),base={
   candidateCommit:sha,artifactDigestSha256:receipt.artifactDigestSha256,
+  dependencyLockSha256:receipt.dependencyLockSha256,
   buildId:receipt.buildId,runNonce:'1'.repeat(32),pid:123};
  for(const change of [{candidateCommit:other},{artifactDigestSha256:'f'.repeat(64)},
   {runNonce:''},{pid:0},{dependencyLockSha256:'f'.repeat(64)}]){
@@ -137,6 +138,7 @@ test('V65 altered transitive SRI after sealing cannot reuse old Next build recei
 test('V64 refuses checkout mutation between request and reply',async t=>{
  const f=fixture(t),receipt=sealBuild(f.cwd,{sha}),base={
   candidateCommit:sha,artifactDigestSha256:receipt.artifactDigestSha256,
+  dependencyLockSha256:receipt.dependencyLockSha256,
   buildId:receipt.buildId,runNonce:'1'.repeat(32),pid:123};
  let n=0;
  await assert.rejects(()=>probeServingBuild({sha,url:'http://127.0.0.1:4312'},{
