@@ -9,6 +9,19 @@ const call=(core,path,method='GET',data)=>dispatchApi(new Request('http://localh
 }),core);
 const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/gHcAAAAASUVORK5CYII=';
 const ratings={briefFit:4,clarity:5,mobileReadability:4,styleConsistency:4};
+// Distinct, valid PNG variants: insert a tEXt ancillary chunk before IEND and
+// calculate a correct CRC32. Asset dedup otherwise makes URL order unobservable.
+function distinctPng(index){
+ const original=Buffer.from(png,'base64'),tag=Buffer.from('id'+index);
+ const data=Buffer.concat([Buffer.from('tEXt'),tag]);
+ let crc=0xffffffff;
+ for(const octet of data){crc^=octet;for(let i=0;i<8;i++)crc=(crc>>>1)^((crc&1)?0xedb88320:0)}
+ const chunk=Buffer.alloc(4+data.length+4);
+ chunk.writeUInt32BE(tag.length,0);data.copy(chunk,4);
+ chunk.writeUInt32BE((crc^0xffffffff)>>>0,4+data.length);
+ const end=original.length-12;
+ return Buffer.concat([original.subarray(0,end),chunk,original.subarray(end)]).toString('base64');
+}
 async function setup(t){
  const core=createCore(':memory:');t.after(()=>core.close());
  const created=await call(core,'/api/editor/projects','POST',{title:'导回配图证据回归',paragraphs:[
@@ -31,6 +44,7 @@ async function generate(core,root,shot,provider='openai'){
 async function approveAndMap(core,root,plan,channel='wechat'){
  for(let index=0;index<plan.shots.length;index++){
   const shot=plan.shots[index];
+  core.illustrations.generator=async(_prompt,{provider})=>({base64:distinctPng(index),provider,model:'test-model'});
   const image=await generate(core,root,shot);
   assert.equal((await call(core,root+'/shots/'+shot.id+'/decision','POST',{decision:'approve'})).status,200);
   assert.equal((await call(core,'/api/assets/'+image.assetId+'/mappings/'+channel,'PUT',{
