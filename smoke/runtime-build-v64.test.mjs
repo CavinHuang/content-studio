@@ -88,6 +88,7 @@ test('V64 actual guarded production Next.js process announces same sealed Git SH
   }
   assert.equal(probed.servingProcessDeclarationMatchesBuild,true);
   assert.equal(probed.observedDatabaseIdentity,ready.runtimeBuild.databaseIdentity);
+  assert.equal(probed.observedOsIsolation,null);
   assert.equal(probed.independentProcessBinaryAttestation,false);
   assert.equal(probed.mergeAuthorized,false);
   assert.equal(probed.productionReady,false);

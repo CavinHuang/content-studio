@@ -11,6 +11,7 @@ import {parseRuntimeProbeArgs,probeServingBuild} from './build-provenance-v64.mj
 import {runPreparedAcceptance} from './prepare-operator-release-v62.mjs';
 import {checkCandidateFileSeparation,verifyCandidateIsolation} from '../src/candidate-db-identity-v68.mjs';
 import {isAbsolute,win32} from 'node:path';
+import {verifyOperatorOsBoundary} from '../src/candidate-os-boundary-v69.mjs';
 
 const SHA=/^[a-f0-9]{40}$/;
 const lockedDown={
@@ -63,6 +64,13 @@ export function requireRuntimeReview(report,sha){
    !/^[a-f0-9]{64}$/.test(report.dependencyLockSha256||'')||
    typeof report.buildId!=='string'||!report.buildId||
    !/^[a-f0-9]{64}$/.test(report.observedDatabaseIdentity||'')||
+   report.observedOsIsolation?.sourceAccessDenied!==true||
+   report.observedOsIsolation?.candidateFileOwnedByProcess!==true||
+   report.observedOsIsolation?.protectedWalSidecarsChecked!==true||
+   report.observedOsIsolation?.verifiedAtLauncher!==true||
+   !Number.isSafeInteger(report.observedOsIsolation?.processUid)||
+   report.observedOsIsolation.processUid<=0||
+   !/^[a-f0-9]{64}$/.test(report.observedOsIsolation?.sourcePathTag||'')||
    !Number.isInteger(report.observedProcessPid)||report.observedProcessPid<1||
    !/^[a-f0-9]{32}$/.test(report.observedNonce||'')||
    !requiredFalse(report))
@@ -86,11 +94,13 @@ export function requirePreparedReview(report,sha){
 function equalRuntime(before,after){
  return ['candidateCommit','artifactDigestSha256','dependencyLockSha256',
   'buildId','observedDatabaseIdentity','observedProcessPid','observedNonce']
-   .every(key=>before[key]===after[key]);
+   .every(key=>before[key]===after[key])&&
+  JSON.stringify(before.observedOsIsolation)===JSON.stringify(after.observedOsIsolation);
 }
 export async function reviewOperatorRelease(input,{
  host=inspectHostReadiness,runtime=probeServingBuild,prepare=runPreparedAcceptance,
- separate=checkCandidateFileSeparation,isolate=verifyCandidateIsolation
+ separate=checkCandidateFileSeparation,isolate=verifyCandidateIsolation,
+ verifyOs=verifyOperatorOsBoundary
 }={}){
  const opts=Array.isArray(input)?parseReviewArgs(input):input;
  if(!SHA.test(opts?.sha||''))throw Error('Pinned commit SHA required');
@@ -112,6 +122,10 @@ export async function reviewOperatorRelease(input,{
   observedIdentity:instance.observedDatabaseIdentity});
  if(identity?.candidateIsolated!==true||identity?.connectedCandidateIdentityMatched!==true)
   throw Error('Candidate process SQLite identity not isolated');
+ const osFirst=verifyOs({sourceDb:opts.db,observed:instance.observedOsIsolation,
+  runNonce:instance.observedNonce});
+ if(osFirst?.candidateOsBoundaryVerified!==true)
+  throw Error('Candidate OS filesystem isolation not proven');
  // This stage performs the existing V62 WAL snapshot and genuine V61 rollback
  // against disposable copies; no restore into the original database.
  const backup=await prepare({sha:opts.sha,db:opts.db,
@@ -123,6 +137,10 @@ export async function reviewOperatorRelease(input,{
   observedIdentity:after.observedDatabaseIdentity});
  if(finalIdentity?.candidateIsolated!==true||finalIdentity?.connectedCandidateIdentityMatched!==true)
   throw Error('Candidate process SQLite identity drifted');
+ const osAfter=verifyOs({sourceDb:opts.db,observed:after.observedOsIsolation,
+  runNonce:after.observedNonce});
+ if(osAfter?.candidateOsBoundaryVerified!==true)
+  throw Error('Candidate OS isolation drifted');
  if(!equalRuntime(instance,after))
   throw Error('Candidate process or build changed during operator review');
  const final=await host(opts);
@@ -144,6 +162,7 @@ export async function reviewOperatorRelease(input,{
   dependencyLockSha256:instance.dependencyLockSha256,
   candidateProcessStable:true,candidateDatabaseIsolated:true,
   activeDatabaseIdentityMatchesOperatorSelectedFile:true,
+  candidateOsSourceReadDenied:true,candidateRunsUnderDistinctPosixUid:true,
   backupFilename:backup.backupFilename,backupRetainedForOperator:true,
   operatorManualInventoryRecorded:true,privateDataIncluded:false,
   approvalDocumentProduced:false,realOperatorHostTestedByCI:false,

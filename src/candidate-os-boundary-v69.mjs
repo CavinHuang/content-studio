@@ -64,6 +64,19 @@ export function attestCandidateOsBoundary(audit,{sourceDb,runNonce}){
   candidateFileOwnedByProcess:true,
   protectedWalSidecarsChecked:true,verifiedAtLauncher:true};
 }
+export function currentCandidateOsProof(env=process.env,{audit=auditCandidateOsBoundary}={}){
+ if(env.CONTENT_STUDIO_RUNTIME_OS_BOUNDARY!=='1')return null;
+ try{
+  const result=audit({sourceDb:env.CONTENT_STUDIO_CANDIDATE_SOURCE_DB_PATH,
+   candidateDb:env.CONTENT_STUDIO_DB_PATH});
+  const identity=attestCandidateOsBoundary(result,{
+   sourceDb:env.CONTENT_STUDIO_CANDIDATE_SOURCE_DB_PATH,
+   runNonce:env.CONTENT_STUDIO_RUNTIME_NONCE});
+  if(String(identity.processUid)!==env.CONTENT_STUDIO_RUNTIME_OS_UID||
+   identity.sourcePathTag!==env.CONTENT_STUDIO_RUNTIME_OS_SOURCE_TAG)return null;
+  return identity;
+ }catch{return null}
+}
 export function verifyOperatorOsBoundary({sourceDb,observed,runNonce,stat=statSync}){
  if(!absolute(sourceDb)||!NONCE.test(runNonce||'')||
   !observed||typeof observed!=='object'||

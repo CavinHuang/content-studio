@@ -74,6 +74,16 @@ test('V49 runtime launcher forces loopback binding, strips legacy remote and dem
  assert.equal(config.cwd,cwd);
 });
 
+test('V69 candidate start denies unsafe operator source before starting Next',async t=>{
+ const cwd=fixture(t);let spawned=0;
+ await assert.rejects(()=>startLocalRuntime({
+  env:{...env,CONTENT_STUDIO_CANDIDATE_SOURCE_DB_PATH:'/private/host.sqlite'},
+  cwd,candidateMode:true,
+  auditOs:()=>{throw Error('candidate can read source')},
+  spawnChild:()=>{spawned++;throw Error('must not spawn')}
+ }),/candidate can read source/);
+ assert.equal(spawned,0);
+});
 test('V49 actual CLI checks Next dotenv files before start and never emits secret values',t=>{
  const cwd=fixture(t),secret='STUDIO_V49_TEST_ONLY_PASSWORD_DO_NOT_LOG';
  writeFileSync(join(cwd,'.env.local'),[

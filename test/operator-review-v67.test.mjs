@@ -12,6 +12,7 @@ const reviewOperatorRelease=(input,opts={})=>
  realReviewOperatorRelease(input,{
   separate:()=>({candidateSeparatedFromSource:true}),
   isolate:()=>({candidateIsolated:true,connectedCandidateIdentityMatched:true}),
+  verifyOs:()=>({candidateOsBoundaryVerified:true}),
   ...opts
  });
 const privateText='SYNTHETIC_PRIVATE_TEXT_NOT_IN_RESULT';
@@ -39,7 +40,10 @@ const runtime=()=>({
  localBuildIntegrityVerified:true,servingProcessDeclarationMatchesBuild:true,
  independentProcessBinaryAttestation:false,
  artifactDigestSha256:'c'.repeat(64),dependencyLockSha256:'d'.repeat(64),
- buildId:'synthetic-next-build',observedDatabaseIdentity:'b'.repeat(64),observedProcessPid:1234,
+ buildId:'synthetic-next-build',observedDatabaseIdentity:'b'.repeat(64),
+ observedOsIsolation:{sourcePathTag:'c'.repeat(64),processUid:21345,
+  sourceAccessDenied:true,candidateFileOwnedByProcess:true,
+  protectedWalSidecarsChecked:true,verifiedAtLauncher:true},observedProcessPid:1234,
  observedNonce:'e'.repeat(32),...safe
 });
 const backup=()=>({

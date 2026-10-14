@@ -154,6 +154,7 @@ export async function probeServingBuild(input,{
   candidateCommit:args.sha,artifactDigestSha256:local.artifactDigestSha256,
   buildId:local.buildId,dependencyLockSha256:local.dependencyLockSha256,
   observedDatabaseIdentity:marker.databaseIdentity,
+  observedOsIsolation:marker.osIsolation??null,
   observedProcessPid:marker.pid,
   observedNonce:marker.runNonce,localBuildIntegrityVerified:true,
   servingProcessDeclarationMatchesBuild:true,
