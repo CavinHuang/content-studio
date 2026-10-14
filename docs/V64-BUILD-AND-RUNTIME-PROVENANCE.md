@@ -11,7 +11,7 @@ V63 已确保操作员源代码仓库的 HEAD 与已评审提交一致，但 `np
 
 ## 真实主机操作
 
-需要先确保 git 工作区清洁且依赖已安装，在当前完整提交上生成真正的 Next.js 生产包。
+需要先确保 git 工作区清洁且依赖已安装。当前仓库尚未纳入 npm 锁文件；如需安装依赖，应使用 `npm install --no-package-lock`，避免 npm 自动生成未纳入 Git 的 `package-lock.json` 使 V63 工作区检查失败。此方式**不提供依赖版本可复现性**；后续应将固定的依赖锁文件正式纳入版本控制。在当前完整提交上生成真正的 Next.js 生产包。
 
     npm run release:checkout:v63 -- --sha=$(git rev-parse HEAD)
     npm run build

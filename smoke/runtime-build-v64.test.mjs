@@ -5,7 +5,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {spawn} from 'node:child_process';
+import {spawn,spawnSync} from 'node:child_process';
 import {createServer} from 'node:net';
 import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -68,7 +68,20 @@ test('V64 actual guarded production Next.js process announces same sealed Git SH
   assert.equal(ready.runtimeBuild.candidateCommit,sha);
   assert.equal(ready.runtimeBuild.artifactDigestSha256,sealed.artifactDigestSha256);
   assert.equal(ready.runtimeBuild.buildId,sealed.buildId);
-  const probed=await probeServingBuild({sha,url:base});
+  let probed;
+  try{probed=await probeServingBuild({sha,url:base})}
+  catch(error){
+   // The fixture runs ONLY on synthetic CI data. Report allowlisted names
+   // rather than leaking untracked private file names or contents.
+   const diagnostic=spawnSync('git',['status','--porcelain=v1','--untracked-files=all'],{
+    cwd,encoding:'utf8',stdio:['ignore','pipe','pipe']
+   });
+   const lines=(diagnostic.stdout||'').split('\n').filter(Boolean);
+   const known=['package-lock.json','next-env.d.ts','tsconfig.json'];
+   const safe=known.filter(name=>lines.some(line=>line.endsWith(' '+name))).join(',');
+   throw Error('V64 checkout probe blocked: '+(safe||'unknown uncommitted artifacts')+
+    '; count='+lines.length+'; '+String(error.message).slice(0,90));
+  }
   assert.equal(probed.servingProcessDeclarationMatchesBuild,true);
   assert.equal(probed.independentProcessBinaryAttestation,false);
   assert.equal(probed.mergeAuthorized,false);

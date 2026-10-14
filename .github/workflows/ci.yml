@@ -23,7 +23,7 @@ jobs:
       - name: V54 consolidated merge ancestry and release-surface audit
         run: npm run integration:preflight
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm install --no-audit --no-fund --no-package-lock
       - name: Domain & API tests
         run: npm test
       - name: V45 backup, restore and migration rehearsal
