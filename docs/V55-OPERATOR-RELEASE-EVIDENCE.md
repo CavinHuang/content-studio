@@ -8,7 +8,7 @@ V55 updates the existing consolidated PR #26 directly; it does not add another s
 
 Before V55, V54 checks real Git ancestors and file changes and the CI tests disposable databases, a Next.js production restart, pinned Docker doocs/md, image safety and browser rendering. These tests cannot know which local database an operator actually owns, whether a recent encrypted backup exists, or whether a main-branch push triggers an external hosting service.
 
-V55 provides a local command which **requires actual operator-supplied paths**. It binds the resulting redacted report to the candidate Git commit, performs the existing read-only SQLite inspection, backup-manifest verification, V45 WAL-safe restored-copy upgrade, and V47 synthetic cross-channel integration rehearsal. It refuses to consider mismatched current-vs-backup database schemas successful. Missing stages are blockers. None of the operator's article text, stored image bytes, database paths or paid-model secrets are printed in its JSON report.
+V55 provides a local command which **requires actual operator-supplied paths**. It binds the resulting redacted report to the candidate Git commit, performs the existing read-only SQLite inspection, backup-manifest verification, source/backup schema, row-count and complete historical row-content fingerprints, V45 WAL-safe restored-copy upgrade, and V47 synthetic cross-channel integration rehearsal. It refuses to consider mismatched current-vs-backup database schemas successful. Missing stages are blockers. None of the operator's article text, stored image bytes, database paths or paid-model secrets are printed in its JSON report.
 
 Run these operations **only on a trusted host** with a private encrypted working directory and temporary storage; the V47 rehearsal creates temporary plaintext copies and file deletion is not secure erase.
 
@@ -97,3 +97,8 @@ npm run test:doocs:real
 V55's regression suite uses **synthetic reports and temporary manifest files only**, never a real user database. Tests enforce Git SHA binding, missing-manifest failure, source-vs-backup schema mismatches, no silent approval on failures, rejecting unsafe free-text, keeping private data out of the report, and prohibiting any DB access when the candidate history is already invalid.
 
 **Do not paste raw operator-review files, actual private paths, host URLs, secrets or database backups into a GitHub issue or PR discussion.**
+
+
+## V56 additional safety
+
+An intact backup manifest is insufficient if the source has changed since the snapshot was taken. V56 adds read-only per-table/per-row content fingerprints (including BLOBs), as well as row-count digests, to the same candidate evidence command. Recreate a WAL-safe backup if any old-snapshot mismatch is reported; never override it. The real-file-backed **synthetic** regression tests are described in [V56](V56-REAL-FILE-RELEASE-ACCEPTANCE.md). Genuine operator content and external hosting triggers remain uninspected until run by the authorized owner.
