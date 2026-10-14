@@ -15,8 +15,10 @@ function fixture(t){
  backupDir=join(root,'backup'),scratchDir=join(root,'scratch');
  for(const dir of [backupDir,scratchDir]){mkdirSync(dir,{mode:0o700});chmodSync(dir,0o700)}
  const a=new DatabaseSync(sourceDb),b=new DatabaseSync(candidateDb);
- a.exec('CREATE TABLE secrets(id INTEGER PRIMARY KEY, content TEXT); INSERT INTO secrets(content) VALUES("NEVER_LEAK")');
- b.exec('CREATE TABLE fixture(id INTEGER PRIMARY KEY, content TEXT); INSERT INTO fixture(content) VALUES("SYNTHETIC")');
+ a.exec('CREATE TABLE secrets(id INTEGER PRIMARY KEY, content TEXT)');
+ a.prepare('INSERT INTO secrets(content) VALUES(?)').run('NEVER_LEAK');
+ b.exec('CREATE TABLE fixture(id INTEGER PRIMARY KEY, content TEXT)');
+ b.prepare('INSERT INTO fixture(content) VALUES(?)').run('SYNTHETIC');
  a.close();b.close();
  return {root,sourceDb,candidateDb,backupDir,scratchDir};
 }
