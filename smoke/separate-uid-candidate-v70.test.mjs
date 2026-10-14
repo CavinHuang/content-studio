@@ -144,6 +144,9 @@ test('V70 real Next.js under nobody UID + V67 genuine pre/post host/runtime/SQLi
   const observed=await runtime();
   assert.equal(observed.observedProcessPid,processPid);
   assert.equal(observed.observedOsIsolation.processUid,candidateUid);
+  const backupDir=join(tmp,'backups'),scratchDir=join(tmp,'scratch');
+  mkdirSync(backupDir,{mode:0o700});mkdirSync(scratchDir,{mode:0o700});
+  chmodSync(backupDir,0o700);chmodSync(scratchDir,0o700);
   const isolated=verifyCandidateIsolation({sourceDb,candidateDb,
    observedIdentity:observed.observedDatabaseIdentity,
    runNonce:observed.observedNonce,
@@ -153,9 +156,6 @@ test('V70 real Next.js under nobody UID + V67 genuine pre/post host/runtime/SQLi
    observed:observed.observedOsIsolation,runNonce:observed.observedNonce});
   assert.equal(permission.candidateOsBoundaryVerified,true);
 
-  const backupDir=join(tmp,'backups'),scratchDir=join(tmp,'scratch');
-  mkdirSync(backupDir,{mode:0o700});mkdirSync(scratchDir,{mode:0o700});
-  chmodSync(backupDir,0o700);chmodSync(scratchDir,0o700);
   const review=join(tmp,'v55-review.json'),inventory=join(tmp,'v66-inventory.json');
   writeFileSync(review,JSON.stringify({
    schemaVersion:'content-studio-v55-manual-review',candidateCommit:sha,
