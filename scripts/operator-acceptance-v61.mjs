@@ -2,7 +2,7 @@
  * V61 single-entry technical acceptance. Read-only GitHub V59, local V55 and
  * isolated rollback V60; no merge, deploy, publishing or paid-model use.
  */
-import {spawnSync} from 'node:child_process';
+import {verifyCleanCheckout} from './checkout-integrity-v63.mjs';
 import {constants} from 'node:fs';
 import {lstat,realpath,access,mkdtemp,writeFile,rm} from 'node:fs/promises';
 import {resolve,join,isAbsolute,win32} from 'node:path';
@@ -31,9 +31,7 @@ export function parseAcceptanceArgs(args=[]){
  return {sha:out.sha,db:values[0],backup:values[1],review:values[2],scratch:values[3]};
 }
 export function requireLocalHead(sha){
- const child=spawnSync('git',['rev-parse','HEAD'],{encoding:'utf8',stdio:['ignore','pipe','pipe']});
- if(child.error||child.status!==0||child.stdout.trim()!==sha)
-  throw Error('Local Git HEAD differs from candidate SHA');
+ verifyCleanCheckout(sha);
  return true;
 }
 export async function verifyOperatorPaths({db,backup,review,scratch}){

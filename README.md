@@ -1,8 +1,15 @@
-# Content Studio · Next.js + doocs/md（V62）
+# Content Studio · Next.js + doocs/md（V63）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V63 · 本地工作区与已验证 Git 提交强一致
+
+- 在 V61/V62 原有的 HEAD SHA 验证上，增加真实 Git 工作区完整性校验：要求操作员从项目根目录执行，已跟踪文件没有已暂存或未暂存修改，且无非忽略的未跟踪文件。
+- 拒绝 Git `assume-unchanged` 与 `skip-worktree` 隐藏改动，忽略可能劫持当前仓库状态的 `GIT_*` 环境变量；状态查询不会输出私有文件名或正文。
+- `npm run release:checkout:v63 -- --sha=<当前完整提交>` 可独立预检。V61/V62 的多次 HEAD 检查已自动升级为完整工作区检查，因此未提交的代码无法利用绿色 CI 冒充已审查构建。
+- `npm run test:checkout:v63` 在真实临时 Git 仓库中验证 10 种正常与负面场景。忽略的私有数据库仍不由 Git 检查，生产可执行文件完整性与外部部署审批也不会被自动认定通过。详见 [V63 工作区完整性说明](docs/V63-RELEASE-CHECKOUT-INTEGRITY.md)。
 
 ## V62 · 自动准备无覆盖 WAL 快照与一键验收
 

@@ -50,6 +50,8 @@ jobs:
         run: npm run test:acceptance:v61
       - name: V62 protected WAL snapshot preparation and chained V61 acceptance (synthetic)
         run: npm run test:prepare:v62
+      - name: V63 strict real-Git checkout provenance and hidden-index negative cases
+        run: npm run test:checkout:v63
       - name: V56 genuine WAL SQLite and manifest-backed restored operator evidence (synthetic fixture)
         run: npm run test:release:real-files:v56
       - name: V50 offline interop and prebundle security regressions
