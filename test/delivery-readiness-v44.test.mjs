@@ -7,7 +7,7 @@ const request=(c,path,method='GET',data)=>dispatchApi(new Request('http://localh
  method,headers:data?{'content-type':'application/json'}:{},
  body:data?JSON.stringify(data):undefined
 }),c);
-const read=async response=>({status:response.status,...await response.json()});
+const read=async response=>({...await response.json(),status:response.status});
 const qualityRatings={briefFit:4,clarity:4,mobileReadability:4,styleConsistency:4};
 const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/gHcAAAAASUVORK5CYII=';
 async function setup(t,paragraphs){
