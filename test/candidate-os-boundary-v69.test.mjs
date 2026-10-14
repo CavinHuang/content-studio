@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
-import {mkdtempSync,mkdirSync,writeFileSync,rmSync,chmodSync} from 'node:fs';
+import {mkdtempSync,mkdirSync,writeFileSync,rmSync,chmodSync,copyFileSync} from 'node:fs';
+import {pathToFileURL} from 'node:url';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {auditCandidateOsBoundary,attestCandidateOsBoundary,sourceTag,
@@ -84,7 +85,12 @@ test('V69 genuine separate Linux UID cannot open operator private SQLite, no sou
  const candidate=join(root,'candidate.sqlite');
  writeFileSync(candidate,'SYNTHETIC CANDIDATE',{mode:0o600});
  assert.equal(spawnSync('sudo',['-n','chown',String(uid),candidate]).status,0);
- const lib=new URL('../src/candidate-os-boundary-v69.mjs',import.meta.url).href;
+ // The CI checkout parent directory is deliberately not traversable by
+ // other UIDs. Expose ONLY the synthetic test module in our temp fixture.
+ const shared=join(root,'candidate-os-boundary-v69.mjs');
+ copyFileSync(new URL('../src/candidate-os-boundary-v69.mjs',import.meta.url),shared);
+ chmodSync(shared,0o644);
+ const lib=pathToFileURL(shared).href;
  const js='import {auditCandidateOsBoundary} from '+JSON.stringify(lib)+'; '+
   'const r=auditCandidateOsBoundary({sourceDb:process.argv[1],candidateDb:process.argv[2]});'+
   'if(!r.sourceAccessDenied||r.processUid<=0)process.exit(19);';
