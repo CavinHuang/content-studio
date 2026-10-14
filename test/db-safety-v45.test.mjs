@@ -41,7 +41,7 @@ test('V45 creates verified manifest-backed SQLite backup from an open WAL databa
  try{
   assert.equal(copy.prepare('SELECT COUNT(*) AS n FROM editorial_projects').get().n,1);
   assert.equal(copy.prepare('SELECT COUNT(*) AS n FROM briefs').get().n,1);
-  assert.equal(copy.prepare('SELECT payload FROM article_documents WHERE reference_id=?').get(article.channels.master.referenceId)?.payload,undefined);
+  assert.equal(copy.prepare('SELECT COUNT(*) AS n FROM article_documents WHERE reference_id=?').get(article.channels.master.referenceId).n,1);
  }finally{copy.close();core.close()}
 });
 test('V45 restores to a different missing path only and preserves user document revisions',async t=>{
