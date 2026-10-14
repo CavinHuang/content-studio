@@ -20,6 +20,47 @@ const stop=(message)=>{throw Error(message)};
 const sha=value=>createHash('sha256').update(value).digest('hex');
 const quoteIdentifier=s=>'"'+s.replaceAll('"','""')+'"';
 const DEFAULT_DB=()=>resolve(process.env.CONTENT_STUDIO_DB_PATH||join(process.cwd(),'data','content-studio.sqlite'));
+// A matching COUNT(*) can hide deleted/replaced editorial text or image BLOBs.
+// Fingerprints preserve every existing row, including binary assets, not just sizes.
+function rowFingerprint(row){
+ const h=createHash('sha256');
+ for(const [name,value] of Object.entries(row)){
+  const typed=value===null?'null':typeof value==='string'?'text':typeof value==='number'?'number':
+   typeof value==='bigint'?'bigint':(Buffer.isBuffer(value)||value instanceof Uint8Array)?'blob':typeof value;
+  const bytes=typed==='blob'?Buffer.from(value):Buffer.from(typed==='null'?'':String(value));
+  const label=Buffer.from(name+'|'+typed+'|'+bytes.length+'|');
+  h.update(label);h.update(bytes);
+ }
+ return h.digest('hex');
+}
+function rowsDigest(db,table){
+ const meta=db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(table);
+ if(!meta)stop('Missing table in upgrade rehearsal: '+table);
+ const withoutRowid=/\\bWITHOUT\\s+ROWID\\b/i.test(meta.sql||'');
+ let order='rowid';
+ if(withoutRowid){
+  const keys=db.prepare('PRAGMA table_info('+quoteIdentifier(table)+')').all()
+   .filter(c=>c.pk>0).sort((a,b)=>a.pk-b.pk).map(c=>quoteIdentifier(c.name));
+  if(!keys.length)stop('WITHOUT ROWID table missing primary key: '+table);
+  order=keys.join(',');
+ }
+ const h=createHash('sha256');
+ let count=0;
+ for(const row of db.prepare('SELECT * FROM '+quoteIdentifier(table)+' ORDER BY '+order).iterate()){
+  h.update(rowFingerprint(row)+'\\n');count++;
+ }
+ return {count,sha256:h.digest('hex')};
+}
+function businessFingerprints(db){
+ const tableNames=db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all().map(r=>r.name);
+ const data=Object.fromEntries(tableNames.map(table=>[table,rowsDigest(db,table)]));
+ const sources=new Map();
+ if(tableNames.includes('source_state')){
+  for(const row of db.prepare('SELECT * FROM source_state ORDER BY id').iterate())
+   sources.set(row.id,rowFingerprint(row));
+ }
+ return {data,sources};
+}
 
 async function regularFile(path){
  const info=await lstat(path);
@@ -135,19 +176,28 @@ export async function rehearseUpgrade(sourcePath,{openWithCore}={}){
   const replayed=await restoreBackup(output,restored);
   let upgraded=false,newTables=[];
   if(openWithCore){
-   const before=(await inspectDatabase(restored,{includeTableNames:true})).tables;
+   const original=new DatabaseSync(restored,{readOnly:true});
+   let before;
+   try{before=businessFingerprints(original)}finally{original.close()}
    const core=openWithCore(restored);
    try{
-    const after=(await inspectDatabase(restored,{includeTableNames:true})).tables;
-    // Startup registers newly supported default connectors into source_state.
-    // That one additive change is expected; all other existing business row
-    // counts must be preserved. Rehearsal alone does not certify semantic
-    // equality: a separate legacy document round-trip test covers that.
-    for(const [table,count] of Object.entries(before)){
-     if(table==='source_state'&&after[table]>=count)continue;
-     if(after[table]!==count)stop('Upgrade altered historical row count for table '+table);
+    const after=businessFingerprints(core.store.db);
+    // Registering a newly supported source is additive; its preexisting rows
+    // remain immutable. All other preexisting table *contents* must match.
+    for(const [table,digest] of Object.entries(before.data)){
+     const updated=after.data[table];
+     if(!updated)stop('Upgrade removed historical table '+table);
+     if(table==='source_state'){
+      if(updated.count<digest.count)stop('Upgrade lost registered source rows');
+      for(const [id,fingerprint] of before.sources){
+       const row=core.store.db.prepare('SELECT * FROM source_state WHERE id=?').get(id);
+       if(!row||rowFingerprint(row)!==fingerprint)stop('Upgrade modified historical source '+id);
+      }
+     }else if(updated.count!==digest.count||updated.sha256!==digest.sha256){
+      stop('Upgrade altered historical content for table '+table);
+     }
     }
-    newTables=Object.keys(after).filter(k=>!(k in before));
+    newTables=Object.keys(after.data).filter(k=>!(k in before.data));
     upgraded=true;
    }finally{core.close()}
   }
