@@ -17,13 +17,15 @@ jobs:
       - name: Set up Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '22.16.0'
       - name: Verify V30-V48 lineage before or after integration
         run: npm run verify:integration
       - name: V54 consolidated merge ancestry and release-surface audit
         run: npm run integration:preflight
       - name: Install dependencies
-        run: npm install --no-audit --no-fund --no-package-lock
+        run: npm ci --no-audit --no-fund
+      - name: V65 strict npm lockfile schema integrity and negative regressions
+        run: npm run release:lock:v65 && npm run test:lock:v65
       - name: Domain & API tests
         run: npm test
       - name: V45 backup, restore and migration rehearsal

@@ -67,6 +67,7 @@ test('V64 actual guarded production Next.js process announces same sealed Git SH
   assert.ok(ready,'Guarded Next server must start with a signed-off receipt; '+output.join(' ').slice(0,400));
   assert.equal(ready.runtimeBuild.candidateCommit,sha);
   assert.equal(ready.runtimeBuild.artifactDigestSha256,sealed.artifactDigestSha256);
+  assert.equal(ready.runtimeBuild.dependencyLockSha256,sealed.dependencyLockSha256);
   assert.equal(ready.runtimeBuild.buildId,sealed.buildId);
   let probed;
   try{probed=await probeServingBuild({sha,url:base})}

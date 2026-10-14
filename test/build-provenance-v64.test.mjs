@@ -15,6 +15,15 @@ function fixture(t){
  writeFileSync(join(base,'BUILD_ID'),'v64-test-build\n');
  writeFileSync(join(base,'server','main.js'),'console.log("built app");\n');
  writeFileSync(join(base,'static','bundle.js'),'window.__app = 1;\n');
+ const packageJSON={name:'content-studio',version:'0.65.0',packageManager:'npm@10.9.2',
+  dependencies:{'test-lib':'^1.0.0'}};
+ const lock={name:'content-studio',version:'0.65.0',lockfileVersion:3,requires:true,
+  packages:{'':{name:'content-studio',version:'0.65.0',dependencies:{'test-lib':'^1.0.0'}},
+   'node_modules/test-lib':{version:'1.0.1',
+    resolved:'https://registry.npmjs.org/test-lib/-/test-lib-1.0.1.tgz',
+    integrity:'sha512-'+Buffer.from('v65-synthetic-integrity').toString('base64')}}};
+ writeFileSync(join(cwd,'package.json'),JSON.stringify(packageJSON));
+ writeFileSync(join(cwd,'package-lock.json'),JSON.stringify(lock));
  return {cwd,base};
 }
 const noSecrets=output=>{
@@ -94,6 +103,7 @@ const response=(marker,ok=true)=>({ok,json:async()=>({ok:true,framework:'nextjs'
 test('V64 matches local file receipt to actual health response declaration',async t=>{
  const f=fixture(t),receipt=sealBuild(f.cwd,{sha}),stamp={candidateCommit:sha,
   artifactDigestSha256:receipt.artifactDigestSha256,
+  dependencyLockSha256:receipt.dependencyLockSha256,
   buildId:receipt.buildId,runNonce:'1'.repeat(32),pid:12345};
  const report=await probeServingBuild({sha,url:'http://127.0.0.1:4312'},{
   cwd:f.cwd,checkout:()=>true,head:()=>sha,request:async()=>response(stamp)});
@@ -107,13 +117,22 @@ test('V64 blocks forged process SHA, digest, nonce and HTTP error',async t=>{
   candidateCommit:sha,artifactDigestSha256:receipt.artifactDigestSha256,
   buildId:receipt.buildId,runNonce:'1'.repeat(32),pid:123};
  for(const change of [{candidateCommit:other},{artifactDigestSha256:'f'.repeat(64)},
-  {runNonce:''},{pid:0}]){
+  {runNonce:''},{pid:0},{dependencyLockSha256:'f'.repeat(64)}]){
   await assert.rejects(()=>probeServingBuild({sha,url:'http://127.0.0.1:4312'},{
    cwd:f.cwd,checkout:()=>{},head:()=>sha,request:async()=>response({...base,...change})}),
    /does not identify/);
  }
  await assert.rejects(()=>probeServingBuild({sha,url:'http://127.0.0.1:4312'},{
   cwd:f.cwd,checkout:()=>{},head:()=>sha,request:async()=>response(base,false)}),/not healthy/);
+});
+test('V65 altered transitive SRI after sealing cannot reuse old Next build receipt',t=>{
+ const f=fixture(t),sealed=sealBuild(f.cwd,{sha});
+ const path=join(f.cwd,'package-lock.json');
+ const lock=JSON.parse(readFileSync(path,'utf8'));
+ lock.packages['node_modules/test-lib'].integrity='sha512-'+Buffer.from('different').toString('base64');
+ writeFileSync(path,JSON.stringify(lock));
+ assert.throws(()=>verifyBuildReceipt({cwd:f.cwd,expectedSha:sha}),/dependency lock differs/);
+ assert.match(sealed.dependencyLockSha256,/^[a-f0-9]{64}$/);
 });
 test('V64 refuses checkout mutation between request and reply',async t=>{
  const f=fixture(t),receipt=sealBuild(f.cwd,{sha}),base={

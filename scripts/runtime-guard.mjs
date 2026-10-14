@@ -67,6 +67,7 @@ export async function startLocalRuntime({env=process.env,cwd=process.cwd(),spawn
  const nonce=makeNonce();
  if(!/^[a-f0-9]{40}$/.test(build?.candidateCommit||'')||
   !/^[a-f0-9]{64}$/.test(build?.artifactDigestSha256||'')||
+  !/^[a-f0-9]{64}$/.test(build?.dependencyLockSha256||'')||
   typeof build?.buildId!=='string'||!build.buildId||
   !/^[a-f0-9]{32}$/.test(nonce))
   throw Error('Verified Next production build identity is required');
@@ -76,6 +77,7 @@ export async function startLocalRuntime({env=process.env,cwd=process.cwd(),spawn
   CONTENT_STUDIO_ALLOW_REMOTE:'0',ENABLE_SCENARIO:'0',
   CONTENT_STUDIO_RUNTIME_COMMIT:build.candidateCommit,
   CONTENT_STUDIO_RUNTIME_DIGEST:build.artifactDigestSha256,
+  CONTENT_STUDIO_RUNTIME_LOCK_DIGEST:build.dependencyLockSha256,
   CONTENT_STUDIO_RUNTIME_BUILD_ID:build.buildId,
   CONTENT_STUDIO_RUNTIME_NONCE:nonce},stdio:'inherit'});
  const forward=sig=>{if(!child.killed)child.kill(sig)};

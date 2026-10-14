@@ -1,8 +1,16 @@
-# Content Studio · Next.js + doocs/md（V64）
+# Content Studio · Next.js + doocs/md（V65）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V65 · 固定 npm 依赖图与生产构建来源
+
+- 提交由 Node.js 22.16.0 / npm 10.9.2 在 GitHub Actions 中生成的原生 npm v3 `package-lock.json`，固定 58 个依赖包的来源与 SRI。
+- CI 和真实主机统一使用 `npm ci --no-audit --no-fund`，不再用 `npm install --no-package-lock` 动态选择依赖；`npm run release:lock:v65` 负责额外的 manifest/锁文件内容与 HTTPS 来源验证。
+- V64 构建收据绑定 `dependencyLockSha256`，启动前、健康接口和本机进程探测都必须与当前依赖锁一致，传递依赖哈希修改即使不修改业务代码也会失败。
+- 增加 10 个依赖锁正反例、构建后篡改哈希以及真实进程集成覆盖。详细见 [V65 依赖锁与严格安装](docs/V65-LOCKED-DEPENDENCY-ADMISSION.md)。
+- 锁定依赖**不是**跨平台位级构建可复现承诺，也不是可信签名、漏洞审计或部署批准。
 
 ## V64 · Next.js 构建文件与运行进程身份
 

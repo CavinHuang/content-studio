@@ -9,6 +9,7 @@ import {existsSync,readFileSync,writeFileSync,readdirSync,lstatSync,openSync,rea
 import {resolve,join,relative,sep,posix} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {verifyCleanCheckout} from './checkout-integrity-v63.mjs';
+import {verifyDependencyLock} from './dependency-lock-v65.mjs';
 
 const SHA=/^[a-f0-9]{40}$/;
 const RECEIPT='content-studio-v64-build-receipt.json';
@@ -72,8 +73,10 @@ export function inspectBuildFiles(cwd=process.cwd()){
 export function sealBuild(cwd=process.cwd(),{sha=getHeadSha(cwd)}={}){
  if(!SHA.test(sha||''))throw Error('A complete Git SHA is required to seal this build');
  const report=inspectBuildFiles(cwd);
+ const locked=verifyDependencyLock({cwd});
  const value={kind:KIND,schemaVersion:1,candidateCommit:sha,
-  buildId:report.buildId,fileCount:report.fileCount,artifactDigestSha256:report.artifactDigestSha256};
+  buildId:report.buildId,fileCount:report.fileCount,artifactDigestSha256:report.artifactDigestSha256,
+  dependencyLockSha256:locked.lockSha256};
  const path=join(report.root,RECEIPT);
  // A successful build may replace an older .next tree. Its new receipt replaces
  // the previous receipt after the full current tree has been inventoried.
@@ -89,14 +92,19 @@ export function verifyBuildReceipt({cwd=process.cwd(),expectedSha}={}){
  const value=JSON.parse(readFileSync(path,'utf8'));
  if(value.kind!==KIND||value.schemaVersion!==1||
   value.candidateCommit!==expectedSha||
-  !/^[a-f0-9]{64}$/.test(value.artifactDigestSha256||''))
+  !/^[a-f0-9]{64}$/.test(value.artifactDigestSha256||'')||
+  !/^[a-f0-9]{64}$/.test(value.dependencyLockSha256||''))
   throw Error('Build receipt does not match pinned Git commit');
+ const locked=verifyDependencyLock({cwd});
+ if(value.dependencyLockSha256!==locked.lockSha256)
+  throw Error('Built Next.js artifact dependency lock differs from its receipt');
  const current=inspectBuildFiles(cwd);
  if(value.buildId!==current.buildId||value.fileCount!==current.fileCount||
   value.artifactDigestSha256!==current.artifactDigestSha256)
   throw Error('Built Next.js artifact differs from its receipt');
  return {candidateCommit:expectedSha,buildId:current.buildId,
   artifactDigestSha256:current.artifactDigestSha256,
+  dependencyLockSha256:locked.lockSha256,
   checkedFiles:current.fileCount,integrityVerified:true,
   signedByTrustedBuilder:false,productionReady:false};
 }
@@ -133,6 +141,7 @@ export async function probeServingBuild(input,{
  if(status.ok!==true||status.framework!=='nextjs'||status.mode!=='local-only'||
   marker?.candidateCommit!==args.sha||
   marker?.artifactDigestSha256!==local.artifactDigestSha256||
+  marker?.dependencyLockSha256!==local.dependencyLockSha256||
   marker?.buildId!==local.buildId||
   !/^[a-f0-9]{32}$/.test(marker?.runNonce||'')||
   !Number.isInteger(marker?.pid)||marker.pid<1)
@@ -142,7 +151,8 @@ export async function probeServingBuild(input,{
  inspect({cwd,expectedSha:args.sha});
  return {kind:'content-studio-v64-serving-build-probe',schemaVersion:1,
   candidateCommit:args.sha,artifactDigestSha256:local.artifactDigestSha256,
-  buildId:local.buildId,observedProcessPid:marker.pid,
+  buildId:local.buildId,dependencyLockSha256:local.dependencyLockSha256,
+  observedProcessPid:marker.pid,
   observedNonce:marker.runNonce,localBuildIntegrityVerified:true,
   servingProcessDeclarationMatchesBuild:true,
   independentProcessBinaryAttestation:false,hostingIndependentlyVerified:false,
