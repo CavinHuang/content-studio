@@ -92,15 +92,16 @@ export async function probePublicImage(input,{lookup=systemLookup,transport=http
  // to an internal IP (DNS rebinding / hosts file changes).
  const address=addresses[0],ms=Math.max(300,Math.min(6000,Number(timeoutMs)||TIMEOUT_MS));
  return new Promise(resolve=>{
-  let done=false,req;
+  let done=false,req,hardDeadline;
   const finish=(result)=>{
    if(done)return;
    done=true;
+   clearTimeout(hardDeadline);
    resolve({...base,dnsLookups:1,networkCalls:1,...result});
   };
   try{
    req=transport(candidate.url,{
-    method:'GET',timeout:ms,rejectUnauthorized:true,maxRedirects:0,
+    method:'GET',timeout:ms,rejectUnauthorized:true,agent:false,servername:candidate.host,
     lookup:(_hostname,_opts,callback)=>callback(null,address.address,address.family),
     headers:{Accept:'image/png,image/jpeg,image/webp,image/gif',
      Range:'bytes=0-'+(MAX_BYTES-1),'User-Agent':'ContentStudio-ImageProbe/1.0'},
@@ -138,6 +139,7 @@ export async function probePublicImage(input,{lookup=systemLookup,transport=http
    });
    req.once('error',()=>finish({status:'unavailable',reason:'network_request_failed'}));
    req.setTimeout(ms,()=>{req.destroy();finish({status:'unavailable',reason:'network_timeout'})});
+   hardDeadline=setTimeout(()=>{req.destroy();finish({status:'unavailable',reason:'network_deadline_exceeded'})},ms);
    req.end();
   }catch{finish({status:'unavailable',reason:'network_request_failed'})}
  });
