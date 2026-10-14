@@ -1,8 +1,15 @@
-# Content Studio · Next.js + doocs/md（V45）
+# Content Studio · Next.js + doocs/md（V46）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V46 · 集成候选版验收
+
+- 新增 `npm run verify:stack`，通过真实 Git 祖先关系检查 **main → V30 → … → V45 → V46**，防止把 V37 的备选 PR #8 混入沿 PR #9 延续的正确实现。
+- 改进 `db:rehearse`：不再只对比 SQLite 行数，而是检查每个历史业务表的**完整内容指纹**，包括文章正文和图片二进制。仅允许启动时增量注册新信息源，已有来源数据必须保持不变。
+- 新增 `npm run release:admission -- --db=/路径/内容库.sqlite --backup=/路径/备份.sqlite --rehearse`：只读汇总数据库、备份、升级演练、供应商配置与真实平台的待人工验收项。即便本地校验全绿，也始终标记 `productionReady: false`，不会请求付费模型、发布文章或合并代码。
+- 新增篡改正文 / BLOB / 来源状态的负向测试和独立 CI 验收步骤；详见 [V46 集成候选版验收与发布手册](docs/V46-RELEASE-CANDIDATE.md)。
 
 ## V45 · 数据库升级与恢复可靠性
 
@@ -110,7 +117,7 @@ npm run check      # Node 语法检查
 npm run build      # Next.js 构建（需要 npm 安装依赖）
 ```
 
-注意：本次交付环境无法解析 `registry.npmjs.org`，所以无法安装 Next/React 包，**尚未执行真实 Next.js build 或浏览器渲染测试**。已经执行并通过的是 Node 领域服务、Route Handler 核心请求调度的自动化测试；首次联机后必须按 `docs/QA.md` 做 Next 浏览器验收。
+V41 起在 GitHub Actions 中持续执行真实 Next.js 生产构建和 Playwright Chromium E2E；CI 仅验证使用合成数据的本地流程，不代表真实服务商或平台的验收。已经执行并通过的是 Node 领域服务、Route Handler 核心请求调度的自动化测试；首次联机后必须按 `docs/QA.md` 做 Next 浏览器验收。
 
 ## GitHub 推送
 
