@@ -20,6 +20,8 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Domain & API tests
         run: npm test
+      - name: V45 backup, restore and migration rehearsal
+        run: npm run test:recovery
       - name: Syntax checks
         run: npm run check
       - name: Build Next.js App Router
