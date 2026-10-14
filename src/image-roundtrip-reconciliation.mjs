@@ -76,6 +76,9 @@ export class ImageRoundtripReconciliation {
     url:normalizedUrl(mapping.url)});
   }
   if(!expected.length)issues.push('no_expected_approved_images');
+  // Identical asset URLs in different slots are indistinguishable by Markdown
+  // alone. Report this as an explicit ambiguity instead of claiming order proof.
+  if(new Set(expected.map(e=>e.url)).size!==expected.length)warnings.push('reused_image_url_position_unverifiable');
   const used=new Set(),matched=[];
   for(const item of expected){
    const at=tokens.findIndex((t,i)=>!used.has(i)&&t.url===item.url);
