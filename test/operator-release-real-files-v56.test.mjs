@@ -102,6 +102,29 @@ test('V56 a valid older WAL backup is rejected after the source database gains a
  assert.equal(packet.mergeAuthorized,false);
  assert.equal(f.core.editorial.list().length,2,'original live database remains intact');
 });
+test('V56 refuses a stale but intact backup when private article rows change without any row-count change',{timeout:120000},async t=>{
+ const f=fixture(t);
+ await createBackup(f.db,{outputPath:f.backup});
+ const former=await verifyBackup(f.backup,{includeContentDigest:true});
+ const before=await inspectDatabase(f.db,{includeContentDigest:true});
+ assert.equal(former.contentSha256,before.contentSha256);
+ // In-place content mutation with exactly the same number of rows; the DB is
+ // still valid and a naive table-count or schema check would accept it.
+ const row=f.core.store.db.prepare('SELECT id, snapshot FROM briefs LIMIT 1').get();
+ f.core.store.db.prepare('UPDATE briefs SET snapshot=? WHERE id=?')
+  .run(JSON.stringify({secret:'SYNTHETIC_PRIVATE_SENTINEL_EDITED',fixtureVersion:56}),row.id);
+ const after=await inspectDatabase(f.db,{includeContentDigest:true});
+ assert.equal(former.schemaSha256,after.schemaSha256);
+ assert.equal(former.rowCountsSha256,after.rowCountsSha256);
+ assert.notEqual(former.contentSha256,after.contentSha256);
+ const report=await collected(f);
+ assert.equal(report.packetComplete,false);
+ assert.equal(report.local.backupRowCountsMatchDatabase,true);
+ assert.equal(report.local.backupSchemaMatchesDatabase,true);
+ assert.equal(report.local.backupContentMatchesDatabase,false);
+ assert.ok(report.blockers.includes('backup_historical_content_mismatch'),JSON.stringify(report.blockers));
+ assert.equal(report.mergeAuthorized,false);
+});
 test('V56 rejects a forged on-disk backup manifest even when the source is valid',{timeout:120000},async t=>{
  const f=fixture(t);
  await createBackup(f.db,{outputPath:f.backup});
