@@ -11,10 +11,12 @@ export default function IllustrationStudio(){
  const [provider,setProvider]=useState('openai'),[promptEdits,setPromptEdits]=useState({}),[promptPreviews,setPromptPreviews]=useState({}),[editDrafts,setEditDrafts]=useState({}),[feedbackDrafts,setFeedbackDrafts]=useState({});
  const [state,setState]=useState(null),[preview,setPreview]=useState(null),[mapping,setMapping]=useState({}),[consent,setConsent]=useState(false),[reviewConsent,setReviewConsent]=useState(false),[fallback,setFallback]=useState(false),[profileDraft,setProfileDraft]=useState(null),[savedProfiles,setSavedProfiles]=useState([]),[seriesData,setSeriesData]=useState(null),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
  const [budgetLimit,setBudgetLimit]=useState(12);
+ const [providerChecks,setProviderChecks]=useState(null),[handoffCheck,setHandoffCheck]=useState(null);
+ const [qaChecks,setQaChecks]=useState({rightsReviewed:false,uploadConfirmed:false,desktopPasteConfirmed:false,mobilePreviewConfirmed:false}),[qaNote,setQaNote]=useState('');
  const root=`/api/illustrations/projects/${projectId}`;
  const reload=useCallback(async id=>{if(!id)return;const data=await api(`/api/illustrations/projects/${id}`);setState(data);setBudgetLimit(data.requestBudget?.dailyLimit??12);api(`/api/illustrations/projects/${id}/series`).then(setSeriesData).catch(()=>setSeriesData(null));setProfileDraft(current=>current||{name:data.visualProfile?.name||'',palette:data.visualProfile?.palette||'',mood:data.visualProfile?.mood||'',avoid:data.visualProfile?.avoid||''});setProvider(current=>data.providers?.find(x=>x.id===current&&x.configured)?current:(data.providers?.find(x=>x.configured)?.id||current));},[]);
  useEffect(()=>{api('/api/editor/projects').then(x=>{const ps=x.projects||[];setProjects(ps);api('/api/illustrations/visual-profiles').then(v=>setSavedProfiles(v.profiles||[])).catch(()=>{});const fromQuery=query.get('project');setProjectId(fromQuery&&ps.some(p=>p.id===fromQuery)?fromQuery:ps[0]?.id||'');}).catch(e=>setMessage(e.message))},[query]);
- useEffect(()=>{setPreview(null);setState(null);setSeriesData(null);setPromptEdits({});setPromptPreviews({});setEditDrafts({});setFeedbackDrafts({});setProfileDraft(null);reload(projectId).catch(e=>setMessage(e.message))},[projectId,reload]);
+ useEffect(()=>{setPreview(null);setHandoffCheck(null);setState(null);setSeriesData(null);setPromptEdits({});setPromptPreviews({});setEditDrafts({});setFeedbackDrafts({});setProfileDraft(null);reload(projectId).catch(e=>setMessage(e.message))},[projectId,reload]);
  async function run(task){setBusy(true);setMessage('');try{await task();await reload(projectId)}catch(e){setMessage(e.message)}finally{setBusy(false)}}
  const current=projects.find(p=>p.id===projectId);
  async function generateAll(){if(!consent){setMessage('先明确同意向已配置的图片模型发送文章标题和章节摘要。');return}
@@ -45,16 +47,29 @@ export default function IllustrationStudio(){
  function setMap(id,field,v){setMapping(x=>({...x,[id]:{...x[id],[field]:v}}))}
  async function saveMapping(shot){return run(async()=>{const entry=mapping[shot.id]||{};await api(`/api/assets/${shot.assetId}/mappings/${channel}`,'PUT',{url:entry.url||'',note:entry.note||''})})}
  async function buildHandoff(){setBusy(true);setMessage('');try{setPreview(await api(`${root}/handoff/${channel}`))}catch(e){setPreview(null);setMessage(e.message)}finally{setBusy(false)}}
+ async function checkProviders(){setBusy(true);setMessage('');try{setProviderChecks((await api('/api/illustrations/providers/preflight')).providers)}catch(e){setMessage(e.message)}finally{setBusy(false)}}
+ async function checkHandoff(){setBusy(true);setMessage('');try{setHandoffCheck(await api(`${root}/handoff-qa/${channel}`))}catch(e){setMessage(e.message)}finally{setBusy(false)}}
+ async function saveManualQa(){
+  if(!handoffCheck?.proposalSha256){setMessage('请先检查当前渠道交接提案。');return}
+  setBusy(true);setMessage('');
+  try{
+   const data=await api(`${root}/handoff-qa/${channel}`,'POST',{
+    expectedSourceRevision:handoffCheck.sourceRevision,expectedLayoutRevision:handoffCheck.layoutRevision,
+    expectedProposalSha256:handoffCheck.proposalSha256,checks:qaChecks,note:qaNote
+   });
+   setHandoffCheck(data);setMessage('人工验收结果已作为不可变记录保存。这不是系统自动验证的发布状态。');
+  }catch(e){setMessage(e.message)}finally{setBusy(false)}
+ }
  async function copyProposal(){try{await navigator.clipboard.writeText(preview.markdown);setMessage('含图 Markdown 已复制；请在 doocs/md 中排版，并按 V30 差异审阅导回。')}catch{setMessage('复制被浏览器拦截，请手动选择下方 Markdown。')}}
  return <div className="compose-root"><header className="compose-head"><div><Link href="/" className="compose-brand">◈ Content Studio</Link><span className="compose-divider">/</span>创作 · Agent 自动配图</div><div className="compose-right"><Link className="btn secondary" href="/illustrations/queue">跨文章任务队列 ↗</Link> <Link className="btn secondary" href={`/compose?project=${encodeURIComponent(projectId)}`}>返回 doocs/md 排版 ↗</Link></div></header>
  <main className="compose-container">
-  <div className="compose-intro"><div><span className="eyebrow">ILLUSTRATION AGENT · V39</span><h1>文章写好，交给 Agent 配图</h1><p>分析主稿 → 统一视觉规范 → 多模型配图与有限回退 → 参考图编辑 → 双图质量对比与作者反馈 → 视觉偏好记忆 → 每日模型请求预算 → 图片质量辅助评审 → 人工批准 → 素材映射 → doocs/md 排版。图像是概念插画，不是事实证据。</p></div><span className="compose-mode">本地素材库 · 渠道独立</span></div>
+  <div className="compose-intro"><div><span className="eyebrow">ILLUSTRATION AGENT · V40</span><h1>文章写好，交给 Agent 配图</h1><p>分析主稿 → 统一视觉规范 → 多模型配图与有限回退 → 参考图编辑 → 双图质量对比与作者反馈 → 视觉偏好记忆 → 每日模型请求预算 → 图片质量辅助评审 → 人工批准 → 素材映射 → doocs/md 排版。图像是概念插画，不是事实证据。</p></div><span className="compose-mode">本地素材库 · 渠道独立</span></div>
   {message&&<div className="compose-notice" role="status">{message}<button type="button" onClick={()=>setMessage('')}>×</button></div>}
   <div className="illustration-grid">
    <aside className="compose-panel"><div className="compose-panel-title">01 · 选择创作内容</div>
     <label>当前文章<select aria-label="配图文章" value={projectId} onChange={e=>setProjectId(e.target.value)}>{projects.map(x=><option value={x.id} key={x.id}>{x.title}</option>)}</select></label>
     <label>图片生成供应商<select aria-label="图片供应商" value={provider} onChange={e=>{setProvider(e.target.value);setPromptPreviews({})}}>{(state?.providers||[{id:'openai',label:'OpenAI GPT Image',configured:false},{id:'gemini',label:'Google Nano Banana',configured:false},{id:'qwen',label:'Qwen Image',configured:false}]).map(p=><option key={p.id} value={p.id}>{p.label} · {p.model||'模型待配置'} {p.configured?'（可用）':'（未配置）'}</option>)}</select></label>
-    <label>目标渠道<select aria-label="配图目标渠道" value={channel} onChange={e=>{setChannel(e.target.value);setPreview(null)}}><option value="wechat">微信公众号</option><option value="zhihu">知乎</option></select></label>
+    <label>目标渠道<select aria-label="配图目标渠道" value={channel} onChange={e=>{setChannel(e.target.value);setPreview(null);setHandoffCheck(null);setQaChecks({rightsReviewed:false,uploadConfirmed:false,desktopPasteConfirmed:false,mobilePreviewConfirmed:false});setQaNote('')}}><option value="wechat">微信公众号</option><option value="zhihu">知乎</option></select></label>
     {state?<><p className="illustration-status">主稿 v{state.sourceRevision}{state.stale?' · 方案已过期':' · 方案可用'}</p><p className="compose-muted">{current?.title}</p>
     <button className="btn primary compose-save" disabled={busy} onClick={()=>run(()=>api(`${root}/plan`,'POST',{expectedMasterRevision:state.sourceRevision}))}>{state.plan?'根据最新主稿重新规划':'分析文章并创建配图计划'}</button>
     {state.plannerConfigured&&<button className="btn secondary compose-save" disabled={busy||!consent} onClick={agentPlan}>Agent 重新理解文章并生成视觉方案（外部文本模型）</button>}
@@ -78,6 +93,11 @@ export default function IllustrationStudio(){
     <label className="compose-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/><span>我允许将所选文章的标题与章节摘要发送到配置的外部图片模型。已确认没有需要保密的内容。</span></label>
     <label className="compose-consent"><input type="checkbox" checked={fallback} onChange={e=>setFallback(e.target.checked)}/><span>主模型遇到限流／服务异常时，允许尝试其他已配置供应商（每张图最多 3 次 API 调用；可能产生额外费用）。</span></label>
     <label className="compose-consent"><input type="checkbox" checked={reviewConsent} onChange={e=>setReviewConsent(e.target.checked)}/><span>额外授权将图片和配图提示词发送给视觉质量评审模型（单独付费调用，不会自动批准发布）。</span></label>
+    <div className="compose-tip"><strong>供应商协议配置检查（本地，不调用 API）</strong>
+     <button className="btn secondary compose-save" disabled={busy} onClick={checkProviders}>检查三家供应商配置</button>
+     {providerChecks?.map(item=><p className="compose-muted" key={item.id}>{item.id} · {item.model} · {item.configured?'配置和地址格式检查通过':`尚不可用：${item.problems.join('、')}`}</p>)}
+     <p className="compose-muted">只检查服务端配置和 URL 格式，不验证密钥是否有效、不发送正文、不产生模型费用。</p>
+    </div>
     <p className="compose-muted">图片服务：{state?.providers?.find(p=>p.id===provider)?.configured?`已配置 ${provider}（凭据仅在服务端）`:`${provider} 尚未配置 API Key`}; 文本策划模型：{state?.plannerConfigured?'已配置':'未配置，使用本地规划草案'}</p>
     <button className="btn secondary compose-save" disabled={busy||!state?.plan||state.stale||!consent||!state?.providers?.find(p=>p.id===provider)?.configured||!state.shots.some(s=>['planned','failed'].includes(s.status))} onClick={generateAll}>{busy?'处理中…':'Agent 生成所有待处理配图'}</button>
    </aside>
@@ -124,6 +144,21 @@ export default function IllustrationStudio(){
      {preview&&<div className="illustration-preview"><div className="compose-data"><span>已定位插图</span><strong>{preview.inserted.length}</strong></div><div className="compose-data"><span>缺少渠道图片地址</span><strong>{preview.unmapped.length}</strong></div><div className="compose-data"><span>段落无法定位</span><strong>{preview.unplaced.length}</strong></div>
       {preview.ready?<p className="illustration-status">已生成只读 Markdown 提案，可复制交给 doocs/md。</p>:<p className="compose-danger">仍有未映射或无法定位图片，请补全或手工调整。不会自动修改正式渠道稿。</p>}
       <textarea readOnly rows={9} aria-label="带图 Markdown 预览" value={preview.markdown}/><button className="btn secondary compose-save" disabled={!preview.ready} onClick={copyProposal}>复制带图 Markdown</button></div>}
+     <div className="compose-tip"><strong>V40 · 渠道图片交接预检</strong>
+      <p>仅分析已批准的图片、映射地址及当前文章／排版修订，不访问公众号或知乎，也不自动修改渠道文章。</p>
+      <button className="btn secondary compose-save" disabled={busy||!state?.plan} onClick={checkHandoff}>检查当前渠道的交接条件</button>
+      {handoffCheck&&<div>
+       <p className={handoffCheck.readyForManualQA?'illustration-status':'compose-danger'}>{handoffCheck.readyForManualQA?'具备人工平台检查条件':'尚不具备全部交接条件'} · 待批准 {handoffCheck.pendingApproval.length} · 缺少映射 {handoffCheck.unmapped.length} · 无法定位 {handoffCheck.unplaced.length}</p>
+       {handoffCheck.issues?.length>0&&<p className="compose-muted">需处理：{handoffCheck.issues.join('、')}</p>}
+       {handoffCheck.latest&&<p className="compose-muted">最近一次作者记录：{handoffCheck.latest.result==='passed'?'作者报告通过':'作者报告未通过'} · {handoffCheck.latestCurrent?'匹配当前提案':'已过期或交接不完整'}（非自动平台核验）</p>}
+       {handoffCheck.proposalSha256&&<div className="illustration-mapping">
+        <strong>手工记录平台实际检查结果</strong>
+        {Object.entries({rightsReviewed:'图片内容、素材使用权与版权已经人工核实',uploadConfirmed:'目标渠道已实际上传相关图片',desktopPasteConfirmed:'平台桌面编辑器粘贴和显示已验证',mobilePreviewConfirmed:'目标平台移动端预览已验证'}).map(([key,label])=><label key={key} className="compose-consent"><input type="checkbox" checked={qaChecks[key]} onChange={e=>setQaChecks(old=>({...old,[key]:e.target.checked}))}/><span>{label}</span></label>)}
+        <textarea rows={3} aria-label="手工验收备注" value={qaNote} onChange={e=>setQaNote(e.target.value)} placeholder="实际检查时间、图片效果、失败位置和处理结论（至少12字）"/>
+        <button className="btn secondary compose-save" disabled={busy||qaNote.trim().length<12} onClick={saveManualQa}>保存人工验收记录（含失败）</button>
+       </div>}
+      </div>}
+     </div>
      <div className="compose-tip"><strong>排版后的必须检查</strong><p>AI 可能画错事实、界面或文字。逐张检查内容准确性、肖像与版权、移动端排版，以及微信公众号和知乎实际粘贴后的图片显示；再按 V30/V31 的导回审阅存档。</p></div>
    </aside>
   </div>
