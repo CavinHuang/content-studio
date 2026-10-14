@@ -1,8 +1,15 @@
-# Content Studio · Next.js + doocs/md（V51）
+# Content Studio · Next.js + doocs/md（V52）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V52 · doocs 真实图片预览、渠道 URL 变更提醒
+
+- 新增图片渠道 URL 的 SQLite 历史记录，修改公众号或知乎映射时保存旧地址；排版页显示「图片映射」状态，提供「复查图片链接」按钮。识别旧地址、尚未替换的本地素材标记和未登记的外部图片，**不会擅自修改已保存 Markdown**。
+- 新增 `GET /api/composer/projects/:id/:channel/image-audit` 只读检查，无外部网络请求。它只能说明本地 URL 映射是否一致，**不能证明图片实际上传、公网可访问或平台接受**。
+- 真实 doocs/md 2.1.0 + Chromium 联调升级到**图片**：上传合成 PNG、映射图片 URL、复制 Markdown、在真实 CodeMirror 预览、从 doocs 菜单导出文件并导回。图片的 HTTPS 响应由 Playwright 提供合成测试字节，不对真实 CDN 进行请求。
+- `npm run test:images:v52` 是本轮独立专项；另有普通 Chromium 的旧图片 URL 警告回归。详见 [V52 图片排版交接与 URL 保护](docs/V52-IMAGE-DOOCS-ROUNDTRIP.md)。
 
 ## V51 · 真正 doocs/md 实例浏览器交接
 
