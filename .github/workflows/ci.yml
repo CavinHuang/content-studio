@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,3 +24,17 @@ jobs:
         run: npm run check
       - name: Build Next.js App Router
         run: npm run build
+      - name: Install Chromium for browser E2E
+        run: npx playwright install --with-deps chromium
+      - name: Browser E2E (synthetic local content, no paid API)
+        run: npm run test:e2e
+      - name: Upload browser failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-v41-artifacts
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 5
+          if-no-files-found: ignore
