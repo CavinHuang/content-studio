@@ -69,18 +69,24 @@ function sniffImage(buf,type){
  return null;
 }
 export async function probePublicImage(input,{lookup=systemLookup,transport=httpsRequest,timeoutMs=TIMEOUT_MS}={}){
- const base={status:'blocked',networkCalls:0,bytesRead:0,
+ const base={status:'blocked',networkCalls:0,dnsLookups:0,bytesRead:0,
   fullImageDownloaded:false,imageResponseObserved:false,cdnReachabilityVerified:false,
   browserRenderVerified:false,platformVerified:false,published:false};
  const candidate=validateImageProbeURL(input);
  if(!candidate.valid)return {...base,reason:candidate.reason};
- let addresses;
+ let addresses,lookupDeadline;
  try{
-  addresses=await lookup(candidate.host,{all:true,verbatim:true});
- }catch{return {...base,reason:'dns_unavailable'}}
+  addresses=await Promise.race([
+   lookup(candidate.host,{all:true,verbatim:true}),
+   new Promise((_,reject)=>{
+    lookupDeadline=setTimeout(()=>reject(Error('bounded-dns-deadline')),2000);
+   })
+  ]);
+ }catch{return {...base,dnsLookups:1,reason:'dns_unavailable'}}
+ finally{clearTimeout(lookupDeadline)}
  if(!Array.isArray(addresses)||!addresses.length||
     addresses.length>32||addresses.some(x=>![4,6].includes(x.family)||!publicNetworkAddress(x.address)))
-  return {...base,reason:'dns_contains_nonpublic_address'};
+  return {...base,dnsLookups:1,reason:'dns_contains_nonpublic_address'};
  // TLS verification is retained with the *original domain* and SNI.
  // Custom lookup returns a prevalidated address so reconnect cannot re-resolve
  // to an internal IP (DNS rebinding / hosts file changes).
@@ -90,7 +96,7 @@ export async function probePublicImage(input,{lookup=systemLookup,transport=http
   const finish=(result)=>{
    if(done)return;
    done=true;
-   resolve({...base,networkCalls:1,...result});
+   resolve({...base,dnsLookups:1,networkCalls:1,...result});
   };
   try{
    req=transport(candidate.url,{
@@ -149,12 +155,14 @@ export async function inspectMappedChannelImages({
   const check=await probe(url);
   results.push({url,status:check.status,reason:check.reason||null,httpStatus:check.httpStatus??null,
    bytesRead:check.bytesRead||0,mime:check.mime||null,imageResponseObserved:check.imageResponseObserved===true,
+   networkCalls:check.networkCalls||0,dnsLookups:check.dnsLookups||0,
    cdnReachabilityVerified:false,
    platformVerified:false,browserRenderVerified:false});
  }
  return {kind:'content-studio-v53-author-initiated-image-check',
   source:'saved_current_channel_mappings_only',layoutRevision,
-  requested:eligible.length,networkCalls:results.length,
+  requested:eligible.length,networkCalls:results.reduce((n,r)=>n+r.networkCalls,0),
+  dnsLookups:results.reduce((n,r)=>n+r.dnsLookups,0),
   checkedAt:new Date().toISOString(),results,
   browserRenderVerified:false,platformVerified:false,published:false,
   warning:'HTTPS server image header only. This does not prove complete download, future access, image rights, or WeChat/Zhihu rendering.'};
