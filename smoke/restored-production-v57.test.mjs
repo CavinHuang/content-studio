@@ -54,11 +54,10 @@ async function startServer(port,db){
    lastStatus='HTTP '+response.status;
    if(response.ok()){
     const info=await response.json();
-    assert.equal(info.framework,'nextjs');
-    assert.equal(info.mode,'local-only');
-    return {child,url};
+    lastStatus='health='+JSON.stringify({framework:info.framework,mode:info.mode,ok:info.ok});
+    if(info.framework==='nextjs'&&info.mode==='local-only')return {child,url};
    }
-  }catch{}
+  }catch(error){lastStatus='health request failed: '+String(error?.name||'unknown')}
   await pause(250);
  }
  await stopServer(child);
