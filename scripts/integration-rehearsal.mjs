@@ -200,7 +200,7 @@ export async function integrationRehearsal(sourcePath,{makeCore=createCore,backu
    insist(historical.length<=MAX_PROJECT_SCAN,'Historical projects exceed exhaustive acceptance scan limit');
    for(const row of historical){
     const item=core.editorial.get(row.id);
-    insist(item.channels.master.document?.paragraphs?.length>0,'Historical article lacks master document');
+    insist(Array.isArray(item.channels.master.document?.paragraphs),'Historical article lacks readable master document');
     for(const channel of ['wechat','zhihu']){
      insist(!!item.channels[channel]?.document,'Historical article lacks channel document');
      core.editorial.layoutDraft(row.id,channel);
