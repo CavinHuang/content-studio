@@ -335,7 +335,9 @@ export class IllustrationService {
   const approved=data.shots.filter(s=>s.status==='approved');
   for(const shot of approved){const mapping=shot.asset?.mappings?.find(x=>x.channel===channel);
    if(!mapping){unmapped.push(shot.id);continue;}
-   const img=`![${shot.alt.replace(/[\[\]\n]/g,' ')}](${mapping.url})`;
+   const alt=shot.alt.replace(/[\[\]\\\r\n]/g,' ');
+   const safeUrl=mapping.url.replace(/\(/g,'%28').replace(/\)/g,'%29');
+   const img=`![${alt}](${safeUrl})`;
    if(shot.role==='cover'){
     const m=markdown.match(/^# .+$/mu);if(!m){unplaced.push(shot.id);continue;}
     markdown=markdown.replace(m[0],m[0]+'\n\n'+img);inserted.push({id:shot.id,assetId:shot.assetId,after:'cover'});
