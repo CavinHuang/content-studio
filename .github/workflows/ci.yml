@@ -46,6 +46,21 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Browser E2E (synthetic local content, no paid API)
         run: npm run test:e2e
+      - name: Start pinned local doocs/md 2.1.0 Docker editor
+        run: |
+          docker run -d --name content-studio-v51-doocs --pull=always \
+            -p 127.0.0.1:8800:80 doocs/md:2.1.0
+          for i in $(seq 1 40); do
+            if curl -fsS --max-time 2 http://127.0.0.1:8800/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          docker logs content-studio-v51-doocs
+          exit 1
+      - name: V51 real doocs editor browser handoff
+        run: npm run test:doocs:real
+      - name: Stop doocs editor container
+        if: always()
+        run: docker rm -f content-studio-v51-doocs || true
       - name: Upload browser failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4
