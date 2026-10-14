@@ -14,7 +14,7 @@ import {parsePrepareArgs,validatePreparePaths,snapshotUnchanged,
 } from '../scripts/prepare-operator-release-v62.mjs';
 
 const sha='a'.repeat(40),sentinel='V62_SYNTHETIC_CONTENT_PRIVATE';
-const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC0lEQVR42mP8/x8AAwMCAO+/gHcAAAAASUVORK5CYII=';
+const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/gHcAAAAASUVORK5CYII=';
 const remote=(withPacket=false)=>({candidateCommit:sha,
  githubCI:{githubCheckPassed:true,githubApiWasQueried:true,checks:{
  push:{runId:110},pull_request:{runId:111}}},
