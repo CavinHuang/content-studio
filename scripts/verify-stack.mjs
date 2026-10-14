@@ -1,4 +1,4 @@
-/** V46 local git release-candidate lineage check.
+/** V47 local git release-candidate lineage check.
  * Checks actual ancestry, not names/README claims. No merges, network or writes.
  */
 import {spawnSync} from 'node:child_process';
@@ -23,7 +23,8 @@ export const CANONICAL_BRANCHES=Object.freeze([
  'feat/v43-image-quality-roundtrip',
  'feat/v44-unified-delivery-readiness',
  'feat/v45-database-recovery-hardening',
- 'feat/v46-integration-release-gates'
+ 'feat/v46-integration-release-gates',
+ 'feat/v47-restored-data-acceptance'
 ]);
 export const ALTERNATIVE_V37='feat/v37-series-visual-library';
 function git(...args){
@@ -42,9 +43,9 @@ export function inspectBranchChain({hasRef,isAncestor,hasAlternative=()=>false})
   }else steps.push({branch:name,result:'ancestor_confirmed'});
  }
  const final='refs/remotes/origin/'+CANONICAL_BRANCHES.at(-1);
- if(hasRef(final)&&!isAncestor(final,'HEAD'))problems.push('current_checkout_does_not_contain_V46');
+ if(hasRef(final)&&!isAncestor(final,'HEAD'))problems.push('current_checkout_does_not_contain_candidate');
  const main='refs/remotes/origin/main';
- if(hasRef(main)&&!isAncestor(main,'HEAD'))problems.push('current_main_not_ancestor_of_V46');
+ if(hasRef(main)&&!isAncestor(main,'HEAD'))problems.push('current_main_not_ancestor_of_candidate');
  const alternative=hasAlternative('refs/remotes/origin/'+ALTERNATIVE_V37);
  return {verified:!problems.length,canonicalBranches:CANONICAL_BRANCHES.length,checkedRelationships:steps.filter(x=>x.result==='ancestor_confirmed').length-1,
   candidate:CANONICAL_BRANCHES.at(-1),steps,problems,
