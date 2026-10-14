@@ -34,6 +34,8 @@ jobs:
         run: npm run test:integration
       - name: V48 merged mainline safety regressions
         run: npm run test:mainline
+      - name: V58 localhost API CSRF and Host/Origin ingress regressions
+        run: npm run test:security:v58
       - name: Syntax checks
         run: npm run check
       - name: V54 consolidation admission negative regressions

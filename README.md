@@ -1,8 +1,15 @@
-# Content Studio · Next.js + doocs/md（V57）
+# Content Studio · Next.js + doocs/md（V58）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V58 · 本地 API 入口安全边界
+
+- `src/local-api-boundary.mjs` 在加载默认 SQLite 之前验证 Host/URL 的回环地址、端口一致性、可信同端口 Origin 和浏览器 `Sec-Fetch-Site`，拒绝 DNS rebinding 型 Host、跨站脚本请求、无 Origin 的跨端口浏览器写入及导航式写入。
+- 所有携带正文的 POST/PUT/PATCH/DELETE 必须是 `application/json`（可带 UTF-8 charset）；表单和 text/plain 被拒绝；不带正文的本机操作兼容。
+- `npm run test:security:v58` 覆盖 Host、Origin、端口、协议、简单表单 CSRF 与真实 API 接入。离线 5 个独立单元测试已通过。此边界 **不是身份认证**，不得公网暴露，也不代表真实发布或部署授权。
+- 详见 [V58 本地 API 安全边界](docs/V58-LOCAL-API-BOUNDARY.md)。
 
 ## V57 · 备份恢复后的真实生产启动验收
 
