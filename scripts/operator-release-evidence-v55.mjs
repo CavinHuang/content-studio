@@ -8,7 +8,8 @@
  *
  * This is a sanitized report, not a certificate or proof of external hosting.
  */
-import {resolve} from 'node:path';
+import {resolve,isAbsolute,win32} from 'node:path';
+import {readFileSync,lstatSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {releaseAdmission} from './release-admission.mjs';
 import {runIntegrationGate} from './integration-gate-v54.mjs';
@@ -18,12 +19,14 @@ const REVIEW_KINDS=new Set(['no-automatic-deployment','deployment-paused','contr
 export function parseEvidenceArgs(args=[]){
  const values={};
  for(const part of args){
-  const match=/^--(db|backup)=(.+)$/.exec(part);
+  const match=/^--(db|backup|review)=(.+)$/.exec(part);
   if(!match||values[match[1]])throw Error('Required: --db=ABSOLUTE_PATH --backup=ABSOLUTE_PATH');
   values[match[1]]=match[2];
  }
- if(!values.db||!values.backup||!values.db.startsWith('/')||!values.backup.startsWith('/')||
-   resolve(values.db)===resolve(values.backup))
+ const absolute=p=>isAbsolute(p)||win32.isAbsolute(p);
+ if(!values.db||!values.backup||!absolute(values.db)||!absolute(values.backup)||
+   (values.review&&!absolute(values.review))||
+   (values.db===values.backup||resolve(values.db)===resolve(values.backup)))
   throw Error('Explicit distinct absolute local database and backup paths required');
  return values;
 }
@@ -111,6 +114,14 @@ export function composeReleaseEvidence({git,local,manual}={}){
   realPublishingVerified:false,paidProviderChecked:false
  };
 }
+export function readOperatorReview(path){
+ const stat=lstatSync(path);
+ if(!stat.isFile()||stat.isSymbolicLink()||stat.size>4096)
+  throw Error('Manual review must be a regular local JSON file smaller than 4 KiB');
+ const value=JSON.parse(readFileSync(path,'utf8'));
+ if(!value||typeof value!=='object'||Array.isArray(value))throw Error('Invalid operator review format');
+ return value;
+}
 export async function collectReleaseEvidence(args,{
   gitAudit=runIntegrationGate,admission=releaseAdmission,manualReview=null
 }={}){
@@ -121,12 +132,13 @@ export async function collectReleaseEvidence(args,{
  if(!git.technicalHistoryValid||git.mode!=='premerge-candidate')
   return composeReleaseEvidence({git,local:{database:{status:'not_checked'}}});
  const local=await admission(['--db='+opts.db,'--backup='+opts.backup,'--rehearse','--integration']);
- return composeReleaseEvidence({git,local,manual:manualReview});
+ return composeReleaseEvidence({git,local,manual:manualReview||
+  (opts.review?readOperatorReview(opts.review):null)});
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  collectReleaseEvidence(process.argv.slice(2)).then(result=>{
   console.log(JSON.stringify(result,null,2));
-  if(!result.localEvidenceComplete)process.exitCode=1;
+  if(!result.packetComplete)process.exitCode=1;
  }).catch(()=>{
   // Never echo input path, email, tokens, temporary DB data or model settings.
   console.error('V55 local evidence collection could not complete; inspect trusted operator configuration');
