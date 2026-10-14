@@ -20,6 +20,8 @@ jobs:
           node-version: '22'
       - name: Verify V30-V48 lineage before or after integration
         run: npm run verify:integration
+      - name: V54 consolidated merge ancestry and release-surface audit
+        run: npm run integration:preflight
       - name: Install dependencies
         run: npm install --no-audit --no-fund
       - name: Domain & API tests
@@ -34,6 +36,8 @@ jobs:
         run: npm run test:mainline
       - name: Syntax checks
         run: npm run check
+      - name: V54 consolidation admission negative regressions
+        run: npm run test:integration:v54
       - name: V50 offline interop and prebundle security regressions
         run: npm run test:interop
       - name: V52 channel image mapping drift and history safety
