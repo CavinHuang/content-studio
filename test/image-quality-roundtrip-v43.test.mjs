@@ -138,6 +138,10 @@ test('doocs imported Markdown consistency detects missing, duplicated, reordered
  assert.equal(out.ready,true);
  assert.equal(out.layoutRevision,1);
  assert.equal(out.documentHash,preview.documentHash);
+ const regenerated=await (await call(core,root+'/handoff/wechat')).json();
+ assert.equal(regenerated.markdown,proposed.markdown,'rebuilding handoff after import must not duplicate images');
+ assert.equal(regenerated.inserted.length,plan.shots.length);
+ assert.ok(regenerated.inserted.every(x=>x.alreadyPresent));
  assert.equal(out.externalRequests,0);
  assert.equal(out.platformVerified,false);
  const expected=proposed.markdown;
