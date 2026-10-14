@@ -75,6 +75,11 @@ export function composeReleaseEvidence({git,local,manual}={}){
  if(!local.backup?.schemaSha256||!local.database?.schemaSha256||
     local.backup.schemaSha256!==local.database.schemaSha256)
   problems.push('backup_schema_mismatch');
+ // A verified manifest can still reference an OLD (but intact) snapshot.
+ // Require a matching row-count fingerprint in addition to schema SHA.
+ if(!local.backup?.rowCountsSha256||!local.database?.rowCountsSha256||
+    local.backup.rowCountsSha256!==local.database.rowCountsSha256)
+  problems.push('backup_row_counts_mismatch');
  if(local.upgrade?.status!=='passed'||local.upgrade?.historicalRowsPreserved!==true||
     local.upgrade?.sourceUntouched!==true||local.upgrade?.temporaryCopiesDeleted!==true)
   problems.push('restored_copy_upgrade_unverified');
@@ -97,6 +102,8 @@ export function composeReleaseEvidence({git,local,manual}={}){
    backupManifest:local.backup?.status||'not_checked',
    backupSchemaMatchesDatabase:local.backup?.schemaSha256===local.database?.schemaSha256 &&
      !!local.backup?.schemaSha256,
+   backupRowCountsMatchDatabase:!!local.backup?.rowCountsSha256 &&
+     local.backup.rowCountsSha256===local.database?.rowCountsSha256,
    restoredUpgrade:local.upgrade?.status||'not_checked',
    historicalRowsPreserved:local.upgrade?.historicalRowsPreserved===true,
    restoredIntegration:local.integration?.status||'not_checked',
