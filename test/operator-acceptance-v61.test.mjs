@@ -120,7 +120,8 @@ test('V61 rejects symbolic links and insecure shared scratch directory',async t=
 });
 test('V61 uses real WAL SQLite, real V55 evidence and real V60 fault-rollback in sequence',
  {timeout:150000},async t=>{
- const f=fixture(t),core=createCore(f.db);
+ const f=fixture(t); f.backup=join(f.root,'fresh-snapshot.sqlite');
+ const core=createCore(f.db);
  t.after(()=>core.close());
  const article=core.editorial.create({title:privateText,paragraphs:[{text:privateText}]});
  const asset=core.assets.upload({name:'synthetic.png',alt:'one pixel',base64:png});
