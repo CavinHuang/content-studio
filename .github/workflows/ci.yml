@@ -76,6 +76,14 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Browser E2E (synthetic local content, no paid API)
         run: npm run test:e2e
+      - name: V64 CI diagnostic immutable Next files modified during synthetic browser tests
+        run: |
+          echo 'Files under .next modified after build receipt (excluding cache and traces):'
+          find .next -type f -newer .next/content-studio-v64-build-receipt.json \
+            -not -path '.next/cache/*' \
+            -not -name 'trace' \
+            -not -name 'trace-build' \
+            -not -name 'trace-upload' | head -60
       - name: Start pinned local doocs/md 2.1.0 Docker editor
         run: |
           docker run -d --name content-studio-v51-doocs --pull=always \
