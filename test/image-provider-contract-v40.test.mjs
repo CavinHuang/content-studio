@@ -170,3 +170,26 @@ test('failed manual QA can be recorded with explicit false checks but is never p
  assert.equal((await reported.json()).latest.result,'failed');
  assert.equal((await (await req(c,root+'/handoff-qa/wechat')).json()).latestCurrent,false);
 });
+
+test('malformed provider image bytes are rejected before creating local assets',async t=>{
+ env(t,{CONTENT_IMAGE_OPENAI_API_KEY:'mock-key',CONTENT_IMAGE_OPENAI_MODEL:'gpt-image-2',
+  CONTENT_IMAGE_OPENAI_BASE_URL:'https://api.openai.com/v1/'});
+ const fake=Buffer.from('<html>error from upstream proxy: not an image</html>').toString('base64');
+ mock(t,async()=>Response.json({data:[{b64_json:fake}]}));
+ await assert.rejects(()=>generateProviderImage('Create a technical editorial illustration',{provider:'openai'}),e=>{
+  assert.equal(e.status,502);assert.equal(e.retryable,false);return /unsupported image bytes/.test(e.message);
+ });
+});
+
+test('Qwen image downloader rejects HTML or JSON even when a link uses a trusted OSS host',async t=>{
+ env(t,{CONTENT_IMAGE_QWEN_API_KEY:'mock-qwen',CONTENT_IMAGE_QWEN_MODEL:'qwen-image-3.0',
+  CONTENT_IMAGE_QWEN_BASE_URL:'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/'});
+ let sent=0;
+ mock(t,async(url,options)=>{
+  sent++;
+  if(options.method==='POST')return Response.json({data:[{url:'https://dashscope-result-sz.oss-cn-shenzhen.aliyuncs.com/object.png'}]});
+  return new Response('<html>Error</html>',{status:200,headers:{'content-type':'text/html'}});
+ });
+ await assert.rejects(()=>generateProviderImage('Technical image prompt',{provider:'qwen'}),/unexpected content type/);
+ assert.equal(sent,2);
+});
