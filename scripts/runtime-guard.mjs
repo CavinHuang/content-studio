@@ -1,0 +1,85 @@
+/**
+ * V49: localhost production start guard.
+ *
+ * The server is trusted, single-user and unauthenticated. Deny unsafe public
+ * opt-ins instead of treating localhost binding as sufficient authentication.
+ * This script never reads/displays provider keys or opens user SQLite data.
+ */
+import {spawn} from 'node:child_process';
+import {readFileSync,existsSync,lstatSync} from 'node:fs';
+import {resolve,dirname,basename} from 'node:path';
+import {fileURLToPath} from 'node:url';
+
+const DEFAULT_PORT=4312;
+const hasValue=value=>typeof value==='string'&&value.trim().length>0;
+const sensitivePublicName=name=>/^NEXT_PUBLIC_/i.test(name)&&/(?:API[_-]?KEY|SECRET|PASSWORD|TOKEN|PRIVATE[_-]?KEY|AUTH[_-]?KEY|CREDENTIAL)/i.test(name);
+const loopbackOnlyHosts=new Set(['127.0.0.1','localhost','[::1]','::1']);
+const pathFromEnv=(env,cwd)=>resolve(cwd,env.CONTENT_STUDIO_DB_PATH||'data/content-studio.sqlite');
+
+export function auditLocalRuntime({env=process.env,version=process.versions.node,cwd=process.cwd(),strict=true}={}){
+ const problems=[],warnings=[];
+ const match=String(version).match(/^(\d+)\.(\d+)\.(\d+)/);
+ const parts=match?.slice(1).map(Number)||[];
+ if(parts[0]!==22||parts[1]<16)problems.push('requires_node_22_16_or_later_in_22_x');
+ if(env.CONTENT_STUDIO_ALLOW_REMOTE==='1')problems.push('unauthenticated_remote_access_opt_in_forbidden');
+ if(hasValue(env.CONTENT_STUDIO_DB_PATH)&&env.CONTENT_STUDIO_DB_PATH.trim()===':memory:')problems.push('nonpersistent_database_forbidden');
+ if(hasValue(env.DB_PATH))warnings.push('legacy_DB_PATH_ignored_by_next_app');
+ if(env.ENABLE_SCENARIO==='1')problems.push('fixture_seed_endpoint_must_be_disabled_for_production');
+ const publicSecrets=Object.entries(env).filter(([name,value])=>sensitivePublicName(name)&&hasValue(value)).map(([name])=>name).sort();
+ if(publicSecrets.length)problems.push('public_environment_contains_secret_like_names');
+ if(publicSecrets.length)warnings.push('review_NEXT_PUBLIC_secret_names_out_of_band');
+ const port=hasValue(env.PORT)?Number(env.PORT):DEFAULT_PORT;
+ if(!Number.isInteger(port)||port<1024||port>65535)problems.push('invalid_local_port');
+ if(hasValue(env.HOST)&&!loopbackOnlyHosts.has(env.HOST.trim()))problems.push('nonloopback_host_override');
+ if(hasValue(env.HOSTNAME)&&!loopbackOnlyHosts.has(env.HOSTNAME.trim()))warnings.push('HOSTNAME_ignored_by_strict_next_start');
+ let databasePresent=false;
+ if(!problems.includes('nonpersistent_database_forbidden')){
+  try{
+   const path=pathFromEnv(env,cwd);
+   if(existsSync(path)){
+    const stat=lstatSync(path);
+    if(stat.isSymbolicLink()||!stat.isFile())problems.push('database_must_be_regular_local_file');
+    else databasePresent=true;
+   }else if(strict)warnings.push('database_missing_will_be_created_on_first_start');
+  }catch{problems.push('database_path_not_accessible')}
+ }
+ return {kind:'content-studio-v49-local-runtime-audit',ready:problems.length===0,problems,warnings,
+  nodeVersion:version,loopbackBind:'127.0.0.1',port:Number.isInteger(port)?port:null,
+  databasePresent,providerRequests:0,platformVerified:false,
+  publicSecretsDetected:publicSecrets.length,privateValuesDisplayed:false,
+  productionReady:false,message:'Local single-user start only; do not expose on a public network without separate authentication and access controls.'};
+}
+export function assertLocalRuntime(options){
+ const status=auditLocalRuntime(options);
+ if(!status.ready)throw Object.assign(new Error('Unsafe local runtime configuration: '+status.problems.join(',')),{status:78});
+ return status;
+}
+export async function startLocalRuntime({env=process.env,cwd=process.cwd(),spawnChild=spawn}={}){
+ const audit=assertLocalRuntime({env,cwd});
+ const bin=resolve(cwd,'node_modules/next/dist/bin/next');
+ const argv=[bin,'start','-H','127.0.0.1','-p',String(audit.port)];
+ const child=spawnChild(process.execPath,argv,{cwd,env:{...env,CONTENT_STUDIO_ALLOW_REMOTE:'0',ENABLE_SCENARIO:'0'},stdio:'inherit'});
+ const forward=sig=>{if(!child.killed)child.kill(sig)};
+ process.once('SIGINT',()=>forward('SIGINT'));
+ process.once('SIGTERM',()=>forward('SIGTERM'));
+ return new Promise((done,reject)=>{
+  child.once('error',reject);
+  child.once('exit',(code,signal)=>{
+   process.removeAllListeners('SIGINT');
+   process.removeAllListeners('SIGTERM');
+   done(code??(signal?128:1));
+  });
+ });
+}
+if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
+ const command=process.argv[2];
+ if(command==='preflight'){
+  const result=auditLocalRuntime();
+  console.log(JSON.stringify(result,null,2));
+  if(!result.ready)process.exitCode=78;
+ }else if(command==='start'){
+  startLocalRuntime().then(code=>{process.exitCode=code}).catch(error=>{
+   console.error('Local runtime denied: '+String(error?.message||'unknown').slice(0,220));process.exitCode=78
+  });
+ }else{console.error('Usage: node scripts/runtime-guard.mjs preflight|start');process.exitCode=2}
+}
