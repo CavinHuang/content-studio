@@ -1,8 +1,15 @@
-# Content Studio · Next.js + doocs/md（V49）
+# Content Studio · Next.js + doocs/md（V50）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V50 · 本机排版器连通性与安全构建
+
+- `/compose` 新增本机 doocs/md 连接状态和手动重试；`npm run doocs:preflight` 可单独探测排版器的 HTTP HTML 首页（默认本机 `127.0.0.1:8800`），**不传输文章、不会跟随外部重定向**。服务可连接不代表已经验证 doocs 身份、排版格式或公众号粘贴。
+- `npm run build` 新增构建前凭据检查：从 Next.js 环境文件加载配置，发现已赋值的 `NEXT_PUBLIC_*SECRET / TOKEN / API_KEY` 等字段时拒绝构建，防止密钥进入浏览器构建产物。可先执行 `npm run build:preflight`。
+- CI 新增本机 HTTP、危险地址、重定向、公开密钥配置及浏览器状态刷新回归。真实 doocs/md 页面、微信/知乎发布和付费图片模型仍必须单独人工验收。
+- 详见 [V50 排版器联通与安全构建](docs/V50-DOOCS-BUILD-SAFETY.md)。
 
 ## V49 · 真正 Next.js 生产启动与重启验收
 
