@@ -1,6 +1,6 @@
 {
   "name": "content-studio",
-  "version": "0.47.0",
+  "version": "0.48.0",
   "private": true,
   "type": "module",
   "description": "Next.js App Router, source-aware personal publishing studio",
@@ -11,7 +11,7 @@
     "dev": "next dev -H 127.0.0.1 -p 4312",
     "build": "next build",
     "start": "next start -H 127.0.0.1 -p 4312",
-    "check": "node --check lib/api.mjs && node --check lib/core.mjs && node --check src/editorial.mjs && node --check src/store.mjs && node --check src/image-request-budget.mjs && node --check src/illustrations.mjs && node --check src/illustration-queue.mjs && node --check src/illustration-delivery-qa.mjs && node --check src/image-providers.mjs && node --check scripts/paid-image-smoke.mjs && node --check src/illustration-technical-audit.mjs && node --check src/image-quality-ledger.mjs && node --check src/image-roundtrip-reconciliation.mjs && node --check src/delivery-readiness.mjs && node --check scripts/db-safety.mjs && node --check scripts/verify-stack.mjs && node --check scripts/release-admission.mjs && node --check scripts/integration-rehearsal.mjs && node --check scripts/release-admission.mjs",
+    "check": "node --check lib/api.mjs && node --check lib/core.mjs && node --check src/editorial.mjs && node --check src/store.mjs && node --check src/image-request-budget.mjs && node --check src/illustrations.mjs && node --check src/illustration-queue.mjs && node --check src/illustration-delivery-qa.mjs && node --check src/image-providers.mjs && node --check scripts/paid-image-smoke.mjs && node --check src/illustration-technical-audit.mjs && node --check src/image-quality-ledger.mjs && node --check src/image-roundtrip-reconciliation.mjs && node --check src/delivery-readiness.mjs && node --check scripts/db-safety.mjs && node --check scripts/verify-stack.mjs && node --check scripts/release-admission.mjs && node --check scripts/integration-rehearsal.mjs && node --check scripts/release-admission.mjs && node --check scripts/verify-main.mjs",
     "test": "node --test test/*.test.mjs",
     "test:next-api": "node --test test/next-api.test.mjs",
     "legacy:dev": "node src/server.mjs",
@@ -26,7 +26,9 @@
     "test:release": "node --test test/release-gates-v46.test.mjs test/release-admission-v46.test.mjs test/release-admission-integration-v47.test.mjs",
     "release:admission": "node scripts/release-admission.mjs",
     "release:rehearse": "node scripts/integration-rehearsal.mjs",
-    "test:integration": "node --test test/integration-rehearsal-v47.test.mjs"
+    "test:integration": "node --test test/integration-rehearsal-v47.test.mjs",
+    "verify:main": "node scripts/verify-main.mjs",
+    "test:mainline": "node --test test/mainline-v48.test.mjs"
   },
   "dependencies": {
     "next": "^16.2.0",
