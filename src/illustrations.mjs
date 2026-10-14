@@ -174,7 +174,7 @@ export class IllustrationService {
      const safeError=String(e?.message||'Image generation failed').slice(0,160).replace(/(Bearer\s+)[^\s]+/gi,'$1[redacted]');
      this._attempt(shotId,current,'failed',Date.now()-start,'',safeError);
      // Only retry transient provider/network responses, never invalid image or stale source.
-     if(![429,502,503,504].includes(Number(e?.status))||/Article changed|invalid image data|Unsupported image bytes|Invalid PNG/.test(safeError))break;
+     if(!(typeof e?.retryable==='boolean'?e.retryable:[429,502,503,504].includes(Number(e?.status)))||/Article changed|invalid image data|Unsupported image bytes|Invalid PNG/.test(safeError))break;
     }
    }
    throw lastError||new Error('Image generation failed');
