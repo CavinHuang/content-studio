@@ -46,7 +46,8 @@ export class DeliveryReadiness {
      article.channels[channel].document.revision!==expectedChannelRevision||
      layout.layoutRevision!==expectedLayoutRevision)bad('Article or layout revision changed; reload delivery checklist',409);
   if(typeof reason!=='string'||reason.trim().length<12||reason.trim().length>400)bad('Explain the deliberate no-images choice (12-400 characters)');
-  if(markdownImageTokens(layout.markdown).length)bad('Channel layout contains Markdown images; no-image exemption cannot be recorded',409);
+  if(markdownImageTokens(layout.markdown).length||/<img\\b/i.test(layout.markdown)||/!\\[[^\\]\\n]*\\]\\[[^\\]\\n]+\\]/.test(layout.markdown))
+   bad('Channel layout contains Markdown/HTML/reference images; no-image exemption cannot be recorded',409);
   const id='din_'+randomUUID();
   this.db.prepare('INSERT INTO delivery_no_image_decisions VALUES(?,?,?,?,?,?,?,?)').run(id,projectId,channel,expectedSourceRevision,expectedChannelRevision,expectedLayoutRevision,reason.trim(),new Date().toISOString());
   return this.get(projectId,channel);
@@ -86,7 +87,7 @@ export class DeliveryReadiness {
     image.status='skipped';image.details={noImageDecision:exemption};
     qa.status='skipped';qa.details={noImageDecision:exemption};
     const tokens=markdownImageTokens(layout.markdown);
-    if(tokens.length)block(round,'unexpected_images_in_text_only_layout');
+    if(tokens.length||/<img\\b/i.test(layout.markdown)||/!\\[[^\\]\\n]*\\]\\[[^\\]\\n]+\\]/.test(layout.markdown))block(round,'unexpected_images_in_text_only_layout');
    }else{
     block(image,'explicit_no_image_choice_or_plan_required');
     qa.status='waiting';qa.details={reason:'image_plan_or_no_image_exemption_required'};
