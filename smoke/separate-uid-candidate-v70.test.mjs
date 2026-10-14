@@ -61,7 +61,12 @@ test('V70 real Next.js under nobody UID + V67 genuine pre/post host/runtime/SQLi
  assert.ok(candidateUid>0);
  const originalCwd=process.cwd(),sha=getHeadSha(originalCwd);
  const tmp=mkdtempSync(join(tmpdir(),'cs-v70-multiuid-'));
- t.after(()=>rmSync(tmp,{force:true,recursive:true}));
+ t.after(()=>{
+  // Only our hardcoded-prefix mkdtemp fixture; children are owned by nobody.
+  assert.ok(tmp.startsWith(join(tmpdir(),'cs-v70-multiuid-')));
+  const r=spawnSync('sudo',['-n','rm','-rf','--',tmp],{stdio:'ignore'});
+  assert.equal(r.status,0,'CI synthetic fixture cleanup must succeed');
+ });
  // /tmp fixture only; make its top-level traversable by both OS users.
  chmodSync(tmp,0o755);
  const sourceDir=join(tmp,'source-protected'),sourceDb=join(sourceDir,'operator.sqlite');
