@@ -44,6 +44,8 @@ jobs:
         run: npm run test:release:v55
       - name: V59 GitHub CI attestation and operator-packet fail-closed regressions (offline)
         run: npm run test:release:v59
+      - name: V60 actual SQLite rollback and fault-injection acceptance on synthetic WAL data
+        run: npm run test:rollback:v60
       - name: V56 genuine WAL SQLite and manifest-backed restored operator evidence (synthetic fixture)
         run: npm run test:release:real-files:v56
       - name: V50 offline interop and prebundle security regressions
