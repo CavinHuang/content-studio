@@ -85,6 +85,9 @@ export async function createVerifiedOperatorSnapshot({db,backupDir,sha},{
   if(created){
    await remove(output+'.manifest.json').catch(()=>{});
    await remove(output).catch(()=>{});
+   // Read-only SQLite verification may have materialized WAL/SHM sidecars.
+   await remove(output+'-wal').catch(()=>{});
+   await remove(output+'-shm').catch(()=>{});
   }
   throw Error('Cannot prepare a stable verified WAL backup');
  }

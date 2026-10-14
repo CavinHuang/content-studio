@@ -59,6 +59,8 @@ test('V62 makes WAL-consistent new backup while preserving source and PNG bytes'
  assert.equal(ready.manifestAndFullContentVerified,true);
  assert.equal(ready.sourceStableAcrossBackup,true);
  assert.equal(existsSync(ready.backupPath),true);
+ assert.ok((await readdir(f.backupDir)).every(name=>name.endsWith('.sqlite')||name.endsWith('.sqlite.manifest.json')),
+  'A committed backup must not rely on leftover SQLite WAL/SHM or temp files');
  const backed=await verifyBackup(ready.backupPath,{includeContentDigest:true});
  assert.equal(backed.contentSha256,original.contentSha256);
  assert.equal((await inspectDatabase(f.db,{includeContentDigest:true})).contentSha256,original.contentSha256);
