@@ -6,7 +6,7 @@ import existing from './playwright.config.mjs';
 export default defineConfig({
  ...existing,
  testDir:'./smoke',
- testMatch:'doocs-real-v51.spec.mjs',
+ testMatch:['doocs-real-v51.spec.mjs','doocs-image-v52.spec.mjs'],
  retries:0,
  use:{...existing.use,trace:'retain-on-failure',screenshot:'only-on-failure'},
  reporter:[['list']]
