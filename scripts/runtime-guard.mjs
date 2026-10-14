@@ -36,12 +36,15 @@ export function auditLocalRuntime({env=process.env,version=process.versions.node
  if(!problems.includes('nonpersistent_database_forbidden')){
   try{
    const path=pathFromEnv(env,cwd);
-   if(existsSync(path)){
-    const stat=lstatSync(path);
-    if(stat.isSymbolicLink()||!stat.isFile())problems.push('database_must_be_regular_local_file');
-    else databasePresent=true;
-   }else if(strict)warnings.push('database_missing_will_be_created_on_first_start');
-  }catch{problems.push('database_path_not_accessible')}
+   // lstat even for dangling symlinks: existsSync() follows the symlink and
+   // would incorrectly treat an unsafe dangling link as a new database path.
+   const stat=lstatSync(path);
+   if(stat.isSymbolicLink()||!stat.isFile())problems.push('database_must_be_regular_local_file');
+   else databasePresent=true;
+  }catch(error){
+   if(error?.code==='ENOENT'){if(strict)warnings.push('database_missing_will_be_created_on_first_start')}
+   else problems.push('database_path_not_accessible');
+  }
  }
  return {kind:'content-studio-v49-local-runtime-audit',ready:problems.length===0,problems,warnings,
   nodeVersion:version,loopbackBind:'127.0.0.1',port:Number.isInteger(port)?port:null,
