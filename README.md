@@ -1,8 +1,16 @@
-# Content Studio · Next.js + doocs/md（V60）
+# Content Studio · Next.js + doocs/md（V61）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V61 · 单命令发布前技术验收
+
+- 新增 `npm run release:acceptance:v61`：将 V59 GitHub 最新 HEAD/CI 审查、V55 私有主机本地 SQLite 与备份检查、V60 故障注入和独立回滚串成一个命令。
+- 真正读取本地库之前先检查同一 SHA 的 Push/PR CI；完成故障演练后再次检查本地 SHA 和 GitHub CI，避免把旧版证据当作当前发布证据。
+- 操作者自有受保护目录中暂存脱敏 V55 JSON，并在成功或失败时清理；私有文章、图片数据、路径与 token 不写入验收报告。
+- `reviewReady=true` 仅代表当前主机技术证据已收集，**绝不等于外部托管审查通过、允许合并、允许部署或正式发布**。
+- CI 增加 `npm run test:acceptance:v61`，使用真实 SQLite/WAL 合成数据和模拟 GitHub API，详见 [V61 验收说明](docs/V61-ONE-COMMAND-OPERATOR-ACCEPTANCE.md)。
 
 ## V60 · 独立 SQLite 回滚演练与故障注入
 
