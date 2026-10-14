@@ -25,6 +25,10 @@ test('V45 creates verified manifest-backed SQLite backup from an open WAL databa
  const dir=fresh(t),database=join(dir,'active.sqlite');
  const core=createCore(database);
  const article=makeArticle(core);
+ const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/gHcAAAAASUVORK5CYII=';
+ const stored=core.assets.upload({name:'test-v45.png',alt:'用户原始素材恢复测试',base64:png});
+ const mapped=core.assets.setMapping(stored.id,'wechat',{url:'https://cdn.example.org/v45-restored.png',note:'作者人工登记的渠道素材链接'});
+ assert.equal(mapped.mappings[0].channel,'wechat');
  core.store.db.exec('PRAGMA wal_autocheckpoint=0');
  core.store.db.prepare('INSERT INTO briefs(id,event_id,created_at,snapshot) VALUES(?,?,?,?)').run(
   'br_v45','test-v45',new Date().toISOString(),JSON.stringify({testing:true,v:45}));
@@ -42,6 +46,8 @@ test('V45 creates verified manifest-backed SQLite backup from an open WAL databa
   assert.equal(copy.prepare('SELECT COUNT(*) AS n FROM editorial_projects').get().n,1);
   assert.equal(copy.prepare('SELECT COUNT(*) AS n FROM briefs').get().n,1);
   assert.equal(copy.prepare('SELECT COUNT(*) AS n FROM article_documents WHERE reference_id=?').get(article.channels.master.referenceId).n,1);
+  assert.equal(Buffer.from(copy.prepare('SELECT body FROM content_assets WHERE id=?').get(stored.id).body).toString('base64'),png);
+  assert.equal(copy.prepare('SELECT url FROM content_asset_mappings WHERE asset_id=? AND channel=?').get(stored.id,'wechat').url,'https://cdn.example.org/v45-restored.png');
  }finally{copy.close();core.close()}
 });
 test('V45 restores to a different missing path only and preserves user document revisions',async t=>{
