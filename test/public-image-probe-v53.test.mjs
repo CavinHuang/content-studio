@@ -104,7 +104,7 @@ test('V53 aborts redirects, bad responses, non-images, oversized streams and tim
 });
 test('V53 requires explicit consent and exact saved revision, limits to three saved mapped images',async()=>{
  let requests=0;
- const probe=async()=>{requests++;return {status:'image_response_observed',imageResponseObserved:true}};
+ const probe=async()=>{requests++;return {status:'image_response_observed',imageResponseObserved:true,networkCalls:1,dnsLookups:1}};
  const audit={references:[base]};
  await assert.rejects(inspectMappedChannelImages({audit,layoutRevision:4,expectedLayoutRevision:4,probe}),x=>x.status===403);
  await assert.rejects(inspectMappedChannelImages({audit,layoutRevision:4,expectedLayoutRevision:3,acknowledgeExternalRequests:true,probe}),x=>x.status===409);
