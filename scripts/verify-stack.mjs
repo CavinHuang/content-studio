@@ -24,7 +24,8 @@ export const CANONICAL_BRANCHES=Object.freeze([
  'feat/v44-unified-delivery-readiness',
  'feat/v45-database-recovery-hardening',
  'feat/v46-integration-release-gates',
- 'feat/v47-restored-data-acceptance'
+ 'feat/v47-restored-data-acceptance',
+ 'feat/v48-mainline-integration'
 ]);
 export const ALTERNATIVE_V37='feat/v37-series-visual-library';
 function git(...args){
