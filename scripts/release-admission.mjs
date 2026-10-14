@@ -34,16 +34,16 @@ export async function releaseAdmission(args,{inspect=inspectDatabase,verify=veri
  const dbPath=resolve(opts.db||process.env.CONTENT_STUDIO_DB_PATH||join(process.cwd(),'data','content-studio.sqlite'));
  let database=null,archive=null,upgrade=null,integrated=null;
  try{
-  const data=await inspect(dbPath);
+  const data=await inspect(dbPath,{includeContentDigest:true});
   database={status:data.integrity==='ok'?'passed':'blocked',tables:data.tableCount,rows:data.rowCount,
-   schemaSha256:data.schemaSha256,rowCountsSha256:data.rowCountsSha256,readOnly:true,missingCoreTables:data.missingCoreTables};
+   schemaSha256:data.schemaSha256,rowCountsSha256:data.rowCountsSha256,contentSha256:data.contentSha256,readOnly:true,missingCoreTables:data.missingCoreTables};
   if(database.status!=='passed'||database.missingCoreTables?.length)local.push('database_integrity_or_schema');
  }catch{local.push('database_missing_or_inaccessible');database={status:'blocked'}}
  if(opts.backup){
   try{
-   const data=await verify(resolve(opts.backup));
+   const data=await verify(resolve(opts.backup),{includeContentDigest:true});
    archive={status:data.backupValid&&data.manifestVerified?'passed':'blocked',sha256:data.sha256,
-    schemaSha256:data.schemaSha256,rowCountsSha256:data.rowCountsSha256,rows:data.rowCount,manifestVerified:data.manifestVerified};
+    schemaSha256:data.schemaSha256,rowCountsSha256:data.rowCountsSha256,contentSha256:data.contentSha256,rows:data.rowCount,manifestVerified:data.manifestVerified};
    if(archive.status!=='passed')local.push('backup_invalid');
    if(database?.status==='passed'&&archive.schemaSha256!==database.schemaSha256)
     warnings.push('backup_schema_differs_from_current_db');
