@@ -14,7 +14,7 @@ V67 之前要求在独立 SQLite 文件上启动候选 Next 服务，但只靠�
 在实际主机上检出相同 Git SHA，运行 `npm ci --no-audit --no-fund` 和 `npm run build`。另一个终端，用全新的独立数据文件启动候选服务：
 
 ```sh
-PORT=4312 CONTENT_STUDIO_DB_PATH=/encrypted/isolated-candidate.sqlite npm start
+PORT=4312 CONTENT_STUDIO_DB_PATH=/encrypted/isolated-candidate.sqlite CONTENT_STUDIO_CANDIDATE_SOURCE_DB_PATH=/private/content-studio.sqlite npm run candidate:start:v69
 ```
 
 不得让该路径指向真实生产库，也不能软链接或硬链接到真实生产文件。启动完成后执行：

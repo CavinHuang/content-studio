@@ -13,7 +13,7 @@ V66、V64、V62/V61 各自可以独立调用，但缺少一个绑定相同 Git S
 3. 需要有一个**预先启动**、隔离数据库上的候选 Next.js 服务。不要将生产数据库交给候选进程试运行，也不要占用实际生产服务端口。可在受信主机另一个 shell 按以下方式运行；其中 `/encrypted/isolated-candidate.sqlite` 必须和真实源库路径不同：
 
 ```sh
-PORT=4312 CONTENT_STUDIO_DB_PATH=/encrypted/isolated-candidate.sqlite npm start
+PORT=4312 CONTENT_STUDIO_DB_PATH=/encrypted/isolated-candidate.sqlite CONTENT_STUDIO_CANDIDATE_SOURCE_DB_PATH=/private/content-studio.sqlite npm run candidate:start:v69
 ```
 
 运行进程必须来自当前候选 commit 经 `npm run build` 生成的 `.next` 收据，且由 V64 守护入口启动。V67 本身**不会**启动、停止或重启服务器，不会切换用户流量，也不会修改现有生产运行进程。

@@ -1,8 +1,15 @@
-# Content Studio · Next.js + doocs/md（V68）
+# Content Studio · Next.js + doocs/md（V69）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V69 · 分离 POSIX 系统用户的候选数据库访问权限
+
+- 新增 `npm run candidate:start:v69`：在独立、非 root POSIX 用户下启动候选服务，并在进程启动之前检查候选 SQLite 文件归当前用户且只有本人可读写、不能打开生产 SQLite 或任何现存 WAL/SHM 文件。**任何成功打开生产库的情况都会阻止候选服务启动**。
+- `/api/health` 对当前运行进程的真实权限在每次探测时重复检查，只提供 UID、匿名源路径标签和“源文件访问被拒绝”状态，不公开数据库路径或文章内容。
+- V67 在备份与回滚前后使用操作者读取的真实源库属主和 0600 权限核对候选运行 UID 与源路径，必须是不同 POSIX 用户且确认拒绝读取，才可以输出技术验收状态。
+- 现有 `npm start` 保持原功能，但不再满足 V67 所需的 OS 隔离证据。测试覆盖拒绝 root、错误权限、可读生产文件及 Linux 上 `sudo -u nobody` 的真实不同 UID 读权限验证。详见 [V69 候选服务 OS 隔离](docs/V69-CANDIDATE-OS-ISOLATION.md)。
 
 ## V68 · 候选 SQLite 文件与生产数据库身份隔离
 
