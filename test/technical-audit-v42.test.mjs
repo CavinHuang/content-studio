@@ -104,7 +104,7 @@ test('Markdown handoff escapes parentheses in HTTPS image URLs and alt bracket c
  assert.equal(handoff.ready,true);
  assert.match(handoff.markdown,/figure%28example%29\.png/);
  assert.ok(!handoff.markdown.includes('![配图 [不能]'));
- assert.ok(handoff.markdown.includes('![配图 不能  打断   Markdown]('));
+ assert.match(handoff.markdown,/!\[配图\s+不能\s+打断\s+Markdown\]\(/);
  const qa=await (await req(core,root+'/handoff-qa/wechat')).json();
  const technical=await (await req(core,root+'/technical-audit?channel=wechat')).json();
  assert.equal(qa.proposalSha256,technical.deliveryProposalSha256);
