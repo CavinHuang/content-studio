@@ -16,3 +16,23 @@ test('export blocked until four explicit channel checks',async t=>{const core=aw
 test('source data empty when not synced; fixtures opt-in',async t=>{const core=await setup(t);const r=await get('/api/events',core);assert.deepEqual((await r.json()).events,[]);const s=await post('/api/fixture/seed',{},core);assert.equal(s.status,403);});
 test('route errors and malformed request bodies',async t=>{const core=await setup(t);assert.equal((await get('/api/absent',core)).status,404);const r=await dispatchApi(new Request('http://localhost:4312/api/editor/projects',{method:'POST',body:'{' }),core);assert.equal(r.status,400);});
 test('research and knowledge endpoints return real empty state',async t=>{const core=await setup(t);assert.equal((await get('/api/validations',core)).status,200);assert.equal((await get('/api/knowledge',core)).status,200);});
+
+test('loopback 127.0.0.1 and localhost aliases work for same-port browser mutations',async t=>{
+ const core=await setup(t);
+ for(const [requestUrl,origin] of [
+  ['http://localhost:4312/api/editor/projects','http://127.0.0.1:4312'],
+  ['http://127.0.0.1:4312/api/editor/projects','http://localhost:4312']
+ ]){
+  const res=await dispatchApi(new Request(requestUrl,{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({title:'Valid same-port loopback-origin test'})}),core);
+  assert.equal(res.status,201,requestUrl+' from '+origin);
+ }
+});
+test('local aliases do not relax cross-port, cross-protocol or attacker origins',async t=>{
+ const core=await setup(t);
+ for(const origin of ['http://127.0.0.1:4313','http://localhost:4313','https://127.0.0.1:4312','http://attacker.example:4312','not-a-url']){
+  const res=await dispatchApi(new Request('http://localhost:4312/api/editor/projects',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({title:'Should never be created'})}),core);
+  assert.equal(res.status,403,origin);
+ }
+ assert.equal((await get('/api/editor/projects',core)).status,200);
+ assert.deepEqual((await (await get('/api/editor/projects',core)).json()).projects,[]);
+});
