@@ -16,13 +16,8 @@ import {createCore} from '../lib/core.mjs';
 import {dispatchApi} from '../lib/api.mjs';
 
 const MAX_PROJECT_SCAN=1000;
-const PROTECTED_TABLES=[
- 'editorial_projects','editorial_channel_refs','article_documents','article_document_revisions',
- 'paragraph_claims','precision_corrections','editorial_layout_drafts','editorial_layout_history',
- 'editorial_layout_review_history','content_assets','content_asset_mappings',
- 'article_illustration_plans','article_illustration_shots','article_image_quality_reviews',
- 'illustration_delivery_qa','delivery_readiness_snapshots','delivery_no_image_decisions'
-];
+// Read every pre-existing table, not a curated list. New modules can register
+// new tables without silently falling outside the preservation audit.
 const insist=(condition,reason)=>{if(!condition)throw Error(reason)};
 const digest=(buffer)=>createHash('sha256').update(buffer).digest('hex');
 const quote=(name)=>'"'+name.replaceAll('"','""')+'"';
@@ -36,10 +31,9 @@ function hashRow(row){
  return hash.digest('hex');
 }
 export function historicalInventory(db){
- const available=new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(x=>x.name));
+ const originalTables=db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all().map(x=>x.name);
  const inventory={};
- for(const name of PROTECTED_TABLES){
-  if(!available.has(name))continue;
+ for(const name of originalTables){
   const q=quote(name);
   const high=db.prepare('SELECT MAX(rowid) AS n FROM '+q).get().n||0;
   const h=createHash('sha256');let rows=0;
