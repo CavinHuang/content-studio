@@ -35,8 +35,8 @@ async function ensureAbsent(path){
  try{await lstat(path);stop('Destination already exists: refusing overwrite')}catch(e){if(e?.code!=='ENOENT')throw e}
 }
 function snapshot(db){
- const check=db.prepare('PRAGMA quick_check').all();
- if(check.length!==1||check[0].quick_check!=='ok')stop('SQLite quick_check failed: '+JSON.stringify(check).slice(0,160));
+ const check=db.prepare('PRAGMA integrity_check').all();
+ if(check.length!==1||check[0].integrity_check!=='ok')stop('SQLite integrity_check failed: '+JSON.stringify(check).slice(0,160));
  const fk=db.prepare('PRAGMA foreign_key_check').all();
  if(fk.length)stop('SQLite foreign_key_check reported '+fk.length+' problems');
  const tables=db.prepare("SELECT name,sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all();
@@ -119,7 +119,8 @@ export async function restoreBackup(backupPath,destinationPath){
   const check=await inspectDatabase(dest);
   const original=await verifyBackup(source);
   if(check.schemaSha256!==original.schemaSha256||
-     check.rowCountsSha256!==original.rowCountsSha256)stop('Restored copy differs from source backup');
+     check.rowCountsSha256!==original.rowCountsSha256||
+     await digestFile(dest)!==original.sha256)stop('Restored copy differs from source backup');
   return {operation:'restore',target:dest,verified:true,rowCount:check.rowCount,tableCount:check.tableCount,
    existingDatabaseOverwritten:false,appRestarted:false};
  }catch(e){await unlink(dest).catch(()=>{});throw e}
