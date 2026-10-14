@@ -43,7 +43,12 @@ test('real browser can enqueue and cancel without calling external provider',asy
  await page.getByRole('checkbox',{name:/我已确认文章内容允许发送/}).check();
  await expect(enqueue).toBeEnabled();
  await enqueue.click();
- await expect(page.getByText(/已创建 .* 项本地任务/)).toBeVisible();
+ const feedback=page.locator('.compose-notice');
+ await expect(feedback).toBeVisible();
+ const feedbackText=(await feedback.innerText()).replace(/×/g,'').trim();
+ const snapshot=await (await request.get('/api/illustrations/queue?projectId='+project.id)).json();
+ console.log('V41 synthetic queue diagnostic:',JSON.stringify({feedbackText,counts:snapshot.counts,jobs:snapshot.jobs.length,expected:plan.shots.length}));
+ expect(feedbackText).toMatch(/已创建 .* 项本地任务/);
  await expect(page.locator('.queue-job')).toHaveCount(plan.shots.length);
  const queued=await (await request.get('/api/illustrations/queue?projectId='+project.id)).json();
  expect(queued.counts.queued).toBe(plan.shots.length);
