@@ -28,6 +28,8 @@ jobs:
         run: npm run test:recovery
       - name: V46 release integrity and negative-tamper regressions
         run: npm run test:release
+      - name: V47 restored-database cross-channel integration acceptance
+        run: npm run test:integration
       - name: Syntax checks
         run: npm run check
       - name: Build Next.js App Router
