@@ -55,7 +55,7 @@ test('V50 refuses redirect, arbitrary JSON and missing services without claiming
  const notHtml=await inspectDoocsService({configuredUrl:json});
  assert.equal(notHtml.status,'unavailable');
  assert.equal(notHtml.reason,'non_html_or_bad_http_status');
- const disconnected=await inspectDoocsService({configuredUrl:'http://127.0.0.1:1/'});
+ const disconnected=await inspectDoocsService({configuredUrl:'http://127.0.0.1:45999/',requester:async()=>{throw Error('simulated connection refused')}});
  assert.equal(disconnected.status,'unavailable');
  assert.equal(disconnected.reason,'connection_failed_or_timed_out');
 });
