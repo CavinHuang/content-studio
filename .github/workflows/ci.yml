@@ -54,6 +54,8 @@ jobs:
         run: npm run build
       - name: V49 real production restart with durable SQLite (loopback only)
         run: npm run test:production
+      - name: V57 production Next.js boots from actual restored pre-V52 SQLite backup and restarts
+        run: npm run test:staging:v57
       - name: Install Chromium for browser E2E
         run: npx playwright install --with-deps chromium
       - name: Browser E2E (synthetic local content, no paid API)
