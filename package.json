@@ -1,6 +1,6 @@
 {
   "name": "content-studio",
-  "version": "0.40.0",
+  "version": "0.41.0",
   "private": true,
   "type": "module",
   "description": "Next.js App Router, source-aware personal publishing studio",
@@ -11,14 +11,19 @@
     "dev": "next dev -H 127.0.0.1 -p 4312",
     "build": "next build",
     "start": "next start -H 127.0.0.1 -p 4312",
-    "check": "node --check lib/api.mjs && node --check lib/core.mjs && node --check src/editorial.mjs && node --check src/store.mjs && node --check src/image-request-budget.mjs && node --check src/illustrations.mjs && node --check src/illustration-queue.mjs && node --check src/illustration-delivery-qa.mjs && node --check src/image-providers.mjs",
+    "check": "node --check lib/api.mjs && node --check lib/core.mjs && node --check src/editorial.mjs && node --check src/store.mjs && node --check src/image-request-budget.mjs && node --check src/illustrations.mjs && node --check src/illustration-queue.mjs && node --check src/illustration-delivery-qa.mjs && node --check src/image-providers.mjs && node --check scripts/paid-image-smoke.mjs",
     "test": "node --test test/*.test.mjs",
     "test:next-api": "node --test test/next-api.test.mjs",
-    "legacy:dev": "node src/server.mjs"
+    "legacy:dev": "node src/server.mjs",
+    "test:e2e": "playwright test",
+    "smoke:image": "node scripts/paid-image-smoke.mjs"
   },
   "dependencies": {
     "next": "^16.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0"
   }
 }
