@@ -73,8 +73,13 @@ test('V51 takes actual Content Studio Markdown into live doocs CodeMirror and re
  // Exercise doocs/md's own menu-driven export, not a programmatically
  // re-created Markdown string. Then review/import the actual downloaded file
  // via Content Studio's version-bound Markdown API.
- await doocs.getByRole('menuitem',{name:/^(文件|File)$/}).first().click();
- await doocs.getByRole('menuitem',{name:/^(导出|Export)$/}).first().hover();
+ const menu=doocs.getByRole('menuitem',{name:/^(文件|File)$/}).first();
+ await menu.click();
+ const visibleMenuText=await doocs.locator('[role="menuitem"]:visible').allTextContents();
+ console.log('V51 doocs visible file menu items:',JSON.stringify(visibleMenuText.slice(0,45)));
+ const exportMenu=doocs.getByRole('menuitem',{name:/导出|Export/i}).first();
+ await expect(exportMenu).toBeVisible({timeout:6000});
+ await exportMenu.hover();
  const exportedFile=doocs.waitForEvent('download',{timeout:15000});
  await doocs.getByRole('menuitem',{name:/Markdown/i}).first().click();
  const download=await exportedFile;
