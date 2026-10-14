@@ -10,8 +10,8 @@ import {
 
 const head='a'.repeat(40),main='b'.repeat(40);
 const git={technicalHistoryValid:true,mode:'premerge-candidate',checkedHead:head,checkedMain:main};
-const local={database:{status:'passed',schemaSha256:'same'},
- backup:{status:'passed',schemaSha256:'same',manifestVerified:true},
+const local={database:{status:'passed',schemaSha256:'same',rowCountsSha256:'same-rows'},
+ backup:{status:'passed',schemaSha256:'same',rowCountsSha256:'same-rows',manifestVerified:true},
  upgrade:{status:'passed',historicalRowsPreserved:true,sourceUntouched:true,temporaryCopiesDeleted:true},
  integration:{status:'passed',historicalRowsUnchanged:true,syntheticOnly:true},
  localBlockers:[],candidateGatesPassed:true};
@@ -65,6 +65,7 @@ test('V55 good source and restore proof creates sanitized complete packet but ne
  assert.equal(report.candidateCommit,head);
  assert.equal(report.local.originalDatabaseUnchanged,true);
  assert.equal(report.local.backupSchemaMatchesDatabase,true);
+ assert.equal(report.local.backupRowCountsMatchDatabase,true);
  assert.equal(report.manualReview.recorded,true);
  assert.equal(report.finalHeadCIVerifiedExternally,false);
  assert.equal(report.hostingWebhookInventoryVerifiedByAutomation,false);
@@ -78,6 +79,7 @@ test('V55 refuses green packet if backup manifest, synthetic rehearsal, unchange
   [{...local,backup:{...local.backup,status:'blocked'}},git,'wal_backup_manifest_not_verified'],
   [{...local,backup:{...local.backup,manifestVerified:false}},git,'wal_backup_manifest_not_verified'],
   [{...local,backup:{...local.backup,schemaSha256:'other'}},git,'backup_schema_mismatch'],
+  [{...local,backup:{...local.backup,rowCountsSha256:'changed-row-counts'}},git,'backup_row_counts_mismatch'],
   [{...local,upgrade:{...local.upgrade,sourceUntouched:false}},git,'restored_copy_upgrade_unverified'],
   [{...local,upgrade:{...local.upgrade,temporaryCopiesDeleted:false}},git,'restored_copy_upgrade_unverified'],
   [{...local,integration:{...local.integration,syntheticOnly:false}},git,'restored_copy_channel_acceptance_unverified'],
