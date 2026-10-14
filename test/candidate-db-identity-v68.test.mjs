@@ -89,6 +89,7 @@ test('V68 stable SQLite inode survives WAL writes within same connection',t=>{
  const f=fixture(t),db=new DatabaseSync(f.candidateDb);
  t.after(()=>db.close());
  const a=activeDatabaseIdentity({store:{db}},nonce);
- db.exec('PRAGMA journal_mode=WAL; INSERT INTO fixture(content) VALUES("later")');
+ db.exec('PRAGMA journal_mode=WAL');
+ db.prepare('INSERT INTO fixture(content) VALUES(?)').run('later');
  assert.equal(activeDatabaseIdentity({store:{db}},nonce),a);
 });
