@@ -85,7 +85,10 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
    console.error('Usage: node scripts/runtime-guard.mjs preflight|start');
    process.exitCode=2;return;
   }
-  const {loadEnvConfig}=await import('@next/env');
+  // @next/env is CommonJS in Next 16: ESM import() may expose only default.
+  const loaded=await import('@next/env');
+  const loadEnvConfig=loaded.loadEnvConfig||loaded.default?.loadEnvConfig;
+  if(typeof loadEnvConfig!=='function')throw Error('Next environment loader is unavailable');
   loadEnvConfig(process.cwd(),false);
   if(command==='preflight'){
    const result=auditLocalRuntime();
