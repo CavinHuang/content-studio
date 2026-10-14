@@ -80,6 +80,11 @@ export function composeReleaseEvidence({git,local,manual}={}){
  if(!local.backup?.rowCountsSha256||!local.database?.rowCountsSha256||
     local.backup.rowCountsSha256!==local.database.rowCountsSha256)
   problems.push('backup_row_counts_mismatch');
+ // Row count and schema alone cannot detect in-place edits to old article
+ // paragraphs or image BLOBs. Compare every row's deterministic SHA as well.
+ if(!local.backup?.contentSha256||!local.database?.contentSha256||
+    local.backup.contentSha256!==local.database.contentSha256)
+  problems.push('backup_historical_content_mismatch');
  if(local.upgrade?.status!=='passed'||local.upgrade?.historicalRowsPreserved!==true||
     local.upgrade?.sourceUntouched!==true||local.upgrade?.temporaryCopiesDeleted!==true)
   problems.push('restored_copy_upgrade_unverified');
@@ -104,6 +109,8 @@ export function composeReleaseEvidence({git,local,manual}={}){
      !!local.backup?.schemaSha256,
    backupRowCountsMatchDatabase:!!local.backup?.rowCountsSha256 &&
      local.backup.rowCountsSha256===local.database?.rowCountsSha256,
+   backupContentMatchesDatabase:!!local.backup?.contentSha256 &&
+     local.backup.contentSha256===local.database?.contentSha256,
    restoredUpgrade:local.upgrade?.status||'not_checked',
    historicalRowsPreserved:local.upgrade?.historicalRowsPreserved===true,
    restoredIntegration:local.integration?.status||'not_checked',
