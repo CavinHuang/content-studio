@@ -1,8 +1,15 @@
-# Content Studio · Next.js + doocs/md（V53）
+# Content Studio · Next.js + doocs/md（V54）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V54 · 合并前历史验证与统一集成候选
+
+- 已核对 V49–V53 五个 Draft PR 的准确提交与祖先链，提供统一的集成候选版本；不需要把五个 PR 分别 squash 或重做变基。
+- `npm run integration:preflight` 使用真实 Git 记录检查主分支是否漂移、已评审 PR 是否新增提交、备选 V37 是否误入，并汇总涉及构建、部署和 SQLite 的高风险文件。CI 额外执行 `npm run test:integration:v54`。
+- 即使技术门禁通过，`mergeAuthorized` 和 `deployAuthorized` 仍是 false：由于尚未获得仓库外部自动部署配置的审查证据，本轮**不会直接合并 main 或认定生产环境已验收**。
+- 操作指南与回退检查表：[V54 统一集成与发布准入](docs/V54-CONSOLIDATED-RELEASE-PLAN.md)。
 
 ## V53 · 作者授权的公网图片响应检查
 
