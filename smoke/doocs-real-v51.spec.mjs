@@ -1,0 +1,77 @@
+/**
+ * V51: true integration against the public doocs/md Docker image.
+ *
+ * Uses only synthetic Markdown and a local disposable Content Studio SQLite.
+ * No paid providers, third-party accounts, clipboard upload or publishing.
+ * Requests from the doocs page to non-loopback URLs are aborted to keep the
+ * synthetic draft inside the two locally controlled services.
+ */
+import {test,expect} from '@playwright/test';
+
+const marker='V51_REAL_DOOCS_LOCAL_MARKDOWN_'+Date.now();
+const articleText='离线测试正文：此文本由 Content Studio 创建，在真正的 doocs/md CodeMirror 中渲染。';
+const editorOrigin='http://127.0.0.1:8800';
+
+test('V51 takes actual Content Studio Markdown into live doocs CodeMirror and renders the real preview',async({page,request,context})=>{
+ const health=await request.get('/api/integrations/doocs/preflight');
+ expect(health.ok()).toBeTruthy();
+ const reached=await health.json();
+ expect(reached.status).toBe('reachable');
+ expect(reached.articleBytesSent).toBe(0);
+ expect(reached.platformVerified).toBe(false);
+ expect(reached.editorIdentityVerified).toBe(false);
+
+ const created=await request.post('/api/editor/projects',{data:{
+  title:'V51 本机 doocs 实例真实交接 '+marker,
+  paragraphs:[{text:marker},{text:articleText}]
+ }});
+ expect(created.status()).toBe(201);
+ const project=await created.json();
+ const current=await request.get('/api/composer/projects/'+project.id+'/wechat');
+ expect(current.ok()).toBeTruthy();
+ const saved=await current.json();
+ expect(saved.markdown).toContain(marker);
+ expect(saved.markdown).toContain(articleText);
+
+ await context.grantPermissions(['clipboard-read','clipboard-write'],{origin:'http://127.0.0.1:4312'});
+ await page.goto('/compose?project='+project.id+'&channel=wechat');
+ await expect(page.getByTestId('v50-doocs-status')).toContainText('本机排版器服务可连接');
+ await page.getByRole('button',{name:'复制 Markdown'}).click();
+ const copied=await page.evaluate(()=>navigator.clipboard.readText());
+ expect(copied).toContain(marker);
+ expect(copied).toBe(saved.markdown);
+
+ const doocs=await context.newPage();
+ const external=[];
+ await doocs.route('**/*',async route=>{
+  const url=route.request().url();
+  if(url.startsWith('http://127.0.0.1:8800/')||url.startsWith('http://localhost:8800/')||
+     url.startsWith('data:')||url.startsWith('blob:'))return route.continue();
+  external.push(new URL(url).hostname);
+  return route.abort();
+ });
+ await doocs.goto(editorOrigin+'/');
+ const cm=doocs.locator('#editor .cm-content[contenteditable="true"]');
+ if(await cm.count()===0)await doocs.goto(editorOrigin+'/md/');
+ await expect(cm).toBeVisible({timeout:20000});
+ // CodeMirror uses contenteditable; browser-backed fill exercises the
+ // third-party editor, NOT a mocked textarea or a direct DOM innerHTML write.
+ await cm.fill(copied);
+ await expect(doocs.locator('#output')).toContainText(marker,{timeout:20000});
+ await expect(doocs.locator('#output')).toContainText(articleText);
+ const previewMarkup=await doocs.locator('#output').innerHTML();
+ expect(previewMarkup).not.toContain('<script');
+ expect(previewMarkup).toContain(marker);
+ // The live formatter is permitted to change styles, but not source meaning.
+ const stillStored=await request.get('/api/composer/projects/'+project.id+'/wechat');
+ const after=await stillStored.json();
+ expect(after.markdown).toBe(saved.markdown);
+ expect(after.layoutRevision).toBe(saved.layoutRevision);
+ // A preview in doocs is not Content Studio publication/verified platform QA.
+ const readiness=await request.get('/api/delivery/projects/'+project.id+'/wechat');
+ const report=await readiness.json();
+ expect(report.platformVerified).toBe(false);
+ expect(report.published).toBe(false);
+ expect(external).toEqual([]);
+ await doocs.close();
+});
