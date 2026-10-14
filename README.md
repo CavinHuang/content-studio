@@ -1,8 +1,15 @@
-# Content Studio · Next.js + doocs/md（V48）
+# Content Studio · Next.js + doocs/md（V49）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V49 · 真正 Next.js 生产启动与重启验收
+
+- `npm start` 改为调用有安全检查的本地启动脚本：遵循 Next.js 的环境文件优先级进行检查，禁止匿名远程开放、演示数据注入、非持久 SQLite、危险的 `NEXT_PUBLIC_*` 密钥配置和 SQLite 符号链接，并强制只监听 `127.0.0.1`。
+- `npm run runtime:preflight` 用于启动前本地配置检查，不向控制台输出密钥值。`npm run build && npm run test:production` 新增真正构建后的 **启动 → HTTP 写入文章/排版/审核 → 停进程 → 再启动 → 读取持久化数据** 的自动测试。测试使用一次性数据库，无付费 API。
+- 主分支 CI 加入生产进程重启验收；仍需单独在真实供应商、doocs/md 和公众号/知乎做明确授权的实际联调。
+- 详见 [V49 本地生产启动与运行验收](docs/V49-RUNTIME-ACCEPTANCE.md)。
 
 ## V48 · 主分支集成与双阶段 CI
 
@@ -136,7 +143,7 @@ V41 起在 GitHub Actions 中持续执行真实 Next.js 生产构建和 Playwrig
 
 ## GitHub 推送
 
-GitHub 连接的身份为 `CavinHuang`，目标仓库 `CavinHuang/content-studio`。远程仓库现已创建且 V29 全量源码已提交到 `main`：https://github.com/CavinHuang/content-studio 。后续功能开发使用独立分支 + Pull Request，避免未经评审直接覆盖主分支。当前仓库公开，不能把任何个人数据、SQLite 或密钥提交到 GitHub。
+GitHub 连接的身份为 `CavinHuang`，目标仓库 `CavinHuang/content-studio`。远程仓库现已创建，V30–V48 已通过 PR #20 正式集成至 `main`，V49 后续改动继续走独立 PR：https://github.com/CavinHuang/content-studio 。后续功能开发使用独立分支 + Pull Request，避免未经评审直接覆盖主分支。当前仓库公开，不能把任何个人数据、SQLite 或密钥提交到 GitHub。
 
 ## 工程交接
 
