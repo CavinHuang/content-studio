@@ -40,6 +40,8 @@ jobs:
         run: npm run test:integration:v54
       - name: V55 real-host release packet negative regressions (synthetic, no private data)
         run: npm run test:release:v55
+      - name: V56 genuine WAL SQLite and manifest-backed restored operator evidence (synthetic fixture)
+        run: npm run test:release:real-files:v56
       - name: V50 offline interop and prebundle security regressions
         run: npm run test:interop
       - name: V52 channel image mapping drift and history safety
