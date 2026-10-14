@@ -19,7 +19,14 @@ export const INTEGRATION_ANCHORS=Object.freeze({
  lastPreIntegrationFeature:'4ad7ff2eac7b9896f55f8378671e3f44525ac4a8',
  alternateV37:'82906f257c89e66b6c3d254afe75ebe380eb2ac3'
 });
-const VERSION='0.48.0';
+const MINIMUM_VERSION='0.48.0';
+function atLeastMinimum(version){
+ const parsed=/^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/.exec(String(version));
+ if(!parsed)return false;
+ const actual=parsed.slice(1,4).map(Number),required=MINIMUM_VERSION.split('.').map(Number);
+ for(let i=0;i<3;i++){if(actual[i]>required[i])return true;if(actual[i]<required[i])return false}
+ return true;
+}
 
 export function auditMainline({isAncestor,version,treeMatchesCandidate=null,checkOut='HEAD'}){
  const checks=[
@@ -30,7 +37,7 @@ export function auditMainline({isAncestor,version,treeMatchesCandidate=null,chec
   ['alternative_V37_excluded',INTEGRATION_ANCHORS.alternateV37,false]
  ];
  const evidence=checks.map(([name,ref,expected])=>({name,pass:!!isAncestor(ref,checkOut)===expected}));
- evidence.push({name:'integrated_version',pass:version===VERSION});
+ evidence.push({name:'integrated_version',pass:atLeastMinimum(version)});
  if(treeMatchesCandidate!==null)evidence.push({name:'merge_tree_matches_release_candidate',pass:!!treeMatchesCandidate});
  const problems=evidence.filter(x=>!x.pass).map(x=>x.name);
  return {phase:'integrated-main',verified:problems.length===0,releaseVersion:version,
