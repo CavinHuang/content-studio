@@ -55,6 +55,18 @@ test('V64 changing a Next cache file or trace does not invalidate build receipts
  writeFileSync(join(f.base,'trace'),'traced');
  assert.equal(verifyBuildReceipt({cwd:f.cwd,expectedSha:sha}).integrityVerified,true);
 });
+test('V64 treats Next 16 APP_PAGE route-cache as mutable while server JS remains sealed',t=>{
+ const f=fixture(t);
+ const cache=join(f.base,'server','route-cache','APP_PAGE','abc');
+ mkdirSync(cache,{recursive:true});
+ writeFileSync(join(cache,'page.rsc'),'rendered');
+ sealBuild(f.cwd,{sha});
+ writeFileSync(join(cache,'page.rsc'),'updated on normal request');
+ writeFileSync(join(cache,'page.html'),'new runtime cache');
+ assert.equal(verifyBuildReceipt({cwd:f.cwd,expectedSha:sha}).integrityVerified,true);
+ writeFileSync(join(f.base,'server','main.js'),'EXECUTABLE_CHANGED');
+ assert.throws(()=>verifyBuildReceipt({cwd:f.cwd,expectedSha:sha}),/differs/);
+});
 test('V64 rejects symlinks into outside build tree',t=>{
  const f=fixture(t),outside=join(f.cwd,'outside-secret');
  writeFileSync(outside,'super-private');

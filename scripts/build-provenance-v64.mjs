@@ -36,7 +36,10 @@ function fileDigest(path){
  }finally{closeSync(fd)}
  return h.digest('hex');
 }
+// Next 16 writes APP_PAGE HTML/RSC route-cache during ordinary requests.
+ // Never exclude server application JS/chunks outside this precise cache path.
 const excluded=rel=>rel===RECEIPT||rel==='cache'||rel.startsWith('cache/')||
+ rel==='server/route-cache'||rel.startsWith('server/route-cache/')||
  rel==='trace'||rel==='trace-build'||rel==='trace-upload';
 export function inspectBuildFiles(cwd=process.cwd()){
  const root=resolve(cwd,'.next');
