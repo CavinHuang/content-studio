@@ -58,6 +58,8 @@ jobs:
         run: npm run test:provenance:v64
       - name: V66 read-only host inventory, deployment-hook declarations and free-disk regressions
         run: npm run test:host:v66
+      - name: V67 coordinated operator review stages, SHA drift and fail-closed synthetic host tests
+        run: npm run test:review:v67
       - name: V56 genuine WAL SQLite and manifest-backed restored operator evidence (synthetic fixture)
         run: npm run test:release:real-files:v56
       - name: V50 offline interop and prebundle security regressions
