@@ -6,6 +6,8 @@
  * This script never reads/displays provider keys or opens user SQLite data.
  */
 import {spawn} from 'node:child_process';
+import {randomBytes} from 'node:crypto';
+import {verifyBuildReceipt,getHeadSha} from './build-provenance-v64.mjs';
 import {readFileSync,existsSync,lstatSync} from 'node:fs';
 import {resolve,dirname,basename} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -57,11 +59,25 @@ export function assertLocalRuntime(options){
  if(!status.ready)throw Object.assign(new Error('Unsafe local runtime configuration: '+status.problems.join(',')),{status:78});
  return status;
 }
-export async function startLocalRuntime({env=process.env,cwd=process.cwd(),spawnChild=spawn}={}){
+export async function startLocalRuntime({env=process.env,cwd=process.cwd(),spawnChild=spawn,
+ inspectBuild=dir=>verifyBuildReceipt({cwd:dir,expectedSha:getHeadSha(dir)}),
+ makeNonce=()=>randomBytes(16).toString('hex')}={}){
  const audit=assertLocalRuntime({env,cwd});
+ const build=inspectBuild(cwd);
+ const nonce=makeNonce();
+ if(!/^[a-f0-9]{40}$/.test(build?.candidateCommit||'')||
+  !/^[a-f0-9]{64}$/.test(build?.artifactDigestSha256||'')||
+  typeof build?.buildId!=='string'||!build.buildId||
+  !/^[a-f0-9]{32}$/.test(nonce))
+  throw Error('Verified Next production build identity is required');
  const bin=resolve(cwd,'node_modules/next/dist/bin/next');
  const argv=[bin,'start','-H','127.0.0.1','-p',String(audit.port)];
- const child=spawnChild(process.execPath,argv,{cwd,env:{...env,CONTENT_STUDIO_ALLOW_REMOTE:'0',ENABLE_SCENARIO:'0'},stdio:'inherit'});
+ const child=spawnChild(process.execPath,argv,{cwd,env:{...env,
+  CONTENT_STUDIO_ALLOW_REMOTE:'0',ENABLE_SCENARIO:'0',
+  CONTENT_STUDIO_RUNTIME_COMMIT:build.candidateCommit,
+  CONTENT_STUDIO_RUNTIME_DIGEST:build.artifactDigestSha256,
+  CONTENT_STUDIO_RUNTIME_BUILD_ID:build.buildId,
+  CONTENT_STUDIO_RUNTIME_NONCE:nonce},stdio:'inherit'});
  const forward=sig=>{if(!child.killed)child.kill(sig)};
  const onInt=()=>forward('SIGINT'),onTerm=()=>forward('SIGTERM');
  process.once('SIGINT',onInt);

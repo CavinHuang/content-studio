@@ -1,8 +1,15 @@
-# Content Studio · Next.js + doocs/md（V63）
+# Content Studio · Next.js + doocs/md（V64）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V64 · Next.js 构建文件与运行进程身份
+
+- `npm run build` 成功后写入绑定当前 Git SHA、BUILD_ID 以及 `.next` 实际构建文件哈希的本地收据；新的构建尝试会使旧收据失效。
+- `npm start` 在创建 Next.js 生产进程前必须通过完整的构建指纹校验，否则拒绝运行。健康接口以 `runtimeBuild` 返回正在服务的进程**自报** Git SHA、构建摘要和一次性启动标记。
+- `npm run release:runtime:v64 -- --sha=<40位提交> --url=http://127.0.0.1:4312/` 只读比对当前本地收据与运行服务声明，同时再次执行 Git 工作区核验。不会登录外部平台，也不是可信镜像/二进制签名证明。
+- 专项合成测试与真实 Next.js 生产进程 smoke 已纳入 CI；详见 [V64 构建及运行身份核验](docs/V64-BUILD-AND-RUNTIME-PROVENANCE.md)。
 
 ## V63 · 本地工作区与已验证 Git 提交强一致
 

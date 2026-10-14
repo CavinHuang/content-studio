@@ -36,7 +36,8 @@ test('V50 unsafe production build never starts Next.js',()=>{
 test('V50 build wrapper invokes actual Next.js build command when configuration is clean',()=>{
  let executed=null;
  const output=runSafeBuild({env:{},cwd:process.cwd(),
-  runner:(bin,args,options)=>{executed={bin,args,options};return {status:0}}});
+  runner:(bin,args,options)=>{executed={bin,args,options};return {status:0}},
+  seal:()=>({}),invalidate:()=>{}});
  assert.equal(output.code,0);
  assert.equal(executed.bin,process.execPath);
  assert.ok(executed.args[0].endsWith('/node_modules/next/dist/bin/next'));

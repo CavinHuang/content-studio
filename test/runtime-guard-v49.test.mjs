@@ -56,6 +56,8 @@ test('V49 runtime launcher forces loopback binding, strips legacy remote and dem
  let command,args,config;
  const exit=await startLocalRuntime({
   env:{...env,PORT:'45211'},cwd,
+  inspectBuild:()=>({candidateCommit:'a'.repeat(40),artifactDigestSha256:'b'.repeat(64),buildId:'v64-synthetic'}),
+  makeNonce:()=> 'c'.repeat(32),
   spawnChild:(bin,argv,options)=>{
    command=bin;args=argv;config=options;
    const callbacks=new Map();
@@ -67,6 +69,8 @@ test('V49 runtime launcher forces loopback binding, strips legacy remote and dem
  assert.deepEqual(args.slice(-4),['-H','127.0.0.1','-p','45211']);
  assert.equal(config.env.CONTENT_STUDIO_ALLOW_REMOTE,'0');
  assert.equal(config.env.ENABLE_SCENARIO,'0');
+ assert.equal(config.env.CONTENT_STUDIO_RUNTIME_COMMIT,'a'.repeat(40));
+ assert.equal(config.env.CONTENT_STUDIO_RUNTIME_NONCE,'c'.repeat(32));
  assert.equal(config.cwd,cwd);
 });
 

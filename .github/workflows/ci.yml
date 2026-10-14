@@ -52,6 +52,8 @@ jobs:
         run: npm run test:prepare:v62
       - name: V63 strict real-Git checkout provenance and hidden-index negative cases
         run: npm run test:checkout:v63
+      - name: V64 build-file receipt tamper and runtime declaration unit regressions
+        run: npm run test:provenance:v64
       - name: V56 genuine WAL SQLite and manifest-backed restored operator evidence (synthetic fixture)
         run: npm run test:release:real-files:v56
       - name: V50 offline interop and prebundle security regressions
@@ -64,6 +66,8 @@ jobs:
         run: npm run build:preflight
       - name: Build Next.js App Router
         run: npm run build
+      - name: V64 production Next.js process build SHA and digest loopback acceptance
+        run: npm run test:runtime:v64
       - name: V49 real production restart with durable SQLite (loopback only)
         run: npm run test:production
       - name: V57 production Next.js boots from actual restored pre-V52 SQLite backup and restarts
