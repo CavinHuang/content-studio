@@ -34,6 +34,10 @@ jobs:
         run: npm run test:mainline
       - name: Syntax checks
         run: npm run check
+      - name: V50 offline interop and prebundle security regressions
+        run: npm run test:interop
+      - name: V50 verify no browser-visible secrets before production bundling
+        run: npm run build:preflight
       - name: Build Next.js App Router
         run: npm run build
       - name: V49 real production restart with durable SQLite (loopback only)
