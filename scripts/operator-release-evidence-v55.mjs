@@ -134,9 +134,13 @@ export async function collectReleaseEvidence(args,{
  // Never open a private DB if the Git candidate is already invalid.
  if(!git.technicalHistoryValid||git.mode!=='premerge-candidate')
   return composeReleaseEvidence({git,local:{database:{status:'not_checked'}}});
+ const review=manualReview||(opts.review?readOperatorReview(opts.review):null);
+ if(!assessOperatorReview(review,git.checkedHead).recorded)
+  return composeReleaseEvidence({git,local:{database:{status:'not_checked'}},manual:review});
+ // Only a reviewed, SHA-matched candidate can trigger an expensive private
+ // database backup rehearsal. Actual platform/merge approval stays separate.
  const local=await admission(['--db='+opts.db,'--backup='+opts.backup,'--rehearse','--integration']);
- return composeReleaseEvidence({git,local,manual:manualReview||
-  (opts.review?readOperatorReview(opts.review):null)});
+ return composeReleaseEvidence({git,local,manual:review});
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  collectReleaseEvidence(process.argv.slice(2)).then(result=>{
