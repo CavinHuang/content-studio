@@ -77,7 +77,7 @@ test('V51 takes actual Content Studio Markdown into live doocs CodeMirror and re
  // The pinned doocs/md:2.1.0 image exposes "导出 .md" directly, while newer
  // upstream revisions nest Markdown under "导出". Exercise the *real* menu
  // in both layouts; never bypass the app by crafting our own download.
- const directExport=doocs.getByRole('menuitem',{name:/导出\\s*\\.md|Export\\s*\\.md/i}).first();
+ const directExport=doocs.getByRole('menuitem',{name:/导出.*md|Export.*md/i}).first();
  const clickExport=async()=>{
   if(await directExport.isVisible())return directExport.click();
   const exportSubmenu=doocs.getByRole('menuitem',{name:/导出|Export/i}).first();
