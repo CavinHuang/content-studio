@@ -80,7 +80,7 @@ test('V46 canonical PR lineage refuses alternative V37 and detects drift',()=>{
   hasAlternative:ref=>refs.has(ref)
  });
  assert.equal(valid.verified,true,JSON.stringify(valid.problems));
- assert.equal(valid.canonicalBranches,18);
+ assert.equal(valid.canonicalBranches,19);
  assert.equal(valid.mergedToMain,false);
  assert.equal(valid.alternativeV37.present,true);
  assert.equal(valid.alternativeV37.canonical,false);
