@@ -24,7 +24,7 @@ async function launch({port,database,log}){
   CONTENT_IMAGE_OPENAI_API_KEY:'',CONTENT_IMAGE_API_KEY:'',CONTENT_IMAGE_GEMINI_API_KEY:'',
   CONTENT_IMAGE_QWEN_API_KEY:'',CONTENT_ILLUSTRATION_PLANNER_API_KEY:'',
   CONTENT_IMAGE_REVIEW_API_KEY:'',CONTENT_AI_API_KEY:'',
-  HOST:'127.0.0.1',HOSTNAME:'',NODE_OPTIONS:''
+  HOST:'127.0.0.1',HOSTNAME:'',NODE_OPTIONS:'',NODE_ENV:'production'
  };
  for(const name of Object.keys(safe))if(name.startsWith('NEXT_PUBLIC_')&&/SECRET|TOKEN|PASSWORD|API_KEY|PRIVATE_KEY|AUTH_KEY/.test(name))delete safe[name];
  const ps=spawn(process.execPath,['scripts/runtime-guard.mjs','start'],{
@@ -60,7 +60,7 @@ async function query(url,method='GET',payload,origin){
   ...(payload?{'content-type':'application/json'}:{}),...(origin?{origin}:{})
  },body:payload?JSON.stringify(payload):undefined,signal:AbortSignal.timeout(6500)});
  const body=await response.json();
- return {status:response.status,...body};
+ return {...body,status:response.status};
 }
 test('V49 actual Next.js production build persists editorial and manual review through a full process restart', {timeout:100000},async t=>{
  const dir=mkdtempSync(join(tmpdir(),'content-studio-v49-production-'));
