@@ -73,16 +73,20 @@ test('V51 takes actual Content Studio Markdown into live doocs CodeMirror and re
  // Exercise doocs/md's own menu-driven export, not a programmatically
  // re-created Markdown string. Then review/import the actual downloaded file
  // via Content Studio's version-bound Markdown API.
- const menu=doocs.getByRole('menuitem',{name:/^(文件|File)$/}).first();
- await menu.click();
- const visibleMenuText=await doocs.locator('[role="menuitem"]:visible').allTextContents();
- console.log('V51 doocs visible file menu items:',JSON.stringify(visibleMenuText.slice(0,45)));
- const exportMenu=doocs.getByRole('menuitem',{name:/导出|Export/i}).first();
- await expect(exportMenu).toBeVisible({timeout:6000});
- await exportMenu.hover();
- const exportedFile=doocs.waitForEvent('download',{timeout:15000});
- await doocs.getByRole('menuitem',{name:/Markdown/i}).first().click();
- const download=await exportedFile;
+ await doocs.getByRole('menuitem',{name:/^(文件|File)$/}).first().click();
+ // The pinned doocs/md:2.1.0 image exposes "导出 .md" directly, while newer
+ // upstream revisions nest Markdown under "导出". Exercise the *real* menu
+ // in both layouts; never bypass the app by crafting our own download.
+ const directExport=doocs.getByRole('menuitem',{name:/导出\\s*\\.md|Export\\s*\\.md/i}).first();
+ const clickExport=async()=>{
+  if(await directExport.isVisible())return directExport.click();
+  const exportSubmenu=doocs.getByRole('menuitem',{name:/导出|Export/i}).first();
+  await exportSubmenu.hover();
+  await doocs.getByRole('menuitem',{name:/Markdown/i}).first().click();
+ };
+ const [download]=await Promise.all([
+  doocs.waitForEvent('download',{timeout:15000}),clickExport()
+ ]);
  const exported=await readFile(await download.path(),'utf8');
  expect(exported).toContain(marker);
  expect(exported).toContain(articleText);
