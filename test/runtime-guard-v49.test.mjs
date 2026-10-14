@@ -83,6 +83,7 @@ test('V49 actual CLI checks Next dotenv files before start and never emits secre
   env:{PATH:process.env.PATH||'',HOME:process.env.HOME||'',NODE_ENV:'production'}
  });
  assert.equal(result.status,78,result.stderr);
+ assert.ok(result.stdout.trim(),'Preflight must emit JSON, stderr: '+result.stderr);
  const parsed=JSON.parse(result.stdout);
  assert.equal(parsed.ready,false);
  assert.ok(parsed.problems.includes('unauthenticated_remote_access_opt_in_forbidden'));
