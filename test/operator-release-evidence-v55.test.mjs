@@ -114,6 +114,22 @@ test('V55 Git fails before opening any real database, even if misleading CLI pat
  assert.equal(report.packetComplete,false);
  assert.ok(report.blockers.includes('candidate_git_history_unverified'));
 });
+test('V55 rejects missing or stale human review before reading an actual SQLite file',async()=>{
+ let calls=0;
+ const noReview=await collectReleaseEvidence(['--db=/trusted/private.sqlite','--backup=/trusted/archive.sqlite'],{
+  gitAudit:()=>git,admission:async()=>{calls++;return local}
+ });
+ assert.equal(noReview.packetComplete,false);
+ assert.equal(calls,0);
+ assert.ok(noReview.blockers.includes('external_deployment_review_not_recorded'));
+ const stale=await collectReleaseEvidence(['--db=/trusted/private.sqlite','--backup=/trusted/archive.sqlite'],{
+  gitAudit:()=>git,admission:async()=>{calls++;return local},
+  manualReview:{...manual,candidateCommit:main}
+ });
+ assert.equal(stale.packetComplete,false);
+ assert.equal(calls,0);
+ assert.equal(stale.manualReview.consistentWithCandidate,false);
+});
 test('V55 explicitly exercises the existing database backup and restore admission workflow',async()=>{
  let used=null;
  const report=await collectReleaseEvidence(['--db=/trusted/source.sqlite','--backup=/trusted/backup.sqlite'],{
