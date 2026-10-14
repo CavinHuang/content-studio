@@ -1,8 +1,15 @@
-# Content Studio · Next.js + doocs/md（V61）
+# Content Studio · Next.js + doocs/md（V62）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V62 · 自动准备无覆盖 WAL 快照与一键验收
+
+- 新增 `npm run release:prepare:v62`：先确认当前 SHA 的 GitHub CI 真实通过，再检查受保护的备份目录和对应 SHA 的人工审查声明。
+- 使用 node:sqlite WAL 安全备份创建**绝不覆盖的独立文件**，严格对比原库创建前后与备份的 schema、行数和全行历史正文及图片 BLOB 指纹。源库在备份期间变化、清单伪造或目录不安全，均拒绝把快照交给 V61。
+- 新备份通过后自动调用 V61 的完整核验与隔离故障回滚，并保留有效备份供操作者管理；不会合并、部署、发布、请求收费模型或把私有文件上传 GitHub。
+- CI 增加 `npm run test:prepare:v62` 的真实 SQLite 合成回归。详细操作见 [V62 快照准备与验收](docs/V62-PROTECTED-OPERATOR-BACKUP.md)。
 
 ## V61 · 单命令发布前技术验收
 
