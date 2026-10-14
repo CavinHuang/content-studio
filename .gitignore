@@ -19,3 +19,8 @@ out/
 *.sqlite3-*
 *.sqlite.manifest.json
 /data/backups/
+
+# V55 operator-side evidence and deployment inventory must never be committed.
+*.release-evidence.json
+*.operator-review.json
+/release-local/
