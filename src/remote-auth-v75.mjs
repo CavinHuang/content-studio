@@ -34,7 +34,8 @@ export function publicOrigin(env=runtimeEnv){
  let url;
  try{url=new URL(value)}catch{throw Error('Remote mode requires HTTPS public origin')};
  if(url.protocol!=='https:'||url.username||url.password||url.port||
-    url.pathname!=='/'||url.search||url.hash||url.origin!==value||
+    url.pathname!=='/'||url.search||url.hash||
+    (value!==url.origin&&value!==url.origin+'/')||
     !HTTPS_HOST.test(url.hostname)||['localhost','127.0.0.1'].includes(url.hostname)||
     url.hostname.endsWith('.localhost')||url.hostname.includes('..'))
   throw Error('Remote mode requires one canonical HTTPS hostname without path');
