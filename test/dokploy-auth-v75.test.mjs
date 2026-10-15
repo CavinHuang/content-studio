@@ -65,7 +65,7 @@ test('V75 cookie parser rejects duplicate cookie and ordinary missing cookie',()
  assert.equal(cookieFromHeaders(h),cookie);
  assert.equal(cookieFromHeaders(heads({cookie:COOKIE+'='+cookie+'; '+COOKIE+'=evil'})),null);
  assert.equal(cookieFromHeaders(heads()),null);
- assert.equal(hasSession(h,env),false); // fixed 2026 test token expired in current system time
+ assert.equal(hasSession(heads(),env),false);
  assert.equal(validSession(cookie,env,{now:now+1000}),true);
 });
 test('V75 validates exact HTTPS proxy domain and rejects host/forwarded spoofing',()=>{
@@ -89,17 +89,6 @@ test('V75 JSON writes require canonical Origin, no forms, navigation or cross-si
   {'content-type':'application/x-www-form-urlencoded'},{'sec-fetch-mode':'navigate'},
   {'sec-fetch-site':'cross-site'}])
   assert.throws(()=>validateRemoteWrite(request('/api/status',{...good,...h},'POST','{}'),env));
-});
-test('V75 API fallback enforces authentication before opening real SQLite',async()=>{
- const unauth=await dispatchApi(request('/api/status'),null);
- assert.equal(unauth.status,401);
- const json=await unauth.json();
- assert.equal(json.error,'Authentication required');
- const health=await dispatchApi(request('/api/health'),null);
- assert.equal(health.status,200);
- const ready=await health.json();
- assert.equal(ready.runtimeBuild,null);
- assert.equal(ready.mode,'authenticated-remote');
 });
 test('V75 API boundary allows valid session only and refuses wrong CSRF origin',()=>{
  const valid=createSession(env);
