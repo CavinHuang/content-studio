@@ -1,0 +1,46 @@
+# TEMPORARY BOOTSTRAP ONLY — all pages AND business APIs are unauthenticated.
+# After confirming readiness, switch back to ./compose.dokploy.yml and restore
+# valid admin credentials. Do not run permanently with public traffic.
+# Keep Dokploy Domains bound to the content-studio service at container port 4312.
+services:
+  content-studio:
+    build:
+      context: .
+      dockerfile: Dockerfile.dokploy.bootstrap
+    image: content-studio:dokploy-bootstrap
+    expose:
+      - "4312"
+    environment:
+      NODE_ENV: production
+      PORT: "4312"
+      HOST: "0.0.0.0"
+      CONTENT_STUDIO_DEPLOY_MODE: dokploy-bootstrap
+      CONTENT_STUDIO_DB_PATH: /app/data/content-studio.sqlite
+      CONTENT_STUDIO_ALLOW_REMOTE: "0"
+      ENABLE_SCENARIO: "0"
+      NEXT_TELEMETRY_DISABLED: "1"
+    user: "10001:10001"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=67108864,mode=1777
+      - /app/.next/cache:rw,nosuid,nodev,size=134217728,uid=10001,gid=10001,mode=0700
+      - /app/.next/server/route-cache:rw,nosuid,nodev,size=67108864,uid=10001,gid=10001,mode=0700
+    volumes:
+      - studio-data:/app/data
+    networks:
+      - dokploy-network
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=dokploy-network
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    restart: unless-stopped
+    stop_grace_period: 20s
+volumes:
+  studio-data:
+networks:
+  dokploy-network:
+    external: true
