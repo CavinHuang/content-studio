@@ -82,8 +82,8 @@ jobs:
         run: npm run test:runtime:v64
       - name: V70 real non-root Next.js candidate HTTP and V67 cross-UID host handoff (synthetic-only)
         run: npm run test:candidate:real:v70
-      - name: V72 Dockerfile real multi-stage build and local-only persistent volume restart
-        run: npm run test:docker:v72 && bash smoke/docker-local-v72.sh
+      - name: V73 immutable Docker root, Next tmpfs and persistent WAL volume restart
+        run: npm run test:docker:v72 && npm run test:docker:hardening:v73 && bash smoke/docker-local-v72.sh
       - name: V49 real production restart with durable SQLite (loopback only)
         run: npm run test:production
       - name: V57 production Next.js boots from actual restored pre-V52 SQLite backup and restarts

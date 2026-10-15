@@ -1,8 +1,14 @@
-# Content Studio · Next.js + doocs/md（V72）
+# Content Studio · Next.js + doocs/md（V73）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V73 · 只读 Docker 根文件系统与隔离的 Next 临时缓存
+
+- 在 [compose.local.yml](compose.local.yml) 中启用 `read_only: true`、`no-new-privileges`、全能力剥夺和有限 PID；Git checkout、生产依赖、构建文件不能再被运行进程直接修改。
+- 只有 SQLite 持久卷 `/app/data`、`/tmp`、Next `.next/cache` 与 `.next/server/route-cache` 使用限制容量的临时可写文件系统。临时缓存随容器停止/重建丢弃，SQLite 数据继续留在卷中。
+- Docker CI 真实启动只读镜像，验证源码、`.git` 与 `.next/BUILD_ID` 不可写，而临时缓存、页面/API 与数据库仍正常；实际重启后复核 V64 运行身份与 SQLite 持久数据。见 [V73 只读容器指南](docs/V73-IMMUTABLE-DOCKER-RUNTIME.md)。
 
 ## V72 · 多阶段 Docker 镜像与本地容器运行
 

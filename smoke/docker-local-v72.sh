@@ -14,7 +14,11 @@ trap cleanup EXIT
 cleanup
 docker build --pull --tag "$image" .
 docker volume create "$volume" >/dev/null
-docker run -d --name "$container" --network host \
+docker run -d --name "$container" --network host --read-only \
+  --tmpfs /tmp:rw,nosuid,nodev,noexec,size=67108864,mode=1777 \
+  --tmpfs /app/.next/cache:rw,nosuid,nodev,size=134217728,uid=10001,gid=10001,mode=0700 \
+  --tmpfs /app/.next/server/route-cache:rw,nosuid,nodev,size=67108864,uid=10001,gid=10001,mode=0700 \
+  --pids-limit 256 \
   --mount "type=volume,source=$volume,target=/app/data" \
   --security-opt no-new-privileges --cap-drop ALL \
   -e "PORT=$port" -e "HOST=127.0.0.1" \
@@ -26,7 +30,28 @@ for i in $(seq 1 90); do
  if [[ "$i" == "90" ]]; then docker logs --tail 60 "$container"; echo "V72 startup failed" >&2; exit 1; fi
  sleep 2
 done
+# The container's actual configured filesystem must be read-only.
+test "$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' "$container")" = "true"
 test "$(docker exec "$container" id -u)" = "10001"
+# The application source, tracked Git data and sealed build must NOT be writable.
+docker exec "$container" node --input-type=module -e '
+import {writeFileSync} from "node:fs";
+for (const path of ["/app/package.json","/app/.git/HEAD","/app/.next/BUILD_ID"]) {
+  try { writeFileSync(path,"V73-MUST-NOT-BE-WRITABLE"); process.exit(17); }
+  catch(e) { if(e?.code!=="EROFS" && e?.code!=="EACCES") process.exit(18); }
+}
+'
+# Only strictly scoped Next runtime caches and /tmp are ephemeral writable.
+docker exec "$container" node --input-type=module -e '
+import {writeFileSync,readFileSync,unlinkSync} from "node:fs";
+for(const dir of ["/tmp","/app/.next/cache","/app/.next/server/route-cache"]) {
+ const p=dir+"/v73-synthetic-check";
+ writeFileSync(p,"SYNTHETIC-EPHEMERAL-ONLY");
+ if(readFileSync(p,"utf8")!=="SYNTHETIC-EPHEMERAL-ONLY")process.exit(1);
+ unlinkSync(p);
+}
+'
+
 test "$(docker exec "$container" git rev-list --count HEAD)" = "1"
 test -z "$(docker exec "$container" git remote)"
 test "$(docker exec "$container" git rev-parse HEAD)" = "$GITHUB_SHA"
@@ -38,6 +63,9 @@ const db=new DatabaseSync("/app/data/content-studio.sqlite");
 db.exec("CREATE TABLE IF NOT EXISTS ci_v72_marker (value TEXT NOT NULL)");
 db.prepare("INSERT INTO ci_v72_marker(value) VALUES (?)").run("SYNTHETIC-PERSISTENCE-ONLY");
 db.close();'
+# A real read-only check before the restart: Next must still serve pages.
+curl -fsS --max-time 5 "http://127.0.0.1:$port/" >/dev/null
+curl -fsS --max-time 5 "http://127.0.0.1:$port/api/status" >/dev/null
 docker restart "$container" >/dev/null
 for i in $(seq 1 90); do
  if curl -fsS --max-time 2 "http://127.0.0.1:$port/api/health" >/dev/null 2>&1; then break; fi

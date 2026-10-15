@@ -10,6 +10,13 @@ services:
     network_mode: host
     init: false # the image already uses tini
     user: "10001:10001"
+    # V73: build output, Git checkout and dependencies are immutable at runtime.
+    # Never replace these tmpfs mounts with writable bind mounts to host source.
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=67108864,mode=1777
+      - /app/.next/cache:rw,nosuid,nodev,size=134217728,uid=10001,gid=10001,mode=0700
+      - /app/.next/server/route-cache:rw,nosuid,nodev,size=67108864,uid=10001,gid=10001,mode=0700
     environment:
       NODE_ENV: production
       PORT: "4312"
@@ -23,6 +30,8 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    stop_grace_period: 20s
+    pids_limit: 256
     restart: unless-stopped
 volumes:
   studio-data:

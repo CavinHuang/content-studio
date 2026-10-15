@@ -1,5 +1,7 @@
 # V72 · Content Studio Docker（仅单机 localhost 模式）
 
+V73 的只读根文件系统及限定临时缓存说明参见 [V73 只读容器运行指南](V73-IMMUTABLE-DOCKER-RUNTIME.md)。
+
 此仓库之前只有 doocs/md 的辅助 Compose，并无 Content Studio 的主 Dockerfile。本次新增可运行的多阶段构建、最小化 Git 来源状态、生产依赖、SQLite 持久卷、本地健康检测和 Linux 本地 Compose。
 
 ## 严格边界

@@ -37,6 +37,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
+    NPM_CONFIG_CACHE=/tmp/npm-cache \
     PORT=4312 \
     HOST=127.0.0.1 \
     CONTENT_STUDIO_ALLOW_REMOTE=0 \
@@ -45,13 +46,15 @@ ENV NODE_ENV=production \
 COPY --from=build --chown=10001:10001 /tmp/reviewed-checkout/ ./
 COPY --from=production-deps --chown=10001:10001 /app/node_modules ./node_modules
 COPY --from=build --chown=10001:10001 /app/.next ./.next
-RUN mkdir -p /app/data && chown 10001:10001 /app /app/data && chmod 0700 /app/data
+RUN mkdir -p /app/data /app/.next/cache /app/.next/server/route-cache \
+  && chown 10001:10001 /app /app/data \
+  && chmod 0700 /app/data
 USER 10001:10001
 # This MUST pass at image-build time. No bypass of V63/V64 is permitted.
 RUN npm run release:checkout:v63 -- --sha="$(git rev-parse HEAD)" \
   && npm run release:lock:v65 \
   && node --input-type=module -e "import {verifyBuildReceipt,getHeadSha} from './scripts/build-provenance-v64.mjs'; verifyBuildReceipt({cwd:process.cwd(),expectedSha:getHeadSha()})"
-# Loopback inside container only. Use host networking on Linux for the
+# V73: immutable root filesystem is enforced by compose/docker --read-only.\n# Only /app/data (named volume), /tmp and two Next route/cache tmpfs mounts are writable.\n# Loopback inside container only. Use host networking on Linux for the
 # unauthenticated single-user application; never map a public-facing port.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
  CMD ["node","-e","fetch('http://127.0.0.1:'+process.env.PORT+'/api/health',{signal:AbortSignal.timeout(3000)}).then(async r=>{const j=await r.json();if(!r.ok||j.ok!==true||j.mode!=='local-only'||!j.runtimeBuild?.databaseIdentity)process.exit(1)}).catch(()=>process.exit(1))"]
