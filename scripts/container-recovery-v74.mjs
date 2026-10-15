@@ -57,11 +57,15 @@ export async function verifyMaintenanceMount(folder,{read=readFile,inspect=lstat
  if(!mountedAt(folder,info))denied('Maintenance directory must be an independent Docker mount');
  return true;
 }
-async function regular(filename){
+async function regular(filename,{archive=true}={}){
  const state=await lstat(filename);
+ // V74 DB lives inside a separate owner-only /app/data mount. SQLite may
+ // create its main DB with umask 022, but the 0700 parent mount prevents
+ // other UIDs from traversing it. Do not weaken 0600 for archive files.
  if(!state.isFile()||state.isSymbolicLink()||state.nlink!==1||
-  (process.platform!=='win32'&&((state.mode&0o077)!==0||state.uid!==process.getuid?.())))
-  denied('Unsafe archive file mode, owner or hardlink');
+  (process.platform!=='win32'&&(state.uid!==process.getuid?.()||
+    (archive&&(state.mode&0o077)!==0))))
+  denied('Unsafe database/archive file owner or hardlink');
  return state;
 }
 export async function inventory(dir=BACKUPS,{readDir=readdir,file=regular,verify=verifyBackup}={}){
@@ -106,7 +110,7 @@ export async function execute(input,{
   denied('V74 maintenance requires an unprivileged Linux container');
  if(opts.operation==='backup'){
   await mount(DATA);await mount(dir);
-  await regular(source);
+  await regular(source,{archive:false});
   const name='content-studio-v74-'+now().toISOString().slice(0,19).replaceAll(':','-')+
    '-'+nonce()+'.sqlite';
   if(!ARCHIVE.test(name))denied('Cannot derive safe backup basename');
@@ -153,7 +157,7 @@ export async function execute(input,{
   const restored=await restore(from,join(restoreDir,'content-studio.sqlite'));
   if(restored.verified!==true||restored.existingDatabaseOverwritten!==false)
    denied('Restore validation incomplete');
-  const result=await inspect(RESTORED);
+  const result=await inspect(join(restoreDir,'content-studio.sqlite'));
   if(result.integrity!=='ok')denied('Restored SQLite integrity failed');
   return {kind:'content-studio-v74-container-maintenance',operation:'restore',
    archive:opts.backup,destination:'separate_restore_volume_only',
