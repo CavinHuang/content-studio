@@ -34,7 +34,17 @@ test('V75 strong scrypt verifier and random session key, never raw credential',(
  assert.equal(verifyPassword('incorrect-password-is-wrong',env),false);
  // Existing $ credentials remain valid, but new values contain no Compose
  // interpolation metacharacters. Both representations hash the same password.
- const legacy=creds.passwordScrypt.replaceAll(':','
+ const legacy=creds.passwordScrypt.replaceAll(':',String.fromCharCode(36));
+ assert.equal(verifyPassword(password,{...env,CONTENT_STUDIO_AUTH_PASSWORD_SCRYPT:legacy}),true);
+ assert.match(creds.passwordScrypt,/^[a-zA-Z0-9:_-]+$/);
+ for(const invalid of [
+  creds.passwordScrypt.replace('scrypt:','scrypt?'),
+  creds.passwordScrypt.replace(':8:1:',':4:1:'),
+  creds.passwordScrypt.slice(0,-1),
+  'invalid-hash',
+ ]){
+  assert.deepEqual(diagnoseRemoteConfig({...env,CONTENT_STUDIO_AUTH_PASSWORD_SCRYPT:invalid}),['password_scrypt_invalid']);
+ }
  assert.throws(()=>newCredentials('short'));
 });
 test('V75 rejects broken public origin, absent secrets and unsafe deployment flags',()=>{
