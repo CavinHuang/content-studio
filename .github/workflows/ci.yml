@@ -4,6 +4,37 @@ on:
     branches: [main, 'feat/**']
   pull_request:
 jobs:
+  diagnose-public-ingress:
+    # Read-only, branch-scoped investigation. Never authenticates, deploys or
+    # equates a working HTTPS endpoint with production release authorization.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/v54-consolidated-integration-gate'
+    runs-on: ubuntu-latest
+    permissions: {}
+    timeout-minutes: 2
+    steps:
+      - name: Public Dokploy HTTPS status and response-source diagnostics
+        shell: bash
+        run: |
+          set -uo pipefail
+          origin='https://contentstudio-server-pz9yvy-9b3e1e-216-144-229-204.sslip.io'
+          for path in /login /api/health /; do
+            headers="$(mktemp)"; body="$(mktemp)"
+            echo "::group::GET ${path} without credentials"
+            if curl --silent --show-error --connect-timeout 5 --max-time 12 --dump-header "$headers" --output "$body" --write-out 'http_code=%{http_code} tls_verify=%{ssl_verify_result} remote_ip=%{remote_ip}\n' "${origin}${path}"; then
+              grep -iE '^(server|content-type|location|cache-control):' "$headers" | head -n 8 || true
+              if grep -qx '404 page not found' "$body"; then
+                echo 'response_class=plain_traefik_style_404'
+              elif grep -qE 'Authentication required|登录工作台' "$body"; then
+                echo 'response_class=content_studio_auth'
+              else
+                echo 'response_class=unclassified_body_not_logged'
+              fi
+            else
+              echo 'response_class=network_or_tls_error'
+            fi
+            rm -f -- "$headers" "$body"
+            echo '::endgroup::'
+          done
   test-and-build:
     runs-on: ubuntu-latest
     permissions:
