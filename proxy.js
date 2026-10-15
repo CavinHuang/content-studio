@@ -9,14 +9,15 @@ import {hasSession,validateRemoteTransport,validateRemoteConfig} from './src/rem
 export function proxy(request){
  if(runtimeEnv.CONTENT_STUDIO_DEPLOY_MODE!=='dokploy')return NextResponse.next();
  let origin;
+ try{origin=validateRemoteConfig().publicOrigin}
+ catch{return new Response('Remote authentication unavailable',{
+  status:503,headers:{'Cache-Control':'no-store'}})}
  try{
-  origin=validateRemoteConfig().publicOrigin;
   const health=request.nextUrl.pathname==='/api/health'&&request.method==='GET';
-  // Anonymous health exposes no identity; it must work from both Docker's
-  // loopback probe and Traefik without trusting forwarded request metadata.
   if(!health)validateRemoteTransport(request,runtimeEnv);
  }catch{
-  return new Response('Forbidden',{status:403,headers:{'Cache-Control':'no-store'}});
+  return new Response('Untrusted proxy transport',{status:403,
+   headers:{'Cache-Control':'no-store'}});
  }
  const p=request.nextUrl.pathname;
  const allowed=p==='/login'||p==='/api/auth/login'||p==='/api/health';
