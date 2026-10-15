@@ -50,7 +50,7 @@ test('V75 strong scrypt verifier and random session key, never raw credential',(
 test('V75 rejects broken public origin, absent secrets and unsafe deployment flags',()=>{
  assert.deepEqual(diagnoseRemoteConfig(env),[]);
  assert.deepEqual(diagnoseRemoteConfig({...env,
-  CONTENT_STUDIO_PUBLIC_ORIGIN:'https://studio.example.com/',
+  CONTENT_STUDIO_PUBLIC_ORIGIN:'https://studio.example.com/extra',
   CONTENT_STUDIO_AUTH_PASSWORD_SCRYPT:'scrypt$broken',
   CONTENT_STUDIO_AUTH_SESSION_KEY:'invalid'}),
   ['public_origin_invalid','password_scrypt_invalid','session_key_invalid']);
@@ -62,8 +62,9 @@ test('V75 rejects broken public origin, absent secrets and unsafe deployment fla
  assert.ok(!JSON.stringify(safeAudit).includes('corrupted-sensitive-credential'));
  assert.equal(validateRemoteConfig(env).authenticated,true);
  assert.equal(publicOrigin(env),'https://studio.example.com');
+ assert.equal(publicOrigin({...env,CONTENT_STUDIO_PUBLIC_ORIGIN:'https://studio.example.com/'}),'https://studio.example.com');
  for(const origin of ['http://studio.example.com','https://localhost',
-  'https://studio.example.com/extra','https://studio.example.com/',
+  'https://studio.example.com/extra','https://studio.example.com//',
   'https://studio.example.com:444','https://a@studio.example.com',
   'https://studio.example.com?x=1']){
   assert.throws(()=>validateRemoteConfig({...env,CONTENT_STUDIO_PUBLIC_ORIGIN:origin}));
