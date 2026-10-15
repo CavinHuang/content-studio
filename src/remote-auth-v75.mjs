@@ -12,7 +12,15 @@ const SESSION_SECONDS=8*ONE_HOUR;
 const NONCE=/^[A-Za-z0-9_-]{22,64}$/;
 const HTTPS_HOST=/^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?$/;
 const B64=/^[A-Za-z0-9_-]+$/;
-const PASSWORD_HASH=/^scrypt\$16384\$8\$1\$([A-Za-z0-9_-]{22})\$([A-Za-z0-9_-]{86})$/;
+// The legacy $ delimiter is still accepted for existing installations. Newly
+// generated ':' verifiers survive Docker Compose .env interpolation unchanged.
+const PASSWORD_HASH_LEGACY=/^scrypt\$16384\$8\$1\$([A-Za-z0-9_-]{22})\$([A-Za-z0-9_-]{86})$/;
+const PASSWORD_HASH_COMPOSE_SAFE=/^scrypt:16384:8:1:([A-Za-z0-9_-]{22}):([A-Za-z0-9_-]{86})$/;
+const parsePasswordHash=value=>{
+ if(typeof value!=='string')return null;
+ const match=PASSWORD_HASH_COMPOSE_SAFE.exec(value)||PASSWORD_HASH_LEGACY.exec(value);
+ return match?{salt:match[1],digest:match[2]}:null;
+};
 const safe=(data)=>{throw Object.assign(new Error(data),{status:403})};
 const privateKey=env=>{
  const input=env.CONTENT_STUDIO_AUTH_SESSION_KEY||'';
@@ -32,14 +40,22 @@ export function publicOrigin(env=runtimeEnv){
   throw Error('Remote mode requires one canonical HTTPS hostname without path');
  return url.origin;
 }
-export function validateRemoteConfig(env=runtimeEnv){
- if(env.CONTENT_STUDIO_DEPLOY_MODE!=='dokploy')throw Error('Dokploy deployment mode required');
- const origin=publicOrigin(env),hash=env.CONTENT_STUDIO_AUTH_PASSWORD_SCRYPT;
- if(typeof hash!=='string'||!PASSWORD_HASH.test(hash))throw Error('Remote password scrypt credential missing');
- privateKey(env);
+/** Return only fixed, secret-free error codes for Dokploy startup logs. */
+export function diagnoseRemoteConfig(env=runtimeEnv){
+ const problems=[];
+ if(env.CONTENT_STUDIO_DEPLOY_MODE!=='dokploy')problems.push('deployment_mode_invalid');
+ try{publicOrigin(env)}catch{problems.push('public_origin_invalid')}
+ if(!parsePasswordHash(env.CONTENT_STUDIO_AUTH_PASSWORD_SCRYPT))
+  problems.push('password_scrypt_invalid');
+ try{privateKey(env)}catch{problems.push('session_key_invalid')}
  if(env.CONTENT_STUDIO_ALLOW_REMOTE==='1'||env.ENABLE_SCENARIO==='1')
-  throw Error('Unsafe application remote flags');
- return {mode:'dokploy',publicOrigin:origin,credentialsConfigured:true,
+  problems.push('unsafe_remote_flags');
+ return problems;
+}
+export function validateRemoteConfig(env=runtimeEnv){
+ const problems=diagnoseRemoteConfig(env);
+ if(problems.length)throw Error('Unsafe Dokploy authentication configuration: '+problems.join(','));
+ return {mode:'dokploy',publicOrigin:publicOrigin(env),credentialsConfigured:true,
   authenticated:true,productionReady:false};
 }
 export function newCredentials(password,{random=randomBytes}={}){
@@ -47,17 +63,17 @@ export function newCredentials(password,{random=randomBytes}={}){
   throw Error('Choose an operator password between 16 and 256 characters');
  const salt=random(16);
  const hash=scryptSync(password,salt,64,{N:16384,r:8,p:1,maxmem:64*1024*1024});
- return {passwordScrypt:'scrypt$16384$8$1$'+salt.toString('base64url')+'$'+hash.toString('base64url'),
+ return {passwordScrypt:'scrypt:16384:8:1:'+salt.toString('base64url')+':'+hash.toString('base64url'),
   sessionKey:random(32).toString('base64url')};
 }
 export function verifyPassword(password,env=runtimeEnv){
  validateRemoteConfig(env);
- const match=PASSWORD_HASH.exec(env.CONTENT_STUDIO_AUTH_PASSWORD_SCRYPT);
- const expected=Buffer.from(match[2],'base64url');
+ const parsed=parsePasswordHash(env.CONTENT_STUDIO_AUTH_PASSWORD_SCRYPT);
+ const expected=Buffer.from(parsed.digest,'base64url');
  // Spend equivalent scrypt time even on incorrect input sizes; do not
  // ever log the input, the hash or the comparison result.
  const candidate=typeof password==='string'&&password.length<=256?password:'';
- const digest=scryptSync(candidate,Buffer.from(match[1],'base64url'),64,
+ const digest=scryptSync(candidate,Buffer.from(parsed.salt,'base64url'),64,
   {N:16384,r:8,p:1,maxmem:64*1024*1024});
  return timingSafeEqual(expected,digest)&&typeof password==='string'&&password.length>=16;
 }
