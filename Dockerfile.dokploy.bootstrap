@@ -1,0 +1,43 @@
+# Temporary unauthenticated bootstrap image for Dokploy diagnostics.
+# It intentionally does not run V63/V64 release attestation or runtime-guard.
+# DO NOT use for persistent public exposure: all application APIs are open.
+FROM node:22.16.0-bookworm-slim AS build
+WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY app ./app
+COPY components ./components
+COPY lib ./lib
+COPY src ./src
+COPY public ./public
+COPY scripts ./scripts
+COPY proxy.js next.config.mjs ./
+RUN node node_modules/next/dist/bin/next build
+
+FROM node:22.16.0-bookworm-slim AS runtime
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=4312 \
+    HOST=0.0.0.0 \
+    CONTENT_STUDIO_DEPLOY_MODE=dokploy-bootstrap \
+    CONTENT_STUDIO_DB_PATH=/app/data/content-studio.sqlite
+WORKDIR /app
+RUN useradd --uid 10001 --create-home --home-dir /home/studio --shell /usr/sbin/nologin studio
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund
+COPY --from=build /app/.next ./.next
+COPY --from=build /app/app ./app
+COPY --from=build /app/components ./components
+COPY --from=build /app/lib ./lib
+COPY --from=build /app/src ./src
+COPY --from=build /app/public ./public
+COPY --from=build /app/scripts ./scripts
+COPY --from=build /app/proxy.js /app/next.config.mjs ./
+RUN mkdir -p /app/data /app/.next/cache /app/.next/server/route-cache \
+ && chown 10001:10001 /app/data /app/.next/cache /app/.next/server/route-cache
+USER 10001:10001
+EXPOSE 4312
+HEALTHCHECK --interval=30s --timeout=6s --start-period=60s --retries=3 \
+ CMD ["node","-e","fetch('http://127.0.0.1:4312/api/health',{signal:AbortSignal.timeout(4000)}).then(async r=>{const j=await r.json();process.exit(r.ok&&j.ok===true&&j.mode==='unauthenticated-bootstrap'?0:1)}).catch(()=>process.exit(1))"]
+CMD ["node","node_modules/next/dist/bin/next","start","-H","0.0.0.0","-p","4312"]
