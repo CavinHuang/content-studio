@@ -90,6 +90,23 @@ test('V75 JSON writes require canonical Origin, no forms, navigation or cross-si
   {'sec-fetch-site':'cross-site'}])
   assert.throws(()=>validateRemoteWrite(request('/api/status',{...good,...h},'POST','{}'),env));
 });
+test('V75 real API dispatcher must enforce remote authentication before any SQLite initialization',async()=>{
+ const old=Object.fromEntries(Object.keys(env).map(k=>[k,process.env[k]]));
+ Object.assign(process.env,env);
+ try{
+  const unauth=await dispatchApi(request('/api/status'),{});
+  assert.equal(unauth.status,401);
+  assert.equal((await unauth.json()).error,'Authentication required');
+  const health=await dispatchApi(request('/api/health'),{});
+  assert.equal(health.status,200);
+  const result=await health.json();
+  assert.equal(result.mode,'authenticated-remote');
+  assert.equal(result.runtimeBuild,null);
+ }finally{
+  for(const [name,value] of Object.entries(old))
+   if(value===undefined)delete process.env[name];else process.env[name]=value;
+ }
+});
 test('V75 API boundary allows valid session only and refuses wrong CSRF origin',()=>{
  const valid=createSession(env);
  const auth=request('/api/status',{cookie:COOKIE+'='+valid});
