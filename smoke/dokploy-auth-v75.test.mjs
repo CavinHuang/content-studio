@@ -98,7 +98,7 @@ test('V75 real Next.js behind simulated HTTPS proxy blocks anonymous content and
   assert.equal(data.status,200);
   const payload=await data.json();
   assert.equal(payload.authenticatedRemote,true);
-  const spoofed=await req('/api/status',{headers:{cookie,host:'evil.example.com'}});
+  const spoofed=await req('/api/status',{headers:{cookie,'x-forwarded-host':'evil.example.com'}});
   assert.equal(spoofed.status,403);
   const csrf=await req('/api/editor/projects',{method:'POST',
    headers:{cookie,origin:'https://evil.example','content-type':'application/json'},
