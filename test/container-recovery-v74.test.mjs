@@ -96,3 +96,14 @@ test('V74 restore safety refuses overwrite of new volume destination',async t=>{
   {dir:f.backups,restoreDir:f.restore,mount:async()=>true}));
  assert.equal(readFileSync(join(f.restore,'content-studio.sqlite'),'utf8'),'DO-NOT-OVERWRITE');
 });
+
+test('V74 confirmed pruning actually deletes oldest valid archive and keeps two verifiable backups',async t=>{
+ const f=isolate(t);
+ for(const ch of ['a','b','c'])await createBackup(f.db,{outputPath:join(f.backups,name(ch))});
+ const result=await execute({operation:'prune',keep:'2',apply:'yes'},
+  {dir:f.backups,mount:async()=>true});
+ assert.equal(result.applied,true);
+ assert.deepEqual(result.candidatesForRemoval,[name('a')]);
+ const remaining=await inventory(f.backups);
+ assert.deepEqual(remaining.map(x=>x.name),[name('b'),name('c')]);
+});
