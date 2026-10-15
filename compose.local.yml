@@ -33,5 +33,41 @@ services:
     stop_grace_period: 20s
     pids_limit: 256
     restart: unless-stopped
+  backup-operator:
+    profiles: ["maintenance"]
+    image: content-studio:local
+    entrypoint: ["node", "scripts/container-recovery-v74.mjs"]
+    command: ["list"]
+    network_mode: none
+    user: "10001:10001"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=67108864,mode=1777
+    volumes:
+      - studio-data:/app/data:ro
+      - studio-backups:/app/backups
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+  restore-operator:
+    profiles: ["maintenance"]
+    image: content-studio:local
+    entrypoint: ["node", "scripts/container-recovery-v74.mjs"]
+    command: ["list"]
+    network_mode: none
+    user: "10001:10001"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=67108864,mode=1777
+    volumes:
+      - studio-backups:/app/backups:ro
+      - studio-restored:/app/restore
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 volumes:
   studio-data:
+  studio-backups:
+  studio-restored:

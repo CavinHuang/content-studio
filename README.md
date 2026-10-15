@@ -1,8 +1,15 @@
-# Content Studio · Next.js + doocs/md（V73）
+# Content Studio · Next.js + doocs/md（V74）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V74 · Docker WAL 在线备份与全新数据卷恢复
+
+- 新增脚本 `scripts/container-recovery-v74.mjs` 与 `backup-operator`、`restore-operator` 按需运维容器。复用 V45 SQLite 在线备份 API、SHA-256 manifest 与 SQLite 完整性校验，拒绝直接复制活跃 WAL 数据库。
+- 备份保存在独立 `studio-backups` 卷，**不挂载到业务进程**；恢复必须写入另一个 `studio-restored` 卷，不能覆盖 `/app/data`。维护容器使用非 root、只读根文件系统、禁用网络。
+- 保留策略先验证所有归档，默认 `prune --keep=N --apply=no` 只预览；显式 `--apply=yes` 才删除，且至少保留两份。未知归档、损坏或缺失 manifest 直接拒绝清理。
+- CI 真实运行在线 WAL 备份、受保护归档目录、离线恢复到新卷及新的 Next.js 实例，检查真实历史 BLOB。说明见 [V74 Docker 数据恢复](docs/V74-CONTAINER-WAL-RECOVERY.md)。
 
 ## V73 · 只读 Docker 根文件系统与隔离的 Next 临时缓存
 
