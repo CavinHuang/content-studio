@@ -145,5 +145,28 @@ test('V75 Dokploy compose has no host ports, no plaintext secrets and no extra r
   assert.ok(y.includes(m),m);
  assert.ok(!/^\s*ports:/m.test(y));
  assert.ok(!y.includes('network_mode: host'));
- assert.ok(!y.includes('traefik.http.routers'));
+ // In Dokploy's Compose deployment the explicitly reviewed router is
+ // intentional: it mirrors the working Opportunity Radar pattern while
+ // preserving no host-level port publishing or duplicate router IDs.
+ const router='content-studio-explicit-https';
+ const expectedHost='contentstudio-server-pz9yvy-9b3e1e-216-144-229-204.sslip.io';
+ const requiredLabels=[
+  'traefik.enable=true',
+  'traefik.docker.network=dokploy-network',
+  'traefik.http.routers.'+router+'.rule=Host(`'+expectedHost+'`)',
+  'traefik.http.routers.'+router+'.entrypoints=websecure',
+  'traefik.http.routers.'+router+'.priority=100',
+  'traefik.http.routers.'+router+'.tls=true',
+  'traefik.http.routers.'+router+'.tls.certresolver=letsencrypt',
+  'traefik.http.routers.'+router+'.service=content-studio-explicit-backend',
+  'traefik.http.services.content-studio-explicit-backend.loadbalancer.server.port=4312',
+  'dokploy-network:',
+  'external: true'
+ ];
+ for(const label of requiredLabels)assert.ok(y.includes(label),label);
+ assert.equal((y.match(/traefik\\.http\\.routers\\.[^\\s=]+\\.rule=/g)||[]).length,1,
+  'only one repository-managed explicit Host router is permitted');
+ assert.equal((y.match(/traefik\\.http\\.services\\.[^\\s=]+\\.loadbalancer\\.server\\.port=/g)||[]).length,1,
+  'only one repository-managed backend port is permitted');
+ assert.ok(!y.includes('entrypoints=web\\n'));
 });
