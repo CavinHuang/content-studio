@@ -164,9 +164,9 @@ test('V75 Dokploy compose has no host ports, no plaintext secrets and no extra r
   'external: true'
  ];
  for(const label of requiredLabels)assert.ok(y.includes(label),label);
- assert.equal((y.match(/traefik\\.http\\.routers\\.[^\\s=]+\\.rule=/g)||[]).length,1,
+ assert.equal((y.match(/traefik\.http\.routers\.[^\s=]+\.rule=/g)||[]).length,1,
   'only one repository-managed explicit Host router is permitted');
- assert.equal((y.match(/traefik\\.http\\.services\\.[^\\s=]+\\.loadbalancer\\.server\\.port=/g)||[]).length,1,
+ assert.equal((y.match(/traefik\.http\.services\.[^\s=]+\.loadbalancer\.server\.port=/g)||[]).length,1,
   'only one repository-managed backend port is permitted');
  assert.ok(!y.includes('entrypoints=web\\n'));
 });
