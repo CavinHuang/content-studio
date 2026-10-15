@@ -105,18 +105,25 @@ export function setCookie(value,{clear=false}={}){
 export function validateRemoteTransport(request,env=runtimeEnv,{allowHealthLoopback=false}={}){
  const target=publicOrigin(env),host=new URL(target).host;
  const rawHost=request.headers.get('host')||'';
+ const proto=request.headers.get('x-forwarded-proto');
+ const forwardedHost=request.headers.get('x-forwarded-host');
  if(rawHost!==host){
   if(allowHealthLoopback &&
     ['127.0.0.1','localhost'].includes(rawHost.split(':')[0]) &&
     /^((127\.0\.0\.1)|(localhost)):\d{4,5}$/.test(rawHost) &&
     new URL(request.url).pathname==='/api/health')
     return {internalHealth:true,origin:target};
-  safe('Remote Host header does not match canonical application host');
+  // Next.js may normalize the Host to its container listener before running
+  // proxy.js. Only permit the exact configured internal PORT combined with
+  // the original external hostname independently supplied by Traefik.
+  const port=env.PORT||'4312';
+  const internal=new Set(['127.0.0.1:'+port,'localhost:'+port,
+   '0.0.0.0:'+port,'[::1]:'+port,host+':'+port]);
+  if(!internal.has(rawHost)||forwardedHost!==host)
+   safe('Remote Host header does not match canonical application host');
  }
- // The app trusts forwarded HTTPS *only when* the container network is
- // reachable from the Dokploy-managed Traefik and no public port is mapped.
- const proto=request.headers.get('x-forwarded-proto');
- const forwardedHost=request.headers.get('x-forwarded-host');
+ // TLS must be enforced by Traefik's websecure router and browser Secure
+ // cookies, while x-forwarded-proto remains an additional edge signal.
  if(proto!=='https')safe('Untrusted proxy protocol');
  if(forwardedHost&&forwardedHost!==host)safe('Untrusted proxy forwarded host');
  const site=request.headers.get('sec-fetch-site');
