@@ -2,6 +2,7 @@
 # After confirming readiness, switch back to ./compose.dokploy.yml and restore
 # valid admin credentials. Do not run permanently with public traffic.
 # Keep Dokploy Domains bound to the content-studio service at container port 4312.
+# Separate EMPTY bootstrap volume: never open real studio-data without login.
 services:
   content-studio:
     build:
@@ -26,7 +27,7 @@ services:
       - /app/.next/cache:rw,nosuid,nodev,size=134217728,uid=10001,gid=10001,mode=0700
       - /app/.next/server/route-cache:rw,nosuid,nodev,size=67108864,uid=10001,gid=10001,mode=0700
     volumes:
-      - studio-data:/app/data
+      - studio-bootstrap-data:/app/data
     networks:
       - dokploy-network
     labels:
@@ -40,7 +41,7 @@ services:
     restart: unless-stopped
     stop_grace_period: 20s
 volumes:
-  studio-data:
+  studio-bootstrap-data:
 networks:
   dokploy-network:
     external: true
