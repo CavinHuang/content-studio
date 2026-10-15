@@ -55,7 +55,10 @@ test('bootstrap Dockerfile and compose are deliberately isolated from normal pro
  assert.ok(!d.includes('verifyBuildReceipt'));
  assert.ok(y.includes('dockerfile: Dockerfile.dokploy.bootstrap'));
  assert.ok(y.includes('CONTENT_STUDIO_DEPLOY_MODE: dokploy-bootstrap'));
- assert.ok(y.includes('studio-data:/app/data'));
+ assert.ok(y.includes('studio-bootstrap-data:/app/data'));
+ assert.ok(!y.includes('- studio-data:/app/data'));
+ assert.ok(normal.includes('studio-data:/app/data'));
+ assert.ok(!normal.includes('studio-bootstrap-data:/app/data'));
  assert.ok(y.includes('dokploy-network'));
  assert.ok(!/^\s*ports:/m.test(y));
  assert.ok(!y.includes('CONTENT_STUDIO_AUTH_SESSION_KEY'));
