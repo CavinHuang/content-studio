@@ -1,8 +1,15 @@
-# Content Studio · Next.js + doocs/md（V71）
+# Content Studio · Next.js + doocs/md（V72）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V72 · 多阶段 Docker 镜像与本地容器运行
+
+- 新增 [Dockerfile](Dockerfile)、[.dockerignore](.dockerignore) 与 Linux 本地 [compose.local.yml](compose.local.yml)：Node 22.16、多阶段 npm ci、V63 Git 清洁检出、V64 构建封存、浅层 Git 来源、非 root UID 10001、持久 SQLite 卷与容器内健康探针。
+- 运行镜像不保留原始仓库完整 Git 历史/远程配置，仅留当前 SHA 的浅层 checkout。启动与容器 CI 再执行真实 V63/V64/V65 校验。
+- **安全边界**：应用当前无公网认证，只绑定 `127.0.0.1`。Linux 本地使用 host 网络，不以 Docker port mapping 开放公网。
+- CI 实际 Docker build/run，验证运行进程、精简 Git 状态、构建收据、volume 持久化和重启后数据一致性。详见 [V72 Docker 指南](docs/V72-LOCAL-DOCKER-CONTAINER.md)。
 
 ## V71 · 真实主机一次性技术验收凭证
 

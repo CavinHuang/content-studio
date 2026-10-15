@@ -1,0 +1,28 @@
+# V72 LOCAL Linux only: host networking makes Next's hardcoded 127.0.0.1
+# bind reachable at 127.0.0.1:4312 on the Linux host, never via public ports.
+# Do not change to network bridge + ports without an authentication layer.
+services:
+  content-studio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: content-studio:local
+    network_mode: host
+    init: false # the image already uses tini
+    user: "10001:10001"
+    environment:
+      NODE_ENV: production
+      PORT: "4312"
+      HOST: "127.0.0.1"
+      CONTENT_STUDIO_DB_PATH: /app/data/content-studio.sqlite
+      CONTENT_STUDIO_ALLOW_REMOTE: "0"
+      ENABLE_SCENARIO: "0"
+    volumes:
+      - studio-data:/app/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+volumes:
+  studio-data:
