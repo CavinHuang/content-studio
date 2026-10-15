@@ -9,7 +9,7 @@ import {spawn} from 'node:child_process';
 import {randomBytes} from 'node:crypto';
 import {verifyBuildReceipt,getHeadSha} from './build-provenance-v64.mjs';
 import {auditCandidateOsBoundary,attestCandidateOsBoundary} from '../src/candidate-os-boundary-v69.mjs';
-import {validateRemoteConfig} from '../src/remote-auth-v75.mjs';
+import {diagnoseRemoteConfig} from '../src/remote-auth-v75.mjs';
 import {readFileSync,existsSync,lstatSync} from 'node:fs';
 import {resolve,dirname,basename} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -37,7 +37,12 @@ export function auditLocalRuntime({env=process.env,version=process.versions.node
  const remote=env.CONTENT_STUDIO_DEPLOY_MODE==='dokploy';
  if(env.CONTENT_STUDIO_DEPLOY_MODE&&!remote)problems.push('unknown_deployment_mode');
  if(remote){
-  try{validateRemoteConfig(env)}catch{problems.push('remote_https_auth_config_invalid')}
+  const remoteErrors=diagnoseRemoteConfig(env);
+  if(remoteErrors.length){
+   problems.push('remote_https_auth_config_invalid');
+   // Fixed error codes only. Never log or serialize submitted credentials.
+   problems.push(...remoteErrors.map(problem=>'remote_'+problem));
+  }
   if(env.HOST!=='0.0.0.0')problems.push('dokploy_container_bind_required');
   if(env.NODE_ENV!=='production')problems.push('dokploy_requires_production_node');
  }else if(hasValue(env.HOST)&&!loopbackOnlyHosts.has(env.HOST.trim()))
@@ -61,7 +66,7 @@ export function auditLocalRuntime({env=process.env,version=process.versions.node
   nodeVersion:version,loopbackBind:remote?'container-network-only':'127.0.0.1',port:Number.isInteger(port)?port:null,
   databasePresent,providerRequests:0,platformVerified:false,
   publicSecretsDetected:publicSecrets.length,privateValuesDisplayed:false,
-  productionReady:false,message:'Local single-user start only; do not expose on a public network without separate authentication and access controls.'};
+  productionReady:false,message:remote?'Authenticated Dokploy container mode: verify HTTPS ingress independently.':'Local single-user start only; do not expose on a public network without separate authentication and access controls.'};
 }
 export function assertLocalRuntime(options){
  const status=auditLocalRuntime(options);
