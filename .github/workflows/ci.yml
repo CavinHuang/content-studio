@@ -4,58 +4,6 @@ on:
     branches: [main, 'feat/**']
   pull_request:
 jobs:
-  diagnose-public-ingress:
-    # Read-only, branch-scoped investigation. Never authenticates, deploys or
-    # equates a working HTTPS endpoint with production release authorization.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/v54-consolidated-integration-gate'
-    runs-on: ubuntu-latest
-    permissions: {}
-    timeout-minutes: 2
-    steps:
-      - name: Public Dokploy HTTPS status and response-source diagnostics
-        shell: bash
-        run: |
-          set -uo pipefail
-          origin='https://contentstudio-server-pz9yvy-9b3e1e-216-144-229-204.sslip.io'
-          for path in /login /api/health /; do
-            headers="$(mktemp)"; body="$(mktemp)"
-            echo "::group::GET ${path} without credentials"
-            if curl --silent --show-error --connect-timeout 5 --max-time 12 --dump-header "$headers" --output "$body" --write-out 'http_code=%{http_code} tls_verify=%{ssl_verify_result} remote_ip=%{remote_ip}\n' "${origin}${path}"; then
-              grep -iE '^(server|content-type|location|cache-control):' "$headers" | head -n 8 || true
-              if grep -qx '404 page not found' "$body"; then
-                echo 'response_class=plain_traefik_style_404'
-              elif grep -qE 'Authentication required|登录工作台' "$body"; then
-                echo 'response_class=content_studio_auth'
-              else
-                echo 'response_class=unclassified_body_not_logged'
-              fi
-            else
-              echo 'response_class=network_or_tls_error'
-            fi
-            rm -f -- "$headers" "$body"
-            echo '::endgroup::'
-          done
-      - name: Distinguish Traefik fallback HTTP response with no credentials
-        shell: bash
-        run: |
-          set -uo pipefail
-          host='https://contentstudio-server-pz9yvy-9b3e1e-216-144-229-204.sslip.io'
-          for path in /login /api/health /; do
-            headers="$(mktemp)"; body="$(mktemp)"
-            echo "::group::UNTRUSTED-CERT DIAGNOSTIC ONLY ${path}"
-            # -k is ONLY used for this anonymous read-only investigation; the
-            # previous step must continue reporting strict TLS validation.
-            if curl --insecure --silent --show-error --connect-timeout 5 --max-time 12 --dump-header "$headers" --output "$body" --write-out 'http_code=%{http_code} remote_ip=%{remote_ip}\n' "${host}${path}"; then
-              grep -iE '^(server|content-type|location|cache-control):' "$headers" | head -n 8 || true
-              if grep -q '404 page not found' "$body"; then echo 'response_class=default_plaintext_404'; else echo 'response_class=other_body_not_logged'; fi
-            else
-              echo 'response_class=cannot_complete_http'
-            fi
-            rm -f -- "$headers" "$body"
-            echo '::endgroup::'
-          done
-          echo 'Control: previously reachable Opportunity Radar, strict TLS, no auth'
-          curl --silent --show-error --connect-timeout 5 --max-time 12 --output /dev/null --write-out 'radar_http_code=%{http_code} radar_tls_verify=%{ssl_verify_result} radar_remote_ip=%{remote_ip}\n' 'https://opportunity-radar-servercom-itnci1-f69daa-216-144-229-204.sslip.io/api/health' || true
   test-and-build:
     runs-on: ubuntu-latest
     permissions:
@@ -78,6 +26,8 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: V65 strict npm lockfile schema integrity and negative regressions
         run: npm run release:lock:v65 && npm run test:lock:v65
+      - name: Dokploy authentication configuration preflight (synthetic, before general tests)
+        run: npm run test:dokploy:v75
       - name: Domain & API tests
         run: npm test
       - name: V45 backup, restore and migration rehearsal
@@ -90,8 +40,6 @@ jobs:
         run: npm run test:mainline
       - name: V58 localhost API CSRF and Host/Origin ingress regressions
         run: npm run test:security:v58
-      - name: V75 Dokploy HTTPS session, proxy host, authentication and CSRF regressions
-        run: npm run test:dokploy:v75
       - name: Syntax checks
         run: npm run check
       - name: V54 consolidation admission negative regressions
