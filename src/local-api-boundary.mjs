@@ -5,6 +5,7 @@
  * authentication. Reject hostile browser requests before opening SQLite,
  * spending provider budget, or updating editorial state.
  */
+import {env as runtimeEnv} from 'node:process';
 import {validateRemoteConfig,validateRemoteTransport,validateRemoteWrite,
  hasSession} from './remote-auth-v75.mjs';
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
@@ -73,7 +74,7 @@ export function validateLocalApiRequest(request){
 
 /** Authenticated Dokploy domain path. This is checked INSIDE dispatchApi,
  * even when a request skips Next.js proxy.js. */
-export function validateRemoteApiRequest(request,env=process.env){
+export function validateRemoteApiRequest(request,env=runtimeEnv){
  validateRemoteConfig(env);
  const pathname=new URL(request.url).pathname;
  const health=pathname==='/api/health'&&request.method==='GET';
@@ -87,7 +88,7 @@ export function validateRemoteApiRequest(request,env=process.env){
   validateRemoteWrite(request,env);
  return {remoteAuthenticated:!health,health,internalHealth:transport.internalHealth};
 }
-export function validateStudioApiRequest(request,env=process.env){
+export function validateStudioApiRequest(request,env=runtimeEnv){
  if(env.CONTENT_STUDIO_DEPLOY_MODE==='dokploy')return validateRemoteApiRequest(request,env);
  if(env.CONTENT_STUDIO_DEPLOY_MODE)
   throw Object.assign(new Error('Unknown deployment mode'),{status:403});

@@ -3,17 +3,18 @@
  * dispatch independently enforces authentication; this is defense in depth.
  */
 import {NextResponse} from 'next/server';
+import {env as runtimeEnv} from 'node:process';
 import {hasSession,validateRemoteTransport,validateRemoteConfig} from './src/remote-auth-v75.mjs';
 
 export function proxy(request){
- if(process.env.CONTENT_STUDIO_DEPLOY_MODE!=='dokploy')return NextResponse.next();
+ if(runtimeEnv.CONTENT_STUDIO_DEPLOY_MODE!=='dokploy')return NextResponse.next();
  let origin;
  try{
   origin=validateRemoteConfig().publicOrigin;
   const health=request.nextUrl.pathname==='/api/health'&&request.method==='GET';
   // Anonymous health exposes no identity; it must work from both Docker's
   // loopback probe and Traefik without trusting forwarded request metadata.
-  if(!health)validateRemoteTransport(request,process.env);
+  if(!health)validateRemoteTransport(request,runtimeEnv);
  }catch{
   return new Response('Forbidden',{status:403,headers:{'Cache-Control':'no-store'}});
  }

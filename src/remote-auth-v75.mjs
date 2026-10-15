@@ -4,6 +4,7 @@
  * Host routing, TLS and rate limiting MUST also be enforced by the operator.
  */
 import {createHmac,randomBytes,scryptSync,timingSafeEqual} from 'node:crypto';
+import {env as runtimeEnv} from 'node:process';
 
 export const COOKIE='__Host-content_studio_session';
 const ONE_HOUR=3600;
@@ -20,7 +21,7 @@ const privateKey=env=>{
  if(key.length!==32||key.toString('base64url')!==input)throw Error('Invalid random session key encoding');
  return key;
 };
-export function publicOrigin(env=process.env){
+export function publicOrigin(env=runtimeEnv){
  const value=env.CONTENT_STUDIO_PUBLIC_ORIGIN;
  let url;
  try{url=new URL(value)}catch{throw Error('Remote mode requires HTTPS public origin')};
@@ -31,7 +32,7 @@ export function publicOrigin(env=process.env){
   throw Error('Remote mode requires one canonical HTTPS hostname without path');
  return url.origin;
 }
-export function validateRemoteConfig(env=process.env){
+export function validateRemoteConfig(env=runtimeEnv){
  if(env.CONTENT_STUDIO_DEPLOY_MODE!=='dokploy')throw Error('Dokploy deployment mode required');
  const origin=publicOrigin(env),hash=env.CONTENT_STUDIO_AUTH_PASSWORD_SCRYPT;
  if(typeof hash!=='string'||!PASSWORD_HASH.test(hash))throw Error('Remote password scrypt credential missing');
@@ -49,7 +50,7 @@ export function newCredentials(password,{random=randomBytes}={}){
  return {passwordScrypt:'scrypt$16384$8$1$'+salt.toString('base64url')+'$'+hash.toString('base64url'),
   sessionKey:random(32).toString('base64url')};
 }
-export function verifyPassword(password,env=process.env){
+export function verifyPassword(password,env=runtimeEnv){
  validateRemoteConfig(env);
  const match=PASSWORD_HASH.exec(env.CONTENT_STUDIO_AUTH_PASSWORD_SCRYPT);
  const expected=Buffer.from(match[2],'base64url');
@@ -65,14 +66,14 @@ function sign(payload,env){
   .update('cs-v75-session:').update(env.CONTENT_STUDIO_AUTH_PASSWORD_SCRYPT)
   .update(':').update(payload).digest('base64url');
 }
-export function createSession(env=process.env,{now=Date.now(),random=randomBytes}={}){
+export function createSession(env=runtimeEnv,{now=Date.now(),random=randomBytes}={}){
  validateRemoteConfig(env);
  const issued=Math.floor(now/1000),expiry=issued+SESSION_SECONDS,nonce=random(16).toString('base64url');
  if(!NONCE.test(nonce))throw Error('Session entropy invalid');
  const payload=['v1',issued,expiry,nonce].join('.');
  return payload+'.'+sign(payload,env);
 }
-export function validSession(token,env=process.env,{now=Date.now()}={}){
+export function validSession(token,env=runtimeEnv,{now=Date.now()}={}){
  if(env.CONTENT_STUDIO_DEPLOY_MODE!=='dokploy')return false;
  try{
   validateRemoteConfig(env);
@@ -94,14 +95,14 @@ export function cookieFromHeaders(headers){
  const matches=raw.split(';').map(s=>s.trim()).filter(s=>s.startsWith(COOKIE+'='));
  return matches.length===1?matches[0].slice(COOKIE.length+1):null;
 }
-export function hasSession(headers,env=process.env){
+export function hasSession(headers,env=runtimeEnv){
  return validSession(cookieFromHeaders(headers),env);
 }
 export function setCookie(value,{clear=false}={}){
  if(clear)return COOKIE+'=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Strict';
  return COOKIE+'='+value+'; Path=/; Max-Age='+SESSION_SECONDS+'; Secure; HttpOnly; SameSite=Strict';
 }
-export function validateRemoteTransport(request,env=process.env,{allowHealthLoopback=false}={}){
+export function validateRemoteTransport(request,env=runtimeEnv,{allowHealthLoopback=false}={}){
  const target=publicOrigin(env),host=new URL(target).host;
  const rawHost=request.headers.get('host')||'';
  if(rawHost!==host){
@@ -122,7 +123,7 @@ export function validateRemoteTransport(request,env=process.env,{allowHealthLoop
  if(site&&!['none','same-origin'].includes(site))safe('Cross-site request not permitted');
  return {internalHealth:false,origin:target};
 }
-export function validateRemoteWrite(request,env=process.env){
+export function validateRemoteWrite(request,env=runtimeEnv){
  const transport=validateRemoteTransport(request,env);
  const origin=request.headers.get('origin');
  if(origin!==transport.origin)safe('Same HTTPS Origin required for remote writes');
