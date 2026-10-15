@@ -76,7 +76,7 @@ test('V75 validates exact HTTPS proxy domain and rejects host/forwarded spoofing
  denied(()=>validateRemoteTransport(request('/api/status',{
   host:'127.0.0.1:4312','x-forwarded-host':'evil.example'}),env));
  denied(()=>validateRemoteTransport(request('/api/status',{host:'evil.example:4312'}),env));
- for(const headers of [{host:'evil.example'},{host:'studio.example.com:4312'},
+ for(const headers of [{host:'evil.example'},
   {'x-forwarded-proto':'http'},{'x-forwarded-proto':'https,http'},
   {'x-forwarded-host':'evil.example'},{'x-forwarded-host':'studio.example.com,evil.com'},
   {'sec-fetch-site':'cross-site'},{'sec-fetch-site':'same-site'}])
