@@ -15,9 +15,15 @@ export function proxy(request){
  try{
   const health=request.nextUrl.pathname==='/api/health'&&request.method==='GET';
   if(!health)validateRemoteTransport(request,runtimeEnv);
- }catch{
+ }catch(error){
+  const category=String(error?.message||'').includes('forwarded host')?'forwarded-host':
+   String(error?.message||'').includes('protocol')?'protocol':
+   String(error?.message||'').includes('Host header')?'host':
+   String(error?.message||'').includes('Cross-site')?'cross-site':'other';
   return new Response('Untrusted proxy transport',{status:403,
-   headers:{'Cache-Control':'no-store'}});
+   headers:{'Cache-Control':'no-store',
+    ...(runtimeEnv.CONTENT_STUDIO_TEST_DIAGNOSTIC==='1'?
+     {'X-Content-Studio-Test-Diagnostic':category}:{})}});
  }
  const p=request.nextUrl.pathname;
  const allowed=p==='/login'||p==='/api/auth/login'||p==='/api/health';

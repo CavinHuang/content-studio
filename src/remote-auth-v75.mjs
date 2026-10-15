@@ -117,8 +117,8 @@ export function validateRemoteTransport(request,env=runtimeEnv,{allowHealthLoopb
  // reachable from the Dokploy-managed Traefik and no public port is mapped.
  const proto=request.headers.get('x-forwarded-proto');
  const forwardedHost=request.headers.get('x-forwarded-host');
- if(proto!=='https'||forwardedHost&&forwardedHost!==host)
-  safe('Untrusted reverse proxy transport');
+ if(proto!=='https')safe('Untrusted proxy protocol');
+ if(forwardedHost&&forwardedHost!==host)safe('Untrusted proxy forwarded host');
  const site=request.headers.get('sec-fetch-site');
  if(site&&!['none','same-origin'].includes(site))safe('Cross-site request not permitted');
  return {internalHealth:false,origin:target};

@@ -32,7 +32,7 @@ test('V75 real Next.js behind simulated HTTPS proxy blocks anonymous content and
  const password='synthetic-v75-testing-password-long';
  const creds=newCredentials(password);
  const env={...process.env,NODE_ENV:'production',PORT:String(port),HOST:'0.0.0.0',HOSTNAME:'',
-  CONTENT_STUDIO_DEPLOY_MODE:'dokploy',
+  CONTENT_STUDIO_DEPLOY_MODE:'dokploy',CONTENT_STUDIO_TEST_DIAGNOSTIC:'1',
   CONTENT_STUDIO_PUBLIC_ORIGIN:'https://studio.example.com',
   CONTENT_STUDIO_AUTH_PASSWORD_SCRYPT:creds.passwordScrypt,
   CONTENT_STUDIO_AUTH_SESSION_KEY:creds.sessionKey,
@@ -68,7 +68,8 @@ test('V75 real Next.js behind simulated HTTPS proxy blocks anonymous content and
   const anonPage=await req('/');
   assert.equal(anonPage.status,303,
     'Expected anonymous page redirect; got HTTP '+anonPage.status+
-    ', type '+(anonPage.headers.get('content-type')||'none'));
+    ', type '+(anonPage.headers.get('content-type')||'none')+
+    ', diagnostic '+(anonPage.headers.get('x-content-studio-test-diagnostic')||'none'));
   assert.equal(anonPage.headers.get('location'),'https://studio.example.com/login');
   const anonApi=await req('/api/status');
   assert.equal(anonApi.status,401,
