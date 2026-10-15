@@ -35,6 +35,27 @@ jobs:
             rm -f -- "$headers" "$body"
             echo '::endgroup::'
           done
+      - name: Distinguish Traefik fallback HTTP response with no credentials
+        shell: bash
+        run: |
+          set -uo pipefail
+          host='https://contentstudio-server-pz9yvy-9b3e1e-216-144-229-204.sslip.io'
+          for path in /login /api/health /; do
+            headers="$(mktemp)"; body="$(mktemp)"
+            echo "::group::UNTRUSTED-CERT DIAGNOSTIC ONLY ${path}"
+            # -k is ONLY used for this anonymous read-only investigation; the
+            # previous step must continue reporting strict TLS validation.
+            if curl --insecure --silent --show-error --connect-timeout 5 --max-time 12 --dump-header "$headers" --output "$body" --write-out 'http_code=%{http_code} remote_ip=%{remote_ip}\n' "${host}${path}"; then
+              grep -iE '^(server|content-type|location|cache-control):' "$headers" | head -n 8 || true
+              if grep -q '404 page not found' "$body"; then echo 'response_class=default_plaintext_404'; else echo 'response_class=other_body_not_logged'; fi
+            else
+              echo 'response_class=cannot_complete_http'
+            fi
+            rm -f -- "$headers" "$body"
+            echo '::endgroup::'
+          done
+          echo 'Control: previously reachable Opportunity Radar, strict TLS, no auth'
+          curl --silent --show-error --connect-timeout 5 --max-time 12 --output /dev/null --write-out 'radar_http_code=%{http_code} radar_tls_verify=%{ssl_verify_result} radar_remote_ip=%{remote_ip}\n' 'https://opportunity-radar-servercom-itnci1-f69daa-216-144-229-204.sslip.io/api/health' || true
   test-and-build:
     runs-on: ubuntu-latest
     permissions:
