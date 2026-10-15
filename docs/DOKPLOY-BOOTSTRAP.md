@@ -2,7 +2,7 @@
 
 本方案用于排除“Dokploy 显示 Deploy Done，但容器 Restarting，公网域名 404”问题。旧的 Dockerfile 发布证明链和运行时 guard 不参与此模式；Next.js 直接执行 `next start`。
 
-**重要风险：这个模式不要求管理员登录，页面及全部业务 API 均可直接访问。公网用户可以读取或修改工作台数据，且可能触发昂贵模型调用。请先禁用公网 Domains 或限制来源访问，仅在短时间内排障。不要加载真实的 AI Provider API Key，不要用真实隐私数据进行测试。确认服务可启动后立即切回正式 HTTPS 认证 Compose。**
+**重要风险：这个模式不要求管理员登录，页面及全部业务 API 均可直接访问。公网用户可以读取或修改工作台数据，且可能触发昂贵模型调用。请先禁用公网 Domains 或限制来源访问，仅在短时间内排障。不要加载真实的 AI Provider API Key，不要用真实隐私数据进行测试。临时模式使用全新的 `studio-bootstrap-data` 卷，**不挂载原有的 `studio-data` 正式数据库**；回到正式模式后原卷数据保持不变。确认服务可启动后立即切回正式 HTTPS 认证 Compose。**
 
 ## 只用 Dokploy 网页执行
 
@@ -17,7 +17,7 @@
 ## 隔离边界
 
 - `Dockerfile.dokploy.bootstrap`：仅直接编译/启动 Next.js，无 V63 Git 工作树校验、V64 构建收据和 V49 启动拒绝。
-- `compose.dokploy.bootstrap.yml`：继续使用非 root 账号、SQLite 命名卷、只读根文件系统、Dokploy 外部网络；**没有宿主机 ports 映射**。
+- `compose.dokploy.bootstrap.yml`：继续使用非 root 账号、独立空白的 `studio-bootstrap-data` SQLite 命名卷、只读根文件系统、Dokploy 外部网络；**没有宿主机 ports 映射**。
 - 只有明确配置 `CONTENT_STUDIO_DEPLOY_MODE=dokploy-bootstrap` 的运行态才绕过 API/页面验证。普通 `dokploy` 模式的认证、CSRF、Host 校验保留，不受此次变动影响。
 - CI 独立执行合成环境的 Docker 构建、真实容器启动、health/UI/API 匿名探测，不接触真实数据或生产域名。
 - **不要把容器启动成功等同于应用能够安全接入公网；恢复正式模式后重新验证。**
