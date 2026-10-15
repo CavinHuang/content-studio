@@ -28,6 +28,8 @@ services:
       CONTENT_STUDIO_ALLOW_REMOTE: "0"
       ENABLE_SCENARIO: "0"
       NEXT_TELEMETRY_DISABLED: "1"
+    networks:
+      - dokploy-network
     volumes:
       - studio-data:/app/data
     security_opt:
@@ -39,3 +41,6 @@ services:
     restart: unless-stopped
 volumes:
   studio-data:
+networks:
+  dokploy-network:
+    external: true
