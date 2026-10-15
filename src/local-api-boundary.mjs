@@ -77,8 +77,11 @@ export function validateRemoteApiRequest(request,env=process.env){
  validateRemoteConfig(env);
  const pathname=new URL(request.url).pathname;
  const health=pathname==='/api/health'&&request.method==='GET';
- const transport=validateRemoteTransport(request,env,{allowHealthLoopback:health});
- if(!health&&!hasSession(request.headers,env))
+ // Health reveals no runtime identity in remote mode and never mutates data.
+ // Avoid relying on Next's potentially rewritten X-Forwarded-* for probes.
+ if(health)return {remoteAuthenticated:false,health:true,internalHealth:false};
+ const transport=validateRemoteTransport(request,env);
+ if(!hasSession(request.headers,env))
   throw Object.assign(new Error('Authentication required'),{status:401});
  if(['POST','PUT','PATCH','DELETE'].includes(request.method.toUpperCase()))
   validateRemoteWrite(request,env);

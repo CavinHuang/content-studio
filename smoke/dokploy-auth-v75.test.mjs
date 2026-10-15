@@ -62,10 +62,14 @@ test('V75 real Next.js behind simulated HTTPS proxy blocks anonymous content and
   assert.ok(health,'Guarded Dokploy Next not healthy, HTTP='+lastCode+'; '+logs.join(' ').slice(0,550));
   assert.equal((await health.json()).runtimeBuild,null);
   const anonPage=await req('/');
-  assert.equal(anonPage.status,303);
+  assert.equal(anonPage.status,303,
+    'Expected anonymous page redirect; got HTTP '+anonPage.status+
+    ', type '+(anonPage.headers.get('content-type')||'none'));
   assert.equal(anonPage.headers.get('location'),'https://studio.example.com/login');
   const anonApi=await req('/api/status');
-  assert.equal(anonApi.status,401);
+  assert.equal(anonApi.status,401,
+    'Expected API 401, got HTTP '+anonApi.status+
+    ', type '+(anonApi.headers.get('content-type')||'none'));
   const loginPage=await req('/login');
   assert.equal(loginPage.status,200);
   assert.match(await loginPage.text(),/登录工作台/);

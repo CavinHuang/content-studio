@@ -10,8 +10,10 @@ export function proxy(request){
  let origin;
  try{
   origin=validateRemoteConfig().publicOrigin;
-  const health=request.nextUrl.pathname==='/api/health';
-  validateRemoteTransport(request,process.env,{allowHealthLoopback:health});
+  const health=request.nextUrl.pathname==='/api/health'&&request.method==='GET';
+  // Anonymous health exposes no identity; it must work from both Docker's
+  // loopback probe and Traefik without trusting forwarded request metadata.
+  if(!health)validateRemoteTransport(request,process.env);
  }catch{
   return new Response('Forbidden',{status:403,headers:{'Cache-Control':'no-store'}});
  }
