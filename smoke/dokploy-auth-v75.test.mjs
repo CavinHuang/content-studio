@@ -52,14 +52,18 @@ test('V75 real Next.js behind simulated HTTPS proxy blocks anonymous content and
  const req=(route,options={})=>fetch(base+route,{redirect:'manual',
   signal:AbortSignal.timeout(2500),...options,headers:{...headers,...options.headers}});
  try{
-  let health,lastCode='none';
-  for(let i=0;i<38;i++){
+  let health,lastCode='none',lastBody='none';
+  for(let i=0;i<30;i++){
    if(child.exitCode!==null||child.signalCode!==null)break;
    try{const r=await req('/api/health');lastCode=String(r.status);
-    if(r.ok){health=r;break}}catch{lastCode='network'}
+    if(r.ok){health=r;break}
+    const body=await r.text();
+    lastBody=body.startsWith('{')?body.slice(0,140):
+      body.startsWith('Forbidden')?'proxy-forbidden':'html-or-text';
+   }catch{lastCode='network'}
    await delay(300);
   }
-  assert.ok(health,'Guarded Dokploy Next not healthy, HTTP='+lastCode+'; '+logs.join(' ').slice(0,550));
+  assert.ok(health,'Dokploy Next HTTP='+lastCode+', kind='+lastBody+'; '+logs.join(' ').slice(0,430));
   assert.equal((await health.json()).runtimeBuild,null);
   const anonPage=await req('/');
   assert.equal(anonPage.status,303,

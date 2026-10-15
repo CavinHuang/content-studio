@@ -38,4 +38,5 @@ export function proxy(request){
  response.headers.set('Strict-Transport-Security','max-age=31536000');
  return response;
 }
-export const config={matcher:['/((?!_next/static|_next/image|favicon.ico).*)']};
+// Health is intentionally anonymous and metadata-minimal in remote mode.
+export const config={matcher:['/((?!_next/static|_next/image|favicon.ico|api/health).*)']};
