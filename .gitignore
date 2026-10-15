@@ -24,3 +24,6 @@ out/
 *.release-evidence.json
 *.operator-review.json
 /release-local/
+
+# V71 protected host-generated technical handoff receipts are never committed.
+*.v71-receipt.json

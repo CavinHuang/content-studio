@@ -64,6 +64,8 @@ jobs:
         run: npm run test:isolation:v68
       - name: V69 real Linux separated POSIX UID source database read-denial regressions
         run: npm run test:os-boundary:v69
+      - name: V71 private once-only technical receipt and offline verification negative tests
+        run: npm run test:handoff:v71
       - name: V56 genuine WAL SQLite and manifest-backed restored operator evidence (synthetic fixture)
         run: npm run test:release:real-files:v56
       - name: V50 offline interop and prebundle security regressions

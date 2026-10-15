@@ -1,8 +1,14 @@
-# Content Studio · Next.js + doocs/md（V70）
+# Content Studio · Next.js + doocs/md（V71）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V71 · 真实主机一次性技术验收凭证
+
+- 新增 `npm run release:handoff:v71`：复用真实 V67 主机/进程/备份回滚技术验收，并将结论写入操作者自己的**仓库外私有目录**。收据为独占创建的 `0600` JSON 文件，绝不覆盖或自动上传。成功只记录允许公开的构建摘要、备份文件基名与五阶段状态，失败只写固定阻断代码。
+- 支持 `npm run release:handoff:v71 -- verify --sha=<40位SHA> --receipt=<绝对路径>`，在**不重新访问数据库、GitHub 或外部平台**的情况下验证收据结构及 SHA-256 内容摘要。SHA-256 是本地意外修改检测，**不是密码学签名、第三方独立证明或操作员上线批准**。
+- 禁止把收据写入 Git 工作区、使用开放权限目录、覆盖同名凭证或接受额外字段。默认忽略 `*.v71-receipt.json`。包含 11 项正反例 CI 测试，详细操作参见 [V71 本机验收凭证](docs/V71-PRIVATE-OPERATOR-RECEIPT.md)。
 
 ## V70 · 真实不同 UID 的 Next.js 候选进程与 V67 串联验证
 
