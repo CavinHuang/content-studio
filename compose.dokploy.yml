@@ -1,4 +1,7 @@
-# V75 Dokploy Docker Compose. Dokploy Domains manages Traefik labels.
+# Dokploy HTTPS ingress: preserve Dokploy Domains for cert management, but
+# explicitly wire the Traefik websecure router as in opportunity-radar.
+# A higher router priority avoids ties with Dokploy-injected domain rules.
+# For a different hostname, update BOTH the Host rule and PUBLIC_ORIGIN.
 # Use Dokploy Isolated Deployments, HTTPS-only, one replica.
 # DO NOT publish ports: no "ports:", no host networking, no direct IP ingress.
 services:
@@ -30,6 +33,16 @@ services:
       NEXT_TELEMETRY_DISABLED: "1"
     networks:
       - dokploy-network
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=dokploy-network
+      - traefik.http.routers.content-studio-explicit-https.rule=Host(`contentstudio-server-pz9yvy-9b3e1e-216-144-229-204.sslip.io`)
+      - traefik.http.routers.content-studio-explicit-https.entrypoints=websecure
+      - traefik.http.routers.content-studio-explicit-https.priority=100
+      - traefik.http.routers.content-studio-explicit-https.tls=true
+      - traefik.http.routers.content-studio-explicit-https.tls.certresolver=letsencrypt
+      - traefik.http.routers.content-studio-explicit-https.service=content-studio-explicit-backend
+      - traefik.http.services.content-studio-explicit-backend.loadbalancer.server.port=4312
     volumes:
       - studio-data:/app/data
     security_opt:
