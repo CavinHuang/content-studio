@@ -89,6 +89,11 @@ export function validateRemoteApiRequest(request,env=runtimeEnv){
  return {remoteAuthenticated:!health,health,internalHealth:transport.internalHealth};
 }
 export function validateStudioApiRequest(request,env=runtimeEnv){
+ // Explicit, temporary operator-selected bootstrap. No auth, origin or Host
+ // restrictions. Do not enable on an Internet-facing long-lived deployment.
+ // This never applies to the normal authenticated Dokploy or local modes.
+ if(env.CONTENT_STUDIO_DEPLOY_MODE==='dokploy-bootstrap')
+  return {unauthenticatedBootstrap:true,checked:false};
  if(env.CONTENT_STUDIO_DEPLOY_MODE==='dokploy')return validateRemoteApiRequest(request,env);
  if(env.CONTENT_STUDIO_DEPLOY_MODE)
   throw Object.assign(new Error('Unknown deployment mode'),{status:403});
