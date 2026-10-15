@@ -45,7 +45,7 @@ ENV NODE_ENV=production \
 COPY --from=build --chown=10001:10001 /tmp/reviewed-checkout/ ./
 COPY --from=production-deps --chown=10001:10001 /app/node_modules ./node_modules
 COPY --from=build --chown=10001:10001 /app/.next ./.next
-RUN mkdir -p /app/data && chown 10001:10001 /app/data && chmod 0700 /app/data
+RUN mkdir -p /app/data && chown 10001:10001 /app /app/data && chmod 0700 /app/data
 USER 10001:10001
 # This MUST pass at image-build time. No bypass of V63/V64 is permitted.
 RUN npm run release:checkout:v63 -- --sha="$(git rev-parse HEAD)" \
