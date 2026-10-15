@@ -2,6 +2,26 @@
 
 当前仓库的统一 PR #26 仍为 **Draft**。此指南只描述未来的人工部署准备与回归方式，执行 CI 测试不等于实际部署。不要将当前 PR 合并或启用 Dokploy Auto Deploy。
 
+## 排障顺序：配置 → 容器 → 健康检查 → Traefik → 公网
+
+Dokploy Logs 若持续报告 Local runtime denied / remote_https_auth_config_invalid，表示 Next.js 没有正常启动。**禁止此时继续改 Traefik 标签或根据公网 404 判定路由故障。** 不需要宿主机 Terminal；使用 Compose 服务的 Environment、Logs、Monitoring 页面。
+
+1. 先检查 Compose Environment 中三个必填值。CONTENT_STUDIO_PUBLIC_ORIGIN 必须是准确的 https://hostname **没有末尾斜杠**，不能包含端口或路径；密码验证值和会话密钥不能为空。
+2. 旧版验证值以 scrypt$16384$8$1$ 开头，含美元符号。如果通过 Compose 的 .env 多行文本设置，务必用英文**单引号**包裹整个哈希，避免变量插值。新版凭证脚本生成 scrypt:16384:8:1:...，不包含美元符号；两种格式都可验证。
+3. 保存配置、手动部署，先从 Logs 确认启动配置没有被拒绝；新版诊断只输出固定错误代码，不泄露实际凭证。
+4. 只有确认容器 Running/Healthy，内部 /api/health 正常，才应继续检查 Traefik 容器网络、路由以及公网 HTTPS /login。
+
+### 新版启动拒绝代码（不包含秘密）
+
+| 代码 | 解决方向 |
+| --- | --- |
+| remote_public_origin_invalid | 检查 HTTPS、尾随斜杠、端口和路径 |
+| remote_password_scrypt_invalid | 哈希值格式错误、被插值、截断或为空 |
+| remote_session_key_invalid | Session Key 长度或编码不合规 |
+| remote_unsafe_remote_flags | 禁止启用无认证远程访问开关 |
+
+CI 只应使用**合成凭证**进行认证、Next.js 启动和容器健康测试。公网探测只能在操作员确认部署已经成功、容器已健康之后执行；不可将公网探测结果当作构建阶段的放行条件。
+
 ## 部署架构与威胁边界
 
 浏览器必须先经过 HTTPS Traefik 域名，Traefik 将请求转发到 Docker 网络内监听 `0.0.0.0:4312` 的单实例 Next.js。**容器不能通过宿主 `ports:` 公开监听；不得配置 `network_mode: host`。** 登录密码由 scrypt 口令验证器保存于 Dokploy 的受保护环境变量；会话为 8 小时 HMAC-SHA256 签名 `__Host-` Secure、HttpOnly、SameSite=Strict Cookie。密码或签名密钥轮换后现有会话失效（更换签名密钥），单进程全局最多 8 次错误尝试/15 分钟，并且需要在 Traefik 或前置 WAF 补充边缘 IP 限流和日志监控。
