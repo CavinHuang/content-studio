@@ -6,7 +6,7 @@
 
 Dokploy Logs 若持续报告 Local runtime denied / remote_https_auth_config_invalid，表示 Next.js 没有正常启动。**禁止此时继续改 Traefik 标签或根据公网 404 判定路由故障。** 不需要宿主机 Terminal；使用 Compose 服务的 Environment、Logs、Monitoring 页面。
 
-1. 先检查 Compose Environment 中三个必填值。CONTENT_STUDIO_PUBLIC_ORIGIN 必须是准确的 https://hostname **没有末尾斜杠**，不能包含端口或路径；密码验证值和会话密钥不能为空。
+1. 先检查 Compose Environment 中三个必填值。CONTENT_STUDIO_PUBLIC_ORIGIN 推荐填写准确的 https://hostname（无末尾斜杠）；新版运行时也允许单个末尾斜杠并规范化为 Origin，但仍禁止额外路径、端口或查询参数；密码验证值和会话密钥不能为空。
 2. 旧版验证值以 scrypt$16384$8$1$ 开头，含美元符号。如果通过 Compose 的 .env 多行文本设置，务必用英文**单引号**包裹整个哈希，避免变量插值。新版凭证脚本生成 scrypt:16384:8:1:...，不包含美元符号；两种格式都可验证。
 3. 保存配置、手动部署，先从 Logs 确认启动配置没有被拒绝；新版诊断只输出固定错误代码，不泄露实际凭证。
 4. 只有确认容器 Running/Healthy，内部 /api/health 正常，才应继续检查 Traefik 容器网络、路由以及公网 HTTPS /login。
