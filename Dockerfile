@@ -10,8 +10,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY . .
-# V63 validates the actual HEAD, tracked worktree and index before installing.
-RUN node scripts/checkout-integrity-v63.mjs --sha="$(git rev-parse HEAD)"
+# Dokploy may inject Traefik domain labels into its working copy of the
+# tracked Compose file. The build never executes that host-side Compose file:
+# restore ONLY that deployment descriptor from the checked-out Git object,
+# then run the unmodified V63 full-worktree integrity verification. Any
+# other dirty, missing, untracked or index-hidden source still fails closed.
+RUN git show HEAD:compose.dokploy.yml > /app/compose.dokploy.yml \
+  && node scripts/checkout-integrity-v63.mjs --sha="$(git rev-parse HEAD)"
 RUN npm ci --no-audit --no-fund \
   && npm run release:lock:v65 \
   && npm run build
