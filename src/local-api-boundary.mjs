@@ -5,6 +5,8 @@
  * authentication. Reject hostile browser requests before opening SQLite,
  * spending provider budget, or updating editorial state.
  */
+import {validateRemoteConfig,validateRemoteTransport,validateRemoteWrite,
+ hasSession} from './remote-auth-v75.mjs';
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
 const WRITES = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const deny = (message, status=403) => {
@@ -67,4 +69,24 @@ export function validateLocalApiRequest(request){
       deny('Browser navigation may not mutate local content');
   }
   return {localOnly:true, checked:true};
+}
+
+/** Authenticated Dokploy domain path. This is checked INSIDE dispatchApi,
+ * even when a request skips Next.js proxy.js. */
+export function validateRemoteApiRequest(request,env=process.env){
+ validateRemoteConfig(env);
+ const pathname=new URL(request.url).pathname;
+ const health=pathname==='/api/health'&&request.method==='GET';
+ const transport=validateRemoteTransport(request,env,{allowHealthLoopback:health});
+ if(!health&&!hasSession(request.headers,env))
+  throw Object.assign(new Error('Authentication required'),{status:401});
+ if(['POST','PUT','PATCH','DELETE'].includes(request.method.toUpperCase()))
+  validateRemoteWrite(request,env);
+ return {remoteAuthenticated:!health,health,internalHealth:transport.internalHealth};
+}
+export function validateStudioApiRequest(request,env=process.env){
+ if(env.CONTENT_STUDIO_DEPLOY_MODE==='dokploy')return validateRemoteApiRequest(request,env);
+ if(env.CONTENT_STUDIO_DEPLOY_MODE)
+  throw Object.assign(new Error('Unknown deployment mode'),{status:403});
+ return validateLocalApiRequest(request);
 }

@@ -60,7 +60,7 @@ RUN npm run release:checkout:v63 -- --sha="$(git rev-parse HEAD)" \
 # Loopback inside container only. Use host networking on Linux for the
 # unauthenticated single-user application; never map a public-facing port.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
- CMD ["node","-e","fetch('http://127.0.0.1:'+process.env.PORT+'/api/health',{signal:AbortSignal.timeout(3000)}).then(async r=>{const j=await r.json();if(!r.ok||j.ok!==true||j.mode!=='local-only'||!j.runtimeBuild?.databaseIdentity)process.exit(1)}).catch(()=>process.exit(1))"]
+ CMD ["node","-e","fetch('http://127.0.0.1:'+process.env.PORT+'/api/health',{signal:AbortSignal.timeout(3000)}).then(async r=>{const j=await r.json();const local=j.mode==='local-only'&&j.runtimeBuild?.databaseIdentity;const remote=j.mode==='authenticated-remote'&&j.runtimeBuild===null;if(!r.ok||j.ok!==true||!(local||remote))process.exit(1)}).catch(()=>process.exit(1))"]
 STOPSIGNAL SIGTERM
 ENTRYPOINT ["/usr/bin/tini","--"]
 CMD ["node","scripts/runtime-guard.mjs","start"]

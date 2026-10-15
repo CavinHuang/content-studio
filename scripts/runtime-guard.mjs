@@ -9,6 +9,7 @@ import {spawn} from 'node:child_process';
 import {randomBytes} from 'node:crypto';
 import {verifyBuildReceipt,getHeadSha} from './build-provenance-v64.mjs';
 import {auditCandidateOsBoundary,attestCandidateOsBoundary} from '../src/candidate-os-boundary-v69.mjs';
+import {validateRemoteConfig} from '../src/remote-auth-v75.mjs';
 import {readFileSync,existsSync,lstatSync} from 'node:fs';
 import {resolve,dirname,basename} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -33,7 +34,14 @@ export function auditLocalRuntime({env=process.env,version=process.versions.node
  if(publicSecrets.length)warnings.push('review_NEXT_PUBLIC_secret_names_out_of_band');
  const port=hasValue(env.PORT)?Number(env.PORT):DEFAULT_PORT;
  if(!Number.isInteger(port)||port<1024||port>65535)problems.push('invalid_local_port');
- if(hasValue(env.HOST)&&!loopbackOnlyHosts.has(env.HOST.trim()))problems.push('nonloopback_host_override');
+ const remote=env.CONTENT_STUDIO_DEPLOY_MODE==='dokploy';
+ if(env.CONTENT_STUDIO_DEPLOY_MODE&&!remote)problems.push('unknown_deployment_mode');
+ if(remote){
+  try{validateRemoteConfig(env)}catch{problems.push('remote_https_auth_config_invalid')}
+  if(env.HOST!=='0.0.0.0')problems.push('dokploy_container_bind_required');
+  if(env.NODE_ENV!=='production')problems.push('dokploy_requires_production_node');
+ }else if(hasValue(env.HOST)&&!loopbackOnlyHosts.has(env.HOST.trim()))
+  problems.push('nonloopback_host_override');
  if(hasValue(env.HOSTNAME)&&!loopbackOnlyHosts.has(env.HOSTNAME.trim()))warnings.push('HOSTNAME_ignored_by_strict_next_start');
  let databasePresent=false;
  if(!problems.includes('nonpersistent_database_forbidden')){
@@ -50,7 +58,7 @@ export function auditLocalRuntime({env=process.env,version=process.versions.node
   }
  }
  return {kind:'content-studio-v49-local-runtime-audit',ready:problems.length===0,problems,warnings,
-  nodeVersion:version,loopbackBind:'127.0.0.1',port:Number.isInteger(port)?port:null,
+  nodeVersion:version,loopbackBind:remote?'container-network-only':'127.0.0.1',port:Number.isInteger(port)?port:null,
   databasePresent,providerRequests:0,platformVerified:false,
   publicSecretsDetected:publicSecrets.length,privateValuesDisplayed:false,
   productionReady:false,message:'Local single-user start only; do not expose on a public network without separate authentication and access controls.'};
@@ -81,7 +89,10 @@ export async function startLocalRuntime({env=process.env,cwd=process.cwd(),spawn
  const osProof=candidateMode?attestCandidateOsBoundary(osBoundary,{
   sourceDb:env.CONTENT_STUDIO_CANDIDATE_SOURCE_DB_PATH,runNonce:nonce}):null;
  const bin=resolve(cwd,'node_modules/next/dist/bin/next');
- const argv=[bin,'start','-H','127.0.0.1','-p',String(audit.port)];
+ // Only a successfully audited, fully authenticated Dokploy runtime may
+ // listen on the container interface. The local variant never changes.
+ const bind=env.CONTENT_STUDIO_DEPLOY_MODE==='dokploy'?'0.0.0.0':'127.0.0.1';
+ const argv=[bin,'start','-H',bind,'-p',String(audit.port)];
  const childEnv={...env};
  for(const key of Object.keys(childEnv))
   if(key.startsWith('CONTENT_STUDIO_RUNTIME_OS_'))delete childEnv[key];

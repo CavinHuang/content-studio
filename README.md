@@ -1,8 +1,15 @@
-# Content Studio · Next.js + doocs/md（V74）
+# Content Studio · Next.js + doocs/md（V75）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V75 · Dokploy HTTPS + 单管理员登录认证（公网部署准备）
+
+- 新增 [compose.dokploy.yml](compose.dokploy.yml)，利用 Dokploy Domains UI 自动配置 Traefik/HTTPS，运行容器使用非 root、只读 rootfs、SQLite 持久卷，`expose` 内部端口但**不映射任何公网 ports**；本地版 [compose.local.yml](compose.local.yml) 不变。
+- 后端必须同时满足 `CONTENT_STUDIO_DEPLOY_MODE=dokploy`、严格 HTTPS `CONTENT_STUDIO_PUBLIC_ORIGIN`、scrypt 管理员密码验证器和随机签名密钥。缺任意密钥、错误 Host 或非 HTTPS 反代链直接拒绝启动/请求。
+- 新增 Next 16 `proxy.js` 页面入口防护与 API 内部二次鉴权；`/login`、`/api/auth/login`、`/api/auth/logout`、受限 8 小时 HttpOnly/Secure Cookie、单进程失败尝试限流与严格 Origin/JSON CSRF 防护。匿名健康状态不会泄露 build SHA 与运行 nonce。
+- 新增 [V75 Dokploy 部署说明](docs/V75-DOKPLOY-HTTPS-AUTH.md)，包括在本机通过 stdin 安全生成密码验证器、配置 HTTPS 域名与 Docker 网络、真实部署前的安全验收。CI 在合成凭证/数据下运行真实 Next.js 登录流程与 Docker 模拟代理回归；**不会实际部署**。
 
 ## V74 · Docker WAL 在线备份与全新数据卷恢复
 

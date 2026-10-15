@@ -98,7 +98,15 @@ export default function StudioApp(){
       <div className="sidebar-bottom"><div className="online-dot"/><div><strong>个人本地工作台</strong><span>Next.js · SQLite</span></div></div>
     </aside>
     {mobileMenu&&<button className="mobile-backdrop" aria-label="关闭菜单" onClick={()=>setMobileMenu(false)}/>}
-    <div className="frame"><header className="topbar"><div className="topbar-left"><button className="menu-toggle" onClick={()=>setMobileMenu(!mobileMenu)} aria-label="打开导航">☰</button><span className="breadcrumb">个人工作空间</span><span className="slash">/</span><b>{menu.find(m=>m.href===navActive)?.label||'工作台'}</b></div><div className="topbar-right"><span className="topbar-sync"><span className="tiny-dot"/> 本地存储</span><InlineButton onClick={()=>getData()} title="重新加载数据">↻ 刷新</InlineButton></div></header>
+    <div className="frame"><header className="topbar"><div className="topbar-left"><button className="menu-toggle" onClick={()=>setMobileMenu(!mobileMenu)} aria-label="打开导航">☰</button><span className="breadcrumb">个人工作空间</span><span className="slash">/</span><b>{menu.find(m=>m.href===navActive)?.label||'工作台'}</b></div><div className="topbar-right"><span className="topbar-sync"><span className="tiny-dot"/> 本地存储</span><InlineButton onClick={()=>getData()} title="重新加载数据">↻ 刷新</InlineButton>
+ {status?.authenticatedRemote&&<InlineButton title="退出管理员会话" onClick={async()=>{
+  try{
+   const response=await fetch('/api/auth/logout',{method:'POST',credentials:'same-origin',
+    headers:{'content-type':'application/json'},body:'{}'});
+   if(response.ok)window.location.replace('/login');
+   else setNotice('退出失败，请重试');
+  }catch{setNotice('退出失败，请检查网络')}
+ }}>退出登录</InlineButton>}</div></header>
       <main className="content" role="main">{notice&&<div role="status" className="notice"><span>{notice}</span><button aria-label="关闭通知" onClick={()=>setNotice('')}>×</button></div>}
         {main==='home'&&<><SectionHead eyebrow="TODAY · OVERVIEW" title="今天，从一个好选题开始。" subtitle="聚合行业变化，找到你真正有经验、有证据可写的内容。" actions={<InlineButton kind="primary" onClick={()=>createProject()}>＋ 新建文章</InlineButton>}/>
           <div className="stats"><div><span>待选事件</span><b>{status?.stats?.events??'—'}</b><small>跨信源去重</small></div><div><span>创作项目</span><b>{projects.length}</b><small>主稿 + 双渠道</small></div><div><span>研究档案</span><b>{validations.length}</b><small>验证后再写</small></div><div><span>Brief 素材</span><b>{briefs.length}</b><small>保留来源快照</small></div></div>
