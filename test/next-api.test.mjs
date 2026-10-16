@@ -36,3 +36,22 @@ test('local aliases do not relax cross-port, cross-protocol or attacker origins'
  assert.equal((await get('/api/editor/projects',core)).status,200);
  assert.deepEqual((await (await get('/api/editor/projects',core)).json()).projects,[]);
 });
+
+
+test('V58 Next handler refuses simple form writes before mutating SQLite',async t=>{
+ const core=await setup(t);
+ const untrusted=await dispatchApi(new Request('http://localhost:4312/api/editor/projects',{
+  method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},
+  body:'title=csrf-example'
+ }),core);
+ assert.equal(untrusted.status,400);
+ const crossSiteRead=await dispatchApi(new Request('http://localhost:4312/api/editor/projects',{
+  headers:{'sec-fetch-site':'cross-site'}
+ }),core);
+ assert.equal(crossSiteRead.status,403);
+ const mismatch=await dispatchApi(new Request('http://localhost:4312/api/editor/projects',{
+  headers:{host:'localhost:5555'}
+ }),core);
+ assert.equal(mismatch.status,403);
+ assert.deepEqual((await (await get('/api/editor/projects',core)).json()).projects,[]);
+});

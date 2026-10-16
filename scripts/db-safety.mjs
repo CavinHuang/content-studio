@@ -75,6 +75,22 @@ async function digestFile(path){
 async function ensureAbsent(path){
  try{await lstat(path);stop('Destination already exists: refusing overwrite')}catch(e){if(e?.code!=='ENOENT')throw e}
 }
+// A temporary SQLite connection may create sidecars even for read-only checks.
+// Never publish a snapshot that still needs an external WAL to reconstruct data.
+async function removeSidecars(file){
+ for(const suffix of ['-wal','-shm']){
+  try{await unlink(file+suffix)}catch(e){if(e?.code!=='ENOENT')throw e}
+ }
+}
+function checkpointBackupSnapshot(file){
+ const database=new DatabaseSync(file);
+ try{
+  const checkpoint=database.prepare('PRAGMA wal_checkpoint(TRUNCATE)').get();
+  if(checkpoint&&Number(checkpoint.busy)>0)stop('Snapshot WAL checkpoint is blocked');
+  const mode=database.prepare('PRAGMA journal_mode=DELETE').get();
+  if(mode?.journal_mode!=='delete')stop('Backup snapshot could not leave WAL mode');
+ }finally{database.close()}
+}
 function snapshot(db){
  const check=db.prepare('PRAGMA integrity_check').all();
  if(check.length!==1||check[0].integrity_check!=='ok')stop('SQLite integrity_check failed: '+JSON.stringify(check).slice(0,160));
@@ -86,16 +102,23 @@ function snapshot(db){
   schemaSha256:sha(JSON.stringify(tables)),rowCountsSha256:sha(JSON.stringify(counts)),
   missingCoreTables:MINIMUM_TABLES.filter(t=>!counts.hasOwnProperty(t)),tables:counts};
 }
-export async function inspectDatabase(path,{includeTableNames=false}={}){
+export async function inspectDatabase(path,{includeTableNames=false,includeContentDigest=false}={}){
  const file=resolve(path);await regularFile(file);
  const db=new DatabaseSync(file,{readOnly:true});
  try{
-  const audit=snapshot(db);
-  const {tables,...safe}=audit;
-  return {file:basename(file),...safe,...(includeTableNames?{tables}:{}),readOnly:true};
+  // Keep schema, counts and (optional) every-row content hashes in one
+  // consistent read transaction even when the source uses WAL concurrently.
+  db.exec('BEGIN');
+  try{
+   const audit=snapshot(db);
+   const {tables,...safe}=audit;
+   const contentSha256=includeContentDigest?sha(JSON.stringify(businessFingerprints(db).data)):null;
+   return {file:basename(file),...safe,...(includeTableNames?{tables}:{}),
+    ...(includeContentDigest?{contentSha256}:{}),readOnly:true};
+  }finally{db.exec('ROLLBACK')}
  }finally{db.close()}
 }
-export async function verifyBackup(backupPath,{requireManifest=true}={}){
+export async function verifyBackup(backupPath,{requireManifest=true,includeContentDigest=false}={}){
  const input=resolve(backupPath);
  const info=await regularFile(input);
  const metaPath=input+'.manifest.json';
@@ -108,7 +131,7 @@ export async function verifyBackup(backupPath,{requireManifest=true}={}){
   if(info.size!==manifest.bytes)stop('Backup size does not match manifest');
   if(await digestFile(input)!==manifest.sha256)stop('Backup SHA256 mismatch');
  }
- const inspected=await inspectDatabase(input);
+ const inspected=await inspectDatabase(input,{includeContentDigest});
  if(manifest&&(inspected.schemaSha256!==manifest.schemaSha256||
     inspected.rowCountsSha256!==manifest.rowCountsSha256||
     inspected.rowCount!==manifest.rowCount))stop('Backup contents diverge from recorded schema and row-count checks');
@@ -130,6 +153,9 @@ export async function createBackup(sourcePath,{outputPath}={}){
   const db=new DatabaseSync(source,{readOnly:true});
   try{await sqliteBackup(db,temp)}finally{db.close()}
   await chmod(temp,0o600);
+  // The snapshot must be self-contained, not dependent on any temp WAL/SHM.
+  checkpointBackupSnapshot(temp);
+  await removeSidecars(temp);
   const inspection=await inspectDatabase(temp);
   const info=await stat(temp);
   const fingerprint=await digestFile(temp);
@@ -141,11 +167,21 @@ export async function createBackup(sourcePath,{outputPath}={}){
   await link(temp,dest);opened=true;
   await writeFile(dest+'.manifest.json',JSON.stringify(manifest,null,2)+'\n',{flag:'wx',mode:0o600});
   await verifyBackup(dest);
+  await removeSidecars(dest);
   return {operation:'backup',output:dest,manifest:dest+'.manifest.json',
    bytes:info.size,sha256:fingerprint,tables:inspection.tableCount,rows:inspection.rowCount,
    verified:true,sourceUntouched:true,walSafe:true,platformVerified:false};
- }catch(e){if(opened){await unlink(dest+'.manifest.json').catch(()=>{});await unlink(dest).catch(()=>{})}throw e}
- finally{await unlink(temp).catch(()=>{})}
+ }catch(e){
+  if(opened){
+   await unlink(dest+'.manifest.json').catch(()=>{});
+   await unlink(dest).catch(()=>{});
+   await removeSidecars(dest);
+  }
+  throw e;
+ }finally{
+  await unlink(temp).catch(()=>{});
+  await removeSidecars(temp);
+ }
 }
 export async function restoreBackup(backupPath,destinationPath){
  if(!backupPath||!destinationPath)stop('Restore requires explicit --from and --to');

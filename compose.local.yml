@@ -1,0 +1,73 @@
+# V72 LOCAL Linux only: host networking makes Next's hardcoded 127.0.0.1
+# bind reachable at 127.0.0.1:4312 on the Linux host, never via public ports.
+# Do not change to network bridge + ports without an authentication layer.
+services:
+  content-studio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: content-studio:local
+    network_mode: host
+    init: false # the image already uses tini
+    user: "10001:10001"
+    # V73: build output, Git checkout and dependencies are immutable at runtime.
+    # Never replace these tmpfs mounts with writable bind mounts to host source.
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=67108864,mode=1777
+      - /app/.next/cache:rw,nosuid,nodev,size=134217728,uid=10001,gid=10001,mode=0700
+      - /app/.next/server/route-cache:rw,nosuid,nodev,size=67108864,uid=10001,gid=10001,mode=0700
+    environment:
+      NODE_ENV: production
+      PORT: "4312"
+      HOST: "127.0.0.1"
+      CONTENT_STUDIO_DB_PATH: /app/data/content-studio.sqlite
+      CONTENT_STUDIO_ALLOW_REMOTE: "0"
+      ENABLE_SCENARIO: "0"
+    volumes:
+      - studio-data:/app/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    stop_grace_period: 20s
+    pids_limit: 256
+    restart: unless-stopped
+  backup-operator:
+    profiles: ["maintenance"]
+    image: content-studio:local
+    entrypoint: ["node", "scripts/container-recovery-v74.mjs"]
+    command: ["list"]
+    network_mode: none
+    user: "10001:10001"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=67108864,mode=1777
+    volumes:
+      - studio-data:/app/data:ro
+      - studio-backups:/app/backups
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+  restore-operator:
+    profiles: ["maintenance"]
+    image: content-studio:local
+    entrypoint: ["node", "scripts/container-recovery-v74.mjs"]
+    command: ["list"]
+    network_mode: none
+    user: "10001:10001"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=67108864,mode=1777
+    volumes:
+      - studio-backups:/app/backups:ro
+      - studio-restored:/app/restore
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+volumes:
+  studio-data:
+  studio-backups:
+  studio-restored:

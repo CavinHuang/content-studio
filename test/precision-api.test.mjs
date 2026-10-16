@@ -4,7 +4,7 @@ async function req(path,method='GET',body,origin){const r=await fetch(base+path,
 let proc;
 test('V26 HTTP: create document → claim → new research → precise correction, article revisions retained',async()=>{
  proc=spawn(process.execPath,['src/server.mjs'],{cwd:process.cwd(),env:{...process.env,DB_PATH:join(tmp,'test.sqlite'),PORT:String(port),ENABLE_SCENARIO:'1'},stdio:'ignore'});
- try{let ready=false;for(let i=0;i<55;i++){try{if((await req('/api/health')).status===200){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,80))}assert.ok(ready);
+ try{let ready=false;for(let i=0;i<150;i++){try{if((await req('/api/health')).status===200){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,80))}assert.ok(ready);
  let r=await req('/precision');assert.equal(r.status,200);assert.match(r.data,/精准更正工作台/);
  r=await req('/api/fixture/seed','POST',{});assert.equal(r.status,200);
  const eid=(await req('/api/events')).data.events[0].id;

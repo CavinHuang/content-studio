@@ -1,0 +1,59 @@
+# Dokploy HTTPS ingress: preserve Dokploy Domains for cert management, but
+# explicitly wire the Traefik websecure router as in opportunity-radar.
+# A higher router priority avoids ties with Dokploy-injected domain rules.
+# For a different hostname, update BOTH the Host rule and PUBLIC_ORIGIN.
+# Use Dokploy Isolated Deployments, HTTPS-only, one replica.
+# DO NOT publish ports: no "ports:", no host networking, no direct IP ingress.
+services:
+  content-studio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: content-studio:dokploy
+    expose:
+      - "4312"
+    user: "10001:10001"
+    read_only: true
+    init: false
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=67108864,mode=1777
+      - /app/.next/cache:rw,nosuid,nodev,size=134217728,uid=10001,gid=10001,mode=0700
+      - /app/.next/server/route-cache:rw,nosuid,nodev,size=67108864,uid=10001,gid=10001,mode=0700
+    environment:
+      NODE_ENV: production
+      PORT: "4312"
+      HOST: "0.0.0.0"
+      CONTENT_STUDIO_DEPLOY_MODE: dokploy
+      CONTENT_STUDIO_PUBLIC_ORIGIN: ${CONTENT_STUDIO_PUBLIC_ORIGIN:?set_exact_https_origin}
+      CONTENT_STUDIO_AUTH_PASSWORD_SCRYPT: ${CONTENT_STUDIO_AUTH_PASSWORD_SCRYPT:?set_scrypt_verifier}
+      CONTENT_STUDIO_AUTH_SESSION_KEY: ${CONTENT_STUDIO_AUTH_SESSION_KEY:?set_random_session_key}
+      CONTENT_STUDIO_DB_PATH: /app/data/content-studio.sqlite
+      CONTENT_STUDIO_ALLOW_REMOTE: "0"
+      ENABLE_SCENARIO: "0"
+      NEXT_TELEMETRY_DISABLED: "1"
+    networks:
+      - dokploy-network
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=dokploy-network
+      - traefik.http.routers.content-studio-explicit-https.rule=Host(`contentstudio-server-pz9yvy-9b3e1e-216-144-229-204.sslip.io`)
+      - traefik.http.routers.content-studio-explicit-https.entrypoints=websecure
+      - traefik.http.routers.content-studio-explicit-https.priority=100
+      - traefik.http.routers.content-studio-explicit-https.tls=true
+      - traefik.http.routers.content-studio-explicit-https.tls.certresolver=letsencrypt
+      - traefik.http.routers.content-studio-explicit-https.service=content-studio-explicit-backend
+      - traefik.http.services.content-studio-explicit-backend.loadbalancer.server.port=4312
+    volumes:
+      - studio-data:/app/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    stop_grace_period: 20s
+    restart: unless-stopped
+volumes:
+  studio-data:
+networks:
+  dokploy-network:
+    external: true

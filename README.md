@@ -1,8 +1,164 @@
-# Content Studio · Next.js + doocs/md（V53）
+# Content Studio · Next.js + doocs/md（V75）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V75 · Dokploy HTTPS + 单管理员登录认证（公网部署准备）
+
+- 新增 [compose.dokploy.yml](compose.dokploy.yml)，利用 Dokploy Domains UI 自动配置 Traefik/HTTPS，运行容器使用非 root、只读 rootfs、SQLite 持久卷，`expose` 内部端口但**不映射任何公网 ports**；本地版 [compose.local.yml](compose.local.yml) 不变。
+- 后端必须同时满足 `CONTENT_STUDIO_DEPLOY_MODE=dokploy`、严格 HTTPS `CONTENT_STUDIO_PUBLIC_ORIGIN`、scrypt 管理员密码验证器和随机签名密钥。缺任意密钥、错误 Host 或非 HTTPS 反代链直接拒绝启动/请求。
+- 新增 Next 16 `proxy.js` 页面入口防护与 API 内部二次鉴权；`/login`、`/api/auth/login`、`/api/auth/logout`、受限 8 小时 HttpOnly/Secure Cookie、单进程失败尝试限流与严格 Origin/JSON CSRF 防护。匿名健康状态不会泄露 build SHA 与运行 nonce。
+- 新增 [V75 Dokploy 部署说明](docs/V75-DOKPLOY-HTTPS-AUTH.md)，包括在本机通过 stdin 安全生成密码验证器、配置 HTTPS 域名与 Docker 网络、真实部署前的安全验收。CI 在合成凭证/数据下运行真实 Next.js 登录流程与 Docker 模拟代理回归；**不会实际部署**。
+
+## V74 · Docker WAL 在线备份与全新数据卷恢复
+
+- 新增脚本 `scripts/container-recovery-v74.mjs` 与 `backup-operator`、`restore-operator` 按需运维容器。复用 V45 SQLite 在线备份 API、SHA-256 manifest 与 SQLite 完整性校验，拒绝直接复制活跃 WAL 数据库。
+- 备份保存在独立 `studio-backups` 卷，**不挂载到业务进程**；恢复必须写入另一个 `studio-restored` 卷，不能覆盖 `/app/data`。维护容器使用非 root、只读根文件系统、禁用网络。
+- 保留策略先验证所有归档，默认 `prune --keep=N --apply=no` 只预览；显式 `--apply=yes` 才删除，且至少保留两份。未知归档、损坏或缺失 manifest 直接拒绝清理。
+- CI 真实运行在线 WAL 备份、受保护归档目录、离线恢复到新卷及新的 Next.js 实例，检查真实历史 BLOB。说明见 [V74 Docker 数据恢复](docs/V74-CONTAINER-WAL-RECOVERY.md)。
+
+## V73 · 只读 Docker 根文件系统与隔离的 Next 临时缓存
+
+- 在 [compose.local.yml](compose.local.yml) 中启用 `read_only: true`、`no-new-privileges`、全能力剥夺和有限 PID；Git checkout、生产依赖、构建文件不能再被运行进程直接修改。
+- 只有 SQLite 持久卷 `/app/data`、`/tmp`、Next `.next/cache` 与 `.next/server/route-cache` 使用限制容量的临时可写文件系统。临时缓存随容器停止/重建丢弃，SQLite 数据继续留在卷中。
+- Docker CI 真实启动只读镜像，验证源码、`.git` 与 `.next/BUILD_ID` 不可写，而临时缓存、页面/API 与数据库仍正常；实际重启后复核 V64 运行身份与 SQLite 持久数据。见 [V73 只读容器指南](docs/V73-IMMUTABLE-DOCKER-RUNTIME.md)。
+
+## V72 · 多阶段 Docker 镜像与本地容器运行
+
+- 新增 [Dockerfile](Dockerfile)、[.dockerignore](.dockerignore) 与 Linux 本地 [compose.local.yml](compose.local.yml)：Node 22.16、多阶段 npm ci、V63 Git 清洁检出、V64 构建封存、浅层 Git 来源、非 root UID 10001、持久 SQLite 卷与容器内健康探针。
+- 运行镜像不保留原始仓库完整 Git 历史/远程配置，仅留当前 SHA 的浅层 checkout。启动与容器 CI 再执行真实 V63/V64/V65 校验。
+- **安全边界**：应用当前无公网认证，只绑定 `127.0.0.1`。Linux 本地使用 host 网络，不以 Docker port mapping 开放公网。
+- CI 实际 Docker build/run，验证运行进程、精简 Git 状态、构建收据、volume 持久化和重启后数据一致性。详见 [V72 Docker 指南](docs/V72-LOCAL-DOCKER-CONTAINER.md)。
+
+## V71 · 真实主机一次性技术验收凭证
+
+- 新增 `npm run release:handoff:v71`：复用真实 V67 主机/进程/备份回滚技术验收，并将结论写入操作者自己的**仓库外私有目录**。收据为独占创建的 `0600` JSON 文件，绝不覆盖或自动上传。成功只记录允许公开的构建摘要、备份文件基名与五阶段状态，失败只写固定阻断代码。
+- 支持 `npm run release:handoff:v71 -- verify --sha=<40位SHA> --receipt=<绝对路径>`，在**不重新访问数据库、GitHub 或外部平台**的情况下验证收据结构及 SHA-256 内容摘要。SHA-256 是本地意外修改检测，**不是密码学签名、第三方独立证明或操作员上线批准**。
+- 禁止把收据写入 Git 工作区、使用开放权限目录、覆盖同名凭证或接受额外字段。默认忽略 `*.v71-receipt.json`。包含 11 项正反例 CI 测试，详细操作参见 [V71 本机验收凭证](docs/V71-PRIVATE-OPERATOR-RECEIPT.md)。
+
+## V70 · 真实不同 UID 的 Next.js 候选进程与 V67 串联验证
+
+- 新增构建后 smoke：GitHub Ubuntu 临时目录内创建源库和候选库，以 `nobody` **真实不同 POSIX UID** 运行完整 Next.js 候选服务 `candidate-start`，与操作者模拟账号隔离。
+- 完全复制当前已锁定且经过哈希保护的 Next 产物和运行依赖到测试账号拥有的临时工作区；通过真实 HTTP `/api/health` 观察 SQLite 连接身份、源码 SHA、BUILD_ID、依赖锁与动态 OS 读权限拒绝。
+- 使用真实 V64 回环进程探针、V66 主机文件系统预检、V68 身份核验、V69 源库 UID/权限检查执行 V67 **前后两轮**；同时验证健康接口 OS 证明丢失时备份步骤不得开始。
+- V70 将 V62 备份结果刻意替换为合成桩，V62 自身的真实 WAL 备份/隔离回滚仍由独立 CI 套件覆盖，因此本轮并不声称完成操作者真实主机的全链路备份验收。
+- 仅在 CI 使用独立账号、临时合成 SQLite 与动态端口；不会复制私有用户数据库或启动真实生产服务。详见 [V70 真实多 UID 候选联调](docs/V70-SEPARATE-UID-CANDIDATE-SMOKE.md)。
+
+## V69 · 分离 POSIX 系统用户的候选数据库访问权限
+
+- 新增 `npm run candidate:start:v69`：在独立、非 root POSIX 用户下启动候选服务，并在进程启动之前检查候选 SQLite 文件归当前用户且只有本人可读写、不能打开生产 SQLite 或任何现存 WAL/SHM 文件。**任何成功打开生产库的情况都会阻止候选服务启动**。
+- `/api/health` 对当前运行进程的真实权限在每次探测时重复检查，只提供 UID、匿名源路径标签和“源文件访问被拒绝”状态，不公开数据库路径或文章内容。
+- V67 在备份与回滚前后使用操作者读取的真实源库属主和 0600 权限核对候选运行 UID 与源路径，必须是不同 POSIX 用户且确认拒绝读取，才可以输出技术验收状态。
+- 现有 `npm start` 保持原功能，但不再满足 V67 所需的 OS 隔离证据。测试覆盖拒绝 root、错误权限、可读生产文件及 Linux 上 `sudo -u nobody` 的真实不同 UID 读权限验证。详见 [V69 候选服务 OS 隔离](docs/V69-CANDIDATE-OS-ISOLATION.md)。
+
+## V68 · 候选 SQLite 文件与生产数据库身份隔离
+
+- V67 操作员验收新增强制 `--candidate-db=绝对路径`，先通过真实文件设备号与 inode 检查候选库不是源库、硬链接别名、软链接或受保护备份目录里的文件，再开展远端候选进程探测和任何私有备份操作。
+- `/api/health` 使用**当前 SQLite 连接本身**的 `PRAGMA database_list` 读取打开的数据库文件信息，再用本次启动 nonce 生成不暴露路径的数据库身份摘要；V64 探针仅转发这个已校验的匿名身份值。
+- V67 在备份/回滚前后核对运行实例上报的数据库身份，与操作者选择的独立候选库相同，防止实际使用生产数据库或在演练过程中更换连接。单入口报告输出 `candidateDatabaseIsolated=true` 但仍不会签署发布批准。
+- 专项 11 项真实 SQLite/文件系统测试涵盖硬链接别名、软链接、相同内容不同文件、错误候选进程身份与 WAL 读写。详见 [V68 候选数据库隔离说明](docs/V68-CANDIDATE-DATABASE-ISOLATION.md)。
+
+## V67 · 单入口串联真实主机、独立进程与隔离回滚技术验收
+
+- `npm run release:review:v67` **先只读预检 V66 主机与人工托管清单，再验证已在本机隔离数据库上运行的候选 Next 进程，之后才调用 V62/V61 创建新 WAL 备份和故障回滚**。
+- 新备份演练完成后再次校验同一候选运行进程的 SHA、BUILD_ID、构建及依赖锁指纹、PID 与启动标记；再次检查主机清单与剩余磁盘空间，任何漂移或失败都不会输出技术验收成功。
+- 最终报告只有固定阶段状态、Git SHA、允许显示的构建摘要与备份文件名，全部上线/合并许可保持为 `false`。**不会替用户启动或替换生产服务；候选进程必须由受信操作者在独立 SQLite 文件上启动。**
+- 新增 12 项专项测试与实际临时文件系统的 V66 预检串联，用合成 fixture 验证没有跳过危险分支。使用手册见 [V67 主机一站式技术验收](docs/V67-COORDINATED-OPERATOR-REVIEW.md)。
+
+## V66 · 操作者主机与外部部署触发器清点
+
+- 新增 `npm run release:host:v66`：先检查锁定依赖、Git 提交与工作区，然后在不打开数据库内容、不创建备份、也不登录托管服务的前提下，检查真实主机的数据库文件、加密备份目录、演练暂存目录是否隔离、受限，以及剩余容量能否容纳备份和多份恢复副本。
+- 新增 `template` 模式生成**默认全为未审核**的私有托管触发器清点 JSON；人工确认 GitHub Actions、外部 Webhook/部署 Hook、main push 后果、自动部署暂停状态、磁盘加密与回滚负责人。任何未知、自动部署活跃或未审核项都拒绝给出技术准备通过结论。
+- 预检自动读取 GitHub Actions 工作流作静态计数与关键字提示，但明确不将其当成真实托管后台核验。结果不包含私人 DB 路径、内容、磁盘容量、账号或密钥；`reviewReady` 只代表**受信主机的预检与人工声明**，不代表实际批准、部署或托管系统已独立验证。
+- CI 使用合成文件和真实本地文件系统运行 12 项正反例，不触碰用户主机。详见 [V66 主机预检操作手册](docs/V66-OPERATOR-HOST-INVENTORY.md)。
+
+## V65 · 固定 npm 依赖图与生产构建来源
+
+- 提交由 Node.js 22.16.0 / npm 10.9.2 在 GitHub Actions 中生成的原生 npm v3 `package-lock.json`，固定 58 个依赖包的来源与 SRI。
+- CI 和真实主机统一使用 `npm ci --no-audit --no-fund`，不再用 `npm install --no-package-lock` 动态选择依赖；`npm run release:lock:v65` 负责额外的 manifest/锁文件内容与 HTTPS 来源验证。
+- V64 构建收据绑定 `dependencyLockSha256`，启动前、健康接口和本机进程探测都必须与当前依赖锁一致，传递依赖哈希修改即使不修改业务代码也会失败。
+- 增加 10 个依赖锁正反例、构建后篡改哈希以及真实进程集成覆盖。详细见 [V65 依赖锁与严格安装](docs/V65-LOCKED-DEPENDENCY-ADMISSION.md)。
+- 锁定依赖**不是**跨平台位级构建可复现承诺，也不是可信签名、漏洞审计或部署批准。
+
+## V64 · Next.js 构建文件与运行进程身份
+
+- `npm run build` 成功后写入绑定当前 Git SHA、BUILD_ID 以及 `.next` 非运行时缓存构建文件哈希的本地收据；新的构建尝试会使旧收据失效。
+- `npm start` 在创建 Next.js 生产进程前必须通过完整的构建指纹校验，否则拒绝运行。健康接口以 `runtimeBuild` 返回正在服务的进程**自报** Git SHA、构建摘要和一次性启动标记。
+- `npm run release:runtime:v64 -- --sha=<40位提交> --url=http://127.0.0.1:4312/` 只读比对当前本地收据与运行服务声明，同时再次执行 Git 工作区核验。不会登录外部平台，也不是可信镜像/二进制签名证明。
+- 专项合成测试与真实 Next.js 生产进程 smoke 已纳入 CI；详见 [V64 构建及运行身份核验](docs/V64-BUILD-AND-RUNTIME-PROVENANCE.md)。
+
+## V63 · 本地工作区与已验证 Git 提交强一致
+
+- 在 V61/V62 原有的 HEAD SHA 验证上，增加真实 Git 工作区完整性校验：要求操作员从项目根目录执行，已跟踪文件没有已暂存或未暂存修改，且无非忽略的未跟踪文件。
+- 拒绝 Git `assume-unchanged` 与 `skip-worktree` 隐藏改动，忽略可能劫持当前仓库状态的 `GIT_*` 环境变量；状态查询不会输出私有文件名或正文。
+- `npm run release:checkout:v63 -- --sha=<当前完整提交>` 可独立预检。V61/V62 的多次 HEAD 检查已自动升级为完整工作区检查，因此未提交的代码无法利用绿色 CI 冒充已审查构建。
+- `npm run test:checkout:v63` 在真实临时 Git 仓库中验证 10 种正常与负面场景。忽略的私有数据库仍不由 Git 检查，生产可执行文件完整性与外部部署审批也不会被自动认定通过。详见 [V63 工作区完整性说明](docs/V63-RELEASE-CHECKOUT-INTEGRITY.md)。
+
+## V62 · 自动准备无覆盖 WAL 快照与一键验收
+
+- 新增 `npm run release:prepare:v62`：先确认当前 SHA 的 GitHub CI 真实通过，再检查受保护的备份目录和对应 SHA 的人工审查声明。
+- 使用 node:sqlite WAL 安全备份创建**绝不覆盖的独立文件**，严格对比原库创建前后与备份的 schema、行数和全行历史正文及图片 BLOB 指纹。源库在备份期间变化、清单伪造或目录不安全，均拒绝把快照交给 V61。
+- 新备份通过后自动调用 V61 的完整核验与隔离故障回滚，并保留有效备份供操作者管理；不会合并、部署、发布、请求收费模型或把私有文件上传 GitHub。
+- CI 增加 `npm run test:prepare:v62` 的真实 SQLite 合成回归。详细操作见 [V62 快照准备与验收](docs/V62-PROTECTED-OPERATOR-BACKUP.md)。
+
+## V61 · 单命令发布前技术验收
+
+- 新增 `npm run release:acceptance:v61`：将 V59 GitHub 最新 HEAD/CI 审查、V55 私有主机本地 SQLite 与备份检查、V60 故障注入和独立回滚串成一个命令。
+- 真正读取本地库之前先检查同一 SHA 的 Push/PR CI；完成故障演练后再次检查本地 SHA 和 GitHub CI，避免把旧版证据当作当前发布证据。
+- 操作者自有受保护目录中暂存脱敏 V55 JSON，并在成功或失败时清理；私有文章、图片数据、路径与 token 不写入验收报告。
+- `reviewReady=true` 仅代表当前主机技术证据已收集，**绝不等于外部托管审查通过、允许合并、允许部署或正式发布**。
+- CI 增加 `npm run test:acceptance:v61`，使用真实 SQLite/WAL 合成数据和模拟 GitHub API，详见 [V61 验收说明](docs/V61-ONE-COMMAND-OPERATOR-ACCEPTANCE.md)。
+
+## V60 · 独立 SQLite 回滚演练与故障注入
+
+- 新增 `npm run release:rollback:v60`：在操作者指定的私有目录下，先校验 V55 操作者证据与当前 SHA、WAL 备份清单及原始历史内容，再对**隔离恢复副本**运行最新应用初始化并故意制造迁移异常；使用同一备份恢复**另一个新文件**，验证所有历史表、文章和图片 BLOB 指纹恢复一致，验证应用可重新打开。
+- 过程中不覆盖或写入原始数据库与备份；开始和结束均验证源/备份指纹；成功或失败均清理临时演练目录。文件删除不是安全擦除，必须使用受保护且有磁盘加密的暂存目录。
+- CI 只用真实 SQLite 文件中的合成文章与 PNG 运行 `npm run test:rollback:v60`，不能证明真实主机已经完成演练，更不能自动合并或部署。参见 [V60 回滚演练手册](docs/V60-SQLITE-ROLLBACK-DRILL.md)。
+
+## V59 · GitHub CI 与本地发布证据核验
+
+- 新增只读 GitHub API 核验：严格比较统一 Draft PR #26 的 HEAD、所在分支、既定 `main` 基线以及**同一提交**的 push/PR 两类 CI；同一事件较新的失败或未完成结果不能被旧成功结果覆盖。
+- 增加 `npm run release:remote:v59 -- --sha=<当前完整 SHA> --operator-evidence=<受保护的 V55 JSON 绝对路径>`，只有提供相同 SHA 的本地发布证据时才标记技术证据齐全。可不提供 JSON 查看远端检查，但退出码仍为非零。
+- 全过程只读，不调用模型、CDN 或发布平台；令牌仅发送固定 `api.github.com` 域名，所有路径与敏感内容不进入报告。
+- 此命令**无法独立检查外部托管平台、Webhooks、操作者身份或上线批准**。即使技术证据齐全，`mergeAuthorized`、`deployAuthorized`、`productionReady` 都保持 false；PR 必须保持 Draft。
+- `npm run test:release:v59` 为离线负面场景测试；详见 [V59 发布证据核验](docs/V59-REMOTE-RELEASE-EVIDENCE.md)。
+
+## V58 · 本地 API 入口安全边界
+
+- `src/local-api-boundary.mjs` 在加载默认 SQLite 之前验证 Host/URL 的回环地址、端口一致性、可信同端口 Origin 和浏览器 `Sec-Fetch-Site`，拒绝 DNS rebinding 型 Host、跨站脚本请求、无 Origin 的跨端口浏览器写入及导航式写入。
+- 所有携带正文的 POST/PUT/PATCH/DELETE 必须是 `application/json`（可带 UTF-8 charset）；表单和 text/plain 被拒绝；不带正文的本机操作兼容。
+- `npm run test:security:v58` 覆盖 Host、Origin、端口、协议、简单表单 CSRF 与真实 API 接入。离线 5 个独立单元测试已通过。此边界 **不是身份认证**，不得公网暴露，也不代表真实发布或部署授权。
+- 详见 [V58 本地 API 安全边界](docs/V58-LOCAL-API-BOUNDARY.md)。
+
+## V57 · 备份恢复后的真实生产启动验收
+
+- 在现有统一 Draft PR #26 新增 `npm run test:staging:v57`：从真实 WAL 安全备份恢复独立的旧版 SQLite，使用**生产构建的 Next.js 进程**和 `runtime-guard` 对恢复副本启动、读取历史文章与 PNG、执行 V52 新表迁移并重启。
+- 对比原始源库迁移前后的结构、行数和全部历史数据指纹，检查历史正文、图片二进制、渠道映射及备份均未被更改；伪造的备份清单必须在生产进程启动之前拒绝恢复。
+- CI 使用合成内容和随机本机端口。它证实真实生产二进制能在**恢复副本**运行，但不代表真实用户数据库、托管环境或第三方发布已通过。
+- 详见 [V57 恢复库生产启动验收](docs/V57-RESTORED-PRODUCTION-STAGING.md)。
+
+## V56 · 真实 SQLite 文件恢复与旧备份检测
+
+- 在同一个统一 Draft PR #26 新增 `npm run test:release:real-files:v56`：用磁盘上的真实 SQLite、开启 WAL 的文章数据、PNG 原始字节、映射历史、正式备份清单和真实恢复程序完成端到端验收，检查备份/恢复数据不丢失，报告不泄露文章内容。
+- 旧备份的准入除了结构一致，还需要**行数指纹和逐行内容指纹**都与当前源数据库匹配；增加文章、修改但不增加行数的历史文字或图片、伪造备份清单，均不得被认为已安全恢复。
+- 本轮 CI 数据仍是**合成测试文章**，不代表已在用户机器上检查真实私人数据库，更不代表已核实 GitHub 外部部署触发器。所有合并、发布授权保持关闭。
+- 详见 [V56 文件级恢复与备份新鲜度验收](docs/V56-REAL-FILE-RELEASE-ACCEPTANCE.md)。
+
+## V55 · 真实运行机器发布证据与脱敏报告
+
+- 保持 V49–V55 在同一个面向 `main` 的统一 Draft PR #26，不再叠加新的待合并分支。
+- 新增 `npm run release:evidence:v55 -- --db=... --backup=... --review=...`：只在真实运行机器上由操作者提供**明确的原数据库、备份路径和对应当前 Git SHA 的部署审查记录**后执行。工具复用 V45–V47 的 SQLite 完整性、备份清单、恢复副本升级和合成业务回归，并输出无文章内容、无密钥、无路径的 JSON 报告。
+- 检查备份和源数据库的结构摘要必须一致；审查文件缺失、提交 SHA 变化或数据检查未通过时拒绝认定证据齐全，且不会把人工声明冒充第三方自动部署验证。
+- `mergeAuthorized`、`deployAuthorized` 和 `productionReady` 始终为 false；CI 只测试合成数据。实际部署审批依旧需要操作者核对外部平台。
+- 操作指引：[V55 本地发布证据采集手册](docs/V55-OPERATOR-RELEASE-EVIDENCE.md)。
+
+## V54 · 合并前历史验证与统一集成候选
+
+- 已核对 V49–V53 五个 Draft PR 的准确提交与祖先链，提供统一的集成候选版本；不需要把五个 PR 分别 squash 或重做变基。
+- `npm run integration:preflight` 使用真实 Git 记录检查主分支是否漂移、已评审 PR 是否新增提交、备选 V37 是否误入，并汇总涉及构建、部署和 SQLite 的高风险文件。CI 额外执行 `npm run test:integration:v54`。
+- 即使技术门禁通过，`mergeAuthorized` 和 `deployAuthorized` 仍是 false：由于尚未获得仓库外部自动部署配置的审查证据，本轮**不会直接合并 main 或认定生产环境已验收**。
+- 操作指南与回退检查表：[V54 统一集成与发布准入](docs/V54-CONSOLIDATED-RELEASE-PLAN.md)。
 
 ## V53 · 作者授权的公网图片响应检查
 

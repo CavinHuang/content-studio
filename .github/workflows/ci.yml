@@ -17,11 +17,17 @@ jobs:
       - name: Set up Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '22.16.0'
       - name: Verify V30-V48 lineage before or after integration
         run: npm run verify:integration
+      - name: V54 consolidated merge ancestry and release-surface audit
+        run: npm run integration:preflight
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
+      - name: V65 strict npm lockfile schema integrity and negative regressions
+        run: npm run release:lock:v65 && npm run test:lock:v65
+      - name: Dokploy authentication configuration preflight (synthetic, before general tests)
+        run: npm run test:dokploy:v75
       - name: Domain & API tests
         run: npm test
       - name: V45 backup, restore and migration rehearsal
@@ -32,8 +38,38 @@ jobs:
         run: npm run test:integration
       - name: V48 merged mainline safety regressions
         run: npm run test:mainline
+      - name: V58 localhost API CSRF and Host/Origin ingress regressions
+        run: npm run test:security:v58
       - name: Syntax checks
         run: npm run check
+      - name: V54 consolidation admission negative regressions
+        run: npm run test:integration:v54
+      - name: V55 real-host release packet negative regressions (synthetic, no private data)
+        run: npm run test:release:v55
+      - name: V59 GitHub CI attestation and operator-packet fail-closed regressions (offline)
+        run: npm run test:release:v59
+      - name: V60 actual SQLite rollback and fault-injection acceptance on synthetic WAL data
+        run: npm run test:rollback:v60
+      - name: V61 chained operator technical acceptance (synthetic WAL, offline GitHub)
+        run: npm run test:acceptance:v61
+      - name: V62 protected WAL snapshot preparation and chained V61 acceptance (synthetic)
+        run: npm run test:prepare:v62
+      - name: V63 strict real-Git checkout provenance and hidden-index negative cases
+        run: npm run test:checkout:v63
+      - name: V64 build-file receipt tamper and runtime declaration unit regressions
+        run: npm run test:provenance:v64
+      - name: V66 read-only host inventory, deployment-hook declarations and free-disk regressions
+        run: npm run test:host:v66
+      - name: V67 coordinated operator review stages, SHA drift and fail-closed synthetic host tests
+        run: npm run test:review:v67
+      - name: V68 genuine SQLite connection and source/candidate hardlink isolation regressions
+        run: npm run test:isolation:v68
+      - name: V69 real Linux separated POSIX UID source database read-denial regressions
+        run: npm run test:os-boundary:v69
+      - name: V71 private once-only technical receipt and offline verification negative tests
+        run: npm run test:handoff:v71
+      - name: V56 genuine WAL SQLite and manifest-backed restored operator evidence (synthetic fixture)
+        run: npm run test:release:real-files:v56
       - name: V50 offline interop and prebundle security regressions
         run: npm run test:interop
       - name: V52 channel image mapping drift and history safety
@@ -44,8 +80,20 @@ jobs:
         run: npm run build:preflight
       - name: Build Next.js App Router
         run: npm run build
+      - name: V64 production Next.js process build SHA and digest loopback acceptance
+        run: npm run test:runtime:v64
+      - name: V70 real non-root Next.js candidate HTTP and V67 cross-UID host handoff (synthetic-only)
+        run: npm run test:candidate:real:v70
+      - name: V75 real authenticated Next.js HTTPS proxy and login lifecycle (synthetic)
+        run: npm run test:dokploy:real:v75
+      - name: V74 Docker WAL backup, manifest retention and fresh-volume restore
+        run: npm run test:docker:v72 && npm run test:container:recovery:v74 && npm run test:docker:hardening:v73 && bash smoke/docker-local-v72.sh && bash smoke/docker-recovery-v74.sh
+      - name: V75 real container authenticated remote mode and Dokploy Compose config smoke
+        run: bash smoke/docker-dokploy-v75.sh
       - name: V49 real production restart with durable SQLite (loopback only)
         run: npm run test:production
+      - name: V57 production Next.js boots from actual restored pre-V52 SQLite backup and restarts
+        run: npm run test:staging:v57
       - name: Install Chromium for browser E2E
         run: npx playwright install --with-deps chromium
       - name: Browser E2E (synthetic local content, no paid API)

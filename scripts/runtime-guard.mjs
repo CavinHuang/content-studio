@@ -6,6 +6,10 @@
  * This script never reads/displays provider keys or opens user SQLite data.
  */
 import {spawn} from 'node:child_process';
+import {randomBytes} from 'node:crypto';
+import {verifyBuildReceipt,getHeadSha} from './build-provenance-v64.mjs';
+import {auditCandidateOsBoundary,attestCandidateOsBoundary} from '../src/candidate-os-boundary-v69.mjs';
+import {diagnoseRemoteConfig} from '../src/remote-auth-v75.mjs';
 import {readFileSync,existsSync,lstatSync} from 'node:fs';
 import {resolve,dirname,basename} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -30,7 +34,19 @@ export function auditLocalRuntime({env=process.env,version=process.versions.node
  if(publicSecrets.length)warnings.push('review_NEXT_PUBLIC_secret_names_out_of_band');
  const port=hasValue(env.PORT)?Number(env.PORT):DEFAULT_PORT;
  if(!Number.isInteger(port)||port<1024||port>65535)problems.push('invalid_local_port');
- if(hasValue(env.HOST)&&!loopbackOnlyHosts.has(env.HOST.trim()))problems.push('nonloopback_host_override');
+ const remote=env.CONTENT_STUDIO_DEPLOY_MODE==='dokploy';
+ if(env.CONTENT_STUDIO_DEPLOY_MODE&&!remote)problems.push('unknown_deployment_mode');
+ if(remote){
+  const remoteErrors=diagnoseRemoteConfig(env);
+  if(remoteErrors.length){
+   problems.push('remote_https_auth_config_invalid');
+   // Fixed error codes only. Never log or serialize submitted credentials.
+   problems.push(...remoteErrors.map(problem=>'remote_'+problem));
+  }
+  if(env.HOST!=='0.0.0.0')problems.push('dokploy_container_bind_required');
+  if(env.NODE_ENV!=='production')problems.push('dokploy_requires_production_node');
+ }else if(hasValue(env.HOST)&&!loopbackOnlyHosts.has(env.HOST.trim()))
+  problems.push('nonloopback_host_override');
  if(hasValue(env.HOSTNAME)&&!loopbackOnlyHosts.has(env.HOSTNAME.trim()))warnings.push('HOSTNAME_ignored_by_strict_next_start');
  let databasePresent=false;
  if(!problems.includes('nonpersistent_database_forbidden')){
@@ -47,21 +63,56 @@ export function auditLocalRuntime({env=process.env,version=process.versions.node
   }
  }
  return {kind:'content-studio-v49-local-runtime-audit',ready:problems.length===0,problems,warnings,
-  nodeVersion:version,loopbackBind:'127.0.0.1',port:Number.isInteger(port)?port:null,
+  nodeVersion:version,loopbackBind:remote?'container-network-only':'127.0.0.1',port:Number.isInteger(port)?port:null,
   databasePresent,providerRequests:0,platformVerified:false,
   publicSecretsDetected:publicSecrets.length,privateValuesDisplayed:false,
-  productionReady:false,message:'Local single-user start only; do not expose on a public network without separate authentication and access controls.'};
+  productionReady:false,message:remote?'Authenticated Dokploy container mode: verify HTTPS ingress independently.':'Local single-user start only; do not expose on a public network without separate authentication and access controls.'};
 }
 export function assertLocalRuntime(options){
  const status=auditLocalRuntime(options);
  if(!status.ready)throw Object.assign(new Error('Unsafe local runtime configuration: '+status.problems.join(',')),{status:78});
  return status;
 }
-export async function startLocalRuntime({env=process.env,cwd=process.cwd(),spawnChild=spawn}={}){
+export async function startLocalRuntime({env=process.env,cwd=process.cwd(),spawnChild=spawn,
+ inspectBuild=dir=>verifyBuildReceipt({cwd:dir,expectedSha:getHeadSha(dir)}),
+ makeNonce=()=>randomBytes(16).toString('hex'),
+ candidateMode=false,auditOs=auditCandidateOsBoundary}={}){
  const audit=assertLocalRuntime({env,cwd});
+ const osBoundary=candidateMode?auditOs({
+  sourceDb:env.CONTENT_STUDIO_CANDIDATE_SOURCE_DB_PATH,
+  candidateDb:env.CONTENT_STUDIO_DB_PATH}):null;
+ if(candidateMode&&osBoundary?.sourceAccessDenied!==true)
+  throw Error('Candidate OS boundary must be proven before launch');
+ const build=inspectBuild(cwd);
+ const nonce=makeNonce();
+ if(!/^[a-f0-9]{40}$/.test(build?.candidateCommit||'')||
+  !/^[a-f0-9]{64}$/.test(build?.artifactDigestSha256||'')||
+  !/^[a-f0-9]{64}$/.test(build?.dependencyLockSha256||'')||
+  typeof build?.buildId!=='string'||!build.buildId||
+  !/^[a-f0-9]{32}$/.test(nonce))
+  throw Error('Verified Next production build identity is required');
+ const osProof=candidateMode?attestCandidateOsBoundary(osBoundary,{
+  sourceDb:env.CONTENT_STUDIO_CANDIDATE_SOURCE_DB_PATH,runNonce:nonce}):null;
  const bin=resolve(cwd,'node_modules/next/dist/bin/next');
- const argv=[bin,'start','-H','127.0.0.1','-p',String(audit.port)];
- const child=spawnChild(process.execPath,argv,{cwd,env:{...env,CONTENT_STUDIO_ALLOW_REMOTE:'0',ENABLE_SCENARIO:'0'},stdio:'inherit'});
+ // Only a successfully audited, fully authenticated Dokploy runtime may
+ // listen on the container interface. The local variant never changes.
+ const bind=env.CONTENT_STUDIO_DEPLOY_MODE==='dokploy'?'0.0.0.0':'127.0.0.1';
+ const argv=[bin,'start','-H',bind,'-p',String(audit.port)];
+ const childEnv={...env};
+ for(const key of Object.keys(childEnv))
+  if(key.startsWith('CONTENT_STUDIO_RUNTIME_OS_'))delete childEnv[key];
+ const child=spawnChild(process.execPath,argv,{cwd,env:{...childEnv,
+  CONTENT_STUDIO_ALLOW_REMOTE:'0',ENABLE_SCENARIO:'0',
+  ...(candidateMode?{
+   CONTENT_STUDIO_RUNTIME_OS_BOUNDARY:'1',
+   CONTENT_STUDIO_RUNTIME_OS_UID:String(osProof.processUid),
+   CONTENT_STUDIO_RUNTIME_OS_SOURCE_TAG:osProof.sourcePathTag
+  }:{}),
+  CONTENT_STUDIO_RUNTIME_COMMIT:build.candidateCommit,
+  CONTENT_STUDIO_RUNTIME_DIGEST:build.artifactDigestSha256,
+  CONTENT_STUDIO_RUNTIME_LOCK_DIGEST:build.dependencyLockSha256,
+  CONTENT_STUDIO_RUNTIME_BUILD_ID:build.buildId,
+  CONTENT_STUDIO_RUNTIME_NONCE:nonce},stdio:'inherit'});
  const forward=sig=>{if(!child.killed)child.kill(sig)};
  const onInt=()=>forward('SIGINT'),onTerm=()=>forward('SIGTERM');
  process.once('SIGINT',onInt);
@@ -81,8 +132,8 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  // otherwise an unsafe toggle hidden in .env.local could bypass the guard.
  (async()=>{
   const command=process.argv[2];
-  if(!['preflight','start'].includes(command)){
-   console.error('Usage: node scripts/runtime-guard.mjs preflight|start');
+  if(!['preflight','start','candidate-start'].includes(command)){
+   console.error('Usage: node scripts/runtime-guard.mjs preflight|start|candidate-start');
    process.exitCode=2;return;
   }
   // @next/env is CommonJS in Next 16: ESM import() may expose only default.
@@ -94,7 +145,7 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
    const result=auditLocalRuntime();
    console.log(JSON.stringify(result,null,2));
    if(!result.ready)process.exitCode=78;
-  }else process.exitCode=await startLocalRuntime();
+  }else process.exitCode=await startLocalRuntime({candidateMode:command==='candidate-start'});
  })().catch(error=>{
   console.error('Local runtime denied: '+String(error?.message||'unknown').slice(0,220));
   process.exitCode=78;

@@ -1,0 +1,37 @@
+# Never send private runtime content into Docker's build context.
+node_modules
+.next
+out
+coverage
+playwright-report
+test-results
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.sqlite.manifest.json
+*.release-evidence.json
+*.operator-review.json
+*.v71-receipt.json
+release-local
+data
+# V63 requires Git HEAD/index/objects in the BUILD stage. Drop local Git
+# credentials, hooks, reflogs and developer-local overrides from build context.
+.git/config
+.git/config.worktree
+.git/hooks
+.git/logs
+.git/refs/remotes
+.git/objects/info/alternates
+.git/credentials
+.git-credentials
+.npmrc
+**/.npmrc
+**/.env
+**/.env.*
+!**/.env.example
