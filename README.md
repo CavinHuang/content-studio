@@ -1,8 +1,15 @@
-# Content Studio · Next.js + doocs/md（V52）
+# Content Studio · Next.js + doocs/md（V53）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V53 · 作者授权的公网图片响应检查
+
+- 在 `/compose` 的图片映射区新增「检查公网图片响应」操作；必须先明确勾选同意，才会对**已存储的当前频道图片映射**进行至多 3 次有限 HTTPS 图片请求。打开页面不会自动联网检查图片。
+- 服务器限制公网 HTTPS 和公开 DNS，禁止私网/特殊地址、重定向、未经授权任意 URL 和超过请求数量上限；检查 DNS 后将实际连接固定到校验过的 IP，并保持 TLS 证书验证，防止 DNS 重绑定。
+- 只读取最多 32 KiB 和 PNG/JPEG/GIF/WebP 文件头；成功仅说明某次远程响应可识别图片，不代表完整下载、CDN 持续可用、版权清晰或微信/知乎验收通过。检查**不改变原来交付就绪状态**。
+- `npm run test:images:v53` 和普通 Chromium UI 测试覆盖连接安全及授权门禁。详见 [V53 公网图片检查说明](docs/V53-PUBLIC-IMAGE-PROBE.md)。
 
 ## V52 · doocs 真实图片预览、渠道 URL 变更提醒
 
