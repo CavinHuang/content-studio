@@ -36,6 +36,8 @@ jobs:
         run: npm run check
       - name: V50 offline interop and prebundle security regressions
         run: npm run test:interop
+      - name: V52 channel image mapping drift and history safety
+        run: npm run test:images:v52
       - name: V50 verify no browser-visible secrets before production bundling
         run: npm run build:preflight
       - name: Build Next.js App Router
@@ -56,7 +58,7 @@ jobs:
           done
           docker logs content-studio-v51-doocs
           exit 1
-      - name: V51 real doocs editor browser handoff
+      - name: V51–V52 real doocs text and image browser handoff
         run: npm run test:doocs:real
       - name: Stop doocs editor container
         if: always()

@@ -1,5 +1,6 @@
 /** Local-only image asset library. No public hosting and no automatic upload to WeChat/Zhihu. */
-import { createHash } from 'node:crypto';
+import { createHash,randomUUID } from 'node:crypto';
+import { markdownImageTokens } from './image-roundtrip-reconciliation.mjs';
 import { ValidationError } from './verification.mjs';
 
 const MAX_BYTES = 6 * 1024 * 1024;
@@ -32,6 +33,8 @@ export class AssetService {
  constructor(store){this.db=store.db;this.db.exec(`
  CREATE TABLE IF NOT EXISTS content_assets(id TEXT PRIMARY KEY,sha256 TEXT NOT NULL UNIQUE,mime TEXT NOT NULL,filename TEXT NOT NULL,alt TEXT NOT NULL,byte_count INTEGER NOT NULL,body BLOB NOT NULL,created_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS content_asset_mappings(asset_id TEXT NOT NULL REFERENCES content_assets(id),channel TEXT NOT NULL,url TEXT NOT NULL,note TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(asset_id,channel));
+ CREATE TABLE IF NOT EXISTS content_asset_mapping_history(id TEXT PRIMARY KEY,asset_id TEXT NOT NULL REFERENCES content_assets(id),channel TEXT NOT NULL,old_url TEXT NOT NULL,new_url TEXT NOT NULL,changed_at TEXT NOT NULL);
+ CREATE INDEX IF NOT EXISTS idx_asset_mapping_history_lookup ON content_asset_mapping_history(channel,old_url);
  `);}
  upload({name,alt,base64}={}) {
   if(typeof base64!=='string'||base64.length>MAX_BASE64||!/^[A-Za-z0-9+/]+={0,2}$/.test(base64)||base64.length%4!==0)reject('Invalid image base64 payload',400);
@@ -56,8 +59,50 @@ export class AssetService {
  setMapping(id,channel,{url,note}={}){
   this.get(id);if(!CHANNELS.has(channel))reject('Unsupported channel');
   const href=publicImageURL(url),reason=String(note||'').trim();if(reason.length<8||reason.length>400)reject('Include a brief manual upload/mapping record (8-400 characters)');
-  this.db.prepare('INSERT INTO content_asset_mappings VALUES(?,?,?,?,?) ON CONFLICT(asset_id,channel) DO UPDATE SET url=excluded.url,note=excluded.note,updated_at=excluded.updated_at').run(id,channel,href,reason,at());
+  const previous=this.db.prepare('SELECT url FROM content_asset_mappings WHERE asset_id=? AND channel=?').get(id,channel);
+  // History and current pointer must commit as one operation. Merely editing
+  // the mapping note does not create a false image URL change.
+  this.db.exec('BEGIN IMMEDIATE');
+  try{
+   const timestamp=at();
+   if(previous&&previous.url!==href){
+    this.db.prepare('INSERT INTO content_asset_mapping_history VALUES(?,?,?,?,?,?)').run(
+     'amh_'+randomUUID(),id,channel,previous.url,href,timestamp);
+   }
+   this.db.prepare('INSERT INTO content_asset_mappings VALUES(?,?,?,?,?) ON CONFLICT(asset_id,channel) DO UPDATE SET url=excluded.url,note=excluded.note,updated_at=excluded.updated_at').run(id,channel,href,reason,timestamp);
+   this.db.exec('COMMIT');
+  }catch(error){this.db.exec('ROLLBACK');throw error}
   return this.get(id);
+ }
+ /**
+  * Read-only audit of a saved channel Markdown document. No browser/image
+  * fetch, no assumption that a mapped URL is live or authorized on a platform.
+  */
+ auditChannelImages(channel,markdown){
+  if(!CHANNELS.has(channel))reject('Unsupported channel');
+  const tokens=markdownImageTokens(markdown);
+  const current=this.db.prepare('SELECT asset_id FROM content_asset_mappings WHERE channel=? AND url=? LIMIT 1');
+  const historic=this.db.prepare(`SELECT h.asset_id,m.url AS current_url
+   FROM content_asset_mapping_history h JOIN content_asset_mappings m
+    ON m.asset_id=h.asset_id AND m.channel=h.channel
+   WHERE h.channel=? AND h.old_url=? ORDER BY h.rowid DESC LIMIT 1`);
+  const references=tokens.map(({url,alt})=>{
+   const matching=current.get(channel,url);
+   if(matching)return {status:'current_mapping',assetId:matching.asset_id,url,altPresent:!!alt.trim()};
+   const outdated=historic.get(channel,url);
+   if(outdated&&outdated.current_url!==url)return {status:'stale_mapping',assetId:outdated.asset_id,
+    url,currentUrl:outdated.current_url,altPresent:!!alt.trim()};
+   if(url.startsWith('asset://'))return {status:'unresolved_asset_token',url,altPresent:!!alt.trim()};
+   return {status:'external_unverified',url,altPresent:!!alt.trim()};
+  });
+  const summary={total:references.length,current:references.filter(r=>r.status==='current_mapping').length,
+   stale:references.filter(r=>r.status==='stale_mapping').length,
+   unresolved:references.filter(r=>r.status==='unresolved_asset_token').length,
+   external:references.filter(r=>r.status==='external_unverified').length};
+  return {channel,summary,references,status:summary.stale||summary.unresolved?'needs_remapping':
+   summary.external?'needs_manual_review':'local_mapping_consistent',
+   networkCalls:0,platformVerified:false,cdnReachabilityVerified:false,
+   warning:'Local mapping history only. No remote image, CDN, rights, doocs paste or platform acceptance verification was performed.'};
  }
  /** Explicitly replaces only exact image asset tokens for a single target channel. */
  prepare(channel,markdown){

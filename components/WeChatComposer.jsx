@@ -15,6 +15,7 @@ export default function WeChatComposer(){
  const [audit,setAudit]=useState(null),[ackRisk,setAckRisk]=useState(false),[manualResult,setManualResult]=useState({});
  const [busy,setBusy]=useState(false),[notice,setNotice]=useState(''),[showEmbed,setShowEmbed]=useState(false),[allowCloud,setAllowCloud]=useState(false);
  const [doocsStatus,setDoocsStatus]=useState(null),[checkingDoocs,setCheckingDoocs]=useState(false);
+ const [imageAudit,setImageAudit]=useState(null),[checkingImageAudit,setCheckingImageAudit]=useState(false);
  const current=useMemo(()=>projects.find(p=>p.id===projectId),[projectId,projects]);
  const loadProjects=useCallback(async()=>{const data=await getJSON('/api/editor/projects');setProjects(data.projects||[]);return data.projects||[];},[]);
  useEffect(()=>{loadProjects().then(ps=>{const p=query.get('project');if(p&&ps.some(x=>x.id===p))setProjectId(p);else if(ps.length)setProjectId(ps[0].id);if(labels[query.get('channel')])setChannel(query.get('channel'));}).catch(e=>setNotice(e.message));},[loadProjects,query]);
@@ -31,6 +32,29 @@ export default function WeChatComposer(){
   :doocsStatus?.status==='blocked'?'排版器地址不符合本机安全检查'
   :doocsStatus?.status==='unavailable'?'尚未连接本机排版器，请检查服务是否已启动'
   :'正在检测本机排版器服务';
+ const imageAuditUrl=projectId?`/api/composer/projects/${projectId}/${channel}/image-audit`:null;
+ const checkImageMappings=async()=>{
+  if(!imageAuditUrl)return;
+  setCheckingImageAudit(true);
+  try{setImageAudit(await getJSON(imageAuditUrl))}
+  catch{setImageAudit({status:'unavailable',summary:{total:0}})}
+  finally{setCheckingImageAudit(false)}
+ };
+ useEffect(()=>{
+  if(!imageAuditUrl)return;
+  let active=true;setImageAudit(null);
+  getJSON(imageAuditUrl).then(report=>{if(active)setImageAudit(report)})
+   .catch(()=>{if(active)setImageAudit({status:'unavailable',summary:{total:0}})});
+  return()=>{active=false};
+ },[imageAuditUrl,layout?.layoutRevision]);
+ const mappedImages=imageAudit?.summary;
+ const imageAuditLabel=!mappedImages?'图片映射状态加载中':
+  imageAudit?.status==='unavailable'?'图片映射检查暂不可用，请重试':
+  mappedImages.stale>0?`发现 ${mappedImages.stale} 个旧图片 URL：当前映射已更改，请重新导出并审阅排版稿`:
+  mappedImages.unresolved>0?`有 ${mappedImages.unresolved} 个未替换的本地素材标记，需先登记渠道 URL`:
+  mappedImages.external>0?`包含 ${mappedImages.external} 个未登记在本地素材映射中的外部图片，需人工核对`:
+  mappedImages.current>0?`已匹配 ${mappedImages.current} 个本地图片映射；不代表实际图床或发布平台可用`:
+  '当前渠道排版稿没有 Markdown 图片';
  const auditCurrent=!!audit&&audit.previewMarkdown===importText;
  const compatibility=auditCurrent?audit.compatibility:null;
  const blockers=compatibility?.summary?.blockers||0;
@@ -75,6 +99,11 @@ export default function WeChatComposer(){
        {!isLocal&&<label className="compose-consent"><input type="checkbox" checked={allowCloud} onChange={e=>setAllowCloud(e.target.checked)}/>我已确认该排版器是可信的外部站点，同意手动传递文章内容（含潜在敏感信息）。</label>}
        <div className="compose-steps"><div><b>0</b><span>文章写好后，<Link href={`/illustrations?project=${encodeURIComponent(projectId)}`}>进入 Agent 自动配图</Link>，确认图片并为目标渠道映射公开地址</span></div><div><b>1</b><span>复制 / 导出当前渠道 Markdown</span></div><div><b>2</b><span>在 doocs/md 中粘贴、调整主题与图片</span></div><div><b>3</b><span>在排版器导出 .md，并导回 Content Studio 存档</span></div><div><b>4</b><span>完成事实、隐私、版权和平台粘贴实测</span></div></div>
        {configuredURL&&isLocal&&<><button className="compose-toggle" onClick={()=>setShowEmbed(v=>!v)}>{showEmbed?'收起嵌入视图':'展开本地排版器（独立文档）'}</button>{showEmbed&&<><p className="compose-note">嵌入仅用于使用排版器，不提供自动传稿或获取稿件权限。</p><iframe className="compose-iframe" title="自托管 doocs/md 排版器" src={configuredURL} referrerPolicy="no-referrer"/></>}</>}
+       {layout&&<div data-testid="v52-image-mapping-audit" className={imageAudit?.status==='needs_remapping'?'compose-danger':'compose-note'} role="status" style={{marginTop:12}}>
+         <span>图片映射 · {imageAuditLabel}</span>
+         <button type="button" className="btn secondary" disabled={checkingImageAudit} onClick={checkImageMappings} style={{marginLeft:12}}>{checkingImageAudit?'检查中…':'复查图片链接'}</button>
+         {mappedImages?.stale>0&&<p>本地映射历史提示已有图片地址变化。旧排版稿不会自动替换，请重新审阅并导回。</p>}
+       </div>}
        <div className="compose-excerpt"><div className="compose-excerpt-head"><strong>当前交接内容预览</strong><span>只读 · {layout?.markdown?.length||0} 字</span></div><pre>{layout?.markdown||'请选择一个已有项目'}</pre></div>
      </section>
      <aside className="compose-panel"><div className="compose-panel-title">03 · 保存排版修订</div><p className="compose-muted">doocs/md 不提供我们可依赖的双向同步接口。排版完成后，请导出 Markdown 或粘贴 Markdown 保存；上传操作不会自动修改旧正文的证据锚点。</p>
