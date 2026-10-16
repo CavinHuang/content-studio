@@ -4,23 +4,6 @@ on:
     branches: [main, 'feat/**']
   pull_request:
 jobs:
-  bootstrap-container-smoke:
-    # Temporary no-auth Dokploy image: prove it starts before checking ingress.
-    # Loopback only, synthetic data, no production env or provider secrets.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/v54-consolidated-integration-gate'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    timeout-minutes: 18
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22.16.0'
-      - name: Bootstrap static & API safety boundary regression
-        run: npm ci --no-audit --no-fund && node --test test/dokploy-bootstrap.test.mjs
-      - name: Bootstrap Next.js real Docker startup + health and anonymous UI
-        run: bash smoke/docker-dokploy-bootstrap.sh
   test-and-build:
     runs-on: ubuntu-latest
     permissions:
