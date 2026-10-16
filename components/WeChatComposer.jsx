@@ -14,10 +14,23 @@ export default function WeChatComposer(){
  const [layout,setLayout]=useState(null),[importText,setImportText]=useState('');
  const [audit,setAudit]=useState(null),[ackRisk,setAckRisk]=useState(false),[manualResult,setManualResult]=useState({});
  const [busy,setBusy]=useState(false),[notice,setNotice]=useState(''),[showEmbed,setShowEmbed]=useState(false),[allowCloud,setAllowCloud]=useState(false);
+ const [doocsStatus,setDoocsStatus]=useState(null),[checkingDoocs,setCheckingDoocs]=useState(false);
  const current=useMemo(()=>projects.find(p=>p.id===projectId),[projectId,projects]);
  const loadProjects=useCallback(async()=>{const data=await getJSON('/api/editor/projects');setProjects(data.projects||[]);return data.projects||[];},[]);
  useEffect(()=>{loadProjects().then(ps=>{const p=query.get('project');if(p&&ps.some(x=>x.id===p))setProjectId(p);else if(ps.length)setProjectId(ps[0].id);if(labels[query.get('channel')])setChannel(query.get('channel'));}).catch(e=>setNotice(e.message));},[loadProjects,query]);
  useEffect(()=>{if(!projectId)return;let ok=true;setLayout(null);setImportText('');setAudit(null);setAckRisk(false);getJSON(`/api/composer/projects/${projectId}/${channel}`).then(v=>{if(ok)setLayout(v)}).catch(e=>{if(ok)setNotice(e.message)});return()=>{ok=false}},[projectId,channel]);
+ const probeDoocs=useCallback(async()=>{
+  setCheckingDoocs(true);
+  try{setDoocsStatus(await getJSON('/api/integrations/doocs/preflight'))}
+  catch{setDoocsStatus({status:'unavailable',reason:'preflight_failed',platformVerified:false})}
+  finally{setCheckingDoocs(false)}
+ },[]);
+ useEffect(()=>{probeDoocs()},[probeDoocs]);
+ const doocsLabel=doocsStatus?.status==='reachable'
+  ?'本机排版器服务可连接（未核实 doocs 身份或实际排版效果）'
+  :doocsStatus?.status==='blocked'?'排版器地址不符合本机安全检查'
+  :doocsStatus?.status==='unavailable'?'尚未连接本机排版器，请检查服务是否已启动'
+  :'正在检测本机排版器服务';
  const auditCurrent=!!audit&&audit.previewMarkdown===importText;
  const compatibility=auditCurrent?audit.compatibility:null;
  const blockers=compatibility?.summary?.blockers||0;
@@ -57,6 +70,7 @@ export default function WeChatComposer(){
      <section className="compose-panel compose-main"><div className="compose-panel-title">02 · Agent 配图 → doocs/md 排版</div><p className="compose-note">写作后可先由 Agent 自动制定配图方案和生成图片。<Link href={`/illustrations?project=${encodeURIComponent(projectId)}`}>打开自动配图工作台 →</Link></p>
        <div className="compose-engine"><span className="compose-engine-logo">md</span><div><h2>doocs / md</h2><p>主题预览 · 数学公式 · 代码高亮 · 图片管理 · 微信复制</p></div><span className="compose-open-tag">开源工具</span></div>
        <div className="compose-actions"><button className="btn primary" disabled={!layout} onClick={copyMarkdown}>复制 Markdown</button><button className="btn secondary" disabled={!layout} onClick={downloadMarkdown}>下载 .md</button><button className="btn secondary" disabled={!canOpen} onClick={()=>window.open(editorUrl,'_blank','noopener,noreferrer')}>打开排版器 ↗</button></div>
+       <div className="compose-note" data-testid="v50-doocs-status" role="status"><span>{doocsLabel}</span><button type="button" className="btn secondary" disabled={checkingDoocs} onClick={probeDoocs} style={{marginLeft:12}}>{checkingDoocs?'检查中…':'重新检查连接'}</button></div>
        {!configuredURL&&<div className="compose-note">尚未配置自托管地址。默认目标为本机 <code>127.0.0.1:8800</code>。先启动 doocs/md 容器或 CLI，再点击「打开排版器」。</div>}
        {!isLocal&&<label className="compose-consent"><input type="checkbox" checked={allowCloud} onChange={e=>setAllowCloud(e.target.checked)}/>我已确认该排版器是可信的外部站点，同意手动传递文章内容（含潜在敏感信息）。</label>}
        <div className="compose-steps"><div><b>0</b><span>文章写好后，<Link href={`/illustrations?project=${encodeURIComponent(projectId)}`}>进入 Agent 自动配图</Link>，确认图片并为目标渠道映射公开地址</span></div><div><b>1</b><span>复制 / 导出当前渠道 Markdown</span></div><div><b>2</b><span>在 doocs/md 中粘贴、调整主题与图片</span></div><div><b>3</b><span>在排版器导出 .md，并导回 Content Studio 存档</span></div><div><b>4</b><span>完成事实、隐私、版权和平台粘贴实测</span></div></div>
