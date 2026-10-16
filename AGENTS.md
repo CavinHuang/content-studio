@@ -12,3 +12,5 @@
 - V49: operational `npm start` uses `scripts/runtime-guard.mjs` to deny unauthenticated remote access, public secret env names, demo seed and SQLite symlinks. Do not bypass this wrapper for production startup. After `npm run build`, execute `npm run test:production` for genuine process restart persistence.
 
 - V50: Keep `/api/integrations/doocs/preflight` restricted to loopback root-only GET with no article data, redirect following or remote URL. It reports reachability, NOT real doocs/editor/publishing verification. All production builds MUST invoke `scripts/build-guard.mjs` to reject secret-like NEXT_PUBLIC configuration before bundling.
+
+- V51: Real doocs/md compatibility smoke uses pinned Docker image `doocs/md:2.1.0`, two localhost services, and synthetic article fixture only. Never test against private user DB or automatically upload to cloud image beds. Keep actual platform/external export verification marked unverified.

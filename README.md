@@ -1,8 +1,15 @@
-# Content Studio · Next.js + doocs/md（V50）
+# Content Studio · Next.js + doocs/md（V51）
 
 聚合 AI 行业变化与创作者的一手实践，以证据为基础完成「发现 → Brief → 编辑 → 分渠道审核 → 本地交付 → 研究复盘」。
 
 **当前状态：Next.js App Router 迁移工程 / 单用户本地开发版。不可直接公网部署。**
+
+## V51 · 真正 doocs/md 实例浏览器交接
+
+- 在 CI 中运行固定版本的真实 `doocs/md:2.1.0` Docker 排版器，使用 Chromium 将本地 Content Studio 创建的**合成文章**从排版页复制到真正 doocs CodeMirror，并核实第三方编辑器的预览结果。不再局限于探测一个 HTTP HTML 首页。
+- `npm run test:doocs:real` 是独立验收命令，需要本机 doocs 容器和 Chromium；普通 `npm run test:e2e` 仍能离线独立运行。第三方页面向外部域名的浏览器请求在验收时会被拦截，防止合成草稿内容外流。
+- 此项通过代表**真实编辑器输入和 Markdown 预览可用**，不代表 doocs 导出文件无差异或真实公众号/知乎已接受内容；后两者仍须人工实测。
+- 详见 [V51 实际 doocs 容器与浏览器交接验收](docs/V51-REAL-DOOCS-ACCEPTANCE.md)。
 
 ## V50 · 本机排版器连通性与安全构建
 
