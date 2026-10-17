@@ -1,4 +1,5 @@
 node_modules/
+/data/
 .next/
 out/
 .env
@@ -27,3 +28,8 @@ out/
 
 # V71 protected host-generated technical handoff receipts are never committed.
 *.v71-receipt.json
+
+# Creator connection/account encryption keys and private migration key archives.
+*.services.key
+authors.key
+*.credentials-key

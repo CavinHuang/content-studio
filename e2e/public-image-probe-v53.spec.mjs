@@ -34,7 +34,7 @@ test('V53 author must opt in before a bounded external image check, and old resu
     cdnReachabilityVerified:false,reason:'partial_or_complete_image_header'}]
   })});
  });
- await page.goto('/compose?project='+p.id+'&channel=wechat');
+ await page.goto('/compose/handoff?project='+p.id+'&channel=wechat');
  const box=page.getByTestId('v52-image-mapping-audit');
  await expect(box).toContainText('已匹配 1 个本地图片映射');
  const button=page.getByTestId('v53-check-image-network');

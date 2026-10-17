@@ -36,7 +36,7 @@ function rowFingerprint(row){
 function rowsDigest(db,table){
  const meta=db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(table);
  if(!meta)stop('Missing table in upgrade rehearsal: '+table);
- const withoutRowid=/\\bWITHOUT\\s+ROWID\\b/i.test(meta.sql||'');
+ const withoutRowid=/\bWITHOUT\s+ROWID\b/i.test(meta.sql||'');
  let order='rowid';
  if(withoutRowid){
   const keys=db.prepare('PRAGMA table_info('+quoteIdentifier(table)+')').all()

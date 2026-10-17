@@ -1,2 +1,2 @@
-import StudioApp from '../components/StudioApp';
-export default function Home(){return <StudioApp/>}
+import CreatorHome from '../components/CreatorHome';
+export default function Home(){return <CreatorHome/>}

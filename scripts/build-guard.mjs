@@ -33,7 +33,9 @@ export function runSafeBuild({cwd=process.cwd(),env=process.env,runner=spawnSync
  // A failing or interrupted rebuild cannot inherit an older green receipt.
  try{invalidate(cwd)}catch{return {code:78,report}}
  const bin=resolve(cwd,'node_modules/next/dist/bin/next');
- const build=runner(process.execPath,[bin,'build'],{cwd,env,stdio:'inherit'});
+ // Webpack emits regular external imports for native image dependencies.
+ // Turbopack creates .next/node_modules symlinks which V64 correctly rejects.
+ const build=runner(process.execPath,[bin,'build','--webpack'],{cwd,env,stdio:'inherit'});
  const code=Number.isInteger(build.status)?build.status:1;
  if(code!==0)return {code,report};
  try{seal(cwd)}catch{return {code:78,report}}

@@ -14,7 +14,7 @@ const imageURL='https://cdn.example.org/v52-test-controlled-image.png';
 const changedImageURL='https://cdn.example.org/v52-test-replaced-image.png';
 const channel='wechat';
 
-test('V52 real doocs image preview and downloaded Markdown preserve mapped channel image without reporting publication',async({page,request,context})=>{
+test('V52 real doocs image preview and downloaded Markdown preserve mapped channel image without reporting publication',async({page,request,context,baseURL})=>{
  const marker='V52_REAL_DOOCS_IMAGE_'+Date.now();
  const created=await request.post('/api/editor/projects',{data:{
   title:'V52 图片与排版交接模拟 '+marker,
@@ -72,8 +72,8 @@ test('V52 real doocs image preview and downloaded Markdown preserve mapped chann
  expect(before.markdown).toBe(prepared.markdown);
 
  // Source the handoff from the browser's actual clipboard, like the V51 flow.
- await context.grantPermissions(['clipboard-read','clipboard-write'],{origin:'http://127.0.0.1:4312'});
- await page.goto('/compose?project='+project.id+'&channel='+channel);
+ await context.grantPermissions(['clipboard-read','clipboard-write'],{origin:new URL(baseURL).origin});
+ await page.goto('/compose/handoff?project='+project.id+'&channel='+channel);
  await page.getByRole('button',{name:'复制 Markdown'}).click();
  const copied=await page.evaluate(()=>navigator.clipboard.readText());
  expect(copied).toBe(prepared.markdown);

@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import {createHash} from 'node:crypto';
 import {ValidationError} from './verification.mjs';
 import {safeText} from './normalize.mjs';
 import {markdownFromDocument,validateHandoffMarkdown} from '../lib/wechat-handoff.mjs';
@@ -6,7 +7,7 @@ import {analyzeMarkdownRoundtrip} from '../lib/markdown-audit.mjs';
 import {compatibilityPreflight} from '../lib/markdown-compat.mjs';
 const fail=(message,status=400)=>{throw new ValidationError(message,status)};
 const now=()=>new Date().toISOString();
-const channels=['master','wechat','zhihu'];
+const channels=['master','wechat','zhihu','xiaohongshu'];
 const checks=['factual','privacy','rights','layout'];
 const parse=s=>JSON.parse(s);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -44,19 +45,22 @@ export class EditorialService{
  list(){return this.db.prepare('SELECT id FROM editorial_projects ORDER BY updated_at DESC').all().map(p=>this.get(p.id))}
  get(id){const p=this._project(id);const rows=this.db.prepare('SELECT * FROM editorial_channel_refs WHERE project_id=? ORDER BY CASE channel WHEN \'master\' THEN 0 WHEN \'wechat\' THEN 1 ELSE 2 END').all(id);const master=rows.find(r=>r.channel==='master'),masterDoc=this.precision.document(master.id);return{id:p.id,title:p.title,briefId:p.brief_id,cardId:p.card_id||'',createdAt:p.created_at,updatedAt:p.updated_at,channels:Object.fromEntries(rows.map(r=>{
   const doc=this.precision.document(r.id),claims=this.precision.claims(r.id),tasks=this.precision.tasks().filter(t=>t.referenceId===r.id);
-  return[r.channel,{referenceId:r.id,document:doc,checks:parse(r.checklist_json),status:r.status,statusLabel:r.status==='reported_published'&&r.exported_revision!==doc?.revision?'旧版作者报告已发表；当前稿未交付':statusName[r.status],reportedUrl:r.reported_url,sourceMasterRevision:r.source_master_revision,ackMasterRevision:r.ack_master_revision,masterRevision:masterDoc?.revision||0,masterOutdated:r.channel!=='master'&&(r.ack_master_revision<(masterDoc?.revision||0)),exportedRevision:r.exported_revision,publicationReports:this.db.prepare('SELECT exported_revision,reported_url,created_at FROM editorial_publication_reports WHERE reference_id=? ORDER BY rowid DESC').all(r.id),claims,tasks,openCorrections:tasks.filter(t=>['pending','proposed','planned'].includes(t.status)).length}];
+  return[r.channel,{referenceId:r.id,document:doc,checks:parse(r.checklist_json),status:r.status,statusLabel:r.status==='reported_published'&&(this.db.prepare('SELECT exported_revision FROM editorial_publication_reports WHERE reference_id=? ORDER BY rowid DESC LIMIT 1').get(r.id)?.exported_revision??r.exported_revision)!==doc?.revision?'旧版作者报告已发表；当前稿未交付':statusName[r.status],reportedUrl:r.reported_url,sourceMasterRevision:r.source_master_revision,ackMasterRevision:r.ack_master_revision,masterRevision:masterDoc?.revision||0,masterOutdated:r.channel!=='master'&&(r.ack_master_revision<(masterDoc?.revision||0)),exportedRevision:r.exported_revision,publicationReports:this.db.prepare('SELECT exported_revision,reported_url,created_at FROM editorial_publication_reports WHERE reference_id=? ORDER BY rowid DESC').all(r.id),claims,tasks,openCorrections:tasks.filter(t=>['pending','proposed','planned'].includes(t.status)).length}];
  }))};}
- create({title,briefId='',paragraphs}={}){
+ create({title,briefId='',paragraphs,idempotencyKey}={}){
  const titleText=titleField(title),blocks=validateBlocks(paragraphs||[{text:'请用自己的实践、观察和可靠来源逐段写作，未经核实的结论不可直接发表。'}]);
  if(briefId&&(!/^br_[a-f0-9]{24}$/.test(briefId)||!this.store.brief(briefId)))fail('Brief not found',404);
- const id='ep_'+randomUUID(),at=now();
+ if(idempotencyKey!==undefined&&(typeof idempotencyKey!=='string'||idempotencyKey.length>240))fail('Invalid project key');
+ const id='ep_'+(idempotencyKey?createHash('sha256').update(idempotencyKey).digest('hex').slice(0,32):randomUUID()),at=now();
+ if(idempotencyKey&&this.db.prepare('SELECT id FROM editorial_projects WHERE id=?').get(id))return this.get(id);
  this.db.exec('BEGIN IMMEDIATE');try{
   this.db.prepare('INSERT INTO editorial_projects VALUES(?,?,?,?,?,?)').run(id,briefId,titleText,'',at,at);
-  for(const ch of channels){const ref='cr_'+randomUUID();this.db.prepare('INSERT INTO editorial_channel_refs VALUES(?,?,?,?,?,?,?,?,?,?)').run(ref,id,ch,'draft','',1,1,JSON.stringify({factual:false,privacy:false,rights:false,layout:false}),0,at);this.precision._insertDocumentRevision(ref,0,blocks.map(x=>({...x})));}
+  for(const ch of channels.filter(c=>c!=='xiaohongshu')){const ref='cr_'+randomUUID();this.db.prepare('INSERT INTO editorial_channel_refs VALUES(?,?,?,?,?,?,?,?,?,?)').run(ref,id,ch,'draft','',1,1,JSON.stringify({factual:false,privacy:false,rights:false,layout:false}),0,at);this.precision._insertDocumentRevision(ref,0,blocks.map(x=>({...x})));}
   this.db.exec('COMMIT');
  }catch(e){this.db.exec('ROLLBACK');throw e}
  return this.get(id);
  }
+ ensureChannel(id,channel){this._project(id);if(channel!=='xiaohongshu')return this._channel(id,channel);const existing=this.db.prepare('SELECT * FROM editorial_channel_refs WHERE project_id=? AND channel=?').get(id,channel);if(existing)return existing;this.db.exec('BEGIN IMMEDIATE');try{const ref='cr_'+randomUUID(),at=now();this.db.prepare('INSERT INTO editorial_channel_refs VALUES(?,?,?,?,?,?,?,?,?,?)').run(ref,id,channel,'draft','',0,0,JSON.stringify({factual:false,privacy:false,rights:false,layout:false}),0,at);this.precision._insertDocumentRevision(ref,0,[],{markdownWrite:true});this.db.prepare('INSERT INTO article_markdown_revisions VALUES(?,1,\'\',\'forest\',?)').run(ref,at);this.db.exec('COMMIT')}catch(e){this.db.exec('ROLLBACK');throw e}return this._channel(id,channel)}
  save(id,channel,{expectedRevision,paragraphs}={}){const ref=this._channel(id,channel);const normalized=validateBlocks(paragraphs);const actual=this.precision.document(ref.id)?.revision||0;if(!Number.isInteger(expectedRevision)||expectedRevision!==actual)fail('Document revision conflict: reload',409);
  // Revision, check reset, and status update share a transaction.
  this.db.exec('BEGIN IMMEDIATE');try{
@@ -82,7 +86,11 @@ export class EditorialService{
  }
  attachKnowledge(id,{cardId}={}){const project=this._project(id);if(project.card_id)fail('A knowledge card is already linked; create a new project for a different study',409);const card=this.knowledge.get(cardId);if(project.brief_id){const brief=this.store.brief(project.brief_id);if(brief?.verification?.caseId!==card.caseId)fail('Knowledge card does not belong to this Brief research case',409)}
  this.db.exec('BEGIN IMMEDIATE');try{this.db.prepare('UPDATE editorial_projects SET card_id=?,updated_at=? WHERE id=?').run(cardId,now(),id);this.db.prepare("UPDATE editorial_channel_refs SET checklist_json=? WHERE project_id=?").run(JSON.stringify({factual:false,privacy:false,rights:false,layout:false}),id);this.db.exec('COMMIT')}catch(e){this.db.exec('ROLLBACK');throw e}return this.get(id)}
- /** External doocs/md edits return via explicit Markdown import, never iframe automation. */
+ _markdown(referenceId,revision){
+  if(!this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='article_markdown_revisions'").get())return null;
+  return this.db.prepare('SELECT markdown FROM article_markdown_revisions WHERE reference_id=? AND revision=?').get(referenceId,revision);
+ }
+ /** Legacy handoff stays readable; integrated Markdown is the current source. */
  layoutDraft(id,channel){
   const ref=this._channel(id,channel), doc=this.precision.document(ref.id);
   const saved=this.db.prepare('SELECT * FROM editorial_layout_drafts WHERE reference_id=?').get(ref.id);
@@ -91,7 +99,7 @@ export class EditorialService{
    layoutRevision:saved?.revision||0,savedSourceRevision:saved?.source_document_revision||0,
    lastImportReview:savedReview?parse(savedReview.review_json):null,
    isSourceOutdated:!!saved&&saved.source_document_revision!==doc.revision,
-   markdown:saved?.markdown??markdownFromDocument(this._project(id).title,doc.paragraphs),
+   markdown:this._markdown(ref.id,doc.revision)?.markdown??saved?.markdown??markdownFromDocument(this._project(id).title,doc.paragraphs),
    updatedAt:saved?.updated_at||null,source:'standalone-doocs-md',automaticallySynchronized:false,
    note:'微信排版在外部工具内完成；保存 Markdown 不代表微信后台已发表，也不代表证据重新核实。'};
  }
@@ -107,6 +115,7 @@ export class EditorialService{
  saveLayoutDraft(id,channel,{expectedLayoutRevision,expectedDocumentRevision,markdown,reviewToken,acknowledgeDrift=false}={}){
   if(channel==='master')fail('Typesetting handoff belongs to publishing channels');
   const ref=this._channel(id,channel),doc=this.precision.document(ref.id);
+  if(this._markdown(ref.id,doc.revision))fail('This document uses integrated Markdown; save in the writing workspace',409);
   const prev=this.db.prepare('SELECT revision FROM editorial_layout_drafts WHERE reference_id=?').get(ref.id);
   if(!Number.isInteger(expectedLayoutRevision)||expectedLayoutRevision!==(prev?.revision||0))fail('Layout draft revision conflict: reload',409);
   if(!Number.isInteger(expectedDocumentRevision)||expectedDocumentRevision!==doc.revision)fail('Source document changed: review before importing',409);
@@ -129,13 +138,14 @@ export class EditorialService{
  layoutCompatibility(id,channel){const draft=this.layoutDraft(id,channel);return {...compatibilityPreflight(draft.markdown,channel),projectId:id,layoutRevision:draft.layoutRevision,sourceDocumentRevision:draft.sourceDocumentRevision,isSourceOutdated:draft.isSourceOutdated};}
  layoutHistory(id,channel){const ref=this._channel(id,channel);return this.db.prepare('SELECT h.revision,h.source_document_revision,h.created_at,r.review_json FROM editorial_layout_history h LEFT JOIN editorial_layout_review_history r ON r.reference_id=h.reference_id AND r.revision=h.revision WHERE h.reference_id=? ORDER BY h.revision DESC').all(ref.id).map(({review_json,...row})=>({...row,importReview:review_json?parse(review_json):null}));}
  _canExport(id,channel){if(channel==='master')fail('Master draft is not a publishing destination');const r=this._channel(id,channel),doc=this.precision.document(r.id),c=parse(r.checklist_json),claims=this.precision.claims(r.id),tasks=this.precision.tasks().filter(t=>t.referenceId===r.id);const problems=[];
- if(this.db.prepare('SELECT revision FROM editorial_layout_drafts WHERE reference_id=?').get(r.id))problems.push('此渠道已进入 doocs/md 排版流程，旧纯文本 HTML 导出已禁用；请在排版器复制排版成品并到真实平台核查');
+ if(!this._markdown(r.id,doc.revision)&&this.db.prepare('SELECT revision FROM editorial_layout_drafts WHERE reference_id=?').get(r.id))problems.push('此渠道已进入 doocs/md 排版流程，旧纯文本 HTML 导出已禁用；请在排版器复制排版成品并到真实平台核查');
  for(const k of checks)if(!c[k])problems.push(`人工核查未完成: ${k}`);
  if(r.ack_master_revision<this.precision.document(this._channel(id,'master').id).revision)problems.push('主稿更新后尚未明确复核渠道稿');
  for(const claim of claims)if(claim.anchorStatus!=='matched'||claim.needsResearchReview)problems.push('存在已变化或过时的段落证据锚点');
  if(tasks.some(t=>['pending','proposed','planned'].includes(t.status)))problems.push('存在未解决的精准更正任务');
  if(!doc?.paragraphs?.length)problems.push('没有可导出的正文');return{problems,doc};}
  exportChannel(id,channel,{expectedRevision}={}){const r=this._channel(id,channel),{problems,doc}=this._canExport(id,channel);if(doc.revision!==expectedRevision)fail('Revision changed; reload before export',409);if(problems.length)fail('Export blocked: '+problems.join('; '),409);
+ if(this._markdown(r.id,doc.revision))fail('Use the writing workspace to export the current Markdown content',409);
  const project=this._project(id),plain=doc.paragraphs.map(p=>p.text).join('\n\n'),html=`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>${esc(project.title)}</title></head><body><article><h1>${esc(project.title)}</h1>${doc.paragraphs.map(p=>`<p>${esc(p.text)}</p>`).join('')}</article></body></html>`;
  this.db.exec('BEGIN IMMEDIATE');try{this.db.prepare('INSERT INTO editorial_exports VALUES(?,?,?,?,?,?)').run('ex_'+randomUUID(),r.id,doc.revision,plain,html,now());this.db.prepare("UPDATE editorial_channel_refs SET status='exported',reported_url='',exported_revision=?,updated_at=? WHERE id=?").run(doc.revision,now(),r.id);this.db.exec('COMMIT')}catch(e){this.db.exec('ROLLBACK');throw e}
  return{referenceId:r.id,channel,revision:doc.revision,filename:`content-studio-${channel}-v${doc.revision}`,html,text:plain,status:'exported',publicationVerified:false,scope:'Local export, not platform publishing'};

@@ -82,6 +82,10 @@ export function validateRemoteApiRequest(request,env=runtimeEnv){
  // Avoid relying on Next's potentially rewritten X-Forwarded-* for probes.
  if(health)return {remoteAuthenticated:false,health:true,internalHealth:false};
  const transport=validateRemoteTransport(request,env);
+ if(env.CONTENT_STUDIO_MULTIUSER==='1'){
+  if(['POST','PUT','PATCH','DELETE'].includes(request.method.toUpperCase()))validateRemoteWrite(request,env);
+  return {remoteAuthenticated:false,authorSessionRequired:true,health,internalHealth:transport.internalHealth};
+ }
  if(!hasSession(request.headers,env))
   throw Object.assign(new Error('Authentication required'),{status:401});
  if(['POST','PUT','PATCH','DELETE'].includes(request.method.toUpperCase()))
