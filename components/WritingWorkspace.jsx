@@ -11,6 +11,7 @@ import { consumeGeneration } from "../lib/writing-stream-client";
 import WritingContext from "./WritingContext";
 import WritingMasterReview from "./WritingMasterReview";
 import WritingModelContext from "./WritingModelContext";
+import AgentRuns from "./AgentRuns";
 
 const Editor = dynamic(() => import("./DoocsEditor"), {
   ssr: false,
@@ -1378,6 +1379,12 @@ export default function WritingWorkspace() {
                           修改正文
                         </button>
                       </div>
+                      <AgentRuns
+                        projectId={projectId}
+                        channel={channel}
+                        revision={doc.revision}
+                        onNotice={setNotice}
+                      />
                       <div className="writing-context-summary">
                         本次上下文：当前{labels[channel]}
                         {selection?.text ? "与选中文字" : ""}
