@@ -230,3 +230,5 @@ Windows 本机（Node 24.1.0）本轮仅复核 `npm run check` 通过；未在�
 本轮遗留跟踪项（最终审查分诊为不阻塞合并，维持跟踪）：轨迹 payload 有界但模型回传副本仍受 4000/60000 截断上限约束（设计如此）；write_revision 的 note 在"同 markdown 重复保存"时不落盘（不可变修订 no-op 语义）；模型失败重试消耗步数预算（有界）；上游 5xx 文本记 failed 与图片记 unknown 的口径差异；事件流轮询效率（O(n²) 步骤重解析）；V74 两项与真实 Docker 烟测仍属 CI 职责。
 
 **提交后认证（2026-10-17，提交 640aa46 / 6b54fa7 / a6b7c70）**：完整套件在 fonts-noto-cjk + git 的 node:22-slim 容器实测 **551 项 = 546 通过 / 2 失败 / 3 跳过**——2 个失败为既有 V74 用例（要求无特权 Linux 容器，root 容器下按自身守卫拒绝，与上文分类一致），3 个跳过为 V69 非 root 守卫；含全部 v45–v75 备份/恢复/发布门禁套件，`note` 加性列在这些套件下行为一致。提交内容与本节及上节验证的工作区内容一致；`npm run build`（EXIT=0，含 V64/V65 封存）与 e2e（1 passed）为同一内容的此前实测。
+
+**V74 无特权容器闭环与收尾批（2026-10-17）**：V74 两项在非 root 用户（uid 1000）容器实测 **11/11 通过**——证实此前 root 容器下的 2 个失败纯属用户环境守卫，与上文分类一致，无需等待 CI 闭环。收尾批实现：①`AgentRuns` 面板接写模式切换（PUT `/api/creator/agent` 仅传 writeMode、失败回滚、运行中禁用；执行器每次工具调用重读 profile，运行中翻转仍 fail-closed）；②事件流轮询改 `runSince(projectId,runId,afterSeq)` 增量游标（`run()` 不变，既有事件路由语义逐项等价）。验证：runtime 18/18（新增 runSince 分区测试）、build EXIT=0、e2e 1 passed。均未推送/合并/部署。

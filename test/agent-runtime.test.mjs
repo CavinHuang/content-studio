@@ -341,3 +341,39 @@ test('a run started through the dispatchApi route bills text usage in the produc
  assert.ok(usage.today.some(r=>r.kind==='text'&&r.requests>=2),'两次模型调用应计入当日 text 用量');
  assert.equal(core.writing.suggestions(id,'master').length,1);
 });
+
+test('runSince 增量返回游标之后的步骤并保留终态运行字段',async t=>{
+ provider(t);const env=setup(t),core=env.core;
+ const doc=core.writing.create({title:'游标增量'}),id=doc.projectId;
+ const saved=core.writing.save(id,'master',{expectedRevision:doc.revision,markdown:'游标增量正文。'});
+ let phase=0;
+ const fetchImpl=async()=>{
+  if(phase===0){phase=1;return new Response(JSON.stringify({choices:[{finish_reason:'tool_calls',message:{role:'assistant',content:null,tool_calls:[{id:'c1',type:'function',function:{name:'read_document',arguments:'{}'}}]}}]}),{headers:{'content-type':'application/json'}})}
+  if(phase===1){phase=2;return new Response(JSON.stringify({choices:[{finish_reason:'tool_calls',message:{role:'assistant',content:null,tool_calls:[{id:'c2',type:'function',function:{name:'write_suggestions',arguments:JSON.stringify({reason:'游标润色',edits:[{from:0,to:6,original:'游标增量正文',replacement:'游标润色后的正文'}]})}}]}}]}),{headers:{'content-type':'application/json'}})}
+  return final()};
+ const run=await core.agent.startRun(id,'master',{skillId:'selection-rewriter',instruction:'游标',expectedRevision:saved.revision,allowExternalAI:true,fetchImpl});
+ await core.agent.runSettled(run.id);
+ const done=core.agent.run(id,run.id),total=done.steps.length;
+ assert.equal(done.status,'completed');
+ const full=core.agent.runSince(id,run.id,0);
+ assert.equal(full.steps.length,total);
+ assert.deepEqual(full.steps.map(s=>s.seq),Array.from({length:total},(_,i)=>i+1));
+ assert.equal(full.status,'completed');
+ assert.ok(full.stopReason);
+ // 默认游标 0 与显式 0 一致
+ assert.equal(core.agent.runSince(id,run.id).steps.length,total);
+ // 追赶后游标处不再有步骤，但终态字段仍返回
+ const tail=core.agent.runSince(id,run.id,total);
+ assert.equal(tail.steps.length,0);
+ assert.equal(tail.status,'completed');
+ assert.ok(tail.stopReason);
+ // 中间游标切分：afterSeq=1 返回 total-1 条，且从 seq=2 连续开始
+ const mid=core.agent.runSince(id,run.id,1);
+ assert.equal(mid.steps.length,total-1);
+ assert.equal(mid.steps[0].seq,2);
+ // 游标分区无缝还原全量：已消费（seq<=cursor）+ runSince(cursor) = 全部步骤
+ const cursor=2;
+ const stitched=[...core.agent.runSince(id,run.id,0).steps.filter(s=>s.seq<=cursor),...core.agent.runSince(id,run.id,cursor).steps];
+ assert.deepEqual(stitched.map(s=>s.seq),Array.from({length:total},(_,i)=>i+1));
+ assert.throws(()=>core.agent.runSince(id,'ar_missing'),e=>e.status===404);
+});

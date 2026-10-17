@@ -25,11 +25,18 @@ export default function AgentRuns({projectId,channel,revision,onNotice}){
   }catch(e){if(mountedRef.current)onNotice('运行事件流中断，请刷新查看进度：'+e.message)}
  }
  async function cancel(){try{const {run}=await api(`/api/creator/projects/${projectId}/agent-runs/${run.id}/cancel`,'POST',{});setRun(run)}catch(e){onNotice(e.message)}}
+ async function setWriteMode(mode){
+  if(!profile||mode===profile.writeMode)return;
+  const before=profile;setProfile({...before,writeMode:mode});
+  try{setProfile((await api('/api/creator/agent','PUT',{writeMode:mode})).profile);onNotice('写模式已更新：'+mode)}
+  catch(e){setProfile(before);onNotice(e.message)}
+ }
  const skill=skills.find(s=>s.id===skillId),tools=skill&&profile?skill.tools.filter(t=>profile.tools.includes(t)):[];
  return <section className="writing-agent-panel" aria-label="agent 任务运行">
   <p>选择内置技能，由 agent 在授权范围内多步完成写作任务；每一步都记录在运行轨迹中。</p>
   <label>技能<select aria-label="agent 技能" value={skillId} onChange={e=>setSkillId(e.target.value)} disabled={busy||run?.status==='running'}>{skills.map(s=><option value={s.id} key={s.id}>{s.title}（v{s.version}）</option>)}</select></label>
-  {skill&&<small>将加载工具：{tools.join('、')||'（无可用工具）'}</small>}
+  {profile&&<label>写模式<select aria-label="agent 写模式" value={profile.writeMode} onChange={e=>setWriteMode(e.target.value)} disabled={busy||run?.status==='running'}><option value="suggestions">建议制，逐项审阅</option><option value="revisions">授权直写新修订</option></select></label>}
+  {skill&&<small>将加载工具：{tools.join('、')||'（无可用工具）'}；当前写模式：{profile?.writeMode==='revisions'?'直写修订':'建议制'}</small>}
   <label>任务要求<textarea aria-label="agent 任务要求" value={instruction} onChange={e=>setInstruction(e.target.value)} maxLength={4000} rows={3} disabled={busy||run?.status==='running'}/></label>
   <label className="writing-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} disabled={busy||run?.status==='running'}/>允许本次运行调用模型与图片服务，可能产生费用；v1 不设次数上限，逐次记账</label>
   <div className="writing-image-actions">

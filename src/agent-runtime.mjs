@@ -94,6 +94,18 @@ export class AgentRuntime {
         .prepare("SELECT seq,kind,payload_json AS payload,created_at AS createdAt FROM agent_run_steps WHERE run_id=? ORDER BY seq").all(runId)
         .map(s => ({ ...s, payload: JSON.parse(s.payload) })) };
   }
+  // 事件流游标读取：仅返回 seq 大于游标的步骤，运行行字段保持与 run() 一致。
+  runSince(projectId, runId, afterSeq = 0) {
+    const row = this.db.prepare("SELECT * FROM agent_runs WHERE id=? AND project_id=?").get(runId, projectId);
+    if (!row) fail("运行不存在", 404);
+    return { id: row.id, projectId, channel: row.channel, baseRevision: row.base_revision,
+      skillId: row.skill_id, skillVersion: row.skill_version, agentId: row.agent_id,
+      status: row.status, stopReason: row.stop_reason, instruction: row.instruction,
+      createdAt: row.created_at, updatedAt: row.updated_at,
+      steps: this.db
+        .prepare("SELECT seq,kind,payload_json AS payload,created_at AS createdAt FROM agent_run_steps WHERE run_id=? AND seq>? ORDER BY seq").all(runId, afterSeq)
+        .map(s => ({ ...s, payload: JSON.parse(s.payload) })) };
+  }
   _step(runId, seq, kind, payload) {
     this.db.prepare("INSERT INTO agent_run_steps VALUES(?,?,?,?,?)")
       .run(runId, seq, kind, JSON.stringify(payload), stamp());
