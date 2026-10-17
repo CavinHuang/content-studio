@@ -1351,6 +1351,10 @@ export default function WritingWorkspace() {
                       配图
                     </button>
                   </div>
+                  <p className="writing-model-link">
+                    <Link href="/settings#services">模型服务设置</Link>
+                    ：配置写作 / 配图模型（OpenAI 兼容接口，密钥服务端加密，不回传浏览器）。
+                  </p>
                   {assistantTab === "images" ? (
                     <WritingImages
                       key={projectId}

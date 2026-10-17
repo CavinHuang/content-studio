@@ -71,6 +71,7 @@ export default function CreatorSettings() {
   useEffect(() => {
     if (window.location.hash === "#sources") setTab("sources");
     if (window.location.hash === "#usage") setTab("usage");
+    if (window.location.hash === "#services") setTab("services");
     load().catch((e) => setNotice(e.message));
   }, []);
   async function act(fn) {
