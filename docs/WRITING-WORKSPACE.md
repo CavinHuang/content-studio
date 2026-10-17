@@ -53,4 +53,6 @@ Markdown 附属记录使用现有 reference_id + revision。正文、段落派�
 - 官方平台账号授权、媒体上传与草稿箱适配器；
 - 统一资产检索、跨文章复用和效果复盘。
 
+Agent 形态运行时（技能、工具、运行视图）见 [AGENT-V1.md](AGENT-V1.md)（agent 运行时部分已实施，含上列「Agent 整组图片制作」；其中真实图片服务验收仍为待验）；本文件的讨论/建议快速路径保留不变。
+
 本轮写作及图片的浏览器验收使用合成 loopback 供应商，不证明真实服务商调用或实际发布成功。验证结果见 [WRITING-WORKSPACE-QA.md](WRITING-WORKSPACE-QA.md)。

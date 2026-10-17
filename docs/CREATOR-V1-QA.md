@@ -135,7 +135,7 @@
 
 完成任务模型绑定与单次请求限额、多处写作建议逐项接受、流式生成与未完成恢复、来源移除后的画像撤销 / 历史脱敏、账号定位与风格覆盖。开发表见 [PRODUCT-IMPLEMENTATION-PLAN.md](PRODUCT-IMPLEMENTATION-PLAN.md)，操作及保留范围见 [CREATOR-V1.md](CREATOR-V1.md)。
 
-新增 `test/creator-remaining.test.mjs` 21 项通过，覆盖连接轮换、显式重绑定、费用结算不恢复任务请求额度、同批范围重映射 / Unicode 边界、SSE 分片 / 截断、取消 / 进程恢复、移除来源期间的迟到结果、字段来源迁移及事务回滚、预览后依赖变化和账号版本隔离。新增五个浏览器场景覆盖账号偏好、来源影响预览与撤销、多处逐项接受、断流恢复重新授权、停止及生成期间切稿。
+新增 `test/creator-remaining.test.mjs` 21 项通过，覆盖连接轮换、显式重绑定、费用结算不恢复任务请求额度、同批范围重映射 / Unicode 边界、NDJSON 流式分片 / 截断（浏览器侧传输为 NDJSON，SSE 仅用于服务端消费上游模型）、取消 / 进程恢复、移除来源期间的迟到结果、字段来源迁移及事务回滚、预览后依赖变化和账号版本隔离。新增五个浏览器场景覆盖账号偏好、来源影响预览与撤销、多处逐项接受、断流恢复重新授权、停止及生成期间切稿。
 
 复核发现并修复移除来源的 HTTP 410 被通用 API 转为 500、历史字段来源迁移不完整、预览后依赖增加仍可使用旧确认、生成期间切稿后的忙碌状态，以及移出列表的旧建议重新出现问题。保留相应断言；没有通过放宽检查获得通过。
 
@@ -164,3 +164,67 @@
 上述“未提交”为开发验收时的状态；后续收到作者明确的提交指令。提交前对全部 133 个变更文件（包含此前未跟踪文件）检查敏感路径及密钥格式，未发现真实凭据、数据库或二进制资产。暂存空白检查发现 vendored `footnotes.ts` 两处尾随空格，已清理并同步该文件的 `vendoredSha256`，保留上游来源哈希；32 个文件校验通过。提交不包含外部平台草稿自动化的新实现，知乎 / 小红书接入仍为待验证项。
 
 提交复核的检查日志使用 `/tmp/content-studio-commit-` 前缀，覆盖语法、全量测试、提交绑定构建及运行恢复。代码仅提交至本地 Git，未推送或部署。
+
+## 2026-10-17 文档对齐与平台文档调查（Windows 本机复核轮）
+
+本轮无任何业务代码改动，仅文档与 Git 工作区卫生：
+
+- **大小写重复条目修复**：发现仓库树同时含 `docs/QA-REPORT.md`（V22 内容）与 `docs/qa-report.md`（V23 内容）两个条目（main 与 work 均有）。在大小写不敏感文件系统（Windows）上两者只能对应同一物理文件，导致 `git status` 永远显示其一为已修改的伪状态，并会干扰 V63 干净检出检查。已 `git rm --cached docs/qa-report.md` 移除小写重复（保留与 QA-REPORT-V24…V27 命名一致的大写规范文件）；V23 报告内容仍在历史 blob `348cb81` 中可查。全仓库无任何对两个文件名的引用，删除无副作用。
+- **流式传输措辞修正**：浏览器侧实际为 NDJSON 分片（`application/x-ndjson`，`src/writing.mjs`）；SSE 仅用于服务端消费上游模型（`src/writing-stream.mjs`）。已修正 `PRODUCT-IMPLEMENTATION-PLAN.md` 与本文档中的"SSE 分片"表述，不改变任何实现。
+- **平台官方文档调查**：新增 [PLATFORM-API-SURVEY.md](PLATFORM-API-SURVEY.md)。公众号官方文档在本环境可直读（此前云环境为代理 403）：已记录 access_token 2 小时生命周期、草稿箱 `draft/add` 字段与正文/封面媒体限制、`media/uploadimg` 分工、freepublish 发布接口自 2025-07 起对个人主体/未认证企业账号回收权限等文档事实；`open.xiaohongshu.com` 可达但为电商开放平台入口；`open.zhihu.com` 仍不可读。**仅为公开文档阅读，未注册账号、未获取凭据、未调用平台接口，不构成真实平台验收。**
+- **遗留服务器确认**：`src/server.mjs`（`legacy:dev`、5 个旧 API 测试使用）默认显式绑定 `127.0.0.1` 且拒绝非同源写请求，符合"默认 localhost"设计；未改动，仅记录。它不含作者隔离，不得用于多用户或生产启动。
+
+本机（Windows / Node 24.1.0 / npm 11.3.0）复核结果：`npm run check` 通过；`npm test` 522 项 = 434 通过 / 85 失败 / 3 跳过——85 个失败逐项归类后 100% 为 POSIX/Linux 环境门槛（0600/0700 权限检查约 60 项、Noto CJK 字体路径 6 项、Docker 独立挂载与非 root 身份、临时目录 EPERM/EBUSY），零业务逻辑失败；全量绿灯仍以此前 Linux QA 环境为准（521/522、1 环境跳过）。`npm run build` 通过（Webpack + V64/V65 封存）。小红书出图与浏览器 e2e 依赖 Linux 字体路径，本机未重跑。本轮未提交、推送、合并或部署。
+
+## 2026-10-17 Agent 运行时实施验收（AGENT-V1）
+
+本轮按 [AGENT-V1.md](AGENT-V1.md) 与实施计划 [AGENT-V1-PLAN.md](AGENT-V1-PLAN.md) 完成 A1–A5：agent 运行时、内置技能、工具注册表、路由与事件流、UI 运行视图和文档同步。"agent run 多步循环、v1 不设请求数上限"的规则变更已同步 [PRODUCT-V1.md](PRODUCT-V1.md)、[CREATOR-V1.md](CREATOR-V1.md) 与 [WRITING-WORKSPACE.md](WRITING-WORKSPACE.md)，未静默修改。
+
+| 开发项 | 交付 | 主要验证 |
+| --- | --- | --- |
+| 运行时 | `src/agent-runtime.mjs`：agent_profiles / agent_runs / agent_run_steps 三表、默认代理增量补建、多步循环与终止常量、不可变轨迹、取消 / 进程重启转待核对 / 基准修订漂移中断 | `test/agent-runtime.test.mjs` 10 项 |
+| 工具 | `src/agent-tools.mjs` 注册表；`src/creator-services.mjs` chatWithTools（fetchImpl 注入、每次调用逐笔用量记账） | `test/agent-tools.test.mjs` 2 项、`test/agent-chat-tools.test.mjs` 4 项 |
+| 技能 | `src/agent-skills.mjs` 内置技能常量，加载时与代理工具白名单求交集 | `test/agent-skills.test.mjs` 1 项 |
+| 配图与小红书工具 | generate_image 经生产请求上下文逐笔记账；render_xhs_group / edit_xhs_page 复用图组规则；插图插入 = write_revision 拼入 `asset://` 引用（不单设 insert_blocks 工具） | `test/agent-illustration-tools.test.mjs` 3 项、`test/agent-xhs-tools.test.mjs` 2 项（fonts-noto-cjk 容器） |
+| 路由与事件流 | `lib/creator-api.mjs` agent 路由与 NDJSON 事件；run 绑定项目 + 渠道，`body.channel` 透传，startRun 渠道门越权返回 403；`lib/api.mjs` 未改动 | 路由 / 渠道用例见 `test/agent-runtime.test.mjs` |
+| UI 运行视图 | `components/AgentRuns.jsx` 挂入 WritingWorkspace 助手栏；`lib/core.mjs` 运行时接线 | `e2e/agent-runtime.spec.mjs` |
+
+自动验证（本轮均在 node:22-slim Linux 容器实测；构建与 e2e 另需容器内 git / Chromium）：
+
+| 检查 | 结果 |
+| --- | --- |
+| `npm run check`（新增 `src/agent-runtime.mjs`、`src/agent-skills.mjs`、`src/agent-tools.mjs` 入链） | 通过（Windows 本机与 Linux 容器均通过） |
+| 新增 6 个 agent 测试文件（fonts-noto-cjk 容器） | 22 项全部通过（runtime 10 / chat-tools 4 / illustration 3 / xhs 2 / tools 2 / skills 1） |
+| `npm test` 全量（无字体、root 容器） | 544 项 = 532 通过 / 8 失败 / 4 跳过 |
+| 8 项失败逐项归类 | 全部为容器环境限制，零真实回归：V74 两项（"no retention deletion without confirmed apply yes"、"confirmed pruning actually deletes oldest valid archive…"）按自身守卫报 "requires an unprivileged Linux container"（root 容器）；6 项小红书 PNG（`test/publishing-xiaohongshu-v1.test.mjs`）因缺 Noto CJK 字体失败，安装 fonts-noto-cjk 后该套件 12/12 通过 |
+| `npm run build` | 通过；V64 构建封存回执与 BUILD_ID 生成 |
+| `npx playwright test e2e/agent-runtime.spec.mjs`（安装 Chromium 的容器） | 1 项通过：真实 Next 生产服务（V64/V65 封存与 Git 校验启动）+ 合成 loopback 模型，运行时间线流出工具步骤、建议进入审阅、正文保持原修订 |
+
+发布类工具不存在的结构负例为 `tool registry matches runtime allowlist and declares safe schemas`（断言注册表不含 publish / send_draft / export / upload_platform）；渠道绑定为 `run start binds the requested channel and startRun refuses unlisted channels`。4 项环境跳过均为守卫：agent 小红书字体守卫 1 项、V69 非 root / sudo 守卫 3 项，全部保留未删除。V72 / V73 在该容器按静态文件检查通过，真实 Docker 镜像烟测仍属 CI 职责，本轮未声称。
+
+### 计费、额度与渠道语义（本轮确认的行为）
+
+- 非 agent 的单次生成路径维持每尝试 1 次模型请求；agent run 为多步循环，v1 不设请求数上限，但每次模型 / 图片调用照常逐笔记账并消耗每日额度；额度耗尽（429）等连续 3 次模型调用失败把 run 置为 `failed`，不自动重试。
+- run 绑定项目 + 渠道；路由经 `body.channel` 透传；同一项目同一渠道至多一个活动 run；`lib/creator-api.mjs` 的既有非 agent 路由行为未改动。
+
+### 场景与实际边界
+
+agent 全部验证使用合成供应商或注入 fetchImpl 驱动；本轮未做真实模型、真实图片服务或公众号验收，外部验收边界延续上文，不因 agent 形态放宽。知乎 / 小红书交付仍为复制与文件 / 图文交付包加人工回填，方式不变；agent 不提供发布类工具，"导出 ≠ 发布"与四项人工检查不变。
+
+Windows 本机（Node 24.1.0）本轮仅复核 `npm run check` 通过；未在本机重跑全量 `npm test`（前轮记录为 85 项 POSIX 环境失败，本轮新增文件后未采集新的本机全量数字）与浏览器场景（依赖 Linux Noto CJK 字体路径）。本轮全量结论以 Linux 容器实测为准。
+
+本轮未提交、推送、合并或部署。
+
+## 2026-10-17 Agent 运行时加固批次（A/B，延续上一节）
+
+在 AGENT-V1 实施验收之后，按最终整分支审查的跟踪清单完成两批加固，仍无任何业务需求变更：
+
+**批 A（运行时加固，6 项）**：①运行轨迹记录副本截断（`toolCalls[].arguments` ≤2000 字符、outcome 字符串统一 ≤2000；回传模型的副本保持原样，测试证明 50KB 级模型输出下每步落库 <6000 字符且正文/建议数据完整）；②模型失败重试加有界退避（250ms×失败次数，取消仍即时生效）；③事件流补 `X-Content-Type-Options: nosniff` 并接入 `request.signal`（客户端断连停止轮询）；④`article_markdown_revisions` 加性迁移新增 `note` 列（V57 模式：CREATE 后 ALTER + duplicate-column 容错），`writing.save` 接受 `note`（≤500 字符）并在 `document()`/`history()` 暴露；`write_revision` 工具把模型改稿理由落盘为不可变修订的 note（V27 出处保真度）；⑤`decide()` 快照守卫改显式 `agentRunId` 键控（行为保持：模型建议仍走 creator 上下文校验）；⑥新增 dispatchApi 层计费回归测试（经生产路由启动的 run，其后台循环产生 `kind:'text'` 用量记录——关闭"ALS→后台循环计费无回归覆盖"缺口）。
+
+**批 B（测试与 UI 收尾，4 项）**：e2e 建议断言升级为数量断言（`article.writing-suggestion` toHaveCount(1)，选择器对照真实组件核实）；`AgentRuns.follow()` 卸载防护（mountedRef 覆盖全部状态写入路径）；配图测试 `usage.today` 空值守卫；小红书测试新增条件声明子测试——无字体主机上断言"文案确认后渲染拒绝 503/缺少中文字体"（字体门本身在任何主机都被测试到）。
+
+**过程中发现并修复一个批 A 引入的真实回归**：`note` 列使 `article_markdown_revisions` 变为 6 列后，`src/editorial.mjs` `ensureChannel` 的 5 值位置 INSERT 失效（SQLite 位置 VALUES 不适用列默认值）——批 B 实现者在自己的验证中如实上报而非越权修复；批 A 实现者随后将两处 INSERT（`editorial.mjs`/`writing.mjs`）全部改为显式列清单并全仓扫描确认无第三处。**教训已记录：加性列变更必须全仓扫描位置 INSERT，且"审查者核实过"不等于可免回归套件。**
+
+验证（node:22-slim 容器；字体套件加 fonts-noto-cjk）：批 A 后 runtime 17/17、回归 30/30、build EXIT=0；批 B 修复后 9 套件合并 64/64、`npm run build` EXIT=0、e2e `agent-runtime.spec.mjs` 1 passed。新增测试后全量规模 544→549（+5：批 A 3 项、批 B 条件子测试按主机声明计）。Windows 本机限制同上节（0600 凭据门、字体路径），未重跑全量。两批均未 commit/push/合并/部署；真实模型/图片/公众号外部验收边界不变。
+
+本轮遗留跟踪项（最终审查分诊为不阻塞合并，维持跟踪）：轨迹 payload 有界但模型回传副本仍受 4000/60000 截断上限约束（设计如此）；write_revision 的 note 在"同 markdown 重复保存"时不落盘（不可变修订 no-op 语义）；模型失败重试消耗步数预算（有界）；上游 5xx 文本记 failed 与图片记 unknown 的口径差异；事件流轮询效率（O(n²) 步骤重解析）；V74 两项与真实 Docker 烟测仍属 CI 职责。

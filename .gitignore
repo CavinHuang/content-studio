@@ -33,3 +33,6 @@ out/
 *.services.key
 authors.key
 *.credentials-key
+
+# SDD scratch workspaces
+.superpowers/
