@@ -36,7 +36,7 @@ RUN npm ci --omit=dev --no-audit --no-fund
 
 FROM ${NODE_IMAGE} AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates git tini \
+      ca-certificates git tini fonts-noto-cjk \
   && rm -rf /var/lib/apt/lists/* \
   && useradd --uid 10001 --create-home --home-dir /home/studio --shell /usr/sbin/nologin studio
 WORKDIR /app
@@ -65,7 +65,7 @@ RUN npm run release:checkout:v63 -- --sha="$(git rev-parse HEAD)" \
 # Loopback inside container only. Use host networking on Linux for the
 # unauthenticated single-user application; never map a public-facing port.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
- CMD ["node","-e","fetch('http://127.0.0.1:'+process.env.PORT+'/api/health',{signal:AbortSignal.timeout(3000)}).then(async r=>{const j=await r.json();const local=j.mode==='local-only'&&j.runtimeBuild?.databaseIdentity;const remote=j.mode==='authenticated-remote'&&j.runtimeBuild===null;if(!r.ok||j.ok!==true||!(local||remote))process.exit(1)}).catch(()=>process.exit(1))"]
+ CMD ["node","-e","fetch('http://127.0.0.1:'+process.env.PORT+'/api/health',{signal:AbortSignal.timeout(3000)}).then(async r=>{const j=await r.json();const local=j.mode==='local-only'&&j.runtimeBuild?.databaseIdentity;const remote=['authenticated-remote','author-workspaces'].includes(j.mode)&&j.runtimeBuild===null;if(!r.ok||j.ok!==true||!(local||remote))process.exit(1)}).catch(()=>process.exit(1))"]
 STOPSIGNAL SIGTERM
 ENTRYPOINT ["/usr/bin/tini","--"]
 CMD ["node","scripts/runtime-guard.mjs","start"]

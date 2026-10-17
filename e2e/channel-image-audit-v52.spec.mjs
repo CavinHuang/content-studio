@@ -25,7 +25,7 @@ test('V52 composer flags a historical image URL after author changes the local c
   markdown,reviewToken:(await review.json()).reviewToken,acknowledgeDrift:true
  }});
  expect(result.ok()).toBe(true);
- await page.goto('/compose?project='+project.id+'&channel=wechat');
+ await page.goto('/compose/handoff?project='+project.id+'&channel=wechat');
  const info=page.getByTestId('v52-image-mapping-audit');
  await expect(info).toContainText('已匹配 1 个本地图片映射');
  await expect(info).toContainText('不代表实际图床或发布平台可用');

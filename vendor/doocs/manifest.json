@@ -1,0 +1,133 @@
+{
+  "commit": "1bdad48d20048bddc8d32afb1b75a6475169f163",
+  "files": {
+    "core/src/extensions/alert.ts": {
+      "upstreamSha256": "4c64d00b1aec65bdd33d77524937eaa631323b560431d38062137389b0ef79bc",
+      "vendoredSha256": "cd00e25844674ba75b737627479243c8139c2126e02aa404757163f51ead5d2c"
+    },
+    "core/src/extensions/component.ts": {
+      "upstreamSha256": "880366f905d80bd71459bfc6e57ed881de6ad288969efc11382336abbacb46eb",
+      "vendoredSha256": "30973f0d88c11b04bd98b6216d724dda5d54eeae176c269678d04903f989a340"
+    },
+    "core/src/extensions/emoji-data.ts": {
+      "upstreamSha256": "4a75fc6e6371a2dbf023711e58df4859bba1a5b0c21a6fface49dd9fe06042f8",
+      "vendoredSha256": "4a75fc6e6371a2dbf023711e58df4859bba1a5b0c21a6fface49dd9fe06042f8"
+    },
+    "core/src/extensions/emoji.ts": {
+      "upstreamSha256": "8a0cedac9c6f4726623941adbd2105a5ec836be4b59020a8187716aca069eb98",
+      "vendoredSha256": "8a0cedac9c6f4726623941adbd2105a5ec836be4b59020a8187716aca069eb98"
+    },
+    "core/src/extensions/footnotes.ts": {
+      "upstreamSha256": "dcb1fc937064777a598677dd336f6ef9e7410e9da4a519d74c697eaccb60c984",
+      "vendoredSha256": "c14c0ab30305bc86018781bbeb17ca11a0aad438b1ea60eb92a2a0a5418ffc9f"
+    },
+    "core/src/extensions/markup.ts": {
+      "upstreamSha256": "9b9cf4684b2074c9b682c484958c152227f81755685ea370fc87681aea3d75da",
+      "vendoredSha256": "9b9cf4684b2074c9b682c484958c152227f81755685ea370fc87681aea3d75da"
+    },
+    "core/src/extensions/ruby.ts": {
+      "upstreamSha256": "bf7b937f5eee48a424d5d908a9b5658ffb0557735eb06ec3018f95d9f25c356b",
+      "vendoredSha256": "bf7b937f5eee48a424d5d908a9b5658ffb0557735eb06ec3018f95d9f25c356b"
+    },
+    "core/src/extensions/slider.ts": {
+      "upstreamSha256": "eda04c3f3fb67a7f1c6e8caf8361024140dfcf6dc18014688301a5fdc36e6b45",
+      "vendoredSha256": "eda04c3f3fb67a7f1c6e8caf8361024140dfcf6dc18014688301a5fdc36e6b45"
+    },
+    "core/src/extensions/toc.ts": {
+      "upstreamSha256": "0c3882b665ba7f2d1781f82ba88691746edce2887c38f81466c935492d4bab8d",
+      "vendoredSha256": "0c3882b665ba7f2d1781f82ba88691746edce2887c38f81466c935492d4bab8d"
+    },
+    "core/src/renderer/renderer-impl.ts": {
+      "upstreamSha256": "e289f201440c6956c71213e09bd670ed2a912be47fb8fb3d3a231f12fe0a9847",
+      "vendoredSha256": "7c54f81354804dd6558ce66f40576b8a85e58c37f553828c3758eca29db42c53"
+    },
+    "core/src/types/marked-tokens.ts": {
+      "upstreamSha256": "ade56c3ce8be40332f64904cc5b20bc40d0440bd1f7a1260413cd2abd0f4067b",
+      "vendoredSha256": "ade56c3ce8be40332f64904cc5b20bc40d0440bd1f7a1260413cd2abd0f4067b"
+    },
+    "core/src/utils/basicHelpers.ts": {
+      "upstreamSha256": "649a4f57d896d4d88042c4a82b4d54959c3f33bd5cfc5cde48ef644f5d0bf3b6",
+      "vendoredSha256": "649a4f57d896d4d88042c4a82b4d54959c3f33bd5cfc5cde48ef644f5d0bf3b6"
+    },
+    "core/src/utils/front-matter.ts": {
+      "upstreamSha256": "b109ac6a4fb6d70eea11ae4d07fa5fd43bf614fa0fd77bc9cfb678ba3239b24a",
+      "vendoredSha256": "6245bdfbd56e08ec8393d47e07efebf057f3f6245606a1ae421d587350d44672"
+    },
+    "core/src/utils/languages.ts": {
+      "upstreamSha256": "6fe84d02beb0e917b009ee1087c17f1edac72c964977ec07318eecadf112e1d3",
+      "vendoredSha256": "dd677bf61b79571a6c14d368353934f627614b7394f7d31ae5a9063e3059e062"
+    },
+    "core/src/utils/scan.ts": {
+      "upstreamSha256": "2eda6f89d0f0990e960cf3d2b9a839c03ea919e99a617740a356364bc25661a2",
+      "vendoredSha256": "2eda6f89d0f0990e960cf3d2b9a839c03ea919e99a617740a356364bc25661a2"
+    },
+    "core/src/utils/svgCache.ts": {
+      "upstreamSha256": "f833d514881bc1e2c87db00aca5ce606727d4341e4b8ffabc593d8e4ce315f3a",
+      "vendoredSha256": "f833d514881bc1e2c87db00aca5ce606727d4341e4b8ffabc593d8e4ce315f3a"
+    },
+    "shared/src/editor/codeLanguages.ts": {
+      "upstreamSha256": "a53e4977231c17458229426b16fef4eb7ba0ea30231c97014dcc622102404747",
+      "vendoredSha256": "a53e4977231c17458229426b16fef4eb7ba0ea30231c97014dcc622102404747"
+    },
+    "shared/src/editor/format.ts": {
+      "upstreamSha256": "d9fcb144774e73164e90615cc22903e0a2a649e8e10dd27d3af0b00b2e57a5c4",
+      "vendoredSha256": "d9fcb144774e73164e90615cc22903e0a2a649e8e10dd27d3af0b00b2e57a5c4"
+    },
+    "shared/src/editor/markdown.ts": {
+      "upstreamSha256": "9a654fc56c5709a0783543ae2ab99553418b8b8d002c83e56e24bfa14939f612",
+      "vendoredSha256": "9a654fc56c5709a0783543ae2ab99553418b8b8d002c83e56e24bfa14939f612"
+    },
+    "shared/src/types/ai-services-types.ts": {
+      "upstreamSha256": "db4e16320d037c68811aede8acd49c9bdac7eff0b7bb165a038fad9c6eeb1f7e",
+      "vendoredSha256": "db4e16320d037c68811aede8acd49c9bdac7eff0b7bb165a038fad9c6eeb1f7e"
+    },
+    "shared/src/types/common.ts": {
+      "upstreamSha256": "1f76d1145c926575df6232b1effa23e1ff1df8d8bfc65f028631c43f49d0700d",
+      "vendoredSha256": "1f76d1145c926575df6232b1effa23e1ff1df8d8bfc65f028631c43f49d0700d"
+    },
+    "shared/src/types/component.ts": {
+      "upstreamSha256": "134dbc293ff0e8a5ca27ee253257657d07d7e4dbee1126cb6fa5640f3fa4ad21",
+      "vendoredSha256": "134dbc293ff0e8a5ca27ee253257657d07d7e4dbee1126cb6fa5640f3fa4ad21"
+    },
+    "shared/src/types/emoji.ts": {
+      "upstreamSha256": "eb72c750b5035183d032ac379e2fb871f9b47241fc892840724eda5ba0780c5b",
+      "vendoredSha256": "eb72c750b5035183d032ac379e2fb871f9b47241fc892840724eda5ba0780c5b"
+    },
+    "shared/src/types/front-matter.ts": {
+      "upstreamSha256": "2ac18a903e975bf7f7022f9206b72a96bc839dbfc5b48a410de57e28d4e3da27",
+      "vendoredSha256": "2ac18a903e975bf7f7022f9206b72a96bc839dbfc5b48a410de57e28d4e3da27"
+    },
+    "shared/src/types/index.ts": {
+      "upstreamSha256": "32e31f818babeda0993e220fc43a27749276c58516c53d3763616fc1e01e538d",
+      "vendoredSha256": "32e31f818babeda0993e220fc43a27749276c58516c53d3763616fc1e01e538d"
+    },
+    "shared/src/types/marketplace.ts": {
+      "upstreamSha256": "affa42483d3fa3626f030e2115221e6f6cfd25e3bc96581d6c711cbed87ba84f",
+      "vendoredSha256": "affa42483d3fa3626f030e2115221e6f6cfd25e3bc96581d6c711cbed87ba84f"
+    },
+    "shared/src/types/prettier.d.ts": {
+      "upstreamSha256": "ca9af5c419af17071b3721a5df5c4a147fe0caab42d7bb044909b8f76bc7eb76",
+      "vendoredSha256": "ca9af5c419af17071b3721a5df5c4a147fe0caab42d7bb044909b8f76bc7eb76"
+    },
+    "shared/src/types/raw-imports.d.ts": {
+      "upstreamSha256": "e92551e75c53d48de5d69da147782cd78899b9bd7e18049fcf230ae1fb93ae7a",
+      "vendoredSha256": "e92551e75c53d48de5d69da147782cd78899b9bd7e18049fcf230ae1fb93ae7a"
+    },
+    "shared/src/types/renderer-types.ts": {
+      "upstreamSha256": "fe027672824006b73423efba99af918a0588be305f768bd470f088b4ce2c5d36",
+      "vendoredSha256": "fe027672824006b73423efba99af918a0588be305f768bd470f088b4ce2c5d36"
+    },
+    "shared/src/types/template.ts": {
+      "upstreamSha256": "d9752c01c3c7f12c9b36b4a2ce6e1faae38e2b88c9e4d9d2d6171b32fd4e33da",
+      "vendoredSha256": "d9752c01c3c7f12c9b36b4a2ce6e1faae38e2b88c9e4d9d2d6171b32fd4e33da"
+    },
+    "shared/src/utils/formatDoc.ts": {
+      "upstreamSha256": "58a8b491fa169d96c0b9cf9e5fcead7b93ba8acd792a9c01205a1ea868da3234",
+      "vendoredSha256": "58a8b491fa169d96c0b9cf9e5fcead7b93ba8acd792a9c01205a1ea868da3234"
+    },
+    "shared/src/utils/readingTime.ts": {
+      "upstreamSha256": "64d8cc739108a25ea6fe07ed281df74e5157aa9a38c6a217b159a92399a08218",
+      "vendoredSha256": "64d8cc739108a25ea6fe07ed281df74e5157aa9a38c6a217b159a92399a08218"
+    }
+  }
+}

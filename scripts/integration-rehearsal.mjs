@@ -35,12 +35,17 @@ export function historicalInventory(db){
  const inventory={};
  for(const name of originalTables){
   const q=quote(name);
-  const high=db.prepare('SELECT MAX(rowid) AS n FROM '+q).get().n||0;
+  const definition=db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(name);
+  const withoutRowid=/\bWITHOUT\s+ROWID\b/i.test(definition.sql||'');
+  const keyColumns=withoutRowid?db.prepare('PRAGMA table_info('+q+')').all().filter(c=>c.pk>0).sort((a,b)=>a.pk-b.pk).map(c=>c.name):[];
+  if(withoutRowid&&!keyColumns.length)throw Error('Primary key is required for historical inventory');
+  const high=withoutRowid?null:db.prepare('SELECT MAX(rowid) AS n FROM '+q).get().n||0;
+  const order=withoutRowid?keyColumns.map(quote).join(','):'rowid',keys=[];
   const h=createHash('sha256');let rows=0;
-  for(const row of db.prepare('SELECT * FROM '+q+' ORDER BY rowid').iterate()){
-   h.update(hashRow(row)+'\n');rows++;
+  for(const row of db.prepare('SELECT * FROM '+q+' ORDER BY '+order).iterate()){
+   if(withoutRowid)keys.push(keyColumns.map(k=>row[k]));h.update(hashRow(row)+'\n');rows++;
   }
-  inventory[name]={rows,maxRowid:high,sha256:h.digest('hex')};
+  inventory[name]={rows,maxRowid:high,sha256:h.digest('hex'),...(withoutRowid?{keyColumns,keys}:{})};
  }
  return inventory;
 }
@@ -49,7 +54,9 @@ export function checkHistoricalInventory(db,inventory){
  for(const [name,previous] of Object.entries(inventory)){
   let result;try{
    const h=createHash('sha256');let rows=0;
-   for(const row of db.prepare('SELECT * FROM '+quote(name)+' WHERE rowid<=? ORDER BY rowid').iterate(previous.maxRowid)){
+   let originalRows;
+   if(previous.keyColumns){const lookup=db.prepare('SELECT * FROM '+quote(name)+' WHERE '+previous.keyColumns.map(k=>quote(k)+'=?').join(' AND '));originalRows=previous.keys.map(values=>lookup.get(...values)).filter(Boolean)}else originalRows=db.prepare('SELECT * FROM '+quote(name)+' WHERE rowid<=? ORDER BY rowid').iterate(previous.maxRowid);
+   for(const row of originalRows){
     rows++;h.update(hashRow(row)+'\n');
    }
    result={rows,sha256:h.digest('hex')};

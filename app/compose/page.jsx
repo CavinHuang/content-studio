@@ -1,3 +1,4 @@
 import {Suspense} from 'react';
-import WeChatComposer from '../../components/WeChatComposer';
-export default function Page(){return <Suspense fallback={<p style={{padding:32}}>正在打开排版工作台…</p>}><WeChatComposer/></Suspense>}
+import './writing.css';
+import WritingWorkspace from '../../components/WritingWorkspace';
+export default function Page(){return <Suspense fallback={<p style={{padding:32}}>正在打开创作工作台…</p>}><WritingWorkspace/></Suspense>}

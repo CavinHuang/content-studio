@@ -5,8 +5,24 @@
 import {NextResponse} from 'next/server';
 import {env as runtimeEnv} from 'node:process';
 import {hasSession,validateRemoteTransport,validateRemoteConfig} from './src/remote-auth-v75.mjs';
+import {accountsEnabled,getAccounts} from './src/author-accounts.mjs';
+import {validateLocalApiRequest} from './src/local-api-boundary.mjs';
 
 export function proxy(request){
+ if(accountsEnabled()){
+  try{
+   if(runtimeEnv.CONTENT_STUDIO_DEPLOY_MODE==='dokploy'){
+    validateRemoteConfig();if(request.nextUrl.pathname!=='/api/health')validateRemoteTransport(request,runtimeEnv);
+   }else validateLocalApiRequest(request);
+   const p=request.nextUrl.pathname;
+   if(p==='/signin'||p.startsWith('/api/accounts/')||p==='/api/health')return NextResponse.next();
+   if(!getAccounts().session(request.headers)){
+    if(p.startsWith('/api/'))return Response.json({error:'请登录作者账号'},{status:401,headers:{'Cache-Control':'no-store'}});
+    return NextResponse.redirect(new URL('/signin',request.url),{status:303});
+   }
+   const response=NextResponse.next();response.headers.set('Cache-Control','private, no-store');response.headers.set('X-Content-Type-Options','nosniff');response.headers.set('Referrer-Policy','no-referrer');response.headers.set('X-Frame-Options','DENY');return response;
+  }catch{return new Response('作者服务暂不可用或请求来源不可信',{status:403,headers:{'Cache-Control':'no-store'}})}
+ }
  if(runtimeEnv.CONTENT_STUDIO_DEPLOY_MODE!=='dokploy')return NextResponse.next();
  let origin;
  try{origin=validateRemoteConfig().publicOrigin}

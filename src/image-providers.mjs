@@ -1,11 +1,12 @@
+import {providerEnvironment,providerImageFetch as providerFetch} from './provider-context.mjs';
 /** Server-only image backends. Never serialize keys into UI responses. */
 import {ValidationError} from './verification.mjs';
 const bad=(message,status=400,retryable=false)=>{const error=new ValidationError(message,status);error.retryable=retryable;throw error};
 const base=x=>String(x||'').trim();
 const settings=()=>({
- openai:{key:base(process.env.CONTENT_IMAGE_OPENAI_API_KEY||process.env.CONTENT_IMAGE_API_KEY),model:base(process.env.CONTENT_IMAGE_OPENAI_MODEL||process.env.CONTENT_IMAGE_MODEL||'gpt-image-2'),url:base(process.env.CONTENT_IMAGE_OPENAI_BASE_URL||process.env.CONTENT_IMAGE_API_BASE_URL||'https://api.openai.com/v1/')},
- gemini:{key:base(process.env.CONTENT_IMAGE_GEMINI_API_KEY),model:base(process.env.CONTENT_IMAGE_GEMINI_MODEL||'gemini-nano-banana-2.1'),url:base(process.env.CONTENT_IMAGE_GEMINI_BASE_URL||'https://generativelanguage.googleapis.com/v1beta/')},
- qwen:{key:base(process.env.CONTENT_IMAGE_QWEN_API_KEY),model:base(process.env.CONTENT_IMAGE_QWEN_MODEL||'qwen-image-3.0'),url:base(process.env.CONTENT_IMAGE_QWEN_BASE_URL||'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/')},
+ openai:{key:base(providerEnvironment().CONTENT_IMAGE_OPENAI_API_KEY||providerEnvironment().CONTENT_IMAGE_API_KEY),model:base(providerEnvironment().CONTENT_IMAGE_OPENAI_MODEL||providerEnvironment().CONTENT_IMAGE_MODEL||'gpt-image-2'),url:base(providerEnvironment().CONTENT_IMAGE_OPENAI_BASE_URL||providerEnvironment().CONTENT_IMAGE_API_BASE_URL||'https://api.openai.com/v1/')},
+ gemini:{key:base(providerEnvironment().CONTENT_IMAGE_GEMINI_API_KEY),model:base(providerEnvironment().CONTENT_IMAGE_GEMINI_MODEL||'gemini-nano-banana-2.1'),url:base(providerEnvironment().CONTENT_IMAGE_GEMINI_BASE_URL||'https://generativelanguage.googleapis.com/v1beta/')},
+ qwen:{key:base(providerEnvironment().CONTENT_IMAGE_QWEN_API_KEY),model:base(providerEnvironment().CONTENT_IMAGE_QWEN_MODEL||'qwen-image-3.0'),url:base(providerEnvironment().CONTENT_IMAGE_QWEN_BASE_URL||'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/')},
 });
 export function configuredProviders(){const s=settings();return Object.entries(s).map(([id,x])=>({id,model:x.model,configured:!!(x.key&&x.url),label:{openai:'OpenAI GPT Image',gemini:'Google Nano Banana',qwen:'Qwen Image'}[id]}));}
 export function anyImageProvider(){return configuredProviders().some(p=>p.configured)};
@@ -57,14 +58,14 @@ const decode=b64=>{
  if(!imageMagic(buf))bad('Provider returned unsupported image bytes',502);
  return b64;
 };
-async function callJson(url,headers,body,timeoutMs=180000){let response;try{response=await fetch(url,{method:'POST',headers:{'content-type':'application/json',...headers},body:JSON.stringify(body),signal:AbortSignal.timeout(timeoutMs),redirect:'error'})}catch{bad('Image provider request failed or timed out',502,true)}
+async function callJson(url,headers,body,timeoutMs=180000){let response;try{response=await providerFetch(url,{method:'POST',headers:{'content-type':'application/json',...headers},body:JSON.stringify(body),signal:AbortSignal.timeout(timeoutMs),redirect:'error'})}catch{bad('Image provider request failed or timed out',502,true)}
  if(!response.ok)providerHttpError('Image provider',response.status);
  let data;try{data=JSON.parse((await boundedResponse(response)).toString('utf8'))}catch(e){if(e instanceof ValidationError)throw e;bad('Provider returned invalid JSON',502)}return data;
 }
 async function qwenDownload(value){let u;try{u=new URL(value)}catch{bad('Qwen returned invalid image URL',502)}
  // Qwen's returned links are expiring OSS links. Strict allowlist avoids SSRF and credential leakage.
  if(u.protocol!=='https:'||u.username||u.password||u.port&&u.port!=='443'||!isAlibabaOssHost(u.hostname))bad('Qwen image URL does not match trusted Alibaba OSS hosts',502);
- let response;try{response=await fetch(u,{method:'GET',redirect:'error',signal:AbortSignal.timeout(60000)})}catch{bad('Could not download Qwen temporary image',502,true)}
+ let response;try{response=await providerFetch(u,{method:'GET',redirect:'error',signal:AbortSignal.timeout(60000)})}catch{bad('Could not download Qwen temporary image',502,true)}
  if(!response.ok)providerHttpError('Qwen temporary image',response.status);
  const responseType=(response.headers.get('content-type')||'').split(';')[0].trim().toLowerCase();
  if(responseType&&!['image/png','image/jpeg','image/webp','application/octet-stream','binary/octet-stream'].includes(responseType))bad('Qwen temporary image returned unexpected content type',502);
@@ -115,7 +116,7 @@ export async function editProviderImage(prompt,{provider='openai',role='section'
   const url=endpoint(config.url,'images/edits');const form=new FormData();form.append('model',config.model);form.append('prompt',prompt);form.append('n','1');
   const ext={ 'image/png':'png','image/jpeg':'jpg','image/webp':'webp' }[referenceMime];
   form.append('image',new Blob([bytes],{type:referenceMime}),`reference.${ext}`);
-  let response;try{response=await fetch(url,{method:'POST',headers:{authorization:`Bearer ${config.key}`},body:form,signal:AbortSignal.timeout(180000),redirect:'error'})}catch{bad('Image edit provider request failed or timed out',502,true)}
+  let response;try{response=await providerFetch(url,{method:'POST',headers:{authorization:`Bearer ${config.key}`},body:form,signal:AbortSignal.timeout(180000),redirect:'error'})}catch{bad('Image edit provider request failed or timed out',502,true)}
   if(!response.ok)providerHttpError('Image edit provider',response.status);
   let result;try{result=JSON.parse((await boundedResponse(response)).toString('utf8'))}catch(e){if(e instanceof ValidationError)throw e;bad('Image edit provider returned invalid JSON',502)}
   if(!result?.data?.[0]?.b64_json)bad('OpenAI edit returned no image bytes',502);

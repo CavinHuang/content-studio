@@ -11,7 +11,7 @@ test('V50 composer explains reachability is not verified publishing and can expl
    markdownRoundtripVerified:false,published:false,paidRequests:0
   })});
  });
- await page.goto('/compose');
+ await page.goto('/compose/handoff');
  const status=page.getByTestId('v50-doocs-status');
  await expect(status).toContainText('尚未连接本机排版器');
  await status.getByRole('button',{name:'重新检查连接'}).click();

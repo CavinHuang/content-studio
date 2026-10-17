@@ -41,7 +41,9 @@ export class PrecisionService{
   this.db.exec('BEGIN IMMEDIATE');try{this._insertDocumentRevision(referenceId,actual,normalized);this.db.exec('COMMIT');}
   catch(e){this.db.exec('ROLLBACK');throw e}return this.document(referenceId);
  }
- _insertDocumentRevision(referenceId,actual,normalized){const next=actual+1,at=iso();
+ _insertDocumentRevision(referenceId,actual,normalized,{markdownWrite=false}={}){
+   if(!markdownWrite&&this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='article_markdown_revisions'").get()&&this.db.prepare('SELECT 1 FROM article_markdown_revisions WHERE reference_id=? LIMIT 1').get(referenceId))fail('This document uses integrated Markdown. Open the writing workspace to preserve formatting and revision history.',409);
+   const next=actual+1,at=iso();
    if(actual)this.db.prepare('UPDATE article_documents SET current_revision=?,updated_at=? WHERE reference_id=?').run(next,at,referenceId);
    else this.db.prepare('INSERT INTO article_documents VALUES (?,?,?)').run(referenceId,next,at);
    this.db.prepare('INSERT INTO article_document_revisions VALUES (?,?,?,?,?)').run('ad_'+randomUUID(),referenceId,next,JSON.stringify(normalized),at);

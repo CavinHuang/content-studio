@@ -1,3 +1,4 @@
+import {providerEnvironment,providerFetch} from './provider-context.mjs';
 import {hash,safeText} from './normalize.mjs';
 const topical=[
  {name:'Agent 与自动化',rx:/\b(agent|agents|workflow|mcp|codex|claude code|opencode|tool call|browser automation|computer use|自动化|智能体|代理执行)\b/i,zh:/智能体|自动化|工具调用|执行链|浏览器操作|桌面操作/},
@@ -38,16 +39,16 @@ export function rankEvent(event){
  return {eventId:event.id,title:event.title,score,tier,areas:area,reason:challenge?'出现可回看的社区问题措辞，值得进行一手复现或访谈':signals.length?'存在潜在使用问题线索，需要查证真实场景':'暂未检测到直接问题线索，不应因热度直接立题',problemSignals:signals.slice(0,6),risks:risk,sourceCount:sourceIds.length,sourceItemCount:sources.length,hasPrimary:primary,hasCommunity:discuss,validatedUserProblem:false,mode:'deterministic-candidate',suggestedAction:challenge?'确认频次与使用场景，再做产品实验':'先找到真实用户反馈或自己的复现实验'};
 }
 export const rankEvents=(events,{limit=30,filter='all'}={})=>events.map(rankEvent).filter(x=>filter==='all'||x.tier===filter).sort((a,b)=>b.score-a.score||a.title.localeCompare(b.title)).slice(0,limit);
-export function modelConfigured(){return !!(process.env.CONTENT_AI_API_KEY&&process.env.CONTENT_AI_BASE_URL&&process.env.CONTENT_AI_MODEL);}
-export async function analyzeWithModel(event,{fetchImpl=globalThis.fetch}={}){
+export function modelConfigured(){return !!(providerEnvironment().CONTENT_AI_API_KEY&&providerEnvironment().CONTENT_AI_BASE_URL&&providerEnvironment().CONTENT_AI_MODEL);}
+export async function analyzeWithModel(event,{fetchImpl=providerFetch}={}){
  if(!modelConfigured())throw Error('AI provider not configured');
  // Only public feed title + excerpt metadata. Never send private practice or API credentials in prompt.
  const snippets=event.items.slice(0,8).map(x=>({itemId:x.id,role:x.role,title:safeText(x.title,180),summary:safeText(x.summary,400),source:x.sourceId}));
- const allowed=new Set(snippets.map(x=>x.itemId));const base=new URL(process.env.CONTENT_AI_BASE_URL);
+ const allowed=new Set(snippets.map(x=>x.itemId));const base=new URL(providerEnvironment().CONTENT_AI_BASE_URL);
  if(base.protocol!=='https:'&&!(['localhost','127.0.0.1'].includes(base.hostname)&&base.protocol==='http:'))throw Error('AI endpoint must be HTTPS or local HTTP');
  const endpoint=new URL('chat/completions',base.toString().endsWith('/')?base.toString():base.toString()+'/');
- const input={model:process.env.CONTENT_AI_MODEL,temperature:0.1,max_tokens:650,messages:[{role:'system',content:'你是谨慎的内容选题研究助手。只利用提供的公开元数据。必须区分来源文本直接陈述、推论和未验证假设。不要编造用户原话、数据、案例或已独立验证的事实。仅输出 JSON 对象：{"realProblemHypothesis":"短句","audience":"可能的人群","whyWorthWriting":"为何值得进一步研究","verifySteps":["具体可执行的核实任务"],"evidenceItemIds":["提供过的itemId"],"uncertainty":"尚不确定的内容"}。没有真实问题证据时直接指出。'},{role:'user',content:JSON.stringify({eventId:event.id,items:snippets})}]};
- const resp=await fetchImpl(endpoint,{method:'POST',headers:{'Authorization':'Bearer '+process.env.CONTENT_AI_API_KEY,'Content-Type':'application/json'},body:JSON.stringify(input),signal:AbortSignal.timeout(16000),redirect:'error'});
+ const input={model:providerEnvironment().CONTENT_AI_MODEL,temperature:0.1,max_tokens:650,messages:[{role:'system',content:'你是谨慎的内容选题研究助手。只利用提供的公开元数据。必须区分来源文本直接陈述、推论和未验证假设。不要编造用户原话、数据、案例或已独立验证的事实。仅输出 JSON 对象：{"realProblemHypothesis":"短句","audience":"可能的人群","whyWorthWriting":"为何值得进一步研究","verifySteps":["具体可执行的核实任务"],"evidenceItemIds":["提供过的itemId"],"uncertainty":"尚不确定的内容"}。没有真实问题证据时直接指出。'},{role:'user',content:JSON.stringify({eventId:event.id,items:snippets})}]};
+ const resp=await fetchImpl(endpoint,{method:'POST',headers:{'Authorization':'Bearer '+providerEnvironment().CONTENT_AI_API_KEY,'Content-Type':'application/json'},body:JSON.stringify(input),signal:AbortSignal.timeout(16000),redirect:'error'});
  if(!resp.ok)throw Error(`AI provider HTTP ${resp.status}`);
  const data=await resp.json();let content=data.choices?.[0]?.message?.content||'';
  if(typeof content!=='string')throw Error('AI response missing text');content=content.trim().replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'').trim();let out;try{out=JSON.parse(content);}catch{throw Error('AI response not JSON')};

@@ -1,0 +1,2 @@
+import {ValidationError} from './verification.mjs';
+export async function boundedResponseText(response,maxBytes){const reader=response.body?.getReader();if(!reader)return '';const chunks=[];let size=0;try{while(true){const {value,done}=await reader.read();if(done)break;size+=value.byteLength;if(size>maxBytes){await reader.cancel();throw new ValidationError('服务响应超过大小限制',502)}chunks.push(Buffer.from(value))}return Buffer.concat(chunks).toString('utf8')}finally{reader.releaseLock()}}

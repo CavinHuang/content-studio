@@ -13,7 +13,7 @@ const marker='V51_REAL_DOOCS_LOCAL_MARKDOWN_'+Date.now();
 const articleText='离线测试正文：此文本由 Content Studio 创建，在真正的 doocs/md CodeMirror 中渲染。';
 const editorOrigin='http://127.0.0.1:8800';
 
-test('V51 takes actual Content Studio Markdown into live doocs CodeMirror and renders the real preview',async({page,request,context})=>{
+test('V51 takes actual Content Studio Markdown into live doocs CodeMirror and renders the real preview',async({page,request,context,baseURL})=>{
  const health=await request.get('/api/integrations/doocs/preflight');
  expect(health.ok()).toBeTruthy();
  const reached=await health.json();
@@ -34,8 +34,8 @@ test('V51 takes actual Content Studio Markdown into live doocs CodeMirror and re
  expect(saved.markdown).toContain(marker);
  expect(saved.markdown).toContain(articleText);
 
- await context.grantPermissions(['clipboard-read','clipboard-write'],{origin:'http://127.0.0.1:4312'});
- await page.goto('/compose?project='+project.id+'&channel=wechat');
+ await context.grantPermissions(['clipboard-read','clipboard-write'],{origin:new URL(baseURL).origin});
+ await page.goto('/compose/handoff?project='+project.id+'&channel=wechat');
  await expect(page.getByTestId('v50-doocs-status')).toContainText('本机排版器服务可连接');
  await page.getByRole('button',{name:'复制 Markdown'}).click();
  const copied=await page.evaluate(()=>navigator.clipboard.readText());

@@ -103,16 +103,23 @@ export class IllustrationService {
   }catch(e){this.db.exec('ROLLBACK');throw e}
   return this.get(projectId);
  }
- plan(projectId,{expectedMasterRevision}={}){const project=this._project(projectId),doc=project.channels.master.document;
+ _inheritCreatorVisual(projectId){const visual=this.creator?.context(projectId).profile.visual;if(visual&&this.visualProfile(projectId).revision===0)this.setVisualProfile(projectId,{expectedRevision:0,profile:{...DEFAULT_VISUAL_PROFILE,mood:normalize(visual).slice(0,200)}})}
+ plan(projectId,{expectedMasterRevision,paragraphId}={}){const project=this._project(projectId),doc=project.channels.master.document;
   if(!Number.isInteger(expectedMasterRevision)||expectedMasterRevision!==doc.revision)fail('Article changed; reload before creating illustration plan',409);
-  return this._insertPlan(projectId,doc,slotPlan(project,doc,this.visualProfile(projectId)));
+  if(paragraphId!==undefined){
+   const paragraph=doc.paragraphs.find(p=>p.id===paragraphId);if(!paragraph)fail('Selected paragraph is not in the current master draft',409);
+   this._inheritCreatorVisual(projectId);const excerpt=normalize(paragraph.text).slice(0,maxExcerpts),profile=this.visualProfile(projectId);
+   const shot={role:'section',paragraphId,ordinal:1,excerpt,alt:`章节概念配图：${excerpt.slice(0,40)}`,scene:`An editorial illustration communicating this section: ${excerpt}`,style:'editorial'};
+   return this._insertPlan(projectId,doc,[{...shot,prompt:composeImagePrompt({...shot,title:project.title,visualProfile:profile})}]);
+  }
+  this._inheritCreatorVisual(projectId);return this._insertPlan(projectId,doc,slotPlan(project,doc,this.visualProfile(projectId)));
  }
  async agentPlan(projectId,{expectedMasterRevision,allowExternalAI=false}={}){
   if(!allowExternalAI)fail('Explicit consent required before sending excerpts to a planning model',403);
   const project=this._project(projectId),doc=project.channels.master.document;
   if(!Number.isInteger(expectedMasterRevision)||expectedMasterRevision!==doc.revision)fail('Article changed; reload before planning illustrations',409);
   if(!plannerConfigured())fail('Planner model is not configured',503);
-  const original=slotPlan(project,doc,this.visualProfile(projectId));
+  this._inheritCreatorVisual(projectId);const original=slotPlan(project,doc,this.visualProfile(projectId));
   const reservation=this.budget.reserve(projectId,{kind:'plan',provider:'planner'});
   let scenes;
   try{scenes=await planScenesWithModel(project,doc,original);this.budget.finish(reservation.id,'success');}
