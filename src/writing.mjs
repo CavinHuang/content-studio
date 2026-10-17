@@ -57,6 +57,14 @@ export class WritingService {
    CREATE TABLE IF NOT EXISTS writing_master_sync_reviews(reference_id TEXT NOT NULL,revision INTEGER NOT NULL,master_revision INTEGER NOT NULL,source_revision INTEGER NOT NULL,decisions_json TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(reference_id,revision));
    CREATE INDEX IF NOT EXISTS idx_writing_suggestions_ref ON writing_suggestions(reference_id,created_at);
   `);
+  // 纯增量迁移：修订备注（V27 出处保真度，改稿理由进入不可变修订）。
+  try {
+    this.db.exec(
+      "ALTER TABLE article_markdown_revisions ADD COLUMN note TEXT NOT NULL DEFAULT ''"
+    );
+  } catch (e) {
+    if (!/duplicate column name/i.test(String(e.message))) throw e;
+  }
   }
   generation(id, channel, generationId) {
     const ref = this._ref(id, channel),
@@ -404,6 +412,7 @@ export class WritingService {
         row?.markdown ??
         markdownFromDocument(this.editorial._project(id).title, doc.paragraphs),
       theme: row?.theme || "forest",
+      note: row?.note || "",
       mode: row ? "markdown" : "legacy",
       legacyLayout:
         !row && layout
@@ -465,12 +474,16 @@ export class WritingService {
       theme = "forest",
       resolveLegacy,
       sourceMasterRevision,
+      note,
     } = {},
     resolve
   ) {
     checkMarkdown(markdown);
     if (!["forest", "ink", "warm"].includes(theme))
       fail("Unknown writing theme");
+    if (note !== undefined && (typeof note !== "string" || note.length > 500))
+      fail("修订备注需为不超过 500 字的文本");
+    const noteText = typeof note === "string" ? note : "";
     this.db.exec("SAVEPOINT writing_save");
     try {
       const current = this.document(id, channel),
@@ -533,8 +546,10 @@ export class WritingService {
         { markdownWrite: true }
       );
       this.db
-        .prepare("INSERT INTO article_markdown_revisions VALUES(?,?,?,?,?)")
-        .run(ref.id, revision, markdown, theme, at);
+        .prepare(
+          "INSERT INTO article_markdown_revisions(reference_id,revision,markdown,theme,created_at,note) VALUES(?,?,?,?,?,?)"
+        )
+        .run(ref.id, revision, markdown, theme, at, noteText);
       this.db
         .prepare(
           "UPDATE editorial_channel_refs SET checklist_json=?,status='draft',reported_url='',updated_at=? WHERE id=?"
@@ -604,6 +619,7 @@ export class WritingService {
             row.paragraphs
           ),
         theme: md?.theme || "forest",
+        note: md?.note || "",
         ...(sync
           ? {
               masterReview: {
@@ -787,6 +803,29 @@ export class WritingService {
       )
       .all(ref.id)
       .map((row) => this._suggestion(ref.id, row.id));
+  }
+  persistSuggestions(
+    id,
+    channel,
+    { expectedRevision, edits, instruction, reason, runId } = {}
+  ) {
+    const current = this.document(id, channel);
+    if (current.mode !== "markdown")
+      fail("Save the integrated Markdown document first", 409);
+    if (current.revision !== expectedRevision)
+      fail("Document changed; the agent run must be reviewed and retried", 409);
+    const validated = validateWritingEdits(
+      { edits, reason },
+      { current, from: 0, to: current.markdown.length, mode: "edit" }
+    );
+    return this._insertSuggestions(
+      this._ref(id, channel),
+      current,
+      validated,
+      String(instruction || "agent").slice(0, 4000),
+      String(reason || ""),
+      { batchContext: JSON.stringify({ agentRunId: String(runId || "") }) }
+    );
   }
   _prepareSuggestion(
     id,
@@ -989,54 +1028,24 @@ export class WritingService {
     return this._storeSuggestionResult(request, result);
   }
   _storeSuggestionResult(request, result) {
-    const {
-      id,
-      channel,
-      current,
-      creatorContext,
-      expectedRevision,
-      instruction,
-      from,
-      to,
-      mode,
-    } = request;
+    const { id, channel, current, creatorContext, instruction, mode } = request;
     if (
       creatorContext?.sources.some((r) =>
         this.creator?.sourceRemoved(r.kind, r.id)
       )
     )
       fail("来源已移除，返回建议未保存", 409);
-    const edits = validateWritingEdits(result, request),
-      batchId = "wb_" + randomUUID(),
-      rows = [],
-      ref = this._ref(id, channel);
-    this.db.exec("SAVEPOINT writing_suggestion");
-    try {
-      for (const { from, to, replacement } of edits) {
-        const suggestion = "ws_" + randomUUID();
-        this.db
-          .prepare(
-            "INSERT INTO writing_suggestions VALUES(?,?,?,?,?,?,?,?,?,?,?,NULL)"
-          )
-          .run(
-            suggestion,
-            ref.id,
-            expectedRevision,
-            from,
-            to,
-            current.markdown.slice(from, to),
-            replacement,
-            instruction.trim(),
-            result.reason,
-            mode === "discuss" ? "conversation" : "pending",
-            stamp()
-          );
-        if (creatorContext)
-          this.db
-            .prepare("INSERT INTO writing_suggestion_context VALUES(?,?)")
-            .run(
-              suggestion,
-              JSON.stringify({
+    const rows = this._insertSuggestions(
+      this._ref(id, channel),
+      current,
+      validateWritingEdits(result, request),
+      instruction,
+      result.reason,
+      {
+        mode,
+        ...(creatorContext
+          ? {
+              batchContext: JSON.stringify({
                 revision: creatorContext.revision,
                 profileRevision: creatorContext.profileRevision,
                 account: creatorContext.account,
@@ -1073,15 +1082,48 @@ export class WritingService {
                       revision: creatorContext.topic.revision,
                     }
                   : null,
-              })
-            );
+              }),
+            }
+          : {}),
+      }
+    );
+    return rows.length === 1 ? rows[0] : { ...rows[0], suggestions: rows };
+  }
+  _insertSuggestions(ref, current, validated, instruction, reason, extra = {}) {
+    const batchId = "wb_" + randomUUID(),
+      rows = [];
+    this.db.exec("SAVEPOINT writing_suggestion");
+    try {
+      for (const { from, to, replacement } of validated) {
+        const suggestion = "ws_" + randomUUID();
+        this.db
+          .prepare(
+            "INSERT INTO writing_suggestions VALUES(?,?,?,?,?,?,?,?,?,?,?,NULL)"
+          )
+          .run(
+            suggestion,
+            ref.id,
+            current.revision,
+            from,
+            to,
+            current.markdown.slice(from, to),
+            replacement,
+            instruction.trim(),
+            reason,
+            extra.mode === "discuss" ? "conversation" : "pending",
+            stamp()
+          );
+        if (extra.batchContext !== undefined)
+          this.db
+            .prepare("INSERT INTO writing_suggestion_context VALUES(?,?)")
+            .run(suggestion, extra.batchContext);
         this.db
           .prepare("INSERT INTO writing_suggestion_members VALUES(?,?)")
           .run(suggestion, batchId);
         rows.push(this._suggestion(ref.id, suggestion));
       }
       this.db.exec("RELEASE writing_suggestion");
-      return rows.length === 1 ? rows[0] : { ...rows[0], suggestions: rows };
+      return rows;
     } catch (e) {
       this.db.exec(
         "ROLLBACK TO writing_suggestion; RELEASE writing_suggestion"
@@ -1103,7 +1145,12 @@ export class WritingService {
         .run(stamp(), s.id);
       return this.document(id, channel);
     }
-    if (s.contextSnapshot && this.creator) {
+    if (
+      s.contextSnapshot &&
+      s.contextSnapshot.agentRunId === undefined &&
+      s.contextSnapshot.revision !== undefined &&
+      this.creator
+    ) {
       const context = this.creator.context(id, channel);
       if (
         context.revision !== s.contextSnapshot.revision ||

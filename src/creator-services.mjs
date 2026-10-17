@@ -633,4 +633,62 @@ export class CreatorServices {
       fail("模型返回不完整或格式错误，未修改已有内容", 502);
     }
   }
+  async chatWithTools({ binding, messages, tools, runConsent = false, signal, fetchImpl: injectedFetchImpl } = {}) {
+    if (!runConsent) fail("请先确认本次 agent 运行的模型调用授权", 403);
+    if (!Array.isArray(messages) || !messages.length) fail("agent 消息无效");
+    const fetchImpl = injectedFetchImpl || this.fetchImpl;
+    const rt = this.resolveBinding(binding), usageId = this._reserve("text", rt.id),
+      url = new URL("chat/completions", rt.url.replace(/\/?$/, "/")),
+      settleState = (state) =>
+        this.db
+          .prepare("UPDATE service_usage SET state=?,actual=? WHERE id=?")
+          .run(
+            state,
+            state === "completed" ? 1 : state === "unknown" ? null : 0,
+            usageId
+          );
+    let response;
+    try {
+      response = await fetchImpl(url, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: "Bearer " + rt.key },
+        body: JSON.stringify({ model: rt.model, messages, ...(tools?.length ? { tools } : {}) }),
+        redirect: "error",
+        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(120000)]) : AbortSignal.timeout(120000),
+      });
+    } catch (e) {
+      settleState("unknown");
+      fail("模型调用中断，费用待核实", 502);
+    }
+    if (!response.ok) {
+      settleState("failed");
+      fail("模型服务未完成请求（HTTP " + response.status + "）", 502);
+    }
+    let raw;
+    try {
+      raw = await response.text();
+    } catch (e) {
+      settleState("unknown");
+      fail("模型调用中断，费用待核实", 502);
+    }
+    if (raw.length > 500000) {
+      settleState("unknown");
+      fail("模型响应过大", 502);
+    }
+    let data;
+    try {
+      data = JSON.parse(raw);
+      if (data.choices?.[0]?.finish_reason === "length") throw Error();
+    } catch {
+      settleState("unknown");
+      fail("模型返回不完整或格式错误", 502);
+    }
+    const message = data.choices?.[0]?.message;
+    if (!message || (!message.content && !message.tool_calls?.length)) {
+      settleState("unknown");
+      fail("模型未返回内容或工具调用", 502);
+    }
+    settleState("completed");
+    return message;
+  }
 }
