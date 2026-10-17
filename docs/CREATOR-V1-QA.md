@@ -228,3 +228,5 @@ Windows 本机（Node 24.1.0）本轮仅复核 `npm run check` 通过；未在�
 验证（node:22-slim 容器；字体套件加 fonts-noto-cjk）：批 A 后 runtime 17/17、回归 30/30、build EXIT=0；批 B 修复后 9 套件合并 64/64、`npm run build` EXIT=0、e2e `agent-runtime.spec.mjs` 1 passed。新增测试后全量规模 544→549（+5：批 A 3 项、批 B 条件子测试按主机声明计）。Windows 本机限制同上节（0600 凭据门、字体路径），未重跑全量。两批均未 commit/push/合并/部署；真实模型/图片/公众号外部验收边界不变。
 
 本轮遗留跟踪项（最终审查分诊为不阻塞合并，维持跟踪）：轨迹 payload 有界但模型回传副本仍受 4000/60000 截断上限约束（设计如此）；write_revision 的 note 在"同 markdown 重复保存"时不落盘（不可变修订 no-op 语义）；模型失败重试消耗步数预算（有界）；上游 5xx 文本记 failed 与图片记 unknown 的口径差异；事件流轮询效率（O(n²) 步骤重解析）；V74 两项与真实 Docker 烟测仍属 CI 职责。
+
+**提交后认证（2026-10-17，提交 640aa46 / 6b54fa7 / a6b7c70）**：完整套件在 fonts-noto-cjk + git 的 node:22-slim 容器实测 **551 项 = 546 通过 / 2 失败 / 3 跳过**——2 个失败为既有 V74 用例（要求无特权 Linux 容器，root 容器下按自身守卫拒绝，与上文分类一致），3 个跳过为 V69 非 root 守卫；含全部 v45–v75 备份/恢复/发布门禁套件，`note` 加性列在这些套件下行为一致。提交内容与本节及上节验证的工作区内容一致；`npm run build`（EXIT=0，含 V64/V65 封存）与 e2e（1 passed）为同一内容的此前实测。
