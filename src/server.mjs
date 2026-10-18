@@ -1,4 +1,8 @@
 import http from 'node:http';import {readFile} from 'node:fs/promises';import {join,dirname,extname,resolve} from 'node:path';import {fileURLToPath} from 'node:url';
+// 本遗留单用户演示服务器不含作者隔离（多用户模式的核心边界）。
+// 在多用户姿态下拒绝启动（fail-closed），防止旁路绕过作者工作空间隔离。
+if(process.env.CONTENT_STUDIO_MULTIUSER==='1'){console.error('Refusing to start: the legacy single-user server has no author isolation. Use `npm start` (Next.js) with CONTENT_STUDIO_MULTIUSER=1 instead.');process.exit(78)}
+console.warn('Legacy single-user server: no author isolation; local demo/tests only.');
 import {Store} from './store.mjs';import {SyncEngine} from './sync.mjs';import {defaultSources} from './adapters.mjs';import {seedScenario} from './fixtures.mjs';import {SelectedMirror} from './selected.mjs';import {rankEvents,withVerification,analyzeWithModel,modelConfigured} from './opportunities.mjs';import {VerificationService} from './verification.mjs';import {KnowledgeService} from './knowledge.mjs';import {PrecisionService} from './precision.mjs';import {EditorialService} from './editorial.mjs';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..'),port=Number(process.env.PORT||4312);const store=new Store(process.env.DB_PATH||join(root,'data','content-studio.sqlite'));const sync=new SyncEngine(store);const selected=new SelectedMirror(store);const verification=new VerificationService(store);const knowledge=new KnowledgeService(store,verification);const precision=new PrecisionService(store,verification,knowledge);const editorial=new EditorialService(store,knowledge,precision);editorial.attachPrecision();
 const MIME={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8'};

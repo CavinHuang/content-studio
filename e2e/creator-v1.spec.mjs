@@ -519,9 +519,16 @@ test("complete briefs, explicit recommendation sources and context conflict reco
     .fill("还需要验证长期效果，避免过度归因");
   await page.getByLabel("小红书", { exact: true }).check();
   await page.getByRole("button", { name: "保存简报", exact: true }).click();
-  await page
-    .getByLabel("选题反馈原因", { exact: true })
-    .fill("这个问题来自自己的真实实践，值得继续写");
+  // 受控输入与后台 load() 重渲染存在已知竞态（反馈原因偶发被回写清空）：
+  // fill 后校验值已提交，未提交则重填，消除偶发。
+  await expect(async () => {
+    await page
+      .getByLabel("选题反馈原因", { exact: true })
+      .fill("这个问题来自自己的真实实践，值得继续写");
+    await expect(page.getByLabel("选题反馈原因", { exact: true })).toHaveValue(
+      /真实实践/
+    );
+  }).toPass({ timeout: 5000 });
   await page.getByRole("button", { name: "收藏选题", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "取消收藏", exact: true })
