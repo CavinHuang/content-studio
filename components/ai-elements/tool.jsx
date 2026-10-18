@@ -41,13 +41,13 @@ const statusLabels = {
 };
 
 const statusIcons = {
-  "approval-requested": <ClockIcon className="size-4 text-[#9c7a2d]" />,
-  "approval-responded": <CheckCircleIcon className="size-4 text-[#38618c]" />,
+  "approval-requested": <ClockIcon className="size-4 text-(--muted-ink)" />,
+  "approval-responded": <CheckCircleIcon className="size-4 text-(--muted-ink)" />,
   "input-available": <ClockIcon className="size-4 animate-pulse" />,
   "input-streaming": <CircleIcon className="size-4" />,
-  "output-available": <CheckCircleIcon className="size-4 text-[#38713c]" />,
-  "output-denied": <XCircleIcon className="size-4 text-[#a4642d]" />,
-  "output-error": <XCircleIcon className="size-4 text-[#b3423a]" />,
+  "output-available": <CheckCircleIcon className="size-4 text-(--writing-green)" />,
+  "output-denied": <XCircleIcon className="size-4 text-(--muted-ink)" />,
+  "output-error": <XCircleIcon className="size-4 text-(--destructive)" />,
 };
 
 export const getStatusBadge = (state) => (
@@ -98,8 +98,8 @@ export const ToolInput = ({ className, input, ...props }) => (
     <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
       参数
     </h4>
-    <div className="rounded-md bg-[#eef0e9]">
-      <pre className="overflow-x-auto p-3 font-mono text-xs text-[#38523f]">
+    <div className="rounded-md bg-muted">
+      <pre className="overflow-x-auto p-3 font-mono text-xs text-foreground">
         {JSON.stringify(input, null, 2)}
       </pre>
     </div>
@@ -120,13 +120,13 @@ export const ToolOutput = ({
 
   if (typeof output === "object" && !isValidElement(output)) {
     rendered = (
-      <pre className="overflow-x-auto p-3 font-mono text-xs text-[#38523f]">
+      <pre className="overflow-x-auto p-3 font-mono text-xs text-foreground">
         {JSON.stringify(output, null, 2)}
       </pre>
     );
   } else if (typeof output === "string") {
     rendered = (
-      <pre className="overflow-x-auto p-3 font-mono text-xs text-[#38523f]">
+      <pre className="overflow-x-auto p-3 font-mono text-xs text-foreground">
         {output}
       </pre>
     );
@@ -140,7 +140,7 @@ export const ToolOutput = ({
       <div
         className={cn(
           "overflow-x-auto rounded-md text-xs [&_table]:w-full",
-          errorText ? "bg-[#f7e7e5] text-[#94443c]" : "bg-[#eef0e9] text-foreground",
+          errorText ? "bg-destructive/10 text-destructive" : "bg-muted text-foreground",
         )}
       >
         {errorText && <div className="p-3">{errorText}</div>}
