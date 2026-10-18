@@ -1,5 +1,8 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
+import {Task,TaskTrigger,TaskContent,TaskItem} from './ai-elements/task';
+import {Tool,ToolHeader,ToolContent,ToolInput,ToolOutput} from './ai-elements/tool';
+import {Badge} from './ui/badge';
 async function api(path,method='GET',body){const r=await fetch(path,{method,cache:'no-store',headers:body?{'content-type':'application/json'}:{},body:body?JSON.stringify(body):undefined});const value=await r.json().catch(()=>({}));if(!r.ok)throw Error(value.error||'agent 请求未完成');return value}
 const LABEL={model:'模型',tool:'工具',model_error:'模型异常'};
 export default function AgentRuns({projectId,channel,revision,onNotice}){
@@ -32,6 +35,26 @@ export default function AgentRuns({projectId,channel,revision,onNotice}){
   catch(e){setProfile(before);onNotice(e.message)}
  }
  const skill=skills.find(s=>s.id===skillId),tools=skill&&profile?skill.tools.filter(t=>profile.tools.includes(t)):[];
+ function renderStep(step){
+  if(step.kind==='tool'){
+   const outcome=step.payload.outcome||{};
+   const state=outcome.error?'output-error':'output-available';
+   return <Tool className="border-[#dbe2d6] bg-[#fffefa]">
+    <ToolHeader type="dynamic-tool" state={state} toolName={step.payload.name} title={`工具 · ${step.payload.name}`} />
+    <ToolContent>
+     {outcome.result!==undefined&&<ToolInput input={outcome.result} />}
+     <ToolOutput output={outcome.error?undefined:outcome.result} errorText={outcome.error} />
+    </ToolContent>
+   </Tool>;
+  }
+  if(step.kind==='model')
+   return <div className="flex items-center gap-2 py-1 text-sm text-[#5a6b57]"><Badge variant="secondary">模型</Badge><span>{(step.payload.toolCalls||[]).map(c=>c.name).join('、')||String(step.payload.content||'').slice(0,80)||'（产出说明）'}</span></div>;
+  if(step.kind==='model_error')
+   return <div className="flex items-center gap-2 py-1 text-sm text-[#9c442d]"><Badge variant="outline">模型异常</Badge><span>{step.payload.message}</span></div>;
+  if(step.kind==='run_done')
+   return <div className="py-1 text-sm text-[#285c45]">运行{step.status==='completed'?'完成':'结束'}：{step.stopReason||''}</div>;
+  return <div className="py-1 text-sm text-[#5a6b57]">{step.kind}</div>;
+ }
  return <section className="writing-agent-panel" aria-label="agent 任务运行">
   <p>选择内置技能，由 agent 在授权范围内多步完成写作任务；每一步都记录在运行轨迹中。</p>
   <label>技能<select aria-label="agent 技能" value={skillId} onChange={e=>setSkillId(e.target.value)} disabled={busy||run?.status==='running'}>{skills.map(s=><option value={s.id} key={s.id}>{s.title}（v{s.version}）</option>)}</select></label>
@@ -43,7 +66,7 @@ export default function AgentRuns({projectId,channel,revision,onNotice}){
    <button className="writing-button primary" disabled={busy||!skillId||!consent||run?.status==='running'} onClick={start}>启动运行</button>
    {run?.status==='running'&&<button className="writing-button" onClick={cancel}>取消运行</button>}
   </div>
-  {run&&<ol className="agent-run-steps">{(run.steps||[]).map(step=><li key={step.seq}><strong>{LABEL[step.kind]||step.kind}</strong> <code>{step.kind==='tool'?step.payload.name:step.kind==='model'?(step.payload.toolCalls||[]).map(c=>c.name).join('、')||'（产出）':''}</code> {step.kind==='run_done'?`运行${step.status==='completed'?'完成':'结束'}：${step.stopReason||''}`:''}</li>)}</ol>}
+  {run&&<ol className="agent-run-steps list-none space-y-2">{(run.steps||[]).map(step=><li key={step.seq}>{renderStep(step)}{step.kind==='run_done'&&<span className="ml-2 text-xs">{step.stopReason||''}</span>}</li>)}</ol>}
   {run&&run.status!=='running'&&<p className="writing-source-note">{run.status==='completed'?'运行完成。建议制产出请到建议列表逐项审阅；直写修订可在历史中对比与恢复。':'运行未完成：'+(run.stopReason||run.status)+'。可核对轨迹后重新启动。'}</p>}
  </section>;
 }

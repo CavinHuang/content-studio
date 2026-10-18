@@ -1,0 +1,46 @@
+/*
+ * AI Elements 主题层（Tailwind v4）。
+ * 刻意不引入 preflight 层：既有手写样式（未分层）在级联中优先于
+ * theme/utilities 层，保证存量页面零回归；本文件只为 AI Elements
+ * 组件提供工具类与语义色令牌（米白底 + 森林绿主色）。
+ */
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-destructive: var(--destructive);
+}
+
+:root {
+  --background: #f7f6f1;
+  --foreground: #22302a;
+  --primary: #285c45;
+  --primary-foreground: #f7f6f1;
+  --secondary: #e7efe2;
+  --secondary-foreground: #285c45;
+  --muted: #eef0e9;
+  --muted-foreground: #5a6b57;
+  --accent: #e7efe2;
+  --accent-foreground: #285c45;
+  --border: #dbe2d6;
+  --input: #dbe2d6;
+  --ring: #4c8667;
+  --popover: #fffefa;
+  --popover-foreground: #22302a;
+  --destructive: #b3423a;
+}
