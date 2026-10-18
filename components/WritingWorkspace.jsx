@@ -1586,7 +1586,6 @@ export default function WritingWorkspace() {
                         </label>
                         <PromptInputTextarea
                           id="writing-instruction"
-                          aria-label="写作要求输入框"
                           value={instruction}
                           onChange={(e) => {
                             setResumeInput(null);
