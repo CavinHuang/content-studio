@@ -3,6 +3,8 @@ import {useEffect,useRef,useState} from 'react';
 import {Task,TaskTrigger,TaskContent,TaskItem} from './ai-elements/task';
 import {Tool,ToolHeader,ToolContent,ToolInput,ToolOutput} from './ai-elements/tool';
 import {Badge} from './ui/badge';
+import {MessageResponse} from './ai-elements/message';
+import {PromptInputTextarea} from './ai-elements/prompt-input';
 async function api(path,method='GET',body){const r=await fetch(path,{method,cache:'no-store',headers:body?{'content-type':'application/json'}:{},body:body?JSON.stringify(body):undefined});const value=await r.json().catch(()=>({}));if(!r.ok)throw Error(value.error||'agent 请求未完成');return value}
 const LABEL={model:'模型',tool:'工具',model_error:'模型异常'};
 export default function AgentRuns({projectId,channel,revision,onNotice}){
@@ -47,8 +49,10 @@ export default function AgentRuns({projectId,channel,revision,onNotice}){
     </ToolContent>
    </Tool>;
   }
-  if(step.kind==='model')
-   return <div className="flex items-center gap-2 py-1 text-sm text-(--muted-ink)"><Badge variant="secondary">模型</Badge><span>{(step.payload.toolCalls||[]).map(c=>c.name).join('、')||String(step.payload.content||'').slice(0,80)||'（产出说明）'}</span></div>;
+  if(step.kind==='model'){
+   const names=(step.payload.toolCalls||[]).map(c=>c.name).join('、');
+   return <div className="py-1 text-sm text-(--muted-ink)"><Badge variant="secondary">模型</Badge>{names&&<span className="ml-2">{names}</span>}{step.payload.content&&<div className="mt-1 w-full text-foreground"><MessageResponse>{step.payload.content}</MessageResponse></div>}</div>;
+  }
   if(step.kind==='model_error')
    return <div className="flex items-center gap-2 py-1 text-sm text-(--destructive)"><Badge variant="outline">模型异常</Badge><span>{step.payload.message}</span></div>;
   if(step.kind==='run_done')
@@ -60,7 +64,7 @@ export default function AgentRuns({projectId,channel,revision,onNotice}){
   <label>技能<select aria-label="agent 技能" value={skillId} onChange={e=>setSkillId(e.target.value)} disabled={busy||run?.status==='running'}>{skills.map(s=><option value={s.id} key={s.id}>{s.title}（v{s.version}）</option>)}</select></label>
   {profile&&<label>写模式<select aria-label="agent 写模式" value={profile.writeMode} onChange={e=>setWriteMode(e.target.value)} disabled={busy||run?.status==='running'}><option value="suggestions">建议制，逐项审阅</option><option value="revisions">授权直写新修订</option></select></label>}
   {skill&&<small>将加载工具：{tools.join('、')||'（无可用工具）'}；当前写模式：{profile?.writeMode==='revisions'?'直写修订':'建议制'}</small>}
-  <label>任务要求<textarea aria-label="agent 任务要求" value={instruction} onChange={e=>setInstruction(e.target.value)} maxLength={4000} rows={3} disabled={busy||run?.status==='running'}/></label>
+  <label>任务要求<PromptInputTextarea aria-label="agent 任务要求" value={instruction} onChange={e=>setInstruction(e.target.value)} maxLength={4000} placeholder="例如：润色第二段，举一个日常例子（Enter 启动，Shift+Enter 换行）" disabled={busy||run?.status==='running'} submitDisabled={busy||!skillId||!consent||run?.status==='running'} onEnterSubmit={()=>start()}/></label>
   <label className="writing-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} disabled={busy||run?.status==='running'}/>允许本次运行调用模型与图片服务，可能产生费用；v1 不设次数上限，逐次记账</label>
   <div className="writing-image-actions">
    <button className="writing-button primary" disabled={busy||!skillId||!consent||run?.status==='running'} onClick={start}>启动运行</button>
