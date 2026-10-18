@@ -5,6 +5,8 @@ import {
   randomUUID,
   createHash,
 } from "node:crypto";
+import { generateText, dynamicTool, jsonSchema } from "ai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { boundedResponseText } from "./bounded-response.mjs";
 import { ValidationError } from "./verification.mjs";
 import {
@@ -44,6 +46,58 @@ export function credentialKey(path) {
   if (key.length !== 32) fail("凭据加密密钥无效", 503);
   return key;
 }
+/** 把 agent 循环的 OpenAI 风格线程转换为 AI SDK v7 的 ModelMessage 线程；
+ *  system 消息提取为 instructions（v7 不允许留在 messages 中）。 */
+export function toAiModelMessages(messages) {
+  const instructions = [];
+  const converted = [];
+  const pendingToolNames = new Map();
+  const safeJson = (value) => {
+    try {
+      return JSON.parse(value ?? "{}");
+    } catch {
+      return {};
+    }
+  };
+  for (const message of messages) {
+    if (message.role === "system") {
+      instructions.push(String(message.content ?? ""));
+      continue;
+    }
+    if (message.role === "assistant") {
+      const parts = [];
+      if (message.content) parts.push({ type: "text", text: String(message.content) });
+      for (const call of message.tool_calls ?? []) {
+        pendingToolNames.set(call.id, call.function?.name ?? "unknown_tool");
+        parts.push({
+          type: "tool-call",
+          toolCallId: call.id,
+          toolName: call.function?.name ?? "unknown_tool",
+          input: safeJson(call.function?.arguments),
+        });
+      }
+      converted.push({ role: "assistant", content: parts });
+      continue;
+    }
+    if (message.role === "tool") {
+      converted.push({
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            toolCallId: message.tool_call_id,
+            toolName: pendingToolNames.get(message.tool_call_id) ?? "unknown_tool",
+            output: { type: "text", value: String(message.content ?? "") },
+          },
+        ],
+      });
+      continue;
+    }
+    converted.push({ role: message.role, content: String(message.content ?? "") });
+  }
+  return { instructions: instructions.join("\n"), messages: converted };
+}
+
 export class CreatorServices {
   constructor(
     db,
@@ -638,57 +692,76 @@ export class CreatorServices {
     if (!Array.isArray(messages) || !messages.length) fail("agent 消息无效");
     const fetchImpl = injectedFetchImpl || this.fetchImpl;
     const rt = this.resolveBinding(binding), usageId = this._reserve("text", rt.id),
-      url = new URL("chat/completions", rt.url.replace(/\/?$/, "/")),
-      settleState = (state) =>
+      settleState = (state, providerUsage) =>
         this.db
-          .prepare("UPDATE service_usage SET state=?,actual=? WHERE id=?")
+          .prepare("UPDATE service_usage SET state=?,actual=?,provider_usage=? WHERE id=?")
           .run(
             state,
             state === "completed" ? 1 : state === "unknown" ? null : 0,
+            providerUsage ? JSON.stringify(providerUsage) : "{}",
             usageId
           );
-    let response;
-    try {
-      response = await fetchImpl(url, {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: "Bearer " + rt.key },
-        body: JSON.stringify({ model: rt.model, messages, ...(tools?.length ? { tools } : {}) }),
-        redirect: "error",
-        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(120000)]) : AbortSignal.timeout(120000),
+    const { instructions, messages: modelMessages } = toAiModelMessages(messages);
+    const sdkTools = {};
+    for (const t of tools ?? []) {
+      sdkTools[t.function.name] = dynamicTool({
+        description: t.function.description,
+        inputSchema: jsonSchema(
+          t.function.parameters ?? { type: "object", properties: {} },
+        ),
       });
+    }
+    try {
+      const result = await generateText({
+        model: createOpenAICompatible({
+          name: "content-studio-byok",
+          baseURL: rt.url.replace(/\/?$/, "/"),
+          apiKey: rt.key,
+          fetch: fetchImpl,
+        }).chatModel(rt.model),
+        instructions,
+        messages: modelMessages,
+        ...(Object.keys(sdkTools).length ? { tools: sdkTools } : {}),
+        maxRetries: 0,
+        abortSignal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(120000)])
+          : AbortSignal.timeout(120000),
+      });
+      if (result.finishReason === "length") {
+        settleState("unknown");
+        fail("模型返回不完整或格式错误", 502);
+      }
+      if (!result.text && !result.toolCalls?.length) {
+        settleState("unknown");
+        fail("模型未返回内容或工具调用", 502);
+      }
+      const usage = result.usage ?? {};
+      const providerUsage = {};
+      if (usage.inputTokens !== undefined) providerUsage.inputTokens = usage.inputTokens;
+      if (usage.outputTokens !== undefined) providerUsage.outputTokens = usage.outputTokens;
+      if (usage.totalTokens !== undefined) providerUsage.totalTokens = usage.totalTokens;
+      settleState("completed", providerUsage);
+      return {
+        role: "assistant",
+        content: result.text || null,
+        tool_calls: (result.toolCalls ?? []).map((c) => ({
+          id: c.toolCallId,
+          type: "function",
+          function: { name: c.toolName, arguments: JSON.stringify(c.input ?? {}) },
+        })),
+      };
     } catch (e) {
+      if (
+        e?.name === "APICallError" &&
+        typeof e?.statusCode === "number" &&
+        (e.statusCode < 200 || e.statusCode >= 300)
+      ) {
+        settleState("failed");
+        fail("模型服务未完成请求（HTTP " + e.statusCode + "）", 502);
+      }
       settleState("unknown");
+      if (signal?.aborted) fail("模型调用已取消，费用待核实", 502);
       fail("模型调用中断，费用待核实", 502);
     }
-    if (!response.ok) {
-      settleState("failed");
-      fail("模型服务未完成请求（HTTP " + response.status + "）", 502);
-    }
-    let raw;
-    try {
-      raw = await response.text();
-    } catch (e) {
-      settleState("unknown");
-      fail("模型调用中断，费用待核实", 502);
-    }
-    if (raw.length > 500000) {
-      settleState("unknown");
-      fail("模型响应过大", 502);
-    }
-    let data;
-    try {
-      data = JSON.parse(raw);
-      if (data.choices?.[0]?.finish_reason === "length") throw Error();
-    } catch {
-      settleState("unknown");
-      fail("模型返回不完整或格式错误", 502);
-    }
-    const message = data.choices?.[0]?.message;
-    if (!message || (!message.content && !message.tool_calls?.length)) {
-      settleState("unknown");
-      fail("模型未返回内容或工具调用", 502);
-    }
-    settleState("completed");
-    return message;
   }
 }
