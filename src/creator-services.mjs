@@ -751,13 +751,14 @@ export class CreatorServices {
         })),
       };
     } catch (e) {
+      const status = e?.statusCode;
       if (
         e?.name === "APICallError" &&
-        typeof e?.statusCode === "number" &&
-        (e.statusCode < 200 || e.statusCode >= 300)
+        typeof status === "number" &&
+        status < 500
       ) {
         settleState("failed");
-        fail("模型服务未完成请求（HTTP " + e.statusCode + "）", 502);
+        fail("模型服务未完成请求（HTTP " + status + "）", 502);
       }
       settleState("unknown");
       if (signal?.aborted) fail("模型调用已取消，费用待核实", 502);

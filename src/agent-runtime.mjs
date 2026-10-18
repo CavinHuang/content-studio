@@ -79,9 +79,29 @@ export class AgentRuntime {
     return this.profile();
   }
   runs(projectId) {
-    return this.db
-      .prepare("SELECT id FROM agent_runs WHERE project_id=? ORDER BY rowid DESC LIMIT 20").all(projectId)
-      .map(r => this.run(projectId, r.id));
+    const rows = this.db
+      .prepare("SELECT * FROM agent_runs WHERE project_id=? ORDER BY rowid DESC LIMIT 20")
+      .all(projectId);
+    if (!rows.length) return [];
+    // 一次取回全部步骤（IN 查询），避免逐运行 N+1。
+    const placeholders = rows.map(() => "?").join(","),
+      stepRows = this.db
+        .prepare(
+          "SELECT run_id,seq,kind,payload_json AS payload,created_at AS createdAt FROM agent_run_steps WHERE run_id IN (" + placeholders + ") ORDER BY run_id,rowid"
+        )
+        .all(...rows.map(r => r.id));
+    const byRun = new Map();
+    for (const s of stepRows) {
+      if (!byRun.has(s.run_id)) byRun.set(s.run_id, []);
+      byRun.get(s.run_id).push({ seq: s.seq, kind: s.kind, payload: JSON.parse(s.payload), createdAt: s.createdAt });
+    }
+    return rows.map(row => ({
+      id: row.id, projectId, channel: row.channel, baseRevision: row.base_revision,
+      skillId: row.skill_id, skillVersion: row.skill_version, agentId: row.agent_id,
+      status: row.status, stopReason: row.stop_reason, instruction: row.instruction,
+      createdAt: row.created_at, updatedAt: row.updated_at,
+      steps: byRun.get(row.id) ?? [],
+    }));
   }
   run(projectId, runId) {
     const row = this.db.prepare("SELECT * FROM agent_runs WHERE id=? AND project_id=?").get(runId, projectId);
