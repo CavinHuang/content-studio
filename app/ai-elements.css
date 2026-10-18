@@ -2,7 +2,9 @@
  * AI Elements 主题层（Tailwind v4）。
  * 刻意不引入 preflight 层：既有手写样式（未分层）在级联中优先于
  * theme/utilities 层，保证存量页面零回归；本文件只为 AI Elements
- * 组件提供工具类与语义色令牌（米白底 + 森林绿主色）。
+ * 组件提供工具类与语义色令牌。
+ * 令牌一律引用既有设计变量（globals.css/writing.css），不另造色值：
+ * 画布/墨色/白卡/线/写作绿/弱化文字与既有页面逐一对齐。
  */
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
@@ -14,8 +16,8 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted-bg);
+  --color-muted-foreground: var(--muted-ink);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-border: var(--border);
@@ -27,20 +29,21 @@
 }
 
 :root {
-  --background: #f7f6f1;
-  --foreground: #22302a;
-  --primary: #285c45;
-  --primary-foreground: #f7f6f1;
-  --secondary: #e7efe2;
-  --secondary-foreground: #285c45;
-  --muted: #eef0e9;
-  --muted-foreground: #5a6b57;
-  --accent: #e7efe2;
-  --accent-foreground: #285c45;
-  --border: #dbe2d6;
-  --input: #dbe2d6;
+  /* 既有设计变量的语义别名（shadcn 命名 → 本仓变量） */
+  --background: var(--canvas, #f8f9f6);
+  --foreground: var(--ink, #24352e);
+  --primary: var(--writing-green, #285c45);
+  --primary-foreground: #fffefa;
+  --secondary: var(--brand-soft, #e7f1ec);
+  --secondary-foreground: var(--writing-green, #285c45);
+  --muted-bg: var(--brand-soft, #e7f1ec);
+  --muted-ink: var(--muted, #7a8780);
+  --accent: var(--brand-soft, #e7f1ec);
+  --accent-foreground: var(--writing-green, #285c45);
+  --border: var(--writing-line, #dfe5dc);
+  --input: var(--writing-line, #dfe5dc);
   --ring: #4c8667;
   --popover: #fffefa;
-  --popover-foreground: #22302a;
-  --destructive: #b3423a;
+  --popover-foreground: var(--ink, #24352e);
+  --destructive: #9c442d;
 }

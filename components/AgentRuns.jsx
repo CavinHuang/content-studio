@@ -39,7 +39,7 @@ export default function AgentRuns({projectId,channel,revision,onNotice}){
   if(step.kind==='tool'){
    const outcome=step.payload.outcome||{};
    const state=outcome.error?'output-error':'output-available';
-   return <Tool className="border-[#dbe2d6] bg-[#fffefa]">
+   return <Tool className="border-border bg-popover">
     <ToolHeader type="dynamic-tool" state={state} toolName={step.payload.name} title={`工具 · ${step.payload.name}`} />
     <ToolContent>
      {outcome.result!==undefined&&<ToolInput input={outcome.result} />}
@@ -48,12 +48,12 @@ export default function AgentRuns({projectId,channel,revision,onNotice}){
    </Tool>;
   }
   if(step.kind==='model')
-   return <div className="flex items-center gap-2 py-1 text-sm text-[#5a6b57]"><Badge variant="secondary">模型</Badge><span>{(step.payload.toolCalls||[]).map(c=>c.name).join('、')||String(step.payload.content||'').slice(0,80)||'（产出说明）'}</span></div>;
+   return <div className="flex items-center gap-2 py-1 text-sm text-(--muted-ink)"><Badge variant="secondary">模型</Badge><span>{(step.payload.toolCalls||[]).map(c=>c.name).join('、')||String(step.payload.content||'').slice(0,80)||'（产出说明）'}</span></div>;
   if(step.kind==='model_error')
-   return <div className="flex items-center gap-2 py-1 text-sm text-[#9c442d]"><Badge variant="outline">模型异常</Badge><span>{step.payload.message}</span></div>;
+   return <div className="flex items-center gap-2 py-1 text-sm text-(--destructive)"><Badge variant="outline">模型异常</Badge><span>{step.payload.message}</span></div>;
   if(step.kind==='run_done')
-   return <div className="py-1 text-sm text-[#285c45]">运行{step.status==='completed'?'完成':'结束'}：{step.stopReason||''}</div>;
-  return <div className="py-1 text-sm text-[#5a6b57]">{step.kind}</div>;
+   return <div className="py-1 text-sm text-(--writing-green)">运行{step.status==='completed'?'完成':'结束'}：{step.stopReason||''}</div>;
+  return <div className="py-1 text-sm text-(--muted-ink)">{step.kind}</div>;
  }
  return <section className="writing-agent-panel" aria-label="agent 任务运行">
   <p>选择内置技能，由 agent 在授权范围内多步完成写作任务；每一步都记录在运行轨迹中。</p>
