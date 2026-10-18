@@ -1,4 +1,5 @@
 "use client";
+import { MessageResponse } from "./ai-elements/message";
 export default function WritingGenerations({
   records,
   onResume,
@@ -25,7 +26,9 @@ export default function WritingGenerations({
           {g.partial && (
             <details>
               <summary>查看已保存的生成片段（不属于正文）</summary>
-              <pre>{g.partial}</pre>
+              <div className="text-sm">
+                <MessageResponse>{g.partial}</MessageResponse>
+              </div>
               <button
                 className="writing-button"
                 onClick={() =>

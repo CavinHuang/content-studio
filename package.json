@@ -106,6 +106,9 @@
     "@next/env": "^16.2.0",
     "@radix-ui/react-collapsible": "^1.2.1",
     "@replit/codemirror-indentation-markers": "6.5.3",
+    "@streamdown/cjk": "^1.0.4",
+    "@streamdown/code": "^2.0.0",
+    "@streamdown/math": "^1.0.3",
     "@tailwindcss/postcss": "^4.3.3",
     "ai": "^7.0.143",
     "class-variance-authority": "^0.7.1",
@@ -123,8 +126,10 @@
     "react-dom": "^19.2.0",
     "sanitize-html": "2.18.1",
     "sharp": "0.35.5",
+    "streamdown": "^2.7.0",
     "tailwind-merge": "^3.7.0",
-    "tailwindcss": "^4.3.3"
+    "tailwindcss": "^4.3.3",
+    "use-stick-to-bottom": "^1.1.6"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0"

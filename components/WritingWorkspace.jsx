@@ -2,6 +2,7 @@
 import { useDeferredValue, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { Message, MessageContent, MessageResponse } from "./ai-elements/message";
 import { useSearchParams } from "next/navigation";
 import WritingImages from "./WritingImages";
 import XiaohongshuWorkspace from "./XiaohongshuWorkspace";
@@ -1446,7 +1447,13 @@ export default function WritingWorkspace() {
                           aria-live="polite"
                         >
                           <strong>正在生成，尚未写入正文</strong>
-                          <pre>{streamPreview || "等待模型返回…"}</pre>
+                          {streamPreview ? (
+                            <div className="text-sm">
+                              <MessageResponse>{streamPreview}</MessageResponse>
+                            </div>
+                          ) : (
+                            <p className="text-[#7a8780]">等待模型返回…</p>
+                          )}
                           <button
                             className="writing-button"
                             onClick={stopGeneration}
@@ -1473,7 +1480,17 @@ export default function WritingWorkspace() {
                             <p className="writing-user-request">
                               {s.instruction}
                             </p>
-                            <p>{s.reason}</p>
+                            {s.status === "conversation" ? (
+                              <Message from="assistant">
+                                <MessageContent className="rounded-lg border border-[var(--writing-line)] bg-[#fffefa]">
+                                  <MessageResponse>
+                                    {s.reason}
+                                  </MessageResponse>
+                                </MessageContent>
+                              </Message>
+                            ) : (
+                              <p>{s.reason}</p>
+                            )}
                             <small>
                               {s.status === "accepted"
                                 ? "已接受"
