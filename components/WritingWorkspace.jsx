@@ -3,6 +3,12 @@ import { useDeferredValue, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Message, MessageContent, MessageResponse } from "./ai-elements/message";
+import { PromptInputTextarea } from "./ai-elements/prompt-input";
+import {
+  Conversation,
+  ConversationContent,
+  ConversationScrollButton,
+} from "./ai-elements/conversation";
 import { useSearchParams } from "next/navigation";
 import WritingImages from "./WritingImages";
 import XiaohongshuWorkspace from "./XiaohongshuWorkspace";
@@ -1468,7 +1474,8 @@ export default function WritingWorkspace() {
                         onDownload={download}
                         busy={busy}
                       />
-                      <div className="writing-suggestions" aria-live="polite">
+                      <Conversation className="writing-suggestions" aria-live="polite">
+                        <ConversationContent>
                         {suggestions.map((s) => (
                           <article
                             key={s.id}
@@ -1546,7 +1553,9 @@ export default function WritingWorkspace() {
                             )}
                           </article>
                         ))}
-                      </div>
+                        </ConversationContent>
+                        <ConversationScrollButton />
+                      </Conversation>
                       <div className="writing-prompt">
                         <label className="writing-consent">
                           <input
@@ -1575,7 +1584,7 @@ export default function WritingWorkspace() {
                             ? "对选中文字提出要求"
                             : "与助手讨论或提出写作要求"}
                         </label>
-                        <textarea
+                        <PromptInputTextarea
                           id="writing-instruction"
                           value={instruction}
                           onChange={(e) => {
@@ -1583,8 +1592,18 @@ export default function WritingWorkspace() {
                             setInstruction(e.target.value);
                           }}
                           maxLength={4000}
-                          rows={4}
-                          placeholder="例如：少用术语，补一个独立创作者的日常例子"
+                          placeholder="例如：少用术语，补一个独立创作者的日常例子（Enter 发送，Shift+Enter 换行）"
+                          submitDisabled={
+                            !requestContext ||
+                            !doc.aiConfigured ||
+                            !instruction.trim() ||
+                            !consent ||
+                            busy ||
+                            resolving ||
+                            !canMigrate ||
+                            blocked
+                          }
+                          onEnterSubmit={generate}
                         />
                         <label className="writing-consent">
                           <input
