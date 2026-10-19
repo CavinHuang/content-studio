@@ -37,25 +37,6 @@ export const MessageContent = ({ className, ...props }) => (
   />
 );
 
-export const MessageActions = ({ className, children, ...props }) => (
-  <div className={cn("flex items-center gap-1", className)} {...props}>
-    {children}
-  </div>
-);
-
-export const MessageAction = ({
-  label,
-  className,
-  ...props
-}) => (
-  <button
-    type="button"
-    title={label}
-    className={cn("writing-button", className)}
-    {...props}
-  />
-);
-
 const streamdownPlugins = { cjk, code, math };
 
 export const MessageResponse = memo(
