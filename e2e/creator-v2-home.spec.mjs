@@ -160,7 +160,7 @@ test("快捷建文：真实创建作品并进入创作空间，首页出现真�
     .locator(".cv2-hero-actions")
     .getByRole("link", { name: /继续创作/ });
   await expect(continueLink).toBeVisible();
-  await expect(continueLink).toHaveAttribute(/href/, /\/compose\?project=ep_/);
+  await expect(continueLink).toHaveAttribute("href", /\/compose\?project=ep_/);
   await expect(page.getByRole("link", { name: "桌面 AI 工作流的真实成本" })).toBeVisible();
   await expect(page.getByText("草稿中", { exact: true })).toBeVisible();
 });

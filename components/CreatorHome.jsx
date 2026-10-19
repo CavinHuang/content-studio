@@ -239,7 +239,7 @@ export default function CreatorHome({ creation = false }) {
                       : '帮助选题与写作助手理解你的读者和表达方式。'}
                   </p>
                   <Link className="cv2-btn tiny" href="/settings">
-                    去偏好与连接
+                    完善画像
                   </Link>
                 </div>
                 <div className="cv2-guide-step">
