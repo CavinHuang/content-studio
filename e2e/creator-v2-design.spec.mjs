@@ -11,7 +11,7 @@ test('Creator V2: 热点转选题，再从编辑器进入视觉工作台并采�
   await expect(page.getByRole('button',{name:'进入配图工作台'})).toBeVisible();
   await page.getByRole('button',{name:'进入配图工作台'}).click();
   await expect(page.getByRole('heading',{name:'视觉工作台'})).toBeVisible();
-  await expect(page.locator('.dv-visual-center .dv-art-warm')).toBeVisible();
+  await expect(page.locator('.dv-visual-center > .dv-art-warm')).toBeVisible();
   await page.getByRole('button',{name:/靛蓝构成/}).click();
   await page.getByRole('button',{name:'采用这张图'}).click();
   await expect(page.getByRole('status')).toContainText('已在原型中采用');
