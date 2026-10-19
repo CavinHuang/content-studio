@@ -17,10 +17,11 @@
 ## 1. 分支与完整设计事实源
 
 1. 读取并遵守根目录 AGENTS.md 的安全、数据、Git、Node、Dokploy、发布约束。其关于“森林绿、五项 Creator 导航”的旧视觉基线与此新设计冲突；**新批准的 V2.2/V2.3 设计优先于这两条旧视觉建议**。在实施 PR 中仅修订这两条过时的展示指导，不能删改安全/版本/审计护栏。
-2. 同步远端后，从设计基线分支创建：`feat/creator-v2-real-workspace`。不要直接在设计 PR #41 上做生产实现。新实现 PR 的 base 优先设为设计基线分支（stacked PR），待设计 PR 合并后再按实际 Git 历史调整；**不要自行合并**。
+2. **远程实施分支已存在：`feat/creator-v2-real-workspace`。** 直接 fetch 并检出该分支，确认它来自 `design/creator-v2-2-v2-3-pages-20261019`；不要重复创建或在设计 PR #41 分支上写生产代码。新实现 PR 的 base 优先设为设计基线分支（stacked PR），待设计 PR 合并后再按实际 Git 历史调整；**不要自行合并**。
 3. 先阅读以下**真实已提交的文件**：
    - `public/design/creator-v2.2.html` — 全站高保真视觉 / 页面结构
    - `public/design/creator-v2.3-visual.html` — 配图专项交互
+   - `public/design/assets/README.md`、`creator-v2-tokens.json`、三套 SVG 视觉稿和空状态图 — 已入库的设计资产。原阶段 PNG 截图未提交至远程，源 HTML 才是视觉事实源
    - `app/design/creator-v2/page.jsx`、`components/design/CreatorV2Preview.jsx`、`app/design/creator-v2/preview.css` — 可运行的页面交互参考（**使用了模拟数据**）
    - `docs/design/CREATOR-V2-2-FULL-UX-SPEC.md`
    - `docs/design/CREATOR-V2-3-VISUAL-SPEC.md`
