@@ -210,7 +210,9 @@
   .cv2-compose-workflow svg{width:17px;height:17px}
 }
 /* Desktop: the mobile double tab is hidden. */
-.cv2-compose-mobiletabs{display:none}
+@media(min-width:761px){
+  .cv2-compose-mobiletabs{display:none}
+}
 @media(max-width:760px){
   .cv2-compose.is-assistant-pane .cv2-compose-middle{display:none}
   .cv2-compose.is-assistant-pane .cv2-compose-assistant{border-top:0}
