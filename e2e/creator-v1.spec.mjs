@@ -456,7 +456,7 @@ test("creator reviews style evidence and configures encrypted BYOK connections t
     .getByLabel("API Base URL", { exact: true })
     .fill("https://image.example/v1/");
   await page
-    .getByLabel("模型名称", { exact: true })
+    .getByLabel("默认模型", { exact: true })
     .fill("synthetic-image-model");
   await page
     .getByLabel("API Key", { exact: true })
