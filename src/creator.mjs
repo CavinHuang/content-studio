@@ -90,6 +90,17 @@ export function nextSeriesRun(input, days, timezone) {
   }
   return new Date(result).toISOString();
 }
+// 内置公开信源：此前遗留界面 defaultSources 的 RSS 等价物（GitHub 用 releases.atom，
+// AIHOT 用官方 RSS）。syncSource 只解析 RSS/Atom，JSON 型旧接口不能直接迁移。
+const DEFAULT_CREATOR_SOURCES = [
+  { id: "cs_seed_aihot", name: "AIHOT 精选", url: "https://aihot.news/rss" },
+  { id: "cs_seed_hn", name: "Hacker News · 热门", url: "https://hnrss.org/frontpage" },
+  { id: "cs_seed_gh_claude", name: "GitHub · Claude Code Releases", url: "https://github.com/anthropics/claude-code/releases.atom" },
+  { id: "cs_seed_gh_opencode", name: "GitHub · OpenCode Releases", url: "https://github.com/anomalyco/opencode/releases.atom" },
+  { id: "cs_seed_openai", name: "OpenAI · 官方新闻", url: "https://openai.com/news/rss.xml" },
+  { id: "cs_seed_deepmind", name: "Google DeepMind · 官方博客", url: "https://deepmind.google/blog/rss.xml" },
+];
+export { DEFAULT_CREATOR_SOURCES };
 export class CreatorService {
   constructor(core) {
     Object.assign(this, {
@@ -129,7 +140,41 @@ export class CreatorService {
   CREATE TABLE IF NOT EXISTS creator_profile_field_sources(revision INTEGER NOT NULL,field TEXT NOT NULL,sources_json TEXT NOT NULL,PRIMARY KEY(revision,field));
   CREATE TABLE IF NOT EXISTS creator_style_revocations(suggestion_id TEXT PRIMARY KEY,reason TEXT NOT NULL,created_at TEXT NOT NULL);
   CREATE VIRTUAL TABLE IF NOT EXISTS creator_search USING fts5(id UNINDEXED,kind UNINDEXED,title,body,tags,tokenize='trigram');
+  CREATE TABLE IF NOT EXISTS creator_meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
  `);
+    // 播种策略：产品环境默认播种；node:test 运行器内默认跳过（避免测试触发
+    // 真实网络同步），显式传 seedDefaultSources:true 的用例除外。
+    const seedSources =
+      this.core.seedDefaultSources === true ||
+      (this.core.seedDefaultSources === undefined &&
+        process.env.NODE_TEST_CONTEXT === undefined);
+    if (
+      seedSources &&
+      !this.db
+        .prepare("SELECT value FROM creator_meta WHERE key='default_sources_seeded'")
+        .get()
+    ) {
+      // 运营者决定（2026-10-19）：把此前使用的公开信源内置进每个工作区，选题
+      // 推荐开箱即有热点原料。一次性标记保证作者有意删除的信源不会被重启复活；
+      // 同步由后台 runDue 按 last_run 驱动，URL 变更仍走信源管理界面。
+      const insertSeed = this.db.prepare(
+        "INSERT OR IGNORE INTO creator_sources(id,name,url,enabled) VALUES(?,?,?,1)"
+      );
+      this.db.exec("BEGIN IMMEDIATE");
+      try {
+        for (const s of DEFAULT_CREATOR_SOURCES)
+          insertSeed.run(s.id, s.name, s.url);
+        this.db
+          .prepare(
+            "INSERT INTO creator_meta(key,value) VALUES('default_sources_seeded',?)"
+          )
+          .run(new Date().toISOString());
+        this.db.exec("COMMIT");
+      } catch (e) {
+        this.db.exec("ROLLBACK");
+        throw e;
+      }
+    }
     if (!this.profile())
       this.db
         .prepare("INSERT INTO creator_profile_versions VALUES(1,?,?,?)")
@@ -1955,7 +2000,7 @@ export class CreatorService {
       .run(identifier, name, url, enabled ? 1 : 0);
     return this.sources();
   }
-  removeSource(id) {
+  deleteSource(id) {
     if (
       !this.db.prepare("DELETE FROM creator_sources WHERE id=?").run(id).changes
     )
