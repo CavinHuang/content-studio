@@ -1106,11 +1106,12 @@ export default function WritingWorkspace() {
               作品 / {labels[channel]}
               {doc?.updatedAt ? ` · 最后编辑 ${dayLabel(doc.updatedAt)}` : ""}
             </p>
-            <h2>
+            {/* 文章标题是本页的主标题（h1），字号沿用设计的 20px 编辑器头部 */}
+            <h1>
               {doc?.title ||
                 projects.find((p) => p.id === projectId)?.title ||
                 "创作空间"}
-            </h2>
+            </h1>
           </div>
           <div className="cv2-compose-actions">
             <span

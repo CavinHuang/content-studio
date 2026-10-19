@@ -28,7 +28,7 @@
 /* ---- editor header (creator-v2.2.html :159 .editor-header) ---- */
 .cv2-compose-header{padding:25px 34px 17px;background:var(--cv2-surface);border-bottom:1px solid #e8e9ec;display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap}
 .cv2-compose-header .cv2-eyebrow{margin:0 0 8px}
-.cv2-compose-header h2{font-size:20px;letter-spacing:-.5px;margin:0;font-weight:750;line-height:1.5;min-width:0;overflow-wrap:anywhere}
+.cv2-compose-header h1{font-size:20px;letter-spacing:-.5px;margin:0;font-weight:750;line-height:1.5;min-width:0;overflow-wrap:anywhere}
 .cv2-compose-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .cv2-compose-save{font-size:11px;color:#858c9b;white-space:nowrap}
 .cv2-compose-save.has-error{color:var(--cv2-error);font-weight:700}
@@ -186,7 +186,7 @@
 @media(max-width:760px){
   .cv2-compose{margin:-23px -16px calc(var(--cv2-mobile-nav-h) + 21px);padding-bottom:96px}
   .cv2-compose-header{padding:20px 17px;flex-direction:column;gap:12px}
-  .cv2-compose-header h2{font-size:17px}
+  .cv2-compose-header h1{font-size:17px}
   .cv2-compose-actions{width:100%;justify-content:space-between}
   .cv2-compose-actions .cv2-btn:not(.primary),.cv2-compose-actions select,.cv2-compose-actions .cv2-compose-hide-m{display:none}
   .cv2-compose-actions .cv2-compose-save{flex:1}
