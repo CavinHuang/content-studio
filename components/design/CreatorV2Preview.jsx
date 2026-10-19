@@ -93,7 +93,7 @@ export default function CreatorV2Preview(){
     </aside>
     {mobileMenu&&<button className="dv-menu-backdrop" aria-label="关闭导航" onClick={()=>setMobileMenu(false)}/>}
     <div className="dv-body">
-      <div className="dv-topbar"><div className="dv-crumb"><button className="dv-menu-toggle" onClick={()=>setMobileMenu(true)} aria-label="打开导航"><Menu size={20}/></button>Creator <ChevronRight size={14}/> {active[1]}</div><div className="dv-top-actions"><span className="dv-preview-label">交互原型 · 示例数据</span><button className="dv-quiet" onClick={()=>go('home')}><Home size={15}/> 返回首页</button></div></div>
+      <div className="dv-topbar"><div className="dv-crumb"><button className="dv-menu-toggle" onClick={()=>setMobileMenu(true)} aria-label="打开导航"><Menu size={20}/></button>Creator <ChevronRight size={14}/> {active[1]}</div><div className="dv-top-actions"><span className="dv-preview-label">交互原型 · 示例数据</span><a className="dv-quiet" href="/design/creator-v2.2.html" target="_blank" rel="noopener noreferrer">V2.2 原始设计 ↗</a><a className="dv-quiet" href="/design/creator-v2.3-visual.html" target="_blank" rel="noopener noreferrer">V2.3 配图原型 ↗</a><button className="dv-quiet" onClick={()=>go('home')}><Home size={15}/> 返回首页</button></div></div>
       {notice&&<div role="status" className="dv-notice"><Check size={15}/>{notice}<button onClick={()=>setNotice('')} aria-label="关闭提示"><X size={14}/></button></div>}
       <main className="dv-content">
         {page==='home'&&<>
