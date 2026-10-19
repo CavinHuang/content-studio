@@ -201,7 +201,7 @@
   .cv2-compose-assistant{border-left:0;border-top:1px solid #eaecf0;padding:20px 16px 20px;margin-top:6px}
   /* V2.3 editor mobile: sticky 正文/AI 配图助手 double tab + in-workflow
      bottom nav above the global mobile tabs (never merged). */
-  .cv2-compose-mobiletabs{position:sticky;top:0;z-index:20;display:flex;background:var(--cv2-surface);border-bottom:1px solid var(--compose-line);padding:8px 12px;gap:7px;margin:0 -12px}
+  .cv2-compose-mobiletabs{position:sticky;top:0;z-index:20;display:flex;background:var(--cv2-surface);border-bottom:1px solid var(--compose-line);padding:8px 12px;gap:7px}
   .cv2-compose-mobiletabs button{flex:1;border:0;background:transparent;border-radius:8px;padding:9px 4px;color:#9098a6;font-weight:650;font-size:12px;cursor:pointer}
   .cv2-compose-mobiletabs button.active{background:var(--cv2-surface-soft);color:var(--cv2-primary)}
   .cv2-compose-workflow{display:flex;position:fixed;left:0;right:0;bottom:calc(var(--cv2-mobile-nav-h) + max(5px,env(safe-area-inset-bottom)));z-index:59;align-items:center;justify-content:space-around;border-top:1px solid #e2e6ee;background:rgba(255,255,255,.96);backdrop-filter:blur(16px);padding:7px 4px;box-shadow:0 -5px 30px #2229430a}
