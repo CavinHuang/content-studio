@@ -81,6 +81,13 @@ export class WritingService {
       status: row.status,
       partial: row.partial_text,
       input: input.request,
+      model: input.binding
+        ? {
+            id: input.binding.id,
+            name: input.binding.name,
+            model: input.binding.model || "",
+          }
+        : null,
       suggestionIds: JSON.parse(row.suggestion_ids_json),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -114,6 +121,16 @@ export class WritingService {
   streamGeneration(id, channel, input = {}, requestSignal) {
     if (input.stream !== undefined && typeof input.stream !== "boolean")
       fail("逐段预览选项无效");
+    if (
+      input.model !== undefined &&
+      (typeof input.model !== "object" ||
+        !input.model ||
+        typeof input.model.connectionId !== "string" ||
+        !input.model.connectionId ||
+        typeof input.model.model !== "string" ||
+        !input.model.model)
+    )
+      fail("所选模型无效，请重新选择开放使用的模型");
     const prepared = this._prepareSuggestion(id, channel, input),
       services = this.creator?.services;
     if (!services) fail("模型服务不可用", 503);
@@ -128,7 +145,7 @@ export class WritingService {
         .get(ref.id)
     )
       fail("该稿件已有生成任务，请先停止或等待完成", 409);
-    let binding = services.captureBinding();
+    let binding = services.captureBinding("text", input.model);
     if (input.resumeOf) {
       const old = this.generation(id, channel, input.resumeOf),
         saved = JSON.parse(
@@ -136,6 +153,12 @@ export class WritingService {
             .prepare("SELECT input_json FROM writing_generations WHERE id=?")
             .get(old.id).input_json
         );
+      if (
+        input.model &&
+        (saved.binding?.id !== input.model.connectionId ||
+          saved.binding?.model !== input.model.model)
+      )
+        fail("恢复请求须沿用原请求的模型；如需对比其他模型请直接重新生成", 409);
       if (
         !["interrupted", "failed"].includes(old.status) ||
         old.baseRevision !== prepared.current.revision ||

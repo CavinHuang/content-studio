@@ -20,6 +20,7 @@ const emptyConnection = {
   baseUrl: "https://api.openai.com/v1/",
   model: "",
   apiKey: "",
+  models: [],
   selected: true,
 };
 export default function CreatorSettings() {
@@ -45,7 +46,9 @@ export default function CreatorSettings() {
     [limits, setLimits] = useState({ textLimit: 100, imageLimit: 30 }),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
-    [consent, setConsent] = useState(false);
+    [consent, setConsent] = useState(false),
+    [catalog, setCatalog] = useState(null),
+    [catalogConsent, setCatalogConsent] = useState(false);
   async function load() {
     const [p, h, sg, s, pl, so, u, pr] = await Promise.all([
       api("/api/creator/profile"),
@@ -87,6 +90,29 @@ export default function CreatorSettings() {
       setConsent(false);
     }
   }
+  function editConnection(c) {
+    setConnection({ ...c, apiKey: "", models: c.models || [] });
+    setCatalog(null);
+    setCatalogConsent(false);
+  }
+  function toggleModel(model, checked) {
+    setConnection((c) => ({
+      ...c,
+      models: checked
+        ? [...(c.models || []), model]
+        : (c.models || []).filter((m) => m !== model),
+      model: checked && !c.model ? model : c.model,
+    }));
+  }
+  const catalogRows = [
+    ...new Set(
+      [
+        connection.model,
+        ...(catalog || []),
+        ...(catalog ? [] : connection.models || []),
+      ].filter(Boolean)
+    ),
+  ];
   return (
     <CreatorShell>
       <header className="creator-head">
@@ -334,11 +360,17 @@ export default function CreatorSettings() {
                   {c.baseUrl}
                   <br />
                   {c.model} · 密钥已配置
+                  {(c.models || []).length > 1 && (
+                    <>
+                      <br />
+                      已开放 {c.models.length} 个模型供创作对比
+                    </>
+                  )}
                 </p>
                 <div className="creator-row">
                   <button
                     disabled={busy}
-                    onClick={() => setConnection({ ...c, apiKey: "" })}
+                    onClick={() => editConnection(c)}
                   >
                     编辑连接
                   </button>
@@ -385,6 +417,7 @@ export default function CreatorSettings() {
               act(async () => {
                 const payload = { ...connection };
                 if (!payload.apiKey) delete payload.apiKey;
+                payload.models = connection.models || [];
                 await send(
                   "/api/creator/services" +
                     (connection.id ? "/" + connection.id : ""),
@@ -392,6 +425,8 @@ export default function CreatorSettings() {
                   payload
                 );
                 setConnection(emptyConnection);
+                setCatalog(null);
+                setCatalogConsent(false);
                 await load();
                 setNotice("服务连接已加密保存。");
               });
@@ -410,23 +445,31 @@ export default function CreatorSettings() {
                 <option value="image">图片生成</option>
               </select>
             </label>
-            {[
-              ["name", "连接名称", "例如：我的写作模型"],
-              ["baseUrl", "API Base URL", "https://…/v1/"],
-              ["model", "模型名称", "填写服务商提供的模型 ID"],
-            ].map(([key, label, placeholder]) => (
-              <label key={key}>
-                {label}
-                <input
-                  value={connection[key]}
-                  required
-                  placeholder={placeholder}
-                  onChange={(e) =>
-                    setConnection({ ...connection, [key]: e.target.value })
-                  }
-                />
-              </label>
-            ))}
+            <label>
+              连接名称
+              <input
+                value={connection.name}
+                required
+                minLength={2}
+                maxLength={80}
+                placeholder="例如：我的写作模型"
+                onChange={(e) =>
+                  setConnection({ ...connection, name: e.target.value })
+                }
+              />
+            </label>
+            <label>
+              API Base URL
+              <input
+                value={connection.baseUrl}
+                required
+                placeholder="https://…/v1/"
+                onChange={(e) => {
+                  setConnection({ ...connection, baseUrl: e.target.value });
+                  setCatalog(null);
+                }}
+              />
+            </label>
             <label>
               API Key {connection.id ? "（留空保留现有密钥）" : ""}
               <input
@@ -436,6 +479,85 @@ export default function CreatorSettings() {
                 value={connection.apiKey}
                 onChange={(e) =>
                   setConnection({ ...connection, apiKey: e.target.value })
+                }
+              />
+            </label>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={catalogConsent}
+                onChange={(e) => setCatalogConsent(e.target.checked)}
+              />
+              允许向该服务商请求一次模型列表（GET models，不计入每日额度）
+            </label>
+            <button
+              type="button"
+              disabled={
+                busy ||
+                !catalogConsent ||
+                !connection.baseUrl ||
+                !connection.apiKey
+              }
+              onClick={() =>
+                act(async () => {
+                  const r = await send("/api/creator/services/models", "POST", {
+                    baseUrl: connection.baseUrl,
+                    apiKey: connection.apiKey,
+                    allowExternalCheck: true,
+                  });
+                  setCatalog(r.models);
+                  setConnection((c) => ({
+                    ...c,
+                    models: (c.models || []).filter((m) =>
+                      r.models.includes(m)
+                    ),
+                  }));
+                  setNotice(
+                    "已获取模型列表，请勾选开放使用的模型；第一个勾选的模型会成为默认模型。"
+                  );
+                })
+              }
+            >
+              {catalog ? "重新获取模型列表" : "获取模型列表"}
+            </button>
+            {!!catalogRows.length && (
+              <div
+                className="creator-stack"
+                style={{ maxHeight: 220, overflow: "auto" }}
+              >
+                {catalogRows.map((m) => {
+                  const isDefault = connection.model === m;
+                  return (
+                    <label className="check" key={m}>
+                      <input
+                        type="checkbox"
+                        disabled={isDefault || (!catalog && !connection.id)}
+                        checked={isDefault || connection.models.includes(m)}
+                        onChange={(e) => toggleModel(m, e.target.checked)}
+                      />
+                      {m}
+                      {isDefault && (
+                        <span className="creator-badge">默认</span>
+                      )}
+                    </label>
+                  );
+                })}
+                <p className="creator-muted">
+                  {catalog
+                    ? "勾选的模型在创作页可选可对比；默认模型是创作页的初始选择，不可取消勾选。"
+                    : "这是该连接已开放的模型；重新获取列表后可调整开放范围。"}
+                </p>
+              </div>
+            )}
+            <label>
+              默认模型
+              <input
+                value={connection.model}
+                required
+                maxLength={160}
+                placeholder="填写服务商提供的模型 ID"
+                onChange={(e) =>
+                  setConnection({ ...connection, model: e.target.value })
                 }
               />
             </label>
@@ -455,7 +577,11 @@ export default function CreatorSettings() {
             {connection.id && (
               <button
                 type="button"
-                onClick={() => setConnection(emptyConnection)}
+                onClick={() => {
+                  setConnection(emptyConnection);
+                  setCatalog(null);
+                  setCatalogConsent(false);
+                }}
               >
                 取消编辑
               </button>

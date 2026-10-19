@@ -117,6 +117,9 @@ export default function WritingWorkspace() {
     [publishAccountId, setPublishAccountId] = useState("");
   const [recovery, setRecovery] = useState(null),
     [xhsPlan, setXhsPlan] = useState(null);
+  const [modelOptions, setModelOptions] = useState([]),
+    [chosenModels, setChosenModels] = useState([]),
+    [compareProgress, setCompareProgress] = useState(null);
   const dirty = !!doc && (markdown !== doc.markdown || theme !== doc.theme),
     canMigrate = (!doc?.legacyLayout || !!legacyChoice) && !recovery;
   current.current = {
@@ -143,6 +146,51 @@ export default function WritingWorkspace() {
       ? active
       : null;
   const base = `/api/writing/projects/${projectId}/${channel}`;
+  useEffect(() => {
+    let live = true;
+    api("/api/creator/services")
+      .then((r) => {
+        if (!live) return;
+        const rows = (r.connections || []).filter(
+            (c) => c.kind === "text" && (c.models || []).length
+          ),
+          options = rows
+            .flatMap((c) =>
+              c.models.map((model) => ({
+                connectionId: c.id,
+                name: c.name,
+                model,
+                current: !!c.selected,
+              }))
+            )
+            .slice(0, 24);
+        setModelOptions(options);
+        setChosenModels((old) => {
+          const kept = old.filter((m) =>
+            options.some(
+              (o) =>
+                o.connectionId === m.connectionId && o.model === m.model
+            )
+          );
+          if (kept.length) return kept;
+          const preferred =
+            options.find((o) => o.current) || options[0];
+          return preferred
+            ? [
+                {
+                  connectionId: preferred.connectionId,
+                  model: preferred.model,
+                  name: preferred.name,
+                },
+              ]
+            : [];
+        });
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
   function stash(text, selectedTheme = current.current.theme) {
     const s = current.current;
     if (!s.doc) return;
@@ -466,10 +514,37 @@ export default function WritingWorkspace() {
     setStreamEnabled(g.input.stream !== false);
     setInstruction(g.input.instruction);
     setAssistantMode(g.input.mode);
+    if (g.model?.id && g.model?.model)
+      setChosenModels([
+        { connectionId: g.model.id, model: g.model.model, name: g.model.name },
+      ]);
     setResumeInput({ ...g.input, resumeOf: g.id });
     setConsent(false);
     setNotice(
       "已恢复原请求和选区。重新确认授权后才会发起新请求，旧片段不会自动写入正文。"
+    );
+  }
+  function toggleChosen(option) {
+    setChosenModels((old) =>
+      old.some(
+        (m) =>
+          m.connectionId === option.connectionId && m.model === option.model
+      )
+        ? old.filter(
+            (m) =>
+              !(
+                m.connectionId === option.connectionId &&
+                m.model === option.model
+              )
+          )
+        : [
+            ...old,
+            {
+              connectionId: option.connectionId,
+              model: option.model,
+              name: option.name,
+            },
+          ]
     );
   }
   async function generate() {
@@ -478,12 +553,14 @@ export default function WritingWorkspace() {
       return;
     }
     const serial = epoch.current,
-      controller = new AbortController();
+      controller = new AbortController(),
+      batch = chosenModels;
     generationAbort.current = controller;
     generationId.current = null;
     setBusy(true);
     setStreamPreview("");
     setNotice("");
+    let currentModel = null;
     try {
       const saved = await flush();
       if (!saved) return;
@@ -497,55 +574,82 @@ export default function WritingWorkspace() {
           : selection && selection.to > selection.from
           ? { from: selection.from, to: selection.to }
           : {};
-      const response = await fetch(base + "/generations", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          expectedRevision: saved.revision,
-          instruction,
-          mode: assistantMode,
-          stream: streamEnabled,
-          allowExternalAI: true,
-          expectedContext: {
-            revision: requestContext.revision,
-            profileRevision: requestContext.profileRevision,
-            topicRevision: requestContext.topic?.revision ?? null,
-            accountId: requestContext.account?.id ?? null,
-            accountRevision: requestContext.account?.revision ?? null,
-          },
-          ...range,
-        }),
-        signal: controller.signal,
-      });
-      const result = await consumeGeneration(response, (event) => {
+      const results = [];
+      for (let i = 0; i < Math.max(batch.length, 1); i++) {
+        currentModel = batch[i] || null;
+        if (batch.length > 1)
+          setCompareProgress({
+            index: i + 1,
+            total: batch.length,
+            label: currentModel.name + " · " + currentModel.model,
+          });
+        const response = await fetch(base + "/generations", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            expectedRevision: saved.revision,
+            instruction,
+            mode: assistantMode,
+            stream: streamEnabled,
+            allowExternalAI: true,
+            expectedContext: {
+              revision: requestContext.revision,
+              profileRevision: requestContext.profileRevision,
+              topicRevision: requestContext.topic?.revision ?? null,
+              accountId: requestContext.account?.id ?? null,
+              accountRevision: requestContext.account?.revision ?? null,
+            },
+            ...(currentModel
+              ? {
+                  model: {
+                    connectionId: currentModel.connectionId,
+                    model: currentModel.model,
+                  },
+                }
+              : {}),
+            ...range,
+          }),
+          signal: controller.signal,
+        });
+        const result = await consumeGeneration(response, (event) => {
+          if (serial !== epoch.current) return;
+          if (event.type === "started") generationId.current = event.id;
+          if (event.type === "delta")
+            setStreamPreview((text) => (text + event.text).slice(0, 150000));
+        });
         if (serial !== epoch.current) return;
-        if (event.type === "started") generationId.current = event.id;
-        if (event.type === "delta")
-          setStreamPreview((text) => (text + event.text).slice(0, 150000));
-      });
+        const rows = result.suggestions || [result];
+        results.push({ result, rows });
+        setSuggestions((old) => [...rows, ...old]);
+        if (batch.length <= 1) setFocusedSuggestion(result.id);
+        setResumeInput(null);
+        setStreamPreview("");
+      }
       if (serial !== epoch.current) return;
-      const rows = result.suggestions || [result];
-      setSuggestions((old) => [...rows, ...old]);
-      setFocusedSuggestion(result.id);
-      setResumeInput(null);
       setNotice(
-        result.status === "conversation"
+        results.length > 1
+          ? `已用 ${results.length} 个模型各生成一份建议（同一文章版本），请对比后接受其一。`
+          : results[0].result.status === "conversation"
           ? "助手已回复，正文没有修改。"
-          : rows.length > 1
-          ? "已生成 " + rows.length + " 处独立修改，可逐项接受或拒绝。"
+          : results[0].rows.length > 1
+          ? "已生成 " +
+            results[0].rows.length +
+            " 处独立修改，可逐项接受或拒绝。"
           : "建议已生成。在正文中审阅并接受；生成期间的新修改会保留。"
       );
     } catch (e) {
       if (serial === epoch.current)
         setNotice(
-          e.name === "AbortError"
-            ? "生成已停止，已收到的片段保存在生成记录中，正文未改变。"
-            : e.message
+          (currentModel ? currentModel.name + " · " + currentModel.model + "：" : "") +
+            (e.name === "AbortError"
+              ? "生成已停止，已收到的片段保存在生成记录中，正文未改变。"
+              : e.message)
         );
     } finally {
       if (serial === epoch.current) {
         setBusy(false);
         setConsent(false);
+        setCompareProgress(null);
         await refreshGenerations(serial);
       }
       generationAbort.current = null;
@@ -554,6 +658,12 @@ export default function WritingWorkspace() {
   function updateRequestContext(context) {
     setRequestContext(context);
     setConsent(false);
+  }
+  function modelLabel(suggestionId) {
+    for (const g of generationRecords)
+      if ((g.suggestionIds || []).includes(suggestionId) && g.model)
+        return g.model.name + " · " + g.model.model;
+    return "";
   }
   async function refreshRequestContext() {
     const serial = epoch.current;
@@ -1456,6 +1566,13 @@ export default function WritingWorkspace() {
                           aria-live="polite"
                         >
                           <strong>正在生成，尚未写入正文</strong>
+                          {compareProgress && (
+                            <p className="text-[#7a8780]">
+                              模型对比（{compareProgress.index}/
+                              {compareProgress.total}）：
+                              {compareProgress.label}
+                            </p>
+                          )}
                           {streamPreview ? (
                             <div className="text-sm">
                               <MessageResponse>{streamPreview}</MessageResponse>
@@ -1513,6 +1630,9 @@ export default function WritingWorkspace() {
                                 : s.baseRevision !== doc.revision
                                 ? "旧版本建议 · 可重新提出请求"
                                 : "待审阅 · v" + s.baseRevision}
+                              {modelLabel(s.id)
+                                ? " · 由 " + modelLabel(s.id) + " 生成"
+                                : ""}
                             </small>
                             {s.contextSnapshot && (
                               <WritingModelContext
@@ -1560,6 +1680,32 @@ export default function WritingWorkspace() {
                         <ConversationScrollButton />
                       </Conversation>
                       <div className="writing-prompt">
+                        {!!modelOptions.length && (
+                          <div>
+                            <p className="writing-consent">
+                              对比模型（可多选；勾选多个时按顺序各生成一份建议）
+                            </p>
+                            {modelOptions.map((o) => (
+                              <label
+                                key={o.connectionId + "/" + o.model}
+                                className="writing-consent"
+                              >
+                                <input
+                                  type="checkbox"
+                                  disabled={busy}
+                                  checked={chosenModels.some(
+                                    (m) =>
+                                      m.connectionId === o.connectionId &&
+                                      m.model === o.model
+                                  )}
+                                  onChange={() => toggleChosen(o)}
+                                />
+                                {o.name} · {o.model}
+                                {o.current ? "（当前服务）" : ""}
+                              </label>
+                            ))}
+                          </div>
+                        )}
                         <label className="writing-consent">
                           <input
                             type="checkbox"
@@ -1615,6 +1761,9 @@ export default function WritingWorkspace() {
                             onChange={(e) => setConsent(e.target.checked)}
                           />
                           允许本次向已配置模型发送文章、参考素材与写作要求
+                          {chosenModels.length > 1
+                            ? `（将按顺序调用 ${chosenModels.length} 个模型，各计一次额度）`
+                            : ""}
                         </label>
                         <button
                           className="writing-button primary"
