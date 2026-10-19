@@ -211,7 +211,7 @@ async function signup(page, email = "creator@example.test") {
     .fill("synthetic-strong-password");
   await page.getByRole("button", { name: "创建并登录", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "让下一篇好文章，从这里开始" })
+    page.getByRole("heading", { name: "今天，先把一篇好文章写完。" })
   ).toBeVisible();
 }
 
