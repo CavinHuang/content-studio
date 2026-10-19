@@ -432,8 +432,21 @@ test("移动 390×844：无横向溢出，点条目弹出底部详情抽屉并�
   await expect(sheet).toBeVisible();
   await expect(sheet).toContainText("开源 Agent 工作台开始重视可恢复的任务状态");
   await expect(sheet.getByRole("button", { name: /收为选题候选/ })).toBeVisible();
-  // 遮罩关闭
-  await page.getByRole("button", { name: "关闭热点详情" }).last().click();
+  // 遮罩必须是设计的半透明暗色 #1b2138a8（回归断言：旧按钮样式的特异性
+  // 曾把它盖成不透明白）；随后点遮罩本身（非面板内 X 钮）关闭
+  const backdrop = page.locator(".cv2-hot-backdrop");
+  await expect(backdrop).toBeVisible();
+  expect(
+    await backdrop.evaluate((el) => getComputedStyle(el).backgroundColor)
+  ).toBe("rgba(27, 33, 56, 0.66)");
+  await backdrop.click({ position: { x: 10, y: 30 } });
+  await expect(sheet).toBeHidden();
+  // 再次打开，面板内 X 钮关闭
+  await page
+    .getByRole("button", { name: "开源 Agent 工作台开始重视可恢复的任务状态", exact: true })
+    .click();
+  await expect(sheet).toBeVisible();
+  await sheet.locator(".cv2-hot-close").click();
   await expect(sheet).toBeHidden();
   // 底部导航高亮「热点」
   await expect(

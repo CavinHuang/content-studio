@@ -112,3 +112,10 @@
    - 实际差异：行内 time 显示「同步 今天 09:12 / 昨天 / M 月 D 日」（`src/hotspots-radar.mjs dayClock`，客户端渲染避免 hydration 偏差）；无同步时间的条目显示「同步时间未知」。
    - 必要原因：真实的 RSS 条目时间是绝对时间戳，相对化只是展示细节；真实字段优先。
    - 证据：`test/creator-v2-hotspots.test.mjs` dayClock 用例；`e2e/creator-v2-hotspots.spec.mjs` 行内 /同步 (今天|10 月)/ 断言。
+
+8. **搜索框占位文案为「搜索标题或摘要」，非设计的「搜索话题 / 平台 / 分类」**
+   - 设计源：`creator-v2.2.html:150`（hot-find placeholder）、参考截图 `design/hotspots-desktop.png`。
+   - 实际差异：占位文案如实描述真实过滤行为——`src/hotspots-radar.mjs` 按 title/summary/sourceName 本地匹配，没有话题分类/平台标签字段可搜。
+   - 必要原因：设计的占位暗示可按「分类」筛选，真实信源条目无分类数据，保留原占位会误导输入。
+   - 替代方案：来源维度已由真实信源 chips 承担（服务端 `?source=` 过滤），搜索只补文本维度。
+   - 证据：`e2e/creator-v2-hotspots.spec.mjs` 桌面用例搜索段（按「费用透明」命中摘要）；`docs/implementation/screenshots/hotspots/desktop-search-filter.png`。
