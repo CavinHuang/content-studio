@@ -222,14 +222,14 @@ test("author moves from profile and topic discussion through MD writing, XHS PNG
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await signup(page);
-  await page.getByRole("link", { name: "⚙ 创作者设置" }).click();
+  await page.getByRole("link", { name: "偏好与连接" }).click();
   await page.getByLabel("创作领域", { exact: true }).fill("独立创作与写作实践");
   await page
     .getByLabel("希望写给谁", { exact: true })
     .fill("刚开始写作的创作者");
   await page.getByRole("button", { name: "保存作者画像", exact: true }).click();
   await expect(page.getByRole("status").last()).toContainText("已保存");
-  await page.getByRole("link", { name: "▤ 资产库" }).click();
+  await page.getByRole("link", { name: "素材库" }).click();
   await page.getByText("添加自己的笔记或公开链接", { exact: true }).click();
   await page.getByLabel("素材标题", { exact: true }).fill("我的第一轮写作实践");
   await page
@@ -239,7 +239,7 @@ test("author moves from profile and topic discussion through MD writing, XHS PNG
     );
   await page.getByRole("button", { name: "保存笔记" }).click();
   await expect(page.getByRole("status").last()).toContainText("参考笔记已保存");
-  await page.getByRole("link", { name: "◎ 选题" }).click();
+  await page.getByRole("link", { name: "选题发现" }).click();
   await page.getByLabel("新选题标题").fill("新作者怎样建立创作习惯");
   await page.getByRole("button", { name: "记录选题", exact: true }).click();
   await page.getByText("选择参考素材（0）", { exact: true }).click();
@@ -364,7 +364,7 @@ test("series prepares while page is closed and another author cannot see or open
   const context = await browser.newContext({ baseURL }),
     page = await context.newPage();
   await signup(page, "series-owner@example.test");
-  await page.getByRole("link", { name: "◎ 选题" }).click();
+  await page.getByRole("link", { name: "选题发现" }).click();
   await page.getByRole("button", { name: "内容系列", exact: true }).click();
   await page.getByLabel("系列名称", { exact: true }).fill("独立创作方法系列");
   await page
@@ -428,7 +428,7 @@ test("creator reviews style evidence and configures encrypted BYOK connections t
       },
     }
   );
-  await page.getByRole("link", { name: "⚙ 创作者设置" }).click();
+  await page.getByRole("link", { name: "偏好与连接" }).click();
   await page.getByLabel("风格学习的合成文章", { exact: true }).check();
   await page
     .getByLabel("允许本次向模型发送所选文章及已接受 / 拒绝的写作建议")
@@ -491,7 +491,7 @@ test("complete briefs, explicit recommendation sources and context conflict reco
   await page.request.post("/api/creator/materials", {
     data: { title: "本次不选择的个人日记", body: "本次不要发送的个人内容" },
   });
-  await page.getByRole("link", { name: "◎ 选题" }).click();
+  await page.getByRole("link", { name: "选题发现" }).click();
   await page
     .getByText("选择推荐可使用的私有素材（0）", { exact: true })
     .click();
@@ -609,7 +609,7 @@ test("authors refine learned style before applying it and retain the original ev
       markdown: "从一次具体实践开始，写出作者自己的方法和观察。",
     },
   });
-  await page.getByRole("link", { name: "⚙ 创作者设置" }).click();
+  await page.getByRole("link", { name: "偏好与连接" }).click();
   await page.getByLabel("用于修订风格建议的文章", { exact: true }).check();
   await page
     .getByLabel("允许本次向模型发送所选文章及已接受 / 拒绝的写作建议")
@@ -646,7 +646,7 @@ test("blocked series tasks require author review and cost consent before a new a
   page,
 }) => {
   await signup(page, "followup-retry@example.test");
-  await page.getByRole("link", { name: "◎ 选题" }).click();
+  await page.getByRole("link", { name: "选题发现" }).click();
   await page.getByRole("button", { name: "内容系列", exact: true }).click();
   await page.getByLabel("系列名称", { exact: true }).fill("需要作者核对的系列");
   await page.getByLabel("这个系列想帮助读者完成什么").fill("模拟准备失败一次");
@@ -711,7 +711,7 @@ test("author configures a publication account style and explicitly selects it fo
   page,
 }) => {
   await signup(page, "remaining-account@example.test");
-  await page.getByRole("link", { name: "⚙ 创作者设置" }).click();
+  await page.getByRole("link", { name: "偏好与连接" }).click();
   await page.getByRole("button", { name: "发布账号", exact: true }).click();
   await page.getByLabel("发布平台", { exact: true }).selectOption("zhihu");
   await page
@@ -806,7 +806,7 @@ test("source removal previews impact, revokes learned style and keeps article hi
   await page.request.post("/api/creator/style-suggestions/" + suggestion.id, {
     data: { action: "accept", expectedRevision: 1 },
   });
-  await page.getByRole("link", { name: "▤ 资产库" }).click();
+  await page.getByRole("link", { name: "素材库" }).click();
   await page.getByLabel("搜索资产").fill(material.title);
   await expect(
     page.getByRole("heading", { name: material.title, exact: true })
