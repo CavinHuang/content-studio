@@ -1,0 +1,54 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "meta": {
+    "product": "Content Studio Creator",
+    "version": "2.3",
+    "status": "design reference, not live theme configuration"
+  },
+  "color": {
+    "sidebar": "#242635",
+    "sidebarActive": "#38466F",
+    "primary": "#465FD7",
+    "primaryHover": "#354AC1",
+    "background": "#F7F8FA",
+    "surface": "#FFFFFF",
+    "text": "#242B3B",
+    "textMuted": "#858C9B",
+    "border": "#E8EAF0",
+    "surfaceSoft": "#EEF1FF",
+    "success": "#2D8558",
+    "warning": "#98642C"
+  },
+  "shape": {
+    "cardRadius": "15px",
+    "buttonRadius": "9px",
+    "dialogRadius": "14px"
+  },
+  "typography": {
+    "systemStack": "Inter, -apple-system, BlinkMacSystemFont, PingFang SC, system-ui, sans-serif",
+    "bodyPx": 14,
+    "captionPx": 11,
+    "headingPx": 28
+  },
+  "layout": {
+    "desktopSidebarPx": 232,
+    "desktopContentMaxPx": 1560,
+    "mobileBreakpointPx": 760,
+    "mobileNavItems": [
+      "工作台",
+      "热点",
+      "选题",
+      "作品",
+      "配图",
+      "更多"
+    ]
+  },
+  "principles": [
+    "正文优先",
+    "自动规划先于模型参数",
+    "候选选择不等于采用",
+    "按段落绑定不可变修订",
+    "没有证据的指标不展示",
+    "公众号与知乎检查独立"
+  ]
+}
