@@ -92,7 +92,7 @@ function StepLine() {
   ];
   return (
     <div className="cv2-step-line">
-      <span className="cv2-hint">内容生产线</span>
+      <span className="cv2-hint">内容生产主线</span>
       {steps.map(([href, label], i) => (
         <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
           {i ? (
@@ -235,14 +235,14 @@ function JudgmentPanel({
       ) : null}
       <div className="cv2-detail-actions">
         <div className="cv2-detail-actions-row">
-          <button type="button" disabled={busy} onClick={onSave}>
+          <button type="button" className="cv2-btn" disabled={busy} onClick={onSave}>
             保存简报
           </button>
-          <button type="button" disabled={busy} onClick={onFavorite}>
+          <button type="button" className="cv2-btn" disabled={busy} onClick={onFavorite}>
             {selected.favorite ? "取消收藏" : "收藏选题"}
           </button>
         </div>
-        <button type="button" className="primary" disabled={busy} onClick={onStart}>
+        <button type="button" className="cv2-btn primary" disabled={busy} onClick={onStart}>
           围绕这个选题开始写作 <Icon name="arrow" size={16} />
         </button>
         {selected.projectId ? (
@@ -361,10 +361,10 @@ function JudgmentPanel({
             </div>
           </details>
           <div className="cv2-recommend-actions">
-            <button type="button" disabled={busy} onClick={onDismiss}>
+            <button type="button" className="cv2-btn tiny" disabled={busy} onClick={onDismiss}>
               暂不创作
             </button>
-            <button type="button" disabled={busy} onClick={onLoadHistory}>
+            <button type="button" className="cv2-btn tiny" disabled={busy} onClick={onLoadHistory}>
               查看简报版本
             </button>
           </div>
@@ -467,7 +467,7 @@ function JudgmentPanel({
               <input type="checkbox" checked={!!discussConsent} onChange={(e) => onDiscussConsent(e.target.checked)} />
               允许本次向模型发送选题、所选素材与讨论内容
             </label>
-            <button type="submit" disabled={busy || !discussConsent}>
+            <button type="submit" className="cv2-btn" disabled={busy || !discussConsent}>
               {busy ? "正在处理…" : "发送讨论"}
             </button>
           </form>
@@ -527,10 +527,22 @@ export default function TopicsDiscovery() {
     setJobs(j.jobs);
     // 服务配置前置：overview.services.text 来自真实的模型连接配置
     setAiReady(!!ov.services?.text);
-    if (initial && (query.get("series") || query.get("view") === "series")) setView("series");
+    const seriesDeepLink = query.get("series") || query.get("view") === "series";
+    if (initial && seriesDeepLink) setView("series");
     if (initial && query.get("topic")) {
       const found = t.topics.find((x) => x.id === query.get("topic"));
       if (found) await open(found);
+    } else if (
+      initial &&
+      !seriesDeepLink &&
+      t.topics.length
+    ) {
+      // 设计构图（design/topics-desktop.png）：进入页面即预选第一条线索、
+      // 判断面板已填充。选中是纯视图状态——面板内容仍全部来自真实 API。
+      const first =
+        buildTopicsDiscovery({ topics: t.topics, tab: "recommended", library: l.assets }).rows[0] ||
+        t.topics[0];
+      await open(first);
     }
     setReady(true);
   }
@@ -860,10 +872,10 @@ export default function TopicsDiscovery() {
                 </p>
               ) : null}
               <div className="cv2-recommend-actions">
-                <button type="button" disabled={busy} onClick={() => recommend(false)}>
+                <button type="button" className="cv2-btn" disabled={busy} onClick={() => recommend(false)}>
                   从现有素材发现
                 </button>
-                <button type="button" disabled={busy || !consent || !aiReady} onClick={() => recommend(true)}>
+                <button type="button" className="cv2-btn" disabled={busy || !consent || !aiReady} onClick={() => recommend(true)}>
                   AI 推荐选题
                 </button>
                 <label className="cv2-checkline">

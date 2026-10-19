@@ -26,14 +26,17 @@
 .cv2-step-line .cv2-hint{display:inline-flex;align-items:center;gap:6px;color:#8992a3;font-size:11px}
 .cv2-step-line b{font-size:11px;letter-spacing:.1px;color:inherit}
 .cv2-step-line .arrow{color:#bec4d1}
-.cv2-app .cv2-step-line a{border:0;background:none;min-height:26px;padding:5px 8px;font-size:10px;font-weight:inherit;color:#8c93a5;border-radius:6px;text-decoration:none;display:inline-flex;align-items:center;cursor:pointer}
+.cv2-app .cv2-step-line a{border:0;background:none;min-height:26px;padding:5px 8px;font-size:10px;font-weight:inherit;color:#8c93a5;border-radius:9px;text-decoration:none;display:inline-flex;align-items:center;cursor:pointer}
 .cv2-app .cv2-step-line a:hover{background:#eef0f8;color:#34394a}
-.cv2-app .cv2-step-line a.on{color:#405bd1;font-weight:740}
+/* 当前步 = 设计 .btn.primary 的 indigo 实心胶囊白字（creator-v2.2.html:172
+   `${current===v?'primary':'ghost'}` + btn tiny 形态） */
+.cv2-app .cv2-step-line a.on,.cv2-step-line b.on{background:var(--cv2-primary);border-color:var(--cv2-primary);color:#fff;font-weight:680;border-radius:9px;min-height:26px;padding:5px 8px;font-size:10px;display:inline-flex;align-items:center}
+.cv2-app .cv2-step-line a.on:hover{background:var(--cv2-primary-hover);color:#fff}
 .cv2-step-line b{font-weight:inherit;color:#8c93a5}
-.cv2-step-line b.on{color:#405bd1;font-weight:740}
 
 /* banner — .v2-banner (creator-v2.2.html:58-59) */
 .cv2-banner{border:1px solid #e5eafa;border-radius:15px;padding:19px 22px;margin:0 0 22px;background:linear-gradient(105deg,#fafbff,#f0f3fe);display:flex;align-items:center;justify-content:space-between;gap:24px}
+.cv2-banner>div{min-width:0}
 .cv2-banner .cv2-pill{display:inline-flex;align-items:center;gap:5px;font-weight:660;padding:6px 9px;border-radius:7px;font-size:10px;color:#62718d;background:#eff2f8}
 .cv2-banner h3{margin:5px 0;font-size:16px;letter-spacing:-.3px;color:var(--cv2-text);font-weight:735}
 .cv2-banner p{font-size:12px;line-height:1.75;color:#768197;margin:5px 0;max-width:640px}
@@ -193,8 +196,14 @@
   .cv2-evidence-grid{grid-template-columns:1fr 1fr}
 }
 @media(max-width:760px){
-  .cv2-banner{padding:17px;align-items:flex-start;flex-wrap:wrap}
-  .cv2-banner .cv2-btn{font-size:11px}
+  /* banner：设计移动端 CTA 与标题同行（design/topics-mobile.png：按钮右上，
+     文块左），flex 行不换行、文块可收缩换行 */
+  .cv2-banner{padding:17px;align-items:flex-start;flex-wrap:nowrap;gap:14px}
+  .cv2-banner .cv2-btn{font-size:11px;flex:none}
+  /* 页头动作区：按设计移动形态收缩为纯图标圆钮（「查看热点雷达」；
+     「内容系列」为已登记偏差 #5 的连带入口，同样收缩以保持单一形态） */
+  .cv2-app .cv2-head-actions .cv2-btn{font-size:0;gap:0;width:38px;height:38px;padding:0;justify-content:center;border-radius:999px;flex:none}
+  .cv2-app .cv2-head-actions .cv2-btn svg{width:17px;height:17px}
   .cv2-tabbar{margin-bottom:17px}
   .cv2-story-card{padding:18px}
   .cv2-story-bottom{align-items:flex-start}

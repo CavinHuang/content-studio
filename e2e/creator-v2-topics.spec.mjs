@@ -168,8 +168,8 @@ test("桌面 1440×900：设计版式齐全，判断卡呈现四个真实字段�
   const topic = await seedTopic(page);
   await openTopics(page);
 
-  // 内容生产线步骤条（02 选题高亮）+ 从线索到选题 banner（design :172/:175）
-  await expect(page.getByText("内容生产线", { exact: true })).toBeVisible();
+  // 内容生产主线步骤条（02 选题高亮）+ 从线索到选题 banner（design :172/:175）
+  await expect(page.getByText("内容生产主线", { exact: true })).toBeVisible();
   await expect(page.getByText("02 选题", { exact: true })).toBeVisible();
   await expect(
     page.getByText("现在最需要决定：值不值得写？", { exact: true })
@@ -184,8 +184,9 @@ test("桌面 1440×900：设计版式齐全，判断卡呈现四个真实字段�
   await expect(page.getByText("01 / NEED", { exact: true })).toBeVisible();
   await expect(page.getByText("证据与来源账本", { exact: true })).toBeVisible();
 
-  // 未选中时判断卡是诚实的引导，不是假数据
-  await expect(page.getByText("选一个线索，打开编辑判断卡")).toBeVisible();
+  // 设计构图：进入页面即预选第一条线索、判断面板已填充；选中是纯视图状态，
+  // 面板内容仍全部来自真实 API（e2e 断言其值与种子一致）
+  await expect(page.getByLabel("选题标题", { exact: true })).toHaveValue(topic.title);
 
   // 线索卡：真实字段（状态 tag、标题、来源行、判断入口）
   const card = page.locator(".cv2-story-card").first();
@@ -382,7 +383,7 @@ test("移动 390×844：单列布局无横向溢出，判断卡在列表下方�
       () => document.documentElement.scrollWidth - window.innerWidth
     )
   ).toBeLessThanOrEqual(0);
-  await expect(page.getByText("选一个线索，打开编辑判断卡")).toBeVisible();
+  await expect(page.getByLabel("选题标题", { exact: true })).toHaveValue(topic.title);
   await page.getByRole("button", { name: topic.title, exact: true }).click();
   await expect(page.getByLabel("读者问题", { exact: true })).toBeVisible();
   expect(
