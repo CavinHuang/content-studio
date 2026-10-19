@@ -242,20 +242,26 @@ test("author moves from profile and topic discussion through MD writing, XHS PNG
   await page.getByRole("link", { name: "选题发现" }).click();
   await page.getByLabel("新选题标题").fill("新作者怎样建立创作习惯");
   await page.getByRole("button", { name: "记录选题", exact: true }).click();
+  // V2 选题页：参考素材选择位于「完整简报与版本历史」折叠区内
+  await page.getByText("完整简报与版本历史", { exact: true }).click();
   await page.getByText("选择参考素材（0）", { exact: true }).click();
   await page.getByLabel("我的第一轮写作实践 · 素材").check();
   await page.getByRole("button", { name: "保存简报", exact: true }).click();
+  // 讨论位于「与选题助手讨论」折叠区内
+  await page.getByText("与选题助手讨论", { exact: true }).click();
   await page
     .getByLabel("选题讨论", { exact: true })
     .fill("请结合我的实践，帮我确定具体的写作角度和大纲");
   await page.getByLabel("允许本次向模型发送选题、所选素材与讨论内容").check();
   await page.getByRole("button", { name: "发送讨论", exact: true }).click();
-  await expect(page.locator(".creator-conversation")).toHaveCount(2);
+  await expect(page.locator(".cv2-conversation > div")).toHaveCount(2);
   await page.getByRole("button", { name: "采纳这份简报", exact: true }).click();
   await expect(page.getByLabel("选题标题", { exact: true })).toHaveValue(
     "从实践中建立写作流程"
   );
-  await page.getByRole("button", { name: "确认选题，开始写作 →" }).click();
+  await page
+    .getByRole("button", { name: "围绕这个选题开始写作", exact: true })
+    .click();
   await expect(page).toHaveURL(/compose\?project=ep_/);
   await expect(
     page.getByRole("heading", {
@@ -494,6 +500,8 @@ test("complete briefs, explicit recommendation sources and context conflict reco
     data: { title: "本次不选择的个人日记", body: "本次不要发送的个人内容" },
   });
   await page.getByRole("link", { name: "选题发现" }).click();
+  // V2 选题页：批量推荐整体收进折叠区
+  await page.getByText("批量推荐：从素材与模型获取候选", { exact: true }).click();
   await page
     .getByText("选择推荐可使用的私有素材（0）", { exact: true })
     .click();
@@ -507,17 +515,19 @@ test("complete briefs, explicit recommendation sources and context conflict reco
   await page
     .getByRole("button", { name: "从授权素材发现具体的创作方向", exact: true })
     .click();
-  await expect(page.getByLabel("核心问题", { exact: true })).toHaveValue(
+  await expect(page.getByLabel("读者问题", { exact: true })).toHaveValue(
     "怎样把经验写清楚？"
   );
   await page
-    .getByLabel("核心问题", { exact: true })
+    .getByLabel("读者问题", { exact: true })
     .fill("作者如何建立可以复用的创作流程？");
+  // 核心观点/平台位于「完整简报与版本历史」折叠区内
+  await page.getByText("完整简报与版本历史", { exact: true }).click();
   await page
     .getByLabel("核心观点与写作主张", { exact: true })
     .fill("先有自己的实践，再形成有证据的表达");
   await page
-    .getByLabel("证据缺口与待核实事项", { exact: true })
+    .getByLabel("证据缺口", { exact: true })
     .fill("还需要验证长期效果，避免过度归因");
   await page.getByLabel("小红书", { exact: true }).check();
   await page.getByRole("button", { name: "保存简报", exact: true }).click();
@@ -553,7 +563,9 @@ test("complete briefs, explicit recommendation sources and context conflict reco
   await expect(
     page.getByRole("button", { name: "恢复简报为新版本", exact: true }).first()
   ).toBeDisabled();
-  await page.getByRole("button", { name: "确认选题，开始写作 →" }).click();
+  await page
+    .getByRole("button", { name: "围绕这个选题开始写作", exact: true })
+    .click();
   await expect(page).toHaveURL(/compose\?project=ep_/);
   const projectId = new URL(page.url()).searchParams.get("project");
   {
