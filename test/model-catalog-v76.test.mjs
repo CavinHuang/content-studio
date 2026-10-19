@@ -243,7 +243,15 @@ test("绑定可指定备用连接的任一开放模型，指纹按所选模型�
       }),
     (e) => e.status === 404
   );
+  // 平台标识不是连接 ID：choice 等价于未指定（生成记录回填恢复请求的场景）。
   const legacy = c.services.captureBinding();
+  assert.deepEqual(
+    c.services.captureBinding("text", {
+      connectionId: "platform",
+      model: legacy.model,
+    }),
+    legacy
+  );
   assert.equal(legacy.id, a.id);
   assert.equal(legacy.model, "model-a");
   return c.services.usingTask("t_legacy", legacy, 1, () => {

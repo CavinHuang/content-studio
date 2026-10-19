@@ -341,14 +341,17 @@ export class CreatorServices {
   captureBinding(kind = "text", choice) {
     const env = process.env,
       prefix = kind === "text" ? "CONTENT_AI" : "CONTENT_IMAGE_OPENAI";
-    const row = choice?.connectionId
+    // "platform" 是记录里平台默认绑定的标识，不是连接 ID；按未指定连接处理。
+    const wantsChoice =
+      !!choice?.connectionId && choice.connectionId !== "platform";
+    const row = wantsChoice
       ? this.db
           .prepare("SELECT * FROM service_connections WHERE id=? AND kind=?")
           .get(choice.connectionId, kind)
       : this.db
           .prepare("SELECT * FROM service_connections WHERE kind=? AND selected=1")
           .get(kind);
-    if (choice?.connectionId && !row) fail("所选服务连接不存在或已删除", 404);
+    if (wantsChoice && !row) fail("所选服务连接不存在或已删除", 404);
     const model = row
       ? choice?.model
         ? this._enabledModel(row, choice.model)

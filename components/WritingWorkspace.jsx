@@ -514,7 +514,7 @@ export default function WritingWorkspace() {
     setStreamEnabled(g.input.stream !== false);
     setInstruction(g.input.instruction);
     setAssistantMode(g.input.mode);
-    if (g.model?.id && g.model?.model)
+    if (g.model?.id && g.model.id !== "platform" && g.model.model)
       setChosenModels([
         { connectionId: g.model.id, model: g.model.model, name: g.model.name },
       ]);
