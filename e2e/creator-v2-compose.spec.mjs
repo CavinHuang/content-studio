@@ -134,10 +134,6 @@ async function createProject(page, title) {
   const r = await page.request.post("/api/writing/projects", {
     data: { title },
   });
-  if (!r.ok())
-    console.log(
-      "CREATE-DEBUG status=" + r.status() + " body=" + (await r.text())
-    );
   expect(r.ok()).toBeTruthy();
   const d = await r.json();
   expect(d.projectId).toMatch(/^ep_/);
@@ -155,6 +151,7 @@ async function stored(page, id, channel = "master") {
 const cm = (page) => page.getByLabel("文章 Markdown 正文");
 
 test("V2 版式：真实空稿的诚实空态、阶段条与 ribbon，正文输入真实自动保存", async ({ page }) => {
+  await signup(page, "compose-layout@example.test");
   const id = await createProject(page, "创作空间验证：城市步行观察笔记");
   await page.goto("/compose?project=" + id);
 
@@ -221,6 +218,7 @@ test("V2 版式：真实空稿的诚实空态、阶段条与 ribbon，正文输�
 });
 
 test("渠道独立与冲突保护：主稿/公众号独立修订，expectedRevision 冲突不覆盖", async ({ page }) => {
+  await signup(page, "compose-channels@example.test");
   const id = await createProject(page, "渠道独立与冲突保护验证");
   const masterText = "# 主稿标题\n\n主稿的原始表达。";
   await page.goto("/compose?project=" + id);
@@ -273,6 +271,7 @@ test("渠道独立与冲突保护：主稿/公众号独立修订，expectedRevis
 });
 
 test("V2.3 配图入口：空态诚实，真实计划出现真实图位状态并可去工作台", async ({ page }) => {
+  await signup(page, "compose-visual@example.test");
   const id = await createProject(page, "配图计划与图位状态验证");
   const markdown =
     "# 配图验证文章\n\n第一节需要解释一个结构概念，用一段足够长的文字描述任务的执行顺序与边界，方便读者理解流程。\n\n## 第二节\n\n第二节给出对照说明，同样写足长度：通过对照两种做法的差异，说明为什么可靠性比单次演示更加重要。\n\n## 第三节\n\n第三节补充边界情况，继续使用足够长的段落描述失败恢复与人工确认的位置，避免正文过短无法规划。";
@@ -319,6 +318,7 @@ test("V2.3 配图入口：空态诚实，真实计划出现真实图位状态并
 test("移动 390×844：正文/助手双面板、工作流底栏在全局导航之上且无横向溢出", async ({
   page,
 }) => {
+  await signup(page, "compose-mobile@example.test");
   const id = await createProject(page, "移动端创作空间检查");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/compose?project=" + id);
