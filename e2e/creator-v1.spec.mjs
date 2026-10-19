@@ -343,7 +343,9 @@ test("author moves from profile and topic discussion through MD writing, XHS PNG
   expect(
     JSON.parse(strFromU8(files["manifest.json"])).publicationVerified
   ).toBe(false);
-  await page.getByRole("link", { name: "资产库", exact: true }).click();
+  // V2 统一侧栏把 /library 入口命名为「素材库」（旧创作页内导航的
+  // 「资产库」链接已被统一 Shell 取代）。
+  await page.getByRole("link", { name: "素材库", exact: true }).click();
   await page.getByLabel("资产类型").selectOption("article");
   await expect(
     page.getByRole("heading", { name: "从实践中建立写作流程", exact: true })
