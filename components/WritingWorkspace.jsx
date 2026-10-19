@@ -123,7 +123,7 @@ export default function WritingWorkspace() {
   const [title, setTitle] = useState(""),
     [creating, setCreating] = useState(false),
     [showNew, setShowNew] = useState(false),
-    [leftOpen, setLeftOpen] = useState(false),
+    [leftOpen, setLeftOpen] = useState(true),
     [rightOpen, setRightOpen] = useState(true);
   const [view, setView] = useState("split"),
     [showTheme, setShowTheme] = useState(false),
@@ -1357,7 +1357,11 @@ export default function WritingWorkspace() {
           </main>
         ) : null}
         {doc && channel !== "xiaohongshu" ? (
-          <div className="cv2-compose-grid">
+          <div
+            className={
+              "cv2-compose-grid" + (leftOpen ? "" : " no-rail")
+            }
+          >
             {leftOpen && (
               <aside className="cv2-compose-rail writing-context">
                 <h4>文章结构</h4>
@@ -1552,6 +1556,7 @@ export default function WritingWorkspace() {
                 <div className="cv2-compose-toolrow">
                   <button
                     className="cv2-btn tiny"
+                    aria-pressed={leftOpen}
                     onClick={() => setLeftOpen((v) => !v)}
                   >
                     大纲与素材

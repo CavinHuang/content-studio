@@ -260,13 +260,21 @@ test("渠道独立与冲突保护：主稿/公众号独立修订，expectedRevis
   const other = await page.context().newPage();
   await other.goto("/compose?project=" + id);
   await expect(cm(other)).toBeVisible();
+  // 第二个页面加载后，第一个页面再保存新修订：第二个页面的
+  // expectedRevision 已过期，自动保存必须失败而不是强覆盖。
+  await cm(page).fill(masterText + "\n\n窗口一追加的重要修订。");
+  await expect
+    .poll(async () => (await stored(page, id)).markdown)
+    .toContain("窗口一追加的重要修订。");
   await cm(other).fill("第二个窗口尚未合并的本地内容。");
   await expect(
     other.getByRole("button", { name: "下载本地草稿" })
   ).toBeVisible();
   await expect(cm(other)).toContainText("第二个窗口尚未合并的本地内容。");
   // 服务端仍是第一个窗口的已保存版本（不可变修订未被强覆盖）
-  expect((await stored(page, id)).markdown).toBe(masterText);
+  expect((await stored(page, id)).markdown).toBe(
+    masterText + "\n\n窗口一追加的重要修订。"
+  );
   await other.close();
 });
 
@@ -324,10 +332,30 @@ test("移动 390×844：正文/助手双面板、工作流底栏在全局导航�
   await page.goto("/compose?project=" + id);
   await expect(cm(page)).toBeVisible();
 
-  const overflow = await page.evaluate(
-    () => document.documentElement.scrollWidth - window.innerWidth
-  );
-  expect(overflow).toBeLessThanOrEqual(0);
+  const overflow = await page.evaluate(() => {
+    const viewport = window.innerWidth;
+    const scrollWidth = Math.max(
+      document.documentElement.scrollWidth,
+      document.body ? document.body.scrollWidth : 0
+    );
+    const offenders = [];
+    if (scrollWidth > viewport) {
+      for (const el of document.querySelectorAll("*")) {
+        const rect = el.getBoundingClientRect();
+        if (rect.width > viewport + 1 || rect.right > viewport + 8) {
+          offenders.push(
+            `${el.tagName.toLowerCase()}.${String(el.className).split(" ")[0]} w=${Math.round(rect.width)} right=${Math.round(rect.right)}`
+          );
+          if (offenders.length >= 6) break;
+        }
+      }
+    }
+    return { scrollWidth, viewport, offenders };
+  });
+  expect(
+    overflow.scrollWidth - overflow.viewport,
+    `横向溢出 ${overflow.scrollWidth}>${overflow.viewport}：\n${overflow.offenders.join("\n")}`
+  ).toBeLessThanOrEqual(0);
 
   // 双面板切换：默认正文，助手面板隐藏；切到助手后编辑区隐藏
   const mobileTabs = page.locator(".cv2-compose-mobiletabs");

@@ -55,6 +55,7 @@
 
 /* ---- three-column grid (creator-v2.2.html :9 .editor-layout) ---- */
 .cv2-compose-grid{display:grid;grid-template-columns:200px minmax(460px,1fr) 292px;max-width:1530px;margin:0 auto;min-height:650px;align-items:stretch}
+.cv2-compose-grid.no-rail{grid-template-columns:minmax(460px,1fr) 292px}
 
 /* ---- left context rail (.context-rail) ---- */
 .cv2-compose-rail{padding:29px 18px;border-right:1px solid var(--compose-line);min-width:0}
@@ -165,12 +166,22 @@
 @media(max-width:1280px){
   .cv2-compose{margin:-32px -28px -65px}
   .cv2-compose-grid{grid-template-columns:155px minmax(380px,1fr) 268px}
+  .cv2-compose-grid.no-rail{grid-template-columns:minmax(380px,1fr) 268px}
   .cv2-compose-rail{padding:23px 12px}
   .cv2-paper{padding:24px 24px 30px}
+  .cv2-compose-actions{gap:7px}
+  .cv2-compose-actions .cv2-btn{padding:8px 10px;min-height:36px}
+  .cv2-compose-actions select{max-width:160px}
 }
 @media(max-width:1040px){
   .cv2-compose-grid{grid-template-columns:minmax(0,1fr) 258px}
+  .cv2-compose-grid.no-rail{grid-template-columns:minmax(0,1fr) 258px}
   .cv2-compose-rail{display:none}
+  /* 编辑/预览分栏在窄屏改为上下堆叠（沿用旧 writing.css 的行为） */
+  .cv2-compose .writing-canvases.view-split{flex-direction:column}
+  .cv2-compose .writing-preview{max-height:none;min-height:280px}
+  .cv2-compose .writing-code{border-right:0;border-bottom:1px solid #eef0f2}
+  .cv2-compose .writing-editor-shell,.cv2-compose .writing-editor-host,.cv2-compose .writing-editor-host .cm-editor{min-height:350px}
 }
 @media(max-width:760px){
   .cv2-compose{margin:-23px -16px calc(var(--cv2-mobile-nav-h) + 21px);padding-bottom:96px}

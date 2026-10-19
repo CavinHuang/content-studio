@@ -554,7 +554,15 @@ test("complete briefs, explicit recommendation sources and context conflict reco
   await page.getByRole("button", { name: "确认选题，开始写作 →" }).click();
   await expect(page).toHaveURL(/compose\?project=ep_/);
   const projectId = new URL(page.url()).searchParams.get("project");
-  await page.getByRole("button", { name: "大纲与素材", exact: true }).click();
+  {
+    // V2 创作空间默认展开左栏；确保打开而不是把已打开的左栏关掉。
+    const railToggle = page.getByRole("button", {
+      name: "大纲与素材",
+      exact: true,
+    });
+    if ((await railToggle.getAttribute("aria-pressed")) === "false")
+      await railToggle.click();
+  }
   await expect(page.locator(".writing-context")).toContainText(
     "作者如何建立可以复用的创作流程？"
   );
@@ -749,7 +757,15 @@ test("author configures a publication account style and explicitly selects it fo
     },
   });
   await page.goto("/compose?project=" + doc.projectId + "&channel=zhihu");
-  await page.getByRole("button", { name: "大纲与素材", exact: true }).click();
+  {
+    // V2 创作空间默认展开左栏；确保打开而不是把已打开的左栏关掉。
+    const railToggle = page.getByRole("button", {
+      name: "大纲与素材",
+      exact: true,
+    });
+    if ((await railToggle.getAttribute("aria-pressed")) === "false")
+      await railToggle.click();
+  }
   await page.getByText("本篇与平台偏好", { exact: true }).click();
   await page
     .getByLabel("本篇写作定位账号", { exact: true })
