@@ -23,6 +23,10 @@ export default function CreatorTopics() {
     [selectedOrigin, setSelectedOrigin] = useState(null),
     [history, setHistory] = useState(null),
     [feedbackReason, setFeedbackReason] = useState(""),
+    [sources, setSources] = useState([]),
+    [feedItems, setFeedItems] = useState([]),
+    [feedSource, setFeedSource] = useState(""),
+    [pickedItems, setPickedItems] = useState([]),
     [recommendIds, setRecommendIds] = useState([]),
     [messages, setMessages] = useState([]),
     [notice, setNotice] = useState(""),
@@ -41,16 +45,23 @@ export default function CreatorTopics() {
   const briefDirty =
     !!selected && JSON.stringify(selected) !== JSON.stringify(selectedOrigin);
   async function load(initial = false) {
-    const [t, s, l, j] = await Promise.all([
+    const [t, s, l, j, src, items] = await Promise.all([
       api("/api/creator/topics"),
       api("/api/creator/series"),
       api("/api/creator/library"),
       api("/api/creator/jobs"),
+      api("/api/creator/sources"),
+      api(
+        "/api/creator/source-items" +
+          (feedSource ? "?source=" + encodeURIComponent(feedSource) : "")
+      ),
     ]);
     setTopics(t.topics);
     setSeries(s.series);
     setLibrary(l.assets);
     setJobs(j.jobs);
+    setSources(src.sources);
+    setFeedItems(items.items);
     if (initial && query.get("series")) setView("series");
     if (initial && query.get("topic")) {
       const found = t.topics.find((t) => t.id === query.get("topic"));
@@ -66,6 +77,13 @@ export default function CreatorTopics() {
   useEffect(() => {
     load(true).catch((e) => setNotice(e.message));
   }, []);
+  async function loadItems(source = feedSource) {
+    const r = await api(
+      "/api/creator/source-items" +
+        (source ? "?source=" + encodeURIComponent(source) : "")
+    );
+    setFeedItems(r.items);
+  }
   async function act(fn) {
     if (busy) return;
     setBusy(true);
@@ -262,6 +280,104 @@ export default function CreatorTopics() {
                   }
                 >
                   AI 推荐选题
+                </button>
+              </div>
+            </div>
+            <div className="creator-panel">
+              <div
+                className="creator-row"
+                style={{
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <h2>信源热点</h2>
+                <select
+                  aria-label="筛选信源"
+                  value={feedSource}
+                  onChange={(e) => {
+                    setFeedSource(e.target.value);
+                    setPickedItems([]);
+                    loadItems(e.target.value);
+                  }}
+                >
+                  <option value="">全部信源</option>
+                  {sources.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="subtle">
+                勾选感兴趣的公开内容转成私有素材；只有转为素材的条目会进入推荐与创作上下文。公开条目只是线索，事实仍需核实。
+              </p>
+              {feedItems.length ? (
+                <div
+                  className="creator-stack"
+                  style={{ maxHeight: 280, overflow: "auto" }}
+                >
+                  {feedItems.map((it) => (
+                    <label
+                      className="check"
+                      key={it.id}
+                      style={{ alignItems: "flex-start" }}
+                    >
+                      <input
+                        type="checkbox"
+                        aria-label={`选择 ${it.title}`}
+                        checked={pickedItems.includes(it.id)}
+                        onChange={(e) =>
+                          setPickedItems((old) =>
+                            e.target.checked
+                              ? [...old, it.id]
+                              : old.filter((x) => x !== it.id)
+                          )
+                        }
+                      />
+                      <span>
+                        {it.title}
+                        <br />
+                        <small>
+                          {it.sourceName}
+                          {it.publishedAt
+                            ? ` · ${new Date(
+                                it.publishedAt
+                              ).toLocaleDateString("zh-CN")}`
+                            : ""}
+                        </small>
+                      </span>
+                      <a href={it.url} target="_blank" rel="noopener noreferrer">
+                        原文 ↗
+                      </a>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <p className="subtle">
+                  暂无信源条目；服务启动后后台会自动同步，稍后回来查看。
+                </p>
+              )}
+              <div className="creator-row">
+                <button
+                  className="primary"
+                  disabled={busy || !pickedItems.length}
+                  onClick={() =>
+                    act(async () => {
+                      const r = await send(
+                        "/api/creator/source-items/convert",
+                        "POST",
+                        { ids: pickedItems }
+                      );
+                      setPickedItems([]);
+                      setNotice(
+                        `已转为素材 ${r.created} 条；跳过已存在 ${r.skipped} 条。`
+                      );
+                      await load();
+                    })
+                  }
+                >
+                  把选中的 {pickedItems.length} 条转为素材
                 </button>
               </div>
             </div>

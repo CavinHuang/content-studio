@@ -141,6 +141,7 @@ export class CreatorService {
   CREATE TABLE IF NOT EXISTS creator_style_revocations(suggestion_id TEXT PRIMARY KEY,reason TEXT NOT NULL,created_at TEXT NOT NULL);
   CREATE VIRTUAL TABLE IF NOT EXISTS creator_search USING fts5(id UNINDEXED,kind UNINDEXED,title,body,tags,tokenize='trigram');
   CREATE TABLE IF NOT EXISTS creator_meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS creator_source_items(id TEXT PRIMARY KEY, source_id TEXT NOT NULL, url TEXT NOT NULL, title TEXT NOT NULL, summary TEXT NOT NULL, published_at TEXT NOT NULL DEFAULT '', synced_at TEXT NOT NULL, UNIQUE(source_id,url));
  `);
     // 播种策略：产品环境默认播种；node:test 运行器内默认跳过（避免测试触发
     // 真实网络同步），显式传 seedDefaultSources:true 的用例除外。
@@ -2007,6 +2008,50 @@ export class CreatorService {
       fail("信源不存在", 404);
     return this.sources();
   }
+  sourceItems({ source = "", limit = 60 } = {}) {
+    const capped = Math.min(Math.max(Number(limit) || 60, 1), 200);
+    return this.db
+      .prepare(
+        "SELECT i.id,i.url,i.title,i.summary,i.published_at AS publishedAt,i.synced_at AS syncedAt,s.name AS sourceName FROM creator_source_items i JOIN creator_sources s ON s.id=i.source_id WHERE (?='' OR i.source_id=?) ORDER BY i.synced_at DESC,i.rowid DESC LIMIT ?"
+      )
+      .all(source, source, capped);
+  }
+  convertSourceItems(ids) {
+    if (!Array.isArray(ids) || !ids.length || ids.length > 20)
+      fail("每次请选择 1–20 条信源条目");
+    let created = 0,
+      skipped = 0;
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      for (const id of ids) {
+        const row = this.db
+          .prepare(
+            "SELECT i.*,s.name AS sourceName FROM creator_source_items i JOIN creator_sources s ON s.id=i.source_id WHERE i.id=?"
+          )
+          .get(String(id));
+        if (
+          !row ||
+          this.db.prepare("SELECT 1 FROM creator_materials WHERE url=?").get(row.url)
+        ) {
+          skipped++;
+          continue;
+        }
+        this.addMaterial({
+          kind: "link",
+          title: row.title.slice(0, 240),
+          body: row.summary.slice(0, 150000),
+          url: row.url,
+          tags: [row.sourceName.slice(0, 40)],
+        });
+        created++;
+      }
+      this.db.exec("COMMIT");
+    } catch (e) {
+      this.db.exec("ROLLBACK");
+      throw e;
+    }
+    return { created, skipped };
+  }
   async syncSource(id) {
     const source = this.sources().find((s) => s.id === id);
     if (!source) fail("信源不存在", 404);
@@ -2017,7 +2062,7 @@ export class CreatorService {
       });
       if (!r.ok) throw Error();
       const items = parseFeed(await r.text(), source.url, 30);
-      let imported = 0;
+      let fresh = 0;
       this.db.exec("BEGIN IMMEDIATE");
       try {
         for (const entry of items) {
@@ -2027,26 +2072,32 @@ export class CreatorService {
           } catch {
             continue;
           }
-          if (
-            this.db
-              .prepare("SELECT 1 FROM creator_materials WHERE url=?")
-              .get(url)
-          )
-            continue;
-          this.addMaterial({
-            kind: "link",
-            title: entry.title.slice(0, 240),
-            body: decodeHTML(entry.summary)
-              .replace(/<[^>]*>/g, " ")
-              .slice(0, 150000),
-            url,
-            tags: [source.name.slice(0, 40)],
-          });
-          imported++;
+          // 暂存模型：同步只进入候选列表，作者在选题页按信源筛选后手动转为素材。
+          const info = this.db
+            .prepare(
+              "INSERT OR IGNORE INTO creator_source_items(id,source_id,url,title,summary,published_at,synced_at) VALUES(?,?,?,?,?,?,?)"
+            )
+            .run(
+              "csitem_" + randomUUID(),
+              id,
+              url,
+              String(entry.title || "").slice(0, 240) || url,
+              decodeHTML(entry.summary || "")
+                .replace(/<[^>]*>/g, " ")
+                .slice(0, 4000),
+              String(entry.publishedAt || "").slice(0, 40),
+              now()
+            );
+          if (info.changes) fresh++;
         }
         this.db
+          .prepare(
+            "DELETE FROM creator_source_items WHERE source_id=? AND id NOT IN (SELECT id FROM creator_source_items WHERE source_id=? ORDER BY synced_at DESC,rowid DESC LIMIT 60)"
+          )
+          .run(id, id);
+        this.db
           .prepare("UPDATE creator_sources SET last_run=?,status=? WHERE id=?")
-          .run(now(), "已同步 " + imported + " 条", id);
+          .run(now(), "暂存 " + fresh + " 条新条目", id);
         this.db.exec("COMMIT");
       } catch (e) {
         this.db.exec("ROLLBACK");
