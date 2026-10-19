@@ -128,29 +128,34 @@ async function signup(page, email) {
   ).toBeVisible();
 }
 
-async function createProject(request, title) {
-  const r = await request.post("/api/writing/projects", {
+async function createProject(page, title) {
+  // page.request shares the signed-in cookie jar (multiuser sessions);
+  // a bare request fixture would be unauthenticated.
+  const r = await page.request.post("/api/writing/projects", {
     data: { title },
   });
+  if (!r.ok())
+    console.log(
+      "CREATE-DEBUG status=" + r.status() + " body=" + (await r.text())
+    );
   expect(r.ok()).toBeTruthy();
   const d = await r.json();
   expect(d.projectId).toMatch(/^ep_/);
   return d.projectId;
 }
 
-async function stored(request, id, channel = "master") {
+async function stored(page, id, channel = "master") {
   return (
-    await (await request.get(`/api/writing/projects/${id}/${channel}`)).json()
+    await (
+      await page.request.get(`/api/writing/projects/${id}/${channel}`)
+    ).json()
   );
 }
 
 const cm = (page) => page.getByLabel("文章 Markdown 正文");
 
-test("V2 版式：真实空稿的诚实空态、阶段条与 ribbon，正文输入真实自动保存", async ({
-  page,
-  request,
-}) => {
-  const id = await createProject(request, "创作空间验证：城市步行观察笔记");
+test("V2 版式：真实空稿的诚实空态、阶段条与 ribbon，正文输入真实自动保存", async ({ page }) => {
+  const id = await createProject(page, "创作空间验证：城市步行观察笔记");
   await page.goto("/compose?project=" + id);
 
   // 头部：eyebrow 用真实渠道与标题；保存状态来自真实修订
@@ -198,7 +203,7 @@ test("V2 版式：真实空稿的诚实空态、阶段条与 ribbon，正文输�
   const markdown = "# 城市步行观察\n\n第一段真实观察记录。";
   await cm(page).fill(markdown);
   await expect
-    .poll(async () => (await stored(request, id)).markdown)
+    .poll(async () => (await stored(page, id)).markdown)
     .toBe(markdown);
   await expect(
     page.locator(".cv2-compose-outline-link", { hasText: "城市步行观察" })
@@ -215,18 +220,15 @@ test("V2 版式：真实空稿的诚实空态、阶段条与 ribbon，正文输�
   );
 });
 
-test("渠道独立与冲突保护：主稿/公众号独立修订，expectedRevision 冲突不覆盖", async ({
-  page,
-  request,
-}) => {
-  const id = await createProject(request, "渠道独立与冲突保护验证");
+test("渠道独立与冲突保护：主稿/公众号独立修订，expectedRevision 冲突不覆盖", async ({ page }) => {
+  const id = await createProject(page, "渠道独立与冲突保护验证");
   const masterText = "# 主稿标题\n\n主稿的原始表达。";
   await page.goto("/compose?project=" + id);
   await cm(page).fill(masterText);
   await expect
-    .poll(async () => (await stored(request, id)).markdown)
+    .poll(async () => (await stored(page, id)).markdown)
     .toBe(masterText);
-  const masterBefore = await stored(request, id);
+  const masterBefore = await stored(page, id);
 
   // 切到公众号：独立文档 + 平台稿提示行
   await page.getByRole("tab", { name: "微信公众号" }).click();
@@ -243,16 +245,16 @@ test("渠道独立与冲突保护：主稿/公众号独立修订，expectedRevis
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "从主稿创建新版本" }).click();
   await expect
-    .poll(async () => (await stored(request, id, "wechat")).markdown)
+    .poll(async () => (await stored(page, id, "wechat")).markdown)
     .toBe(masterText);
-  expect((await stored(request, id)).revision).toBe(masterBefore.revision);
+  expect((await stored(page, id)).revision).toBe(masterBefore.revision);
 
   // 平台稿上的独立编辑不回写主稿
   await cm(page).fill("# 公众号标题\n\n公众号自己的开头。");
   await expect
-    .poll(async () => (await stored(request, id, "wechat")).markdown)
+    .poll(async () => (await stored(page, id, "wechat")).markdown)
     .toBe("# 公众号标题\n\n公众号自己的开头。");
-  expect((await stored(request, id)).markdown).toBe(masterText);
+  expect((await stored(page, id)).markdown).toBe(masterText);
 
   // 回主稿，用第二个页面制造 expectedRevision 冲突：本地内容保留、可下载
   await page.getByRole("tab", { name: "主稿" }).click();
@@ -266,21 +268,18 @@ test("渠道独立与冲突保护：主稿/公众号独立修订，expectedRevis
   ).toBeVisible();
   await expect(cm(other)).toContainText("第二个窗口尚未合并的本地内容。");
   // 服务端仍是第一个窗口的已保存版本（不可变修订未被强覆盖）
-  expect((await stored(request, id)).markdown).toBe(masterText);
+  expect((await stored(page, id)).markdown).toBe(masterText);
   await other.close();
 });
 
-test("V2.3 配图入口：空态诚实，真实计划出现真实图位状态并可去工作台", async ({
-  page,
-  request,
-}) => {
-  const id = await createProject(request, "配图计划与图位状态验证");
+test("V2.3 配图入口：空态诚实，真实计划出现真实图位状态并可去工作台", async ({ page }) => {
+  const id = await createProject(page, "配图计划与图位状态验证");
   const markdown =
     "# 配图验证文章\n\n第一节需要解释一个结构概念，用一段足够长的文字描述任务的执行顺序与边界，方便读者理解流程。\n\n## 第二节\n\n第二节给出对照说明，同样写足长度：通过对照两种做法的差异，说明为什么可靠性比单次演示更加重要。\n\n## 第三节\n\n第三节补充边界情况，继续使用足够长的段落描述失败恢复与人工确认的位置，避免正文过短无法规划。";
   await page.goto("/compose?project=" + id);
   await cm(page).fill(markdown);
   await expect
-    .poll(async () => (await stored(request, id)).markdown)
+    .poll(async () => (await stored(page, id)).markdown)
     .toBe(markdown);
 
   // 打开配图视图：没有计划 → 诚实空态 + 指向配图助手
@@ -290,7 +289,7 @@ test("V2.3 配图入口：空态诚实，真实计划出现真实图位状态并
   await expect(board.getByText("这篇文章还没有配图计划")).toBeVisible();
 
   // 通过真实领域 API 创建计划（不经过任何付费调用）
-  const master = await stored(request, id);
+  const master = await stored(page, id);
   const planned = await page.request.post(
     `/api/illustrations/projects/${id}/plan`,
     { data: { expectedMasterRevision: master.revision } }
@@ -319,9 +318,8 @@ test("V2.3 配图入口：空态诚实，真实计划出现真实图位状态并
 
 test("移动 390×844：正文/助手双面板、工作流底栏在全局导航之上且无横向溢出", async ({
   page,
-  request,
 }) => {
-  const id = await createProject(request, "移动端创作空间检查");
+  const id = await createProject(page, "移动端创作空间检查");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/compose?project=" + id);
   await expect(cm(page)).toBeVisible();
