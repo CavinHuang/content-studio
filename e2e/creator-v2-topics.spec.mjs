@@ -318,15 +318,17 @@ test("收藏：判断卡收藏走真实持久化，「已收藏」tab 与卡片�
   ).toBeVisible();
   const saved = await (await page.request.get("/api/creator/topics/" + topic.id)).json();
   expect(saved.favorite).toBe(true);
-  // 「已收藏」tab（tabbar 内）与卡片收藏态一致
+  // 「已收藏」tab 只显示已收藏线索
   await page.locator(".cv2-tabbar").getByRole("button", { name: "已收藏" }).click();
   await expect(
     page.locator(".cv2-story-card", { hasText: topic.title })
   ).toBeVisible();
+  // 设计语义：收藏是星标视图，不把线索从其他 tab 移除；卡片出现收藏态
   await page.locator(".cv2-tabbar").getByRole("button", { name: "为我推荐" }).click();
-  await expect(
-    page.locator(".cv2-story-card", { hasText: topic.title })
-  ).toHaveCount(0);
+  const favCard = page.locator(".cv2-story-card", { hasText: topic.title });
+  await expect(favCard).toBeVisible();
+  await expect(favCard.getByRole("button", { name: "已收藏", exact: true })).toBeVisible();
+  await expect(favCard.locator(".cv2-story-title")).toContainText("☆");
 });
 
 test("空态与加载失败：无选题时诚实为空；接口故障显示可重试错误态", async ({

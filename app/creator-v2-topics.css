@@ -51,8 +51,9 @@
 .cv2-app .cv2-filter-row .cv2-chip{cursor:pointer}
 
 /* record strip — real "记录选题" entry (deviation /topics #3; keeps the
-   existing POST /api/creator/topics capability from the pre-V2 page) */
-.cv2-record-strip{display:flex;gap:9px;align-items:center;margin:0 0 13px;flex-wrap:wrap}
+   existing POST /api/creator/topics capability from the pre-V2 page).
+   Width tracks the design's left column (1.33fr of the discovery grid). */
+.cv2-record-strip{display:flex;gap:9px;align-items:center;margin:0 0 13px;flex-wrap:wrap;max-width:660px}
 .cv2-app .cv2-record-input{flex:1;min-width:200px;display:flex;align-items:center;gap:9px;background:var(--cv2-surface);border:1px solid #e4e7ef;border-radius:10px;padding:9px 11px;color:#989dae}
 .cv2-record-input svg{width:15px;height:15px;flex:none}
 .cv2-app .cv2-record-input input{outline:none!important;border:0;background:none;padding:0;font-size:12px;min-width:0;width:100%;color:#373c4b;border-radius:0;box-shadow:none}

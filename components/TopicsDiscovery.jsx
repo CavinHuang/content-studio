@@ -874,11 +874,31 @@ export default function TopicsDiscovery() {
             </div>
           </details>
 
+          {/* 记录选题 — 保留既有真实能力（POST /api/creator/topics），设计原稿无此入口
+              （偏差 #3）；放在列表分支之外，空状态时也能记录第一个选题 */}
+          <form className="cv2-record-strip" onSubmit={recordTopic}>
+            <label className="cv2-record-input">
+              <Icon name="edit" size={15} />
+              <input
+                aria-label="新选题标题"
+                placeholder="我想写……"
+                required
+                minLength={3}
+                maxLength={240}
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+              />
+            </label>
+            <button type="submit" className="cv2-btn tiny primary" disabled={busy}>
+              记录选题
+            </button>
+          </form>
+
           {!discovery || discovery.counts.all === 0 ? (
             <EmptyState
               icon="compass"
               title="还没有选题线索"
-              hint="从上方记录一个问题，或展开「批量推荐」从素材与信源获取候选；热点雷达转入的线索也会出现在这里。"
+              hint="在上方记录一个问题，或展开「批量推荐」从素材与信源获取候选；热点雷达转入的线索也会出现在这里。"
               action={
                 <Link className="cv2-btn primary" href="/hotspots">
                   去热点雷达找线索
@@ -888,24 +908,6 @@ export default function TopicsDiscovery() {
           ) : (
             <div className="cv2-discovery-grid">
               <section>
-                {/* 记录选题 — 保留既有真实能力（POST /api/creator/topics），设计原稿无此入口（偏差 #3） */}
-                <form className="cv2-record-strip" onSubmit={recordTopic}>
-                  <label className="cv2-record-input">
-                    <Icon name="edit" size={15} />
-                    <input
-                      aria-label="新选题标题"
-                      placeholder="我想写……"
-                      required
-                      minLength={3}
-                      maxLength={240}
-                      value={newTitle}
-                      onChange={(e) => setNewTitle(e.target.value)}
-                    />
-                  </label>
-                  <button type="submit" className="cv2-btn tiny primary" disabled={busy}>
-                    记录选题
-                  </button>
-                </form>
                 {discovery.rows.length ? (
                   discovery.rows.map((t) => {
                     const info = statusInfo(t);
