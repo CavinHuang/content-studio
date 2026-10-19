@@ -46,7 +46,7 @@ function dayLabel(iso) {
   return `${d.getMonth() + 1} 月 ${d.getDate()} 日`;
 }
 
-function TaskRow({ task }) {
+function TaskRow({ task, onMarkRead }) {
   return (
     <div className="cv2-task-card">
       <span className="cv2-task-ico" aria-hidden="true">
@@ -56,9 +56,16 @@ function TaskRow({ task }) {
         <strong>{task.title}</strong>
         <p>{task.description}</p>
       </span>
-      <Link className="cv2-btn tiny" href={task.href}>
-        {task.actionLabel} <Icon name="chevron" size={13} />
-      </Link>
+      <span className="cv2-task-actions">
+        <Link className="cv2-btn tiny" href={task.href}>
+          {task.actionLabel} <Icon name="chevron" size={13} />
+        </Link>
+        {onMarkRead ? (
+          <button type="button" className="cv2-btn tiny ghost" onClick={onMarkRead}>
+            标为已读
+          </button>
+        ) : null}
+      </span>
     </div>
   );
 }
@@ -119,6 +126,17 @@ export default function CreatorHome({ creation = false }) {
     } catch (err) {
       setNotice(err.message || '创建未完成');
       setBusy(false);
+    }
+  }
+
+  // Preserve the legacy home capability: unread notifications (surfaced
+  // here as pending tasks) can be marked read via the existing API.
+  async function markNotificationRead(id) {
+    try {
+      await send('/api/creator/notifications/' + encodeURIComponent(id), 'POST');
+      load();
+    } catch (err) {
+      setNotice(err.message || '操作未完成');
     }
   }
 
@@ -275,7 +293,13 @@ export default function CreatorHome({ creation = false }) {
                 aside={<Tag tone="info">{counts.pendingDecisions} 件待办</Tag>}
               >
                 {home.pending.length ? (
-                  home.pending.map((task) => <TaskRow key={task.id} task={task} />)
+                  home.pending.map((task) => (
+                    <TaskRow
+                      key={task.id}
+                      task={task}
+                      onMarkRead={task.kind === 'notification' ? () => markNotificationRead(task.id) : undefined}
+                    />
+                  ))
                 ) : (
                   <p className="cv2-home-line">
                     {projects.length

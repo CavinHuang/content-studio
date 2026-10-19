@@ -62,6 +62,8 @@
 .cv2-task-copy strong{font-size:13px;font-weight:680;display:block;color:var(--cv2-text)}
 .cv2-task-copy p{color:#8a8f9d;font-size:11px;margin:5px 0 0;line-height:1.6}
 .cv2-task-card .cv2-btn{align-self:center}
+.cv2-task-actions{display:flex;flex-direction:column;gap:6px;align-self:center;flex:none}
+.cv2-task-actions .cv2-btn{align-self:stretch}
 
 /* recent works table — .works-table (creator-v2.2.html:9) */
 .cv2-works-table{width:100%;border-collapse:collapse}
