@@ -118,7 +118,12 @@ export class CreatorServices {
    CREATE TABLE IF NOT EXISTS service_usage(id TEXT PRIMARY KEY,kind TEXT NOT NULL,connection_id TEXT NOT NULL,state TEXT NOT NULL,reserved INTEGER NOT NULL,actual INTEGER,provider_usage TEXT NOT NULL,at TEXT NOT NULL);
    CREATE TABLE IF NOT EXISTS service_usage_tasks(usage_id TEXT PRIMARY KEY,task_id TEXT NOT NULL);
    CREATE TABLE IF NOT EXISTS service_task_limits(task_id TEXT PRIMARY KEY,max_requests INTEGER NOT NULL);
+   CREATE TABLE IF NOT EXISTS service_connection_models(connection_id TEXT NOT NULL,model TEXT NOT NULL,PRIMARY KEY(connection_id,model));
   `);
+    // 已有连接的默认模型始终视为开放，保持旧数据行为不变。
+    this.db.exec(
+      "INSERT OR IGNORE INTO service_connection_models(connection_id,model) SELECT id,model FROM service_connections"
+    );
   }
   seal(value) {
     const iv = randomBytes(12),
@@ -144,6 +149,16 @@ export class CreatorServices {
     }
   }
   connections() {
+    const byConnection = new Map();
+    for (const row of this.db
+      .prepare(
+        "SELECT connection_id,model FROM service_connection_models ORDER BY rowid"
+      )
+      .all())
+      byConnection.set(row.connection_id, [
+        ...(byConnection.get(row.connection_id) || []),
+        row.model,
+      ]);
     return this.db
       .prepare(
         "SELECT id,kind,name,base_url AS baseUrl,model,selected,created_at AS createdAt FROM service_connections ORDER BY created_at"
@@ -153,9 +168,83 @@ export class CreatorServices {
         ...c,
         selected: !!c.selected,
         credentialConfigured: true,
+        models: byConnection.get(c.id) || [],
       }));
   }
-  save({ id, kind, name, baseUrl, model, apiKey, selected = true } = {}) {
+  _modelList(models) {
+    if (models === undefined || models === null) return null;
+    if (!Array.isArray(models)) fail("开放模型列表无效");
+    const ids = [];
+    for (const model of models) {
+      if (typeof model !== "string" || !model.trim() || model.length > 160)
+        fail("开放模型名称无效");
+      if (!ids.includes(model.trim())) ids.push(model.trim());
+    }
+    if (ids.length > 100) fail("每个连接最多开放 100 个模型");
+    return ids;
+  }
+  _enabledModel(row, model) {
+    if (typeof model !== "string" || !model.trim() || model.length > 160)
+      fail("所选模型名称无效");
+    const id = model.trim();
+    if (
+      row.model !== id &&
+      !this.db
+        .prepare(
+          "SELECT 1 FROM service_connection_models WHERE connection_id=? AND model=?"
+        )
+        .get(row.id, id)
+    )
+      fail("所选模型未在该连接开放，请先在设置中勾选开放使用", 403);
+    return id;
+  }
+  async listRemoteModels({ baseUrl, apiKey, allowExternalCheck = false } = {}) {
+    if (!allowExternalCheck) fail("请先确认本次向服务商请求模型列表", 403);
+    const base = publicEndpoint(baseUrl);
+    if (
+      typeof apiKey !== "string" ||
+      apiKey.length < 4 ||
+      apiKey.length > 4096
+    )
+      fail("请填写有效的 API Key");
+    const url = new URL(
+      "models",
+      base.href.endsWith("/") ? base.href : base.href + "/"
+    );
+    let response;
+    try {
+      response = await this.publicTransport(url, {
+        method: "GET",
+        headers: { authorization: "Bearer " + apiKey },
+        timeout: 20000,
+        maxBytes: 500_000,
+      });
+    } catch (e) {
+      if (e instanceof ValidationError) throw e;
+      fail("无法连接服务商获取模型列表", 502);
+    }
+    if (!response.ok)
+      fail("模型列表请求未完成（HTTP " + response.status + "）", 502);
+    const raw = await response.text();
+    let ids = [];
+    try {
+      const data = JSON.parse(raw),
+        rows = Array.isArray(data?.data)
+          ? data.data
+          : Array.isArray(data?.models)
+          ? data.models
+          : [];
+      for (const row of rows) {
+        const id = (typeof row === "string" ? row : row?.id)?.trim();
+        if (id && id.length <= 160 && !ids.includes(id)) ids.push(id);
+      }
+    } catch {
+      fail("模型列表响应不是有效的 JSON", 502);
+    }
+    if (!ids.length) fail("服务商未返回可用模型", 502);
+    return { models: ids.slice(0, 200), truncated: ids.length > 200 };
+  }
+  save({ id, kind, name, baseUrl, model, apiKey, selected = true, models } = {}) {
     if (!["text", "image"].includes(kind)) fail("请选择写作或配图服务");
     if (
       typeof name !== "string" ||
@@ -178,7 +267,15 @@ export class CreatorServices {
       fail("请填写有效的 API Key");
     if (!apiKey && !previous) fail("首次配置需要 API Key");
     const secret = apiKey ? this.seal({ apiKey }) : previous.secret,
-      identifier = previous?.id || "sc_" + randomUUID();
+      identifier = previous?.id || "sc_" + randomUUID(),
+      wanted = this._modelList(models),
+      modelIds = wanted
+        ? wanted.includes(model.trim())
+          ? wanted
+          : [model.trim(), ...wanted]
+        : previous
+        ? null
+        : [model.trim()];
     this.db.exec("BEGIN IMMEDIATE");
     try {
       if (selected)
@@ -199,6 +296,16 @@ export class CreatorServices {
           selected ? 1 : 0,
           previous?.created_at || now()
         );
+      if (modelIds) {
+        // 默认模型始终开放；其余开放集合仅在本次显式给出时整体替换。
+        this.db
+          .prepare("DELETE FROM service_connection_models WHERE connection_id=?")
+          .run(identifier);
+        const insert = this.db.prepare(
+          "INSERT INTO service_connection_models VALUES(?,?)"
+        );
+        for (const item of modelIds) insert.run(identifier, item);
+      }
       this.db.exec("COMMIT");
     } catch (e) {
       this.db.exec("ROLLBACK");
@@ -207,11 +314,13 @@ export class CreatorServices {
     return this.connections().find((c) => c.id === identifier);
   }
   remove(id) {
-    if (
-      !this.db.prepare("DELETE FROM service_connections WHERE id=?").run(id)
-        .changes
-    )
-      fail("连接不存在", 404);
+    const gone = this.db
+      .prepare("DELETE FROM service_connections WHERE id=?")
+      .run(id).changes;
+    if (!gone) fail("连接不存在", 404);
+    this.db
+      .prepare("DELETE FROM service_connection_models WHERE connection_id=?")
+      .run(id);
   }
   runtime(kind) {
     const task = currentProviderTask(this);
@@ -229,28 +338,41 @@ export class CreatorServices {
         }
       : null;
   }
-  captureBinding(kind = "text") {
-    const row = this.db
-      .prepare("SELECT * FROM service_connections WHERE kind=? AND selected=1")
-      .get(kind);
+  captureBinding(kind = "text", choice) {
     const env = process.env,
       prefix = kind === "text" ? "CONTENT_AI" : "CONTENT_IMAGE_OPENAI";
+    // "platform" 是记录里平台默认绑定的标识，不是连接 ID；按未指定连接处理。
+    const wantsChoice =
+      !!choice?.connectionId && choice.connectionId !== "platform";
+    const row = wantsChoice
+      ? this.db
+          .prepare("SELECT * FROM service_connections WHERE id=? AND kind=?")
+          .get(choice.connectionId, kind)
+      : this.db
+          .prepare("SELECT * FROM service_connections WHERE kind=? AND selected=1")
+          .get(kind);
+    if (wantsChoice && !row) fail("所选服务连接不存在或已删除", 404);
+    const model = row
+      ? choice?.model
+        ? this._enabledModel(row, choice.model)
+        : row.model
+      : env[prefix + "_MODEL"] || "";
     const signature = row
-      ? [row.id, row.base_url, row.model, row.secret]
+      ? [row.id, row.base_url, model, row.secret]
       : [
           env[prefix + "_BASE_URL"] || "",
-          env[prefix + "_MODEL"] || "",
+          model,
           env[prefix + "_API_KEY"] || "",
         ];
     return {
       id: row?.id || "platform",
       kind,
       name: row?.name || "平台默认服务",
-      model: row?.model || env[prefix + "_MODEL"] || "",
+      model,
       configured: !!(
         row ||
         (env[prefix + "_BASE_URL"] &&
-          env[prefix + "_MODEL"] &&
+          model &&
           env[prefix + "_API_KEY"])
       ),
       fingerprint: createHash("sha256")
@@ -270,8 +392,11 @@ export class CreatorServices {
     const prefix =
         binding.kind === "text" ? "CONTENT_AI" : "CONTENT_IMAGE_OPENAI",
       env = process.env;
+    // 入队时选定的开放模型在结算前若被关闭，任务必须失败而不是继续计费调用。
+    const chosen =
+      row && binding.model ? this._enabledModel(row, binding.model) : row?.model;
     const signature = row
-      ? [row.id, row.base_url, row.model, row.secret]
+      ? [row.id, row.base_url, chosen, row.secret]
       : [
           env[prefix + "_BASE_URL"] || "",
           env[prefix + "_MODEL"] || "",
@@ -287,7 +412,7 @@ export class CreatorServices {
       ? {
           id: row.id,
           url: row.base_url,
-          model: row.model,
+          model: chosen,
           key: this.open(row.secret).apiKey,
           custom: true,
         }

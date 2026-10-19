@@ -21,6 +21,7 @@ export default function WritingGenerations({
               revoked: "来源已移除",
             }[g.status] || g.status}{" "}
             · 文章 v{g.baseRevision}
+            {g.model ? " · " + g.model.name + " / " + g.model.model : ""}
           </strong>
           <p>{g.input?.instruction}</p>
           {g.partial && (
