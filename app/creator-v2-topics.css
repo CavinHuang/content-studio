@@ -202,6 +202,8 @@
   .cv2-banner .cv2-btn{font-size:11px;flex:none}
   /* 页头动作区：按设计移动形态收缩为纯图标圆钮（「查看热点雷达」；
      「内容系列」为已登记偏差 #5 的连带入口，同样收缩以保持单一形态） */
+  .cv2-app .cv2-page-head>div:first-child{flex:1;min-width:0}
+  .cv2-app .cv2-head-actions{flex-wrap:nowrap;flex:none;gap:8px}
   .cv2-app .cv2-head-actions .cv2-btn{font-size:0;gap:0;width:38px;height:38px;padding:0;justify-content:center;border-radius:999px;flex:none}
   .cv2-app .cv2-head-actions .cv2-btn svg{width:17px;height:17px}
   .cv2-tabbar{margin-bottom:17px}
