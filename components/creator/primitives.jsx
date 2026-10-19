@@ -14,8 +14,12 @@ const STAGE_TONE = {
   已发布: 'success',
 };
 
-export function Tag({ tone = 'default', children }) {
-  return <span className={'cv2-tag' + (tone !== 'default' ? ' ' + tone : '')}>{children}</span>;
+export function Tag({ tone = 'default', title, children }) {
+  return (
+    <span className={'cv2-tag' + (tone !== 'default' ? ' ' + tone : '')} title={title || undefined}>
+      {children}
+    </span>
+  );
 }
 
 export function PageHeader({ eyebrow, title, description, actions, as = 'h1' }) {
@@ -109,11 +113,15 @@ export function EmptyState({ title, hint, action, icon = 'folder' }) {
   );
 }
 
-export function WorkCard({ href, title, subtitle, stage, updated, channels = [], footer, onClick }) {
+// stageTone overrides the label→tone lookup so honest stage labels that
+// are not in STAGE_TONE (e.g. the works library's "作者报告已发表（未核验）")
+// can still render the right tone. Channel entries may be plain strings or
+// { name, title } objects whose title becomes the tag's native tooltip.
+export function WorkCard({ href, title, subtitle, stage, stageTone, updated, channels = [], footer, onClick }) {
   const head = (
     <div className="cv2-section-top" style={{ marginBottom: 0 }}>
-      {stage ? <Tag tone={STAGE_TONE[stage] || 'info'}>{stage}</Tag> : <span />}
-      {updated ? <span className="cv2-tag">{updated}</span> : null}
+      {stage ? <Tag tone={stageTone || STAGE_TONE[stage] || 'info'}>{stage}</Tag> : <span />}
+      {updated ? <span className="cv2-micro">{updated}</span> : null}
     </div>
   );
   const body = (
@@ -123,9 +131,15 @@ export function WorkCard({ href, title, subtitle, stage, updated, channels = [],
       {subtitle ? <p>{subtitle}</p> : null}
       <div className="cv2-work-footer">
         <div className="cv2-chips">
-          {channels.map((c) => (
-            <Tag key={c}>{c}</Tag>
-          ))}
+          {channels.map((c, i) => {
+            const name = typeof c === 'string' ? c : c?.name;
+            if (!name) return null;
+            return (
+              <Tag key={name + i} title={typeof c === 'string' ? undefined : c?.title}>
+                {name}
+              </Tag>
+            );
+          })}
         </div>
         {footer}
       </div>

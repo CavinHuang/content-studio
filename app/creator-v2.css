@@ -144,6 +144,9 @@ button.cv2-btn.ghost,a.cv2-btn.ghost{border-color:transparent;background:transpa
 .cv2-tag.warning{color:var(--cv2-warning);background:var(--cv2-warning-soft)}
 .cv2-tag.error{color:var(--cv2-error);background:var(--cv2-error-soft)}
 
+/* design .micro utility (creator-v2.2.html:9) — plain muted caption text */
+.cv2-micro{font-size:11px;color:#9699a4}
+
 .cv2-chips{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
 .cv2-chip{border:1px solid var(--cv2-border);padding:8px 12px;background:var(--cv2-surface);border-radius:999px;font-size:11px;color:#747b8a;cursor:pointer}
 .cv2-chip[aria-pressed="true"]{background:var(--cv2-surface-soft);color:var(--cv2-primary);border-color:#d6ddff;font-weight:720}
