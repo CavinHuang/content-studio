@@ -519,16 +519,22 @@ test("complete briefs, explicit recommendation sources and context conflict reco
     .fill("还需要验证长期效果，避免过度归因");
   await page.getByLabel("小红书", { exact: true }).check();
   await page.getByRole("button", { name: "保存简报", exact: true }).click();
-  // 受控输入与后台 load() 重渲染存在已知竞态（反馈原因偶发被回写清空）：
-  // fill 后校验值已提交，未提交则重填，消除偶发。
+  // 应用层已保证「保存期间新输入的原因不被回写清空」（save 只重置随请求提交的值）。
+  // 此处保留快速失败的重试环，防御残余交错；内层断言必须短超时，否则 toPass
+  // 不会真正重试（CI 上曾因 15s 内层等待吃满 5s 窗口而假性超时）。
   await expect(async () => {
     await page
       .getByLabel("选题反馈原因", { exact: true })
       .fill("这个问题来自自己的真实实践，值得继续写");
     await expect(page.getByLabel("选题反馈原因", { exact: true })).toHaveValue(
-      /真实实践/
+      /真实实践/,
+      { timeout: 300 }
     );
   }).toPass({ timeout: 5000 });
+  // 保存动作在后台 load() 完成前 busy 仍为 true，过早点击收藏会被静默忽略。
+  await expect(
+    page.getByRole("button", { name: "保存简报", exact: true })
+  ).toBeEnabled();
   await page.getByRole("button", { name: "收藏选题", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "取消收藏", exact: true })
