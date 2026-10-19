@@ -2052,6 +2052,43 @@ export class CreatorService {
     }
     return { created, skipped };
   }
+  // 热点雷达「收为选题候选」：一条公开信源条目 → 可持久化选题。
+  // 复用既有领域服务，不新增存储模型：convertSourceItems 负责按 URL 去重
+  // 落成 creator_materials（原文链接/来源随素材保留，可追溯），再以
+  // material 引用创建 creator_topics 草稿候选。重复请求不重复建档：
+  // 同一素材已被某个选题引用时返回该选题（duplicate 标记），前端据此
+  // 打开既有候选而不是伪造“已创建”。
+  saveSourceItemTopic({ id, title, angle = "", audience = "" } = {}) {
+    const row = this.db
+      .prepare(
+        "SELECT i.id,i.url,i.title,i.summary,s.name AS sourceName FROM creator_source_items i JOIN creator_sources s ON s.id=i.source_id WHERE i.id=?"
+      )
+      .get(String(id || ""));
+    if (!row) fail("信源条目不存在或已被清理，请刷新热点后重试", 404);
+    const { created } = this.convertSourceItems([row.id]);
+    const material = this.db
+      .prepare("SELECT id,title,url FROM creator_materials WHERE url=?")
+      .get(row.url);
+    if (!material) fail("素材落库未完成，请重试", 500);
+    const existing = this.topics().find((t) =>
+      (t.refs || []).some((r) => r.kind === "material" && r.id === material.id)
+    );
+    if (existing)
+      return {
+        topic: existing,
+        material,
+        materialCreated: created > 0,
+        duplicate: true,
+      };
+    const topic = this.createTopic({
+      title: typeof title === "string" && title.trim() ? title : row.title,
+      angle: text(angle, "写作角度", 4000),
+      audience: text(audience, "读者", 1000),
+      refs: [{ kind: "material", id: material.id }],
+      reason: `热点雷达转入 · ${row.sourceName} 公开线索，标题与摘要未经核实`,
+    });
+    return { topic, material, materialCreated: created > 0, duplicate: false };
+  }
   async syncSource(id) {
     const source = this.sources().find((s) => s.id === id);
     if (!source) fail("信源不存在", 404);

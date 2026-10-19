@@ -65,3 +65,50 @@
    - 必要原因：序号来自 `article_illustration_shots.ordinal`（含封面的计划内序号），选段配图（无封面）时序号从 1 开始，改编号会在无封面计划下显示 00。
    - 替代方案：状态标签（待生成/待审阅/已选用/生成失败）与设计一致。
    - 证据：`src/compose-view.mjs#shotTitle`、`test/compose-view.test.mjs`。
+
+## /hotspots 热点雷达（2026-10-20，commit 范围 `feat/creator-v2-real-workspace` 分支）
+
+设计源：`public/design/creator-v2.2.html:142-153`（hotspotsView）+ V2.2 精修 `:174`（监控带/完成条）、`:166`（信源抽屉）、`:22,:25-44`（移动底部抽屉）；参考截图 `docs/implementation/screenshots/design/hotspots-*.png`。实现截图 `docs/implementation/screenshots/hotspots/`（1440×900 三张 + 390×844 两张，容器内真实渲染，`pageerror`/`console.error` = 0）。
+
+1. **趋势 tag（升温中/新出现/持续讨论）与热度分不渲染；「与我相关」筛选不提供**
+   - 设计源：`creator-v2.2.html:128-133`（demoHotspots 每条带 trend/trendStyle 字段）、`:144`（与我相关按分类白名单过滤）、参考截图 `design/hotspots-desktop.png`。
+   - 实际差异：行首与详情只显示真实字段（来源品牌 + 同步时间）；筛选只有「全部热点/我关注的」；监控带「风险提示」卡明示“后端没有可信的热度/趋势计算，本页不展示热度分”。
+   - 必要原因：任务书 P0-B「上升/热度评分/多源证据只有后端存在可信计算依据时才能展示；否则隐藏或标注未计算，绝不将演示分数写成真实指标」。`creator_source_items` 无 trend/heat/relevance 字段（`src/creator.mjs:2011-2018`）。
+   - 替代方案：列表头标注「按同步时间排序 · 未核验」；序号仅为列表位次（样式保留，前三位主色），不是热度名次。
+   - 证据：`e2e/creator-v2-hotspots.spec.mjs` 桌面用例断言页面无「升温中/新出现/持续讨论」文本；`src/hotspots-radar.mjs` 注释。
+
+2. **详情面板以真实的「原文链接 / 采集与同步」替代示例的编辑判断三段**
+   - 设计源：`creator-v2.2.html:153`（为什么需要关注？/可能的写作角度/有哪些不确定性？三段示例文案）、demo 警示语「正式产品必须显示实际来源链接、采集时间、去重和失效状态」。
+   - 实际差异：概要卡保留（真实 summary，缺失时如实说明）；三段编辑判断替换为「原文链接（item.url 新窗打开）」与「采集与同步（同步时间 + 信源发布时间，缺失如实标注）」；「来源待核实 + 未验证」警示行保留并显示真实同步时间。
+   - 必要原因：真实信源条目没有 why/angle/risk 字段，凭空生成会伪造编辑判断；demo 警示语本身要求正式页展示原文链接与采集时间。
+   - 证据：`docs/implementation/screenshots/hotspots/hotspots-detail-desktop.png`；`e2e/creator-v2-hotspots.spec.mjs` 断言详情原文 href 与「未验证」标签。
+
+3. **「关注这个话题」保持页面会话态，不落库**
+   - 设计源：`creator-v2.2.html:136,148`（hotFollowed 仅存于原型 state；masthead 文案「本次关注的话题 仅在当前原型会话」）。
+   - 实际差异：关注为客户端会话状态（刷新即清空），masthead 第二计数如实标注「本会话关注的话题 · 不自动进入作品」。
+   - 必要原因：后端无 follow 存储模型；为会话级交互新增平行存储违反「小适配、不新增模型」约束，且设计自身即定义为会话态。
+   - 证据：`components/HotspotsRadar.jsx`（useState followed）；masthead 文案。
+
+4. **「刷新热点」执行真实信源同步并如实报告失败，而非演示 toast**
+   - 设计源：`creator-v2.2.html:203`（`data-action="hot-refresh"` → toast「这是示例热点，未接入真实数据」）。
+   - 实际差异：按钮对每个已启用信源调用既有 `POST /api/creator/sources/:id/sync`（RSS-only，公开 HTTPS 边界），随后重载列表；结果如实汇总（全部失败 → 错误状态「同步失败…已保留现有条目」；部分失败 → 警告并列出失败信源；无启用信源 → 提示去管理信源开启）。
+   - 必要原因：任务书禁止 mock 成功状态；信源同步失败（网络/DNS/非公网地址）是真实常态，必须可见。
+   - 证据：`e2e/creator-v2-hotspots.spec.mjs`「刷新热点」用例（沙箱无外网，断言诚实失败文案且既有条目保留）。
+
+5. **信源抽屉展示真实同步状态/最近读取时间，开关走既有信源保存接口**
+   - 设计源：`creator-v2.2.html:166`（4 个示例信源 + 开关 + 「正式版本将在此展示来源可靠性、同步状态、失败原因和去重结果」）。
+   - 实际差异：行内容为真实 `creator_sources`（name + 真实 status + last_run）；开关即 `PUT /api/creator/sources/:id`（与设置页同一确认语义 `allowExternalRequest:true`）；新增/移除信源保留在偏好与连接（抽屉内链接），不在雷达页重复建设。
+   - 必要原因：该「正式版本」承诺由本页兑现；避免与 `/settings` 信源管理形成两套写入口。
+   - 证据：`docs/implementation/screenshots/hotspots/hotspots-sources-drawer-desktop.png`；`e2e/creator-v2-hotspots.spec.mjs` 抽屉用例（真实状态文本 + aria-checked 切换）。
+
+6. **「收为选题候选」为真实持久化链路：条目 → 素材（URL 去重）→ 选题候选（素材引用）**
+   - 设计源：`creator-v2.2.html:199-201`（转选题 → 跳 discover 并 toast）；任务书「利用既有来源转素材和选题创建接口，确保原文来源可追溯、重复转换有合理提示」。
+   - 实际差异：新增小适配 `POST /api/creator/source-items/topic`（`src/creator.mjs saveSourceItemTopic`）：复用 `convertSourceItems` 落素材（同 URL 去重、来源名入素材标签），再以 `{kind:'material',id}` 引用创建 draft 选题，reason 标注「热点雷达转入 · <信源名> 公开线索，标题与摘要未经核实」；完成后跳 `/topics?topic=<id>` 直接打开该候选。重复收起返回既有选题（duplicate 标记），不重复建档、不伪造“已创建”。
+   - 必要原因：convert 接口只落素材不落选题且不返回素材 id，客户端拼两次调用无法保证原子性与可追溯；不新增存储模型，全部复用既有表。
+   - 证据：`test/creator-v2-hotspots.test.mjs`（2 例：选题/素材/引用/去重/404/自定义标题）；`e2e/creator-v2-hotspots.spec.mjs` 转换用例（/topics 打开、API 验证 refs 与原文 URL、重复不新建）。
+
+7. **行内时间显示真实同步时间（相对时间无后端依据）**
+   - 设计源：`creator-v2.2.html:128`（age「35 分钟前」为示例数据）。
+   - 实际差异：行内 time 显示「同步 今天 09:12 / 昨天 / M 月 D 日」（`src/hotspots-radar.mjs dayClock`，客户端渲染避免 hydration 偏差）；无同步时间的条目显示「同步时间未知」。
+   - 必要原因：真实的 RSS 条目时间是绝对时间戳，相对化只是展示细节；真实字段优先。
+   - 证据：`test/creator-v2-hotspots.test.mjs` dayClock 用例；`e2e/creator-v2-hotspots.spec.mjs` 行内 /同步 (今天|10 月)/ 断言。

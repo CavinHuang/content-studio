@@ -1,0 +1,202 @@
+/* ============================================================
+   Creator V2 hotspot radar styles (/hotspots).
+   Faithful reconstruction of public/design/creator-v2.2.html
+   hotspotsView (:142-153) + V2.2 refinements (:174 monitor band +
+   completion band, :166 sources drawer, :22/:25-44 mobile sheet):
+   gradient masthead with two real counters, monitor band, flow line,
+   tab/search controls, source chips, 1.55fr/.91fr list+detail layout,
+   sticky detail panel, right slide drawer and the ≤760px bottom-sheet
+   detail. Colors/radii/typography mirror the design source and the
+   token baseline in app/creator-v2.css (--cv2-*). Page-scoped only;
+   .cv2-completion is copied here because /hotspots does not import
+   the home/works page stylesheets.
+   NOTE on specificity: the shell main also carries the legacy
+   "creator-main" class (app/creator.css styles .creator-main
+   button/input/label for pre-V2 pages). Hotspots selectors that
+   collide are prefixed with .cv2-app and set every visual property
+   explicitly so this page always wins the cascade.
+   Honest-metric note: the demo's 升温中/新出现 trend tags and heat
+   ranks have no backend computation, so no .hot-trend styles exist
+   here on purpose — the class inventory stays honest to the UI.
+   ============================================================ */
+
+/* masthead — .hot-masthead (creator-v2.2.html:18-19) */
+.cv2-hot-masthead{display:grid;grid-template-columns:minmax(0,1fr) 290px;align-items:center;gap:24px;background:linear-gradient(120deg,#f0f2fc 0%,#f9f9ff 75%);border:1px solid #e5e8fa;border-radius:20px;padding:28px 31px;margin-bottom:23px;position:relative;overflow:hidden}
+.cv2-hot-masthead:after{content:'';position:absolute;width:205px;height:205px;border:1px solid #d1d8fb;border-radius:50%;right:-115px;top:-102px;box-shadow:0 0 0 45px #d8defa24;pointer-events:none}
+.cv2-hot-masthead>div:first-child{min-width:0}
+.cv2-hot-masthead h3{font-size:24px;letter-spacing:-.75px;line-height:1.4;margin:9px 0 7px;color:var(--cv2-text);font-weight:750}
+.cv2-hot-masthead p{font-size:12px;color:#737b90;line-height:1.75;margin:0;max-width:640px}
+.cv2-hot-eyebrow{display:flex;align-items:center;gap:8px;color:#576dc1;font-size:11px;font-weight:730;margin:0}
+.cv2-hot-pulse{width:8px;height:8px;flex:none;border-radius:50%;background:#5971e7;box-shadow:0 0 0 5px #dce2fb}
+.cv2-hot-summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;position:relative;z-index:1}
+.cv2-hot-summary>div{background:#fff9;border:1px solid #e5e8f2;border-radius:13px;padding:14px 13px}
+.cv2-hot-summary b{display:block;font-size:24px;font-weight:750;letter-spacing:-.5px;color:var(--cv2-text);font-variant-numeric:tabular-nums}
+.cv2-hot-summary span{font-size:10px;color:#8890a2;line-height:1.5}
+
+/* monitor band — .v2-monitor (creator-v2.2.html:65-69) */
+.cv2-hot-monitor{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 20px}
+.cv2-hot-monitor>article{background:var(--cv2-surface);border:1px solid var(--cv2-border);border-radius:12px;padding:14px 17px;display:flex;align-items:start;gap:9px;min-width:0}
+.cv2-hot-monitor b{display:block;font-size:12px;color:var(--cv2-text)}
+.cv2-hot-monitor p{color:#8e95a3;font-size:10px;line-height:1.6;margin:5px 0 0}
+.cv2-hot-monitor i{width:28px;height:28px;flex:none;display:grid;place-items:center;border-radius:9px;background:#eef1fc;color:#5069c7}
+.cv2-hot-monitor svg{width:15px;height:15px}
+
+/* flow line — .hot-flow (creator-v2.2.html:20,149) */
+.cv2-hot-flow{display:flex;gap:8px;align-items:center;font-size:11px;color:#8690a3;margin:0 0 17px;flex-wrap:wrap}
+.cv2-hot-flow b{color:#425bd1}
+.cv2-hot-flow span{color:#c5c8d2}
+
+/* controls — .hot-controls (creator-v2.2.html:20,150) */
+.cv2-hot-controls{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 0 15px;flex-wrap:wrap}
+.cv2-hot-tabs{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.cv2-app .cv2-hot-tabs button{padding:9px 14px;border:1px solid #e3e5ec;border-radius:9px;background:var(--cv2-surface);color:#7e8493;font-size:12px;font-weight:650;cursor:pointer}
+.cv2-app .cv2-hot-tabs button:hover{background:#f6f8ff;color:#4b5f9e}
+.cv2-app .cv2-hot-tabs button.active{background:#e8ecff;color:#3e56bd;border-color:#d4defb}
+.cv2-app .cv2-hot-find{display:flex;align-items:center;gap:9px;min-width:220px;width:245px;background:var(--cv2-surface);border:1px solid #e4e7ef;border-radius:10px;padding:9px 11px;color:#989dae;font-size:12px}
+.cv2-hot-find svg{width:15px;height:15px;flex:none}
+/* (0,3,1) + later source order outrun the legacy
+   .creator-main input:not([type=checkbox]):not([type=radio]) rule
+   ((0,3,1) — :not([attr]) counts at class level), same trick as
+   app/creator-v2-works.css:44. */
+.cv2-app .cv2-hot-controls .cv2-hot-find input{outline:none!important;border:0;background:none;padding:0;font-size:12px;min-width:0;width:100%;color:#373c4b;border-radius:0}
+.cv2-hot-find input::placeholder{color:#a7adba}
+
+/* source chips — .hot-source-row (creator-v2.2.html:20,151) */
+.cv2-hot-source-row{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:17px}
+.cv2-app .cv2-hot-source-row button{background:transparent;border:0;font-size:11px;padding:7px 9px;border-radius:7px;color:#818799;cursor:pointer;min-height:0}
+.cv2-app .cv2-hot-source-row button:hover{background:#eef0f6;color:#4a5468}
+.cv2-app .cv2-hot-source-row button.active{background:#333d57;color:#fff}
+.cv2-hot-note{margin-left:auto;font-size:10px;color:#a0a4ae}
+
+/* layout — .hot-layout (creator-v2.2.html:20) */
+.cv2-hot-layout{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(310px,.91fr);align-items:start;gap:21px}
+
+/* list — .hot-list (creator-v2.2.html:20,152) */
+.cv2-hot-list{padding:6px 22px;min-width:0}
+.cv2-hot-list-head{padding:14px 0 12px;display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:1px solid #eef0f5}
+.cv2-hot-list-head strong{font-size:13px;color:var(--cv2-text);display:inline-flex;align-items:center;gap:7px}
+.cv2-hot-list-head>span{color:#a2a6b2;font-size:10px}
+.cv2-hot-row{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:10px;padding:19px 0 18px;border-bottom:1px solid #f0f1f4;align-items:start;min-width:0}
+.cv2-hot-row:last-child{border-bottom:0}
+.cv2-hot-row.selected .cv2-hot-row-title{color:var(--cv2-primary)}
+.cv2-hot-rank{color:#a9afbf;font-size:18px;font-weight:750;font-variant-numeric:tabular-nums;letter-spacing:-.5px;padding-top:5px}
+/* 设计 :20 — 前三位序号用主色强调（列表位次，不是热度分） */
+.cv2-hot-row:nth-child(2) .cv2-hot-rank,.cv2-hot-row:nth-child(3) .cv2-hot-rank,.cv2-hot-row:nth-child(4) .cv2-hot-rank{color:#596bd7}
+.cv2-hot-row-top{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:8px}
+.cv2-hot-brand{font-size:10px;color:#515a6d;font-weight:720;background:#f2f3f6;padding:4px 7px;border-radius:6px;white-space:nowrap}
+.cv2-hot-row-top time{font-size:10px;color:#9da2ad}
+.cv2-app .cv2-hot-row-title{font-size:14px;font-weight:730;line-height:1.65;display:block;text-align:left;color:#2d3341;border:0;background:none;padding:0;max-width:100%;cursor:pointer}
+.cv2-app .cv2-hot-row-title:hover{color:var(--cv2-primary);background:none}
+.cv2-hot-row p{font-size:11px;color:#8a909d;line-height:1.75;margin:8px 0 11px}
+.cv2-hot-row-tail{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:10px;color:#929aa6}
+.cv2-app .cv2-hot-row-tail a{color:#5b6cd8;text-decoration:none}
+.cv2-app .cv2-hot-row-tail a:hover{text-decoration:underline;color:#3f53c0}
+.cv2-hot-row-buttons{display:flex;align-items:center;gap:6px;padding-top:33px}
+.cv2-app .cv2-hot-iconbtn{border:1px solid #e6e7ed;background:var(--cv2-surface);width:31px;height:31px;border-radius:8px;color:#9197a5;display:grid;place-items:center;padding:0;cursor:pointer}
+.cv2-app .cv2-hot-iconbtn:hover{background:#f4f6ff}
+.cv2-app .cv2-hot-iconbtn.active{background:#ecf0ff;border-color:#d0d8ff;color:#4c62c8}
+.cv2-app .cv2-hot-iconbtn:disabled{opacity:.55;cursor:default}
+.cv2-app .cv2-hot-next-link{border:0;background:none;color:#5066d6;font-weight:640;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:5px;margin-top:9px;padding:0}
+.cv2-app .cv2-hot-next-link:hover{color:#3f53c0;background:none}
+.cv2-hot-empty{font-size:12px;text-align:center;padding:46px 16px;color:#9298a6;line-height:1.9}
+
+/* detail panel — .hot-right (creator-v2.2.html:20,153) */
+.cv2-hot-right{position:sticky;top:23px;min-width:0}
+.cv2-hot-headrow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.cv2-hot-tagrow{display:flex;align-items:center;gap:8px}
+/* desktop hides the sheet close button; .cv2-app prefix (0,2,0) outruns
+   the legacy .creator-main button{display:inline-flex} (0,1,1) that
+   would otherwise re-show it. */
+.cv2-app .cv2-hot-close{display:none;border:0;background:#f2f3f9;border-radius:7px;padding:7px;color:#737b8e;cursor:pointer}
+.cv2-hot-detail-title{font-size:18px;line-height:1.55;margin:9px 0 14px;letter-spacing:-.25px;color:var(--cv2-text)}
+.cv2-hot-detail-note{background:#f5f6fb;border:1px solid #eaecf3;border-radius:11px;padding:15px 16px;margin:17px 0}
+.cv2-hot-detail-note span{display:block;font-size:10px;color:#9297a6;font-weight:720;margin-bottom:8px}
+.cv2-hot-detail-note strong{display:block;font-size:13px;line-height:1.65;letter-spacing:-.05px;color:var(--cv2-text)}
+.cv2-hot-detail-section{margin:20px 0}
+.cv2-hot-detail-section h4{font-size:12px;margin:0 0 10px;color:var(--cv2-text)}
+.cv2-hot-detail-section p{font-size:12px;color:#777f8b;line-height:1.85;margin:0}
+.cv2-app .cv2-hot-origin{display:inline-flex;align-items:center;gap:5px;color:#5066d6;font-weight:650}
+.cv2-app .cv2-hot-origin:hover{color:#3f53c0;text-decoration:underline}
+.cv2-hot-evidence{display:flex;justify-content:space-between;gap:12px;align-items:center;border-top:1px solid #eef0f4;border-bottom:1px solid #eef0f4;padding:16px 0;margin:18px 0}
+.cv2-hot-evidence strong{display:block;font-size:12px;color:var(--cv2-text)}
+.cv2-hot-evidence span{display:block;color:#969ba7;font-size:10px;margin-top:6px}
+.cv2-hot-detail-actions{display:grid;gap:8px}
+.cv2-hot-detail-actions .cv2-btn{width:100%}
+.cv2-hot-demo-warning{font-size:10px;color:#9ca1aa;text-align:center;line-height:1.6;margin-top:13px}
+
+.cv2-hot-backdrop{display:none}
+
+/* sources drawer — .slide-panel/.switch (creator-v2.2.html:9,166) */
+.cv2-drawer-overlay{position:fixed;inset:0;z-index:80;background:#17202f4d}
+.cv2-slide-panel{position:fixed;z-index:81;right:0;top:0;bottom:0;width:min(425px,95vw);background:var(--cv2-surface);border-left:1px solid #e5e8ed;box-shadow:-10px 0 40px #18203321;padding:35px 30px;overflow:auto}
+.cv2-slide-panel h3{font-size:18px;margin:0;color:var(--cv2-text)}
+.cv2-slide-intro{font-size:12px;color:#7d8493;line-height:1.9}
+.cv2-source-item{border-bottom:1px solid #eef0f3;padding:14px 0;display:flex;justify-content:space-between;align-items:center;gap:9px;font-size:12px;color:var(--cv2-text)}
+.cv2-source-item b{font-size:12px}
+.cv2-source-item small{display:block;color:#9299aa;font-size:10px;margin-top:4px;line-height:1.6}
+.cv2-app .cv2-switch{border:0;background:#e2e7f4;border-radius:99px;width:35px;height:21px;position:relative;flex:none;cursor:pointer;padding:0;min-height:0}
+.cv2-switch::after{content:"";position:absolute;left:4px;top:4px;background:#fff;width:13px;height:13px;border-radius:50%;box-shadow:0 1px 3px #0003}
+.cv2-switch.on{background:#6177df}
+.cv2-switch.on::after{left:18px}
+.cv2-app .cv2-switch:disabled{opacity:.6;cursor:default}
+.cv2-setting-note{border-radius:10px;background:#f6f7fc;padding:14px;font-size:11px;color:#8991a5;line-height:1.8;margin:23px 0 14px}
+.cv2-app .cv2-setting-note a{color:#5066d6}
+.cv2-app .cv2-setting-note a:hover{color:#3f53c0}
+
+/* completion band — .v2-completion (creator-v2.2.html:70-71) */
+.cv2-completion{background:var(--cv2-surface);border:1px solid #e5e9f5;border-radius:14px;padding:18px 21px;margin:20px 0 0;display:flex;align-items:center;gap:18px;justify-content:space-between;flex-wrap:wrap}
+.cv2-completion strong{font-size:13px;color:var(--cv2-text)}
+.cv2-completion p{font-size:11px;color:#9298a4;line-height:1.7;margin:5px 0 0}
+
+/* ------------------------------------------------------------
+   Responsive — mirrors creator-v2.2.html:21 (≤1160) and
+   :22 + :25-44 (≤740 → token breakpoint 760)
+   ------------------------------------------------------------ */
+@media(max-width:1160px){
+  .cv2-hot-layout{grid-template-columns:1fr}
+  .cv2-hot-right{position:static}
+  .cv2-hot-masthead{grid-template-columns:1fr 230px}
+}
+@media(max-width:1150px){
+  .cv2-hot-monitor{grid-template-columns:1fr 1fr}
+}
+@media(max-width:760px){
+  /* page heading: compact per design :27-32 — hide 管理信源, 刷新热点 goes icon-only */
+  .cv2-page-head{margin-bottom:14px;align-items:center}
+  .cv2-page-head .cv2-eyebrow{display:none}
+  .cv2-page-head h1{font-size:23px;margin:0}
+  .cv2-page-head>p{font-size:11px;line-height:1.55;margin-top:6px}
+  .cv2-app .cv2-hot-manage{display:none}
+  .cv2-app .cv2-hot-refresh{font-size:0;min-height:34px;border-radius:9px;padding:8px;gap:0}
+  .cv2-hot-refresh svg{width:17px;height:17px}
+  /* masthead compact per design :25-37 */
+  .cv2-hot-masthead{display:block;padding:13px 16px;margin-bottom:13px;border-radius:12px}
+  .cv2-hot-masthead .cv2-hot-eyebrow{font-size:9px}
+  .cv2-hot-masthead h3{font-size:15px;line-height:1.5;margin:3px 0 0;letter-spacing:-.25px}
+  .cv2-hot-masthead h3 br{display:none}
+  .cv2-hot-masthead p,.cv2-hot-summary{display:none}
+  /* monitor band single column (design :118 v2-monitor mobile) */
+  .cv2-hot-monitor{grid-template-columns:1fr;gap:8px;margin-bottom:14px}
+  .cv2-hot-flow{font-size:10px;white-space:nowrap;margin-bottom:12px;flex-wrap:nowrap;overflow:hidden}
+  .cv2-hot-controls{display:block;margin-bottom:0}
+  .cv2-hot-tabs{margin-bottom:8px}
+  .cv2-app .cv2-hot-tabs button{padding:9px 10px;font-size:11px}
+  .cv2-hot-find{width:100%;min-width:0}
+  .cv2-hot-source-row{gap:2px;margin-top:11px;margin-bottom:9px}
+  .cv2-hot-note{display:none}
+  .cv2-hot-layout{gap:16px}
+  .cv2-hot-list{padding:0 16px}
+  .cv2-hot-list-head{padding:12px 0}
+  .cv2-hot-row{grid-template-columns:28px minmax(0,1fr);gap:8px;padding:17px 0}
+  .cv2-hot-rank{font-size:15px}
+  .cv2-app .cv2-hot-row-title{font-size:13px}
+  .cv2-hot-row-buttons{grid-column:2;justify-content:flex-start;padding:2px 0 0}
+  .cv2-app .cv2-hot-iconbtn{width:34px;height:34px}
+  /* detail becomes a bottom sheet (design :22) */
+  .cv2-hot-backdrop{display:block;position:fixed;inset:0;z-index:69;border:0;background:#1b2138a8;cursor:pointer;padding:0;border-radius:0;min-height:0;min-width:0}
+  .cv2-hot-right{display:none!important;margin-bottom:14px}
+  .cv2-hot-right.is-open{display:block!important;position:fixed;inset:auto 0 0 0;max-height:86dvh;overflow:auto;border-radius:21px 21px 0 0;z-index:75;box-shadow:0 -24px 75px #15172d4d;margin:0;padding:23px 21px 35px}
+  .cv2-app .cv2-hot-right.is-open .cv2-hot-close{display:grid;place-items:center}
+  .cv2-hot-detail-title{font-size:16px}
+  .cv2-hot-demo-warning{text-align:left}
+}
