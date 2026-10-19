@@ -24,6 +24,7 @@
 //     a platform channel — nothing else is treated as "done";
 //   - clues exclude topics already turned into a project (status
 //     writing) or dismissed, so the home never resells finished work.
+import { SEED_PARAGRAPH_TEXT } from "./seed-paragraph.mjs";
 
 const CHANNEL_NAMES = { wechat: "公众号稿", zhihu: "知乎稿" };
 const CHECK_COUNT = 4; // four per-channel manual checks, kept independent
@@ -41,14 +42,16 @@ const JOB_KIND_LABELS = {
   style_learn: "风格学习",
 };
 
-// A channel "has content" when at least one paragraph carries real text.
-// Fresh projects keep every channel empty (writing.create starts from an
-// empty markdown), so revision bookkeeping alone (masterOutdated on an
-// empty draft) is not an actionable decision and must not become noise.
+// A channel "has content" when at least one paragraph carries real text
+// beyond editorial's untouched seed paragraph. Fresh projects keep the
+// seed paragraph on every platform channel, so revision bookkeeping
+// alone (masterOutdated on a never-written draft) is not an actionable
+// decision and must not become noise on the home screen.
 function channelHasContent(channel) {
-  return (channel?.document?.paragraphs || []).some(
-    (p) => typeof p?.text === "string" && p.text.trim().length > 0
-  );
+  return (channel?.document?.paragraphs || []).some((p) => {
+    const text = typeof p?.text === "string" ? p.text.trim() : "";
+    return text.length > 0 && text !== SEED_PARAGRAPH_TEXT;
+  });
 }
 
 // Aggregate, honest stage of one project derived from its independent

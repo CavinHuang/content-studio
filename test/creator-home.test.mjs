@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildCreatorHome, projectStage } from "../src/creator-home.mjs";
+import { SEED_PARAGRAPH_TEXT } from "../src/seed-paragraph.mjs";
 
 const project = (over = {}) => ({
   id: "ep_1",
@@ -146,10 +147,26 @@ test("master-outdated platform draft becomes a sync task per channel only when i
   assert.ok(task);
   assert.ok(task.title.includes("知乎稿"));
   assert.equal(task.href, "/compose?project=ep_1&channel=zhihu");
-  // Revision bookkeeping on an empty platform draft is not an actionable decision.
-  const empty = buildCreatorHome({ projects: [project()] });
-  assert.equal(empty.pending.filter((t) => t.kind === "master-sync").length, 0);
-  assert.equal(empty.counts.pendingDecisions, 0);
+  // A never-written platform draft (editorial's seed paragraph only, the
+  // real state of fresh projects) is not an actionable sync decision.
+  const seeded = buildCreatorHome({
+    projects: [
+      project({
+        channels: {
+          ...project().channels,
+          zhihu: {
+            status: "draft",
+            document: { revision: 1, paragraphs: [{ id: "p_seed", text: SEED_PARAGRAPH_TEXT }] },
+            checks: { factual: false, privacy: false, rights: false, layout: false },
+            masterOutdated: true,
+            openCorrections: 0,
+          },
+        },
+      }),
+    ],
+  });
+  assert.equal(seeded.pending.filter((t) => t.kind === "master-sync").length, 0);
+  assert.equal(seeded.counts.pendingDecisions, 0);
 });
 
 test("unread notifications and blocked jobs enter the pending queue; read/healthy ones do not", () => {
