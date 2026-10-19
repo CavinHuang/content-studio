@@ -119,3 +119,57 @@
    - 必要原因：设计的占位暗示可按「分类」筛选，真实信源条目无分类数据，保留原占位会误导输入。
    - 替代方案：来源维度已由真实信源 chips 承担（服务端 `?source=` 过滤），搜索只补文本维度。
    - 证据：`e2e/creator-v2-hotspots.spec.mjs` 桌面用例搜索段（按「费用透明」命中摘要）；`docs/implementation/screenshots/hotspots/desktop-search-filter.png`。
+
+## /topics 选题发现（2026-10-20，commit 范围 `feat/creator-v2-real-workspace` 分支）
+
+设计源：`public/design/creator-v2.2.html:155`（discoverView）+ V2.2 精修 `:172`（内容生产线步骤条）、`:175`（从线索到选题 banner + 三格证据卡）；参考截图 `docs/implementation/screenshots/design/topics-desktop.png`、`topics-mobile.png`。实现截图 `docs/implementation/screenshots/topics/`（1440×900 三张 + 390×844 两张，密封生产服务容器内真实渲染，`pageerror`/`console.error` = 0，移动溢出 = 0）。
+
+1. **判断卡四字段以真实简报字段呈现：读者问题/写作角度/来源依据/证据缺口（替代示例的「为什么值得写/需要先核实什么/来源策略」示例文案）**
+   - 设计源：`creator-v2.2.html:155`（detail-panel 三段为 demoStories 示例数据）、参考截图 `design/topics-desktop.png`。
+   - 实际差异：四段分别绑定真实 topic 字段 `problem / angle / refs(经素材库解析标题) / evidenceGaps`（`src/creator.mjs topic()`），可编辑、随简报版本持久化；「来源依据」对已被移除的素材诚实显示「来源已不可用」；四字段未齐时显示橙色缺口提醒（`src/topics-discovery.mjs judgmentGaps`），不阻断保存。
+   - 必要原因：任务书 P0-B「/topics 以读者问题、写作角度、证据缺口、简洁大纲为主」；示例文案不能当真实数据展示。
+   - 证据：`e2e/creator-v2-topics.spec.mjs` 桌面/编辑/冲突用例（四字段取值、PUT 持久化、409 冲突不覆盖）；`test/topics-discovery.test.mjs`。
+
+2. **主题 chips（全部主题/AI 产品/独立开发/效率工具）改为真实状态筛选（全部状态/待讨论/大纲已准备/已确认/写作中/暂不创作）**
+   - 设计源：`creator-v2.2.html:155`（filter-row 主题 chips）、`:126`（demoStories.cat 为示例分类）。
+   - 实际差异：chip 行保留设计视觉（pill + active 态 + 右侧注释），但筛选项为 `creator_topics.status` 真实枚举；选题数据模型没有分类/主题字段（`src/creator.mjs createTopic:635-668`）。
+   - 必要原因：无后端字段就不能伪造主题过滤；状态是真实存在的同构筛选维度（works 页阶段筛选同理）。
+   - 证据：`e2e/creator-v2-topics.spec.mjs`（页面无「全部主题/AI 产品」chips 断言 + 写作中/待讨论筛选用例）；`app/creator-v2-topics.css` 头注。
+
+3. **新增「记录选题」输入行；设计原稿的选题页没有创建入口**
+   - 设计源：`creator-v2.2.html:155`（discoverView 无 create 控件）。
+   - 实际差异：列表上方保留既有 `POST /api/creator/topics` 能力（输入框 + 记录选题按钮），空态时也可用；记录后自动切到「全部线索」并打开判断卡（作者自建选题的 provenance 是「作者提出的选题」，不属于「为我推荐」）。
+   - 必要原因：旧页面具备的真实能力，creator-v1 全链与真实用户路径依赖；删除会丢功能。
+   - 替代方案：样式对齐设计（searchbox 形态输入 + tiny primary 按钮），置于列表分支之外。
+   - 证据：`e2e/creator-v1.spec.mjs` 记录选题链路；`e2e/creator-v2-topics.spec.mjs` 记录选题用例。
+
+4. **「为我推荐」tab 以真实 provenance（reason）划分，不做相关性计算**
+   - 设计源：`creator-v2.2.html:155`（tabbar 为我推荐/全部线索/已收藏，示例数据全部视为推荐）。
+   - 实际差异：`为我推荐` = reason ≠ 「作者提出的选题」（服务端默认值，`src/creator.mjs:641`），即热点雷达转入、素材推荐、模型候选、系列准备的真实来源；不推导任何分数。收藏为星标视图：已收藏线索不从其他 tab 移除（与原型 `state.saved` 语义一致）。
+   - 必要原因：任务书红线「无后端可信依据不得展示推荐度」；provenance 是已持久化的真实字段。
+   - 证据：`src/topics-discovery.mjs isRecommendedOrigin` + `test/topics-discovery.test.mjs`；`e2e/creator-v2-topics.spec.mjs` 收藏/桌面用例。
+
+5. **页头增加「内容系列」次级入口；系列规划与准备任务保留在本页（设计未覆盖）**
+   - 设计源：`creator-v2.2.html:155`（页头仅「查看热点雷达」）；V2.2 全部页面无系列管理界面。
+   - 实际差异：页头为 [内容系列] [查看热点雷达] 两钮；系列视图保留旧页全部能力（创建/暂停/准备/任务核对 CreatorJobReview/条目管理，标签不变），样式改用 V2 tokens。
+   - 必要原因：内容系列是既有真实功能（`/api/creator/series*`、`e2e/creator-v1.spec.mjs` 两条系列用例），设计没有对应屏幕，不能凭空删除。
+   - 替代方案：入口收进页头按钮而非独立 tab，保持发现视图与设计一致。
+   - 证据：`e2e/creator-v1.spec.mjs` 系列两用例通过（含阻塞任务核对）。
+
+6. **判断卡标题为可编辑输入框（视觉 = 设计 h3 18px），而非静态标题**
+   - 设计源：`creator-v2.2.html:155`（detail-panel h3 静态标题）。
+   - 实际差异：`aria-label="选题标题"` 的输入框套用设计标题排版（`.cv2-detail-title-input`），hover/focus 显示边框。
+   - 必要原因：选题标题是简报第一字段，旧页可编辑且 creator-v1 断言其值（采纳建议后标题变化、热点转入候选标题一致）；静态化会砍掉真实编辑能力。
+   - 证据：`e2e/creator-v2-hotspots.spec.mjs` 转换落地断言（选题标题 input 值 = 条目标题）；`e2e/creator-v1.spec.mjs` 采纳后断言。
+
+7. **「开始创作」按钮命名为设计原文「围绕这个选题开始写作」，行为 = 保存判断 + 幂等建作品**
+   - 设计源：`creator-v2.2.html:155,192`（data-idea → startFrom 创建作品进 editor，演示数据）。
+   - 实际差异：点击先以 `expectedRevision` 保存当前简报（status=confirmed），再 `POST /api/creator/topics/:id/start`（幂等：已有 projectId 时返回同一作品），随后真实跳转 `/compose?project=<id>`；选题已关联作品时面板另提供「继续创作（已有作品）」链接。
+   - 必要原因：设计演示的建作品交互由真实领域服务兑现；不新增存储，不伪造创建。
+   - 证据：`test/topics-discovery.test.mjs` start 幂等用例；`e2e/creator-v2-topics.spec.mjs` 开始创作用例（URL、projectId 一致、状态=写作中）。
+
+8. **AI 推荐保留用户确认并新增「服务配置前置」；「与我相关」式的智能推荐不提供**
+   - 设计源：任务书 P0-B「AI 推荐和私有素材传输保留用户确认及服务配置前置」；设计原稿未画推荐控件。
+   - 实际差异：「批量推荐」折叠区内：`从现有素材发现`（本地，无模型也可用）与 `AI 推荐选题`（需勾选授权 + `overview.services.text` 为真才可点击）；未配置模型时按钮禁用并提示去偏好与连接配置，绝不假装成功。
+   - 必要原因：旧页 AI 按钮只看授权，未配置模型时点击必然 503；前置禁用给出可操作的下一步。
+   - 证据：`e2e/creator-v2-topics.spec.mjs` 桌面用例（无模型 → 禁用 + 提示 + 本地发现成功）；`e2e/creator-v1.spec.mjs`（合成模型 → AI 推荐完整链路通过）。
