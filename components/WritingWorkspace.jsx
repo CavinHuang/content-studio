@@ -1418,7 +1418,7 @@ export default function WritingWorkspace() {
                         setComposeMode((m) => (m === "write" ? "visual" : "write"))
                       }
                     >
-                      {composeMode === "visual" ? "返回编辑" : "打开配图视图"}
+                      {composeMode === "visual" ? "收起配图视图" : "打开配图视图"}
                     </button>
                     <Link
                       href={`/illustrations?project=${projectId}`}

@@ -103,7 +103,11 @@ button.cv2-small-btn{cursor:pointer}
 .cv2-app .cv2-small-btn.primary:hover{background:var(--cv2-primary-hover);border-color:var(--cv2-primary-hover);color:#fff}
 .cv2-small-btn svg{width:15px;height:15px}
 
-.cv2-main{width:auto;max-width:var(--cv2-content-max);margin:0 auto;padding:43px 49px 84px;min-height:calc(100vh - var(--cv2-topbar-h));min-width:0;flex:1}
+/* width:100% (not auto) — this main is a flex item of the column-flex
+   .cv2-shell and its margin:0 auto disables cross-axis stretch, so an
+   auto width would size it to fit-content and let any nowrap row
+   (e.g. the compose step strip) widen the whole page on mobile. */
+.cv2-main{width:100%;max-width:var(--cv2-content-max);margin:0 auto;padding:43px 49px 84px;min-height:calc(100vh - var(--cv2-topbar-h));min-width:0;flex:1}
 
 /* ------------------------------------------------------------
    Mobile bottom navigation (V2.2 .mobile-tabs + .mobile-more;
