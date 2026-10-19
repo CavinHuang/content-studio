@@ -5,7 +5,7 @@ import {Tool,ToolHeader,ToolContent,ToolInput,ToolOutput} from './ai-elements/to
 import {Badge} from './ui/badge';
 import {MessageResponse} from './ai-elements/message';
 import {PromptInputTextarea} from './ai-elements/prompt-input';
-async function api(path,method='GET',body){const r=await fetch(path,{method,cache:'no-store',headers:body?{'content-type':'application/json'}:{},body:body?JSON.stringify(body):undefined});const value=await r.json().catch(()=>({}));if(!r.ok)throw Error(value.error||'agent 请求未完成');return value}
+async function api(path,method='GET',body){const r=await fetch(path,{method,cache:'no-store',headers:body?{'content-type':'application/json'}:{},body:body?JSON.stringify(body):undefined});const value=await r.json().catch(()=>({}));if(!r.ok){if(r.status===401&&typeof window!=='undefined')window.location.assign('/signin');throw Error(value.error||'agent 请求未完成')}return value}
 const LABEL={model:'模型',tool:'工具',model_error:'模型异常'};
 export default function AgentRuns({projectId,channel,revision,onNotice}){
  const [skills,setSkills]=useState([]),[profile,setProfile]=useState(null),[skillId,setSkillId]=useState(''),[instruction,setInstruction]=useState(''),[consent,setConsent]=useState(false),[busy,setBusy]=useState(false),[run,setRun]=useState(null);

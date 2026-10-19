@@ -47,10 +47,13 @@ async function api(url, options = {}) {
     },
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok)
+  if (!response.ok) {
+    if (response.status === 401 && typeof window !== "undefined")
+      window.location.assign("/signin");
     throw Object.assign(new Error(data.error || "请求未完成"), {
       status: response.status,
     });
+  }
   return data;
 }
 const send = (url, method, data) =>

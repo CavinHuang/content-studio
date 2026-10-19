@@ -88,16 +88,18 @@ export default function CreatorTopics() {
     );
   }
   async function save(patch = {}) {
+    // 只清空"随本次请求提交的原因"；保存期间用户新输入的文本不能被回写吞掉。
+    const sentReason = feedbackReason;
     const t = await send("/api/creator/topics/" + selected.id, "PUT", {
       ...selected,
       ...patch,
-      feedbackReason,
+      feedbackReason: sentReason,
       expectedRevision: selected.revision,
     });
     setSelected(t);
     setSelectedOrigin(t);
     setHistory(null);
-    setFeedbackReason("");
+    setFeedbackReason((current) => (current === sentReason ? "" : current));
     await load();
     return t;
   }

@@ -13,22 +13,6 @@ import {
 import { cn } from "../../lib/utils";
 import { ChevronDownIcon, SearchIcon } from "lucide-react";
 
-export const TaskItemFile = ({
-  children,
-  className,
-  ...props
-}) => (
-  <div
-    className={cn(
-      "inline-flex items-center gap-1 rounded-md border bg-secondary px-1.5 py-0.5 text-foreground text-xs",
-      className,
-    )}
-    {...props}
-  >
-    {children}
-  </div>
-);
-
 export const TaskItem = ({ children, className, ...props }) => (
   <div className={cn("text-muted-foreground text-sm", className)} {...props}>
     {children}

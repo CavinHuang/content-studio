@@ -1,4 +1,5 @@
-import http from 'node:http';import {readFile} from 'node:fs/promises';import {join,dirname,extname,resolve} from 'node:path';import {fileURLToPath} from 'node:url';
+import http from 'node:http';import {readFile} from 'node:fs/promises';import {join,dirname,extname,resolve} from 'node:path';import {fileURLToPath} from 'node:url';import {Readable} from 'node:stream';
+import {validateLocalApiRequest} from './local-api-boundary.mjs';
 // 本遗留单用户演示服务器不含作者隔离（多用户模式的核心边界）。
 // 在多用户姿态下拒绝启动（fail-closed），防止旁路绕过作者工作空间隔离。
 if(process.env.CONTENT_STUDIO_MULTIUSER==='1'){console.error('Refusing to start: the legacy single-user server has no author isolation. Use `npm start` (Next.js) with CONTENT_STUDIO_MULTIUSER=1 instead.');process.exit(78)}
@@ -10,7 +11,12 @@ function json(res,obj,status=200){res.writeHead(status,{'Content-Type':'applicat
 const readBody=async(req)=>{let a='';for await(const chunk of req){a+=chunk;if(a.length>100_000)throw Error('Request payload too large');}return a?JSON.parse(a):{};};
 const error=(res,e,status=400)=>json(res,{error:e.message},status);
 const server=http.createServer(async(req,res)=>{try{
- const u=new URL(req.url,'http://localhost'),p=u.pathname; if(['POST','PATCH','DELETE'].includes(req.method)&&req.headers.origin&&!['http://127.0.0.1:'+port,'http://localhost:'+port].includes(req.headers.origin))return error(res,Error('Origin not permitted'),403);if(req.method==='GET'&&p==='/api/health')return json(res,{ok:true,mode:'real-connectors-ready',serverTime:new Date().toISOString()});
+ const u=new URL(req.url,'http://localhost'),p=u.pathname;
+ // 与 Next 侧共用同一 V58 边界实现（在打开 SQLite 前拒绝跨站/伪造请求），不再维护内联副本。
+ const boundaryInit={method:req.method,headers:req.headers};
+ if(req.method!=='GET'&&req.method!=='HEAD'){boundaryInit.body=Readable.toWeb(req);boundaryInit.duplex='half'}
+ try{validateLocalApiRequest(new Request(new URL(req.url,'http://127.0.0.1:'+port),boundaryInit))}catch(e){return error(res,e,e.status||403)}
+ if(req.method==='GET'&&p==='/api/health')return json(res,{ok:true,mode:'real-connectors-ready',serverTime:new Date().toISOString()});
  if(req.method==='GET'&&p==='/api/status')return json(res,{mode:'real-api-not-auto-synced',sources:sync.sourceStatus(),selected:selected.status(),aiConfigured:modelConfigured(),stats:store.stats()});
  if(req.method==='POST'&&p==='/api/selected/sync'){const result=await selected.sync();return json(res,result,result.status==='error'?502:200);}
  if(req.method==='GET'&&p==='/api/opportunities')return json(res,{opportunities:withVerification(rankEvents(store.events({limit:10000}),{filter:u.searchParams.get('filter')||'all',limit:10000}),id=>verification.byEvent(id)).slice(0,Math.max(1,Math.min(Number(u.searchParams.get('limit'))||30,100))),mode:'rule-based with author-recorded verification; not independent validation',aiConfigured:modelConfigured()});
