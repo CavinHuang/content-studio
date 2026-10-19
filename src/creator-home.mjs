@@ -41,6 +41,16 @@ const JOB_KIND_LABELS = {
   style_learn: "风格学习",
 };
 
+// A channel "has content" when at least one paragraph carries real text.
+// Fresh projects keep every channel empty (writing.create starts from an
+// empty markdown), so revision bookkeeping alone (masterOutdated on an
+// empty draft) is not an actionable decision and must not become noise.
+function channelHasContent(channel) {
+  return (channel?.document?.paragraphs || []).some(
+    (p) => typeof p?.text === "string" && p.text.trim().length > 0
+  );
+}
+
 // Aggregate, honest stage of one project derived from its independent
 // channel statuses. Labels reuse the exact caveats of
 // src/editorial.mjs:25 (statusName) so the UI cannot imply that an
@@ -82,7 +92,7 @@ export function buildCreatorHome({
       const ch = channels[channel];
       if (!ch) continue;
       const name = CHANNEL_NAMES[channel];
-      if (ch.masterOutdated)
+      if (ch.masterOutdated && channelHasContent(ch))
         pending.push({
           id: `${project.id}:${channel}:outdated`,
           kind: "master-sync",

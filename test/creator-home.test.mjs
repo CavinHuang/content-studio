@@ -128,12 +128,13 @@ test("author-reported publication stays excluded from 正在创作 and keeps the
   assert.ok(stage.label.includes("未核验"));
 });
 
-test("master-outdated platform draft becomes a sync task per channel", () => {
+test("master-outdated platform draft becomes a sync task per channel only when it has content", () => {
   const p = project({
     channels: {
       ...project().channels,
       zhihu: {
         status: "draft",
+        document: { revision: 1, paragraphs: [{ id: "p1", text: "知乎稿已有的一段真实内容。" }] },
         checks: { factual: false, privacy: false, rights: false, layout: false },
         masterOutdated: true,
         openCorrections: 0,
@@ -145,6 +146,10 @@ test("master-outdated platform draft becomes a sync task per channel", () => {
   assert.ok(task);
   assert.ok(task.title.includes("知乎稿"));
   assert.equal(task.href, "/compose?project=ep_1&channel=zhihu");
+  // Revision bookkeeping on an empty platform draft is not an actionable decision.
+  const empty = buildCreatorHome({ projects: [project()] });
+  assert.equal(empty.pending.filter((t) => t.kind === "master-sync").length, 0);
+  assert.equal(empty.counts.pendingDecisions, 0);
 });
 
 test("unread notifications and blocked jobs enter the pending queue; read/healthy ones do not", () => {
