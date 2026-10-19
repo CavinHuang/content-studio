@@ -1,4 +1,4 @@
-import './creator-v2-home.css';
+import '../creator-v2-home.css';
 import CreatorHome from '../../components/CreatorHome';
 
 // Legacy /create deep link — the creation-focused variant of the V2 home
