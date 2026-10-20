@@ -364,3 +364,346 @@ test("移动 390×844：KPI 单列、无横向溢出、更多面板高亮效果�
     page.getByRole("dialog", { name: "更多工作区" }).getByRole("link", { name: "效果复盘" })
   ).toHaveAttribute("aria-current", "page");
 });
+
+// ---------------------------------------------------------------------------
+// 交互补齐（e2e 审计缺口）。以下用例覆盖此前只被直达或只断言可见的交互：
+// 桌面侧栏导航（CreatorShell.jsx:165-169 NavItem aria-current）、记录表标题
+// 跨页链接（CreatorInsights.jsx:266-271）、风格学习空态跳转（:568-572）、
+// 空态录入入口与「取消」（:488-496 / :222-224）、评论数与文章链接落库
+// （:180-203，addMetric 见 src/creator.mjs:2281）、保存失败错误态
+// （:109-112）、learningEnabled=false 条件态（:513-517）、决策 409 页面提示
+// （:381-385）、键盘遍历（:66-86 无焦点循环的真实 Tab 序）。壳层已知缺陷
+// （更多面板 Esc 焦点不返回）按登记写成 test.fixme。
+// ---------------------------------------------------------------------------
+
+test("桌面侧栏点击「效果复盘」跳转本页并出现 aria-current 高亮", async ({ page }) => {
+  await signup(page, "insights-nav@example.test");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  // 登录后停在工作台，从这里经侧栏真实点击进入（而非 page.goto 直达）。
+  await expect(
+    page.getByRole("heading", { name: "今天，先把一篇好文章写完。" })
+  ).toBeVisible();
+  const sidebarLink = page
+    .getByRole("navigation", { name: "创作导航" })
+    .getByRole("link", { name: "效果复盘" });
+  await expect(sidebarLink).not.toHaveAttribute("aria-current", "page");
+  await sidebarLink.click();
+  await expect(page).toHaveURL(/\/insights$/);
+  await expect(
+    page.getByRole("heading", { name: "发布后，让经验回到下一篇" })
+  ).toBeVisible();
+  await expect(sidebarLink).toHaveAttribute("aria-current", "page");
+  // 面包屑同步为当前工作区（CreatorShell.jsx:199-205）。
+  await expect(
+    page.getByRole("navigation", { name: "面包屑" }).getByText("效果复盘")
+  ).toBeVisible();
+});
+
+test("内容表现记录表标题链接跨页跳转 /compose?project=<id> 并打开对应作品", async ({ page }) => {
+  await signup(page, "insights-titlelink@example.test");
+  const project = await (
+    await page.request.post("/api/writing/projects", {
+      data: { title: "跳转复盘的作品" },
+    })
+  ).json();
+  await page.request.post("/api/creator/projects/" + project.projectId + "/metrics", {
+    data: { channel: "zhihu", views: 300, likes: 18, comments: 2, note: "跨页跳转核对" },
+  });
+
+  await openInsights(page);
+  await page
+    .locator(".cv2-ins-table")
+    .getByRole("link", { name: "跳转复盘的作品" })
+    .click();
+  await expect(page).toHaveURL(
+    "/compose?project=" + encodeURIComponent(project.projectId)
+  );
+  // 目标页是真实创作空间：主稿 h1 即作品标题（WritingWorkspace.jsx:1110-1114），
+  // 面包屑为创作空间。
+  await expect(
+    page.getByRole("heading", { name: "跳转复盘的作品" })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "面包屑" }).getByText("创作空间")
+  ).toBeVisible();
+});
+
+test("风格学习空态「去偏好与连接」链接跳转 /settings", async ({ page }) => {
+  await signup(page, "insights-gosettings@example.test");
+  await openInsights(page);
+  await expect(page.getByText("还没有风格学习记录")).toBeVisible();
+  await page.getByRole("link", { name: "去偏好与连接" }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+  await expect(
+    page.getByRole("heading", { name: "让工作台逐渐了解你的风格" })
+  ).toBeVisible();
+});
+
+test("内容表现空态「记录一条复盘」按钮打开弹窗，「取消」关闭且重开后表单已重置", async ({ page }) => {
+  await signup(page, "insights-emptyentry@example.test");
+  await openInsights(page);
+
+  // 空态入口在内容表现卡片内（CreatorInsights.jsx:488-496），不是页头按钮。
+  await expect(page.getByText("暂无已验证平台数据")).toBeVisible();
+  await page.getByRole("button", { name: "记录一条复盘" }).click();
+  let dialog = page.getByRole("dialog", { name: "记录复盘数据" });
+  await expect(dialog).toBeVisible();
+  await expect(page.getByLabel("复盘作品")).toBeFocused();
+
+  // 「取消」关闭弹窗（CreatorInsights.jsx:222-224）。
+  await dialog.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+
+  // 经页头入口重新打开：表单回到初始态（open 时重置，:66-75）。
+  await page.getByRole("button", { name: "记录复盘数据" }).click();
+  dialog = page.getByRole("dialog", { name: "记录复盘数据" });
+  await expect(dialog).toBeVisible();
+  await expect(page.getByLabel("复盘作品")).toHaveValue("");
+  await expect(page.getByLabel("复盘渠道")).toHaveValue("wechat");
+  await expect(page.getByLabel("阅读量")).toHaveValue("");
+  await expect(page.getByLabel("文章链接")).toHaveValue("");
+  await page.keyboard.press("Escape");
+  await expect(dialog).not.toBeVisible();
+});
+
+test("弹窗「评论数」「文章链接」选填字段随保存真实落库（渠道标签、服务端与刷新核对）", async ({ page }) => {
+  await signup(page, "insights-fields@example.test");
+  const project = await (
+    await page.request.post("/api/writing/projects", {
+      data: { title: "全字段复盘的作品" },
+    })
+  ).json();
+  // 小红书渠道按需创建（editorial.create 只种子 master/wechat/zhihu，
+  // 与小红书工作台使用同一个 ensureChannel 接口；未创建时录入会 404）。
+  const ensured = await page.request.post(
+    `/api/creator/projects/${project.projectId}/channels`,
+    { data: { channel: "xiaohongshu" } }
+  );
+  expect(ensured.status()).toBe(201);
+
+  await openInsights(page);
+  await page.getByRole("button", { name: "记录复盘数据" }).click();
+  await page.getByLabel("复盘作品").selectOption({ label: "全字段复盘的作品" });
+  await page.getByLabel("复盘渠道").selectOption({ label: "小红书" });
+  await page.getByLabel("阅读量").fill("1500");
+  await page.getByLabel("点赞数").fill("34");
+  await page.getByLabel("评论数").fill("12");
+  await page.getByLabel("文章链接").fill("https://example.com/synthetic-post");
+  await page.getByLabel("复盘备注").fill("评论区在问素材来源");
+  const dialog = page.getByRole("dialog", { name: "记录复盘数据" });
+  await dialog.getByRole("button", { name: /保存复盘记录/ }).click();
+  await expect(page.getByRole("status").last()).toContainText("复盘数据已保存");
+
+  // 表格：渠道标签真实切换为小红书，赞/评来自本次录入（CreatorInsights.jsx:284-289）。
+  const row = page.locator(".cv2-ins-table tr").first();
+  await expect(row.getByText("小红书", { exact: true })).toBeVisible();
+  await expect(row.getByText("赞 34 · 评 12")).toBeVisible();
+  await expect(row.getByText("评论区在问素材来源")).toBeVisible();
+  // 互动 KPI = 点赞 + 评论（insights-view.mjs:186-190）。
+  await expect(
+    page.locator(".cv2-ins-kpis .cv2-surface").nth(1).locator("strong")
+  ).toHaveText("46");
+
+  // 服务端事实：url 与 comments 原样保存（src/creator.mjs:2281-2316）。
+  const metrics = await (
+    await page.request.get("/api/creator/projects/" + project.projectId + "/metrics")
+  ).json();
+  expect(metrics.metrics).toHaveLength(1);
+  expect(metrics.metrics[0]).toMatchObject({
+    channel: "xiaohongshu",
+    views: 1500,
+    likes: 34,
+    comments: 12,
+    url: "https://example.com/synthetic-post",
+  });
+
+  // 刷新后仍在（真实持久化）。
+  await page.reload();
+  await expect(
+    page.locator(".cv2-ins-table tr").first().getByText("评 12")
+  ).toBeVisible();
+});
+
+test("保存复盘失败：弹窗内错误态、未落库，恢复后同一弹窗重试成功", async ({ page }) => {
+  await signup(page, "insights-savefail@example.test");
+  const project = await (
+    await page.request.post("/api/writing/projects", {
+      data: { title: "失败演练的作品" },
+    })
+  ).json();
+  await openInsights(page);
+
+  // 只拦截页面的写入 POST；page.request 不经浏览器路由，仍可核对服务端事实。
+  const metricsWrite = /\/api\/creator\/projects\/ep_[a-f0-9-]+\/metrics/;
+  await page.route(metricsWrite, (route) =>
+    route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "服务端写入失败" }),
+    })
+  );
+
+  await page.getByRole("button", { name: "记录复盘数据" }).click();
+  const dialog = page.getByRole("dialog", { name: "记录复盘数据" });
+  await page.getByLabel("复盘作品").selectOption({ label: "失败演练的作品" });
+  await page.getByLabel("阅读量").fill("99");
+  await dialog.getByRole("button", { name: /保存复盘记录/ }).click();
+
+  // 弹窗内真实错误态（role=status 的 is-error 行，CreatorInsights.jsx:215-220），
+  // 弹窗未关、保存按钮退出 pending 恢复可用（:109-112）。
+  await expect(dialog.locator(".cv2-status.is-error")).toContainText("服务端写入失败");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /保存复盘记录/ })).toBeEnabled();
+
+  // 失败没有写库。
+  const failed = await (
+    await page.request.get("/api/creator/projects/" + project.projectId + "/metrics")
+  ).json();
+  expect(failed.metrics).toHaveLength(0);
+
+  // 撤除注入后同一弹窗重试成功并落库。
+  await page.unroute(metricsWrite);
+  await dialog.getByRole("button", { name: /保存复盘记录/ }).click();
+  await expect(page.getByRole("status").last()).toContainText("复盘数据已保存");
+  await expect(dialog).not.toBeVisible();
+  await expect(
+    page.locator(".cv2-ins-table tr").first().getByText("阅读 99")
+  ).toBeVisible();
+});
+
+test("画像学习暂停（learningEnabled=false）：页面出现暂停提示条，提炼入口服务端 409", async ({ page }) => {
+  await signup(page, "insights-paused@example.test");
+  const profile = await (await page.request.get("/api/creator/profile")).json();
+  const saved = await page.request.put("/api/creator/profile", {
+    data: { expectedRevision: profile.revision, data: { learningEnabled: false } },
+  });
+  expect(saved.ok()).toBeTruthy();
+
+  await openInsights(page);
+  // 条件态提示条真实出现（默认开启时页面没有 is-warning 行，CreatorInsights.jsx:513-517）。
+  await expect(page.locator(".cv2-status.is-warning")).toContainText(
+    "画像学习已暂停：你可以在偏好与连接中重新开启。"
+  );
+  // 学习原则卡仍渲染，空态引导仍在。
+  await expect(page.locator(".cv2-learning article")).toHaveCount(3);
+  await expect(page.getByText("还没有风格学习记录")).toBeVisible();
+
+  // 服务端同一开关：提炼建议被真实拒绝（src/creator.mjs:339）。
+  const rejected = await page.request.post("/api/creator/style-suggestions", {
+    data: { projectIds: [], allowExternalAI: true },
+  });
+  expect(rejected.status()).toBe(409);
+  expect((await rejected.json()).error).toBe("画像学习已暂停");
+
+  // 刷新后提示条仍在（开关已持久化）。
+  await page.reload();
+  await expect(page.locator(".cv2-status.is-warning")).toContainText("画像学习已暂停");
+});
+
+test("风格决策 409：页面提示「画像已变化，请根据最新状态重新确认。」并刷新为最新状态", async ({ page }) => {
+  await signup(page, "insights-conflict@example.test");
+  const project = await (
+    await page.request.post("/api/writing/projects", {
+      data: { title: "冲突演练的文章" },
+    })
+  ).json();
+  const created = await (
+    await page.request.post("/api/creator/style-suggestions", {
+      data: { projectIds: [project.projectId], allowExternalAI: true },
+    })
+  ).json();
+  expect(created.status).toBe("pending");
+
+  await openInsights(page);
+  await expect(page.locator(".cv2-ins-suggest").first()).toBeVisible();
+
+  // 页面打开后，另一处（同一作者会话的 API 调用）先完成了采纳：画像 revision
+  // 前进，而页面仍持打开时的旧数据与旧待办卡。
+  const profile = await (await page.request.get("/api/creator/profile")).json();
+  const accepted = await page.request.post(
+    "/api/creator/style-suggestions/" + created.id,
+    { data: { action: "accept", expectedRevision: profile.revision } }
+  );
+  expect(accepted.ok()).toBeTruthy();
+
+  // 页面旧待办卡上点击采纳 → 服务端 409（建议已处理，src/creator.mjs:420-426）
+  // → 页面 notice 真实出现（CreatorInsights.jsx:381-385）。
+  await page
+    .locator(".cv2-ins-suggest")
+    .first()
+    .getByRole("button", { name: "采纳到画像" })
+    .click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "画像已变化，请根据最新状态重新确认。" })
+  ).toBeVisible();
+
+  // 失败路径随后真实刷新数据：待办卡清空，采纳记录来自那次真实 accept。
+  await expect(page.locator(".cv2-ins-suggest")).toHaveCount(0);
+  await expect(page.getByText("已采纳", { exact: true })).toBeVisible();
+  const after = await (await page.request.get("/api/creator/profile")).json();
+  expect(after.tone).toBe("自然直接");
+  expect(after.revision).toBe(profile.revision + 1);
+});
+
+test("键盘可达性：Tab 到达跳转链接与弹窗控件、焦点停在弹窗内、Enter 经「取消」关闭", async ({ page }) => {
+  await signup(page, "insights-keyboard@example.test");
+  await openInsights(page);
+
+  // 首个 Tab 到达壳层跳转链接（DOM 第一个可聚焦元素，CreatorShell.jsx:149-151）。
+  await page.keyboard.press("Tab");
+  expect(
+    await page.evaluate(() => document.activeElement?.classList.contains("cv2-skip"))
+  ).toBe(true);
+
+  // 键盘 Enter 打开录入弹窗，初始焦点在「复盘作品」（CreatorInsights.jsx:77）。
+  const recordBtn = page.getByRole("button", { name: "记录复盘数据" });
+  await recordBtn.focus();
+  await page.keyboard.press("Enter");
+  const dialog = page.getByRole("dialog", { name: "记录复盘数据" });
+  await expect(dialog).toBeVisible();
+  await expect(page.getByLabel("复盘作品")).toBeFocused();
+
+  // 组件没有焦点循环/focus trap（:66-86 只有初始焦点 + Esc）；演练真实 Tab 序：
+  // 焦点逐个停在弹窗控件上（作品→渠道→阅读→点赞→评论→链接→备注→取消）。
+  const stops = [];
+  for (let i = 0; i < 10; i++) {
+    const stop = await page.evaluate(() => {
+      const d = document.querySelector('.cv2-modal[role="dialog"]');
+      const a = document.activeElement;
+      return { inside: !!d && d.contains(a), label: (a?.textContent || "").trim() };
+    });
+    stops.push(stop);
+    if (stop.label === "取消") break;
+    await page.keyboard.press("Tab");
+  }
+  expect(stops.at(-1)?.label).toBe("取消");
+  expect(stops.every((s) => s.inside)).toBe(true);
+
+  // Enter 激活「取消」真实关闭弹窗。
+  await page.keyboard.press("Enter");
+  await expect(dialog).not.toBeVisible();
+});
+
+test.fixme(
+  "移动「更多」面板 Esc 关闭 @bug:feature-matrix#1（横切#1：Esc 后焦点不返回「更多」按钮，未修复；另见 CREATOR-V2-DESIGN-DEVIATIONS.md /home #5）",
+  async ({ page }) => {
+    // 壳层横切缺陷 #1（docs/implementation/CREATOR-V2-FEATURE-MATRIX.md:128，
+    // QA.md §4 遗留项）：Esc 关闭路径可用，但 CreatorShell.jsx:128-136 的
+    // Esc 监听只 setMoreOpen(false)，不会把焦点还给触发按钮；只有面板内
+    // 关闭按钮的 onClick 会 moreButtonRef.current?.focus()（:244-247）。
+    // 按登记以 test.fixme 保留交互记录；以下只演练可通过的打开/Esc 关闭，
+    // 不写会失败的焦点归属断言。
+    await signup(page, "insights-moreesc@example.test");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openInsights(page);
+    const moreNav = page.getByRole("navigation", { name: "移动端导航" });
+    await moreNav.getByRole("button", { name: "更多" }).click();
+    const panel = page.getByRole("dialog", { name: "更多工作区" });
+    await expect(panel).toBeVisible();
+    await expect(
+      moreNav.getByRole("button", { name: "更多" })
+    ).toHaveAttribute("aria-expanded", "true");
+    await page.keyboard.press("Escape");
+    await expect(panel).not.toBeVisible();
+  }
+);

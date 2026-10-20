@@ -4,7 +4,15 @@ import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { addDays, todayKey, weekdayLabel, dayLabel, isoToDayKey } from "../src/calendar-view.mjs";
+import {
+  addDays,
+  monthLabel,
+  todayKey,
+  weekdayLabel,
+  dayLabel,
+  isoToDayKey,
+  weekOf,
+} from "../src/calendar-view.mjs";
 
 // Creator V2 calendar (/calendar) e2e — real routes, real SQLite domain
 // services, no fixtures: an isolated worker-scoped production server
@@ -20,6 +28,17 @@ import { addDays, todayKey, weekdayLabel, dayLabel, isoToDayKey } from "../src/c
 // unscheduled works listed honestly OUTSIDE the calendar grid, the
 // actionable error state when the overview API fails, and the 390×844
 // mobile layout without horizontal overflow.
+//
+// 2026-10 审计缺口补齐（既有用例保持不动，在其后扩展）：上一/下一周期
+// 与「今天」重置；安排弹窗「取消」与保存失败（注入 500）的弹窗内错误与
+// 恢复；调整系列安排弹窗 Esc/「取消」、间隔天数 1–365 边界门槛、409 时
+// 弹窗内「系列已变化」提示；当日安排/系列/作品区/完成条的全部跳转真实
+// 落地（去选题/打开作品/去系列/去作品库/全部作品/继续创作/查看待交付
+// 内容/去规划系列）；壳层「跳到主内容」skip link、顶栏看热点/新建作品、
+// 受管模式退出登录、侧栏 11 工作区导航高亮；移动端快捷 tab 逐个跳转与
+// 「更多」面板头部「关闭」还焦。已知缺陷（Esc 关「更多」面板不还焦，
+// CREATOR-V2-DESIGN-DEVIATIONS.md /home #5 + FEATURE-MATRIX 横切 #1）
+// 按登记写为 test.fixme，不断言会失败的行为。
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function listen(server) {
@@ -345,5 +364,407 @@ test("移动 390×844：周/月视图无横向溢出，更多面板高亮内容�
   await page.getByLabel("目标日期").fill(today);
   await dialog.getByRole("button", { name: /保存计划/ }).click();
   await expect(page.getByRole("status").last()).toContainText("已加入内容日历");
+});
+
+test("桌面：上一/下一周期切换周与月周期，「今天」重置周期与选中日", async ({ page }) => {
+  const today = todayKey();
+  await signup(page, "calendar-step@example.test");
+  await page.request.post("/api/creator/topics", {
+    data: { title: "周期切换验证计划", targetDate: today, reason: "内容日历排期计划" },
+  });
+  await openCalendar(page);
+
+  const step = page.getByRole("group", { name: "切换周期" });
+  const weekRegion = page.getByRole("region", { name: "本周安排" });
+  const pill = page.locator(".cv2-insight-bar .v2-pill");
+  const rangeOf = (keys) => `${dayLabel(keys[0])} — ${dayLabel(keys[6])}`;
+  await expect(weekRegion.locator(".cv2-section-top p").first()).toHaveText(rangeOf(weekOf(today)));
+  await expect(pill).toHaveText("1 项计划");
+
+  // 先选中本周另一天，稍后用「今天」验证选中日一并重置
+  const other = weekOf(today).find((k) => k !== today);
+  await dayButton(page, other).click();
+  await expect(
+    page.getByRole("region", { name: "当日安排" }).getByRole("heading", { name: dayLabel(other) + "的安排" })
+  ).toBeVisible();
+
+  // 下一周期 → 下周：今天的计划移出视野，计数归零
+  await step.getByRole("button", { name: "下一周期" }).click();
+  await expect(weekRegion.locator(".cv2-section-top p").first()).toHaveText(rangeOf(weekOf(addDays(today, 7))));
+  await expect(pill).toHaveText("暂无排期");
+
+  // 上一周期两次 → 上周
+  await step.getByRole("button", { name: "上一周期" }).click();
+  await step.getByRole("button", { name: "上一周期" }).click();
+  await expect(weekRegion.locator(".cv2-section-top p").first()).toHaveText(rangeOf(weekOf(addDays(today, -7))));
+
+  // 「今天」：周期与选中日一起回到今天
+  await step.getByRole("button", { name: "今天" }).click();
+  await expect(weekRegion.locator(".cv2-section-top p").first()).toHaveText(rangeOf(weekOf(today)));
+  await expect(dayButton(page, today)).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.getByRole("region", { name: "当日安排" }).getByRole("heading", { name: dayLabel(today) + "的安排" })
+  ).toBeVisible();
+  await expect(pill).toHaveText("1 项计划");
+
+  // 月视图共用同一组切换按钮：步进一个月
+  await page.getByRole("group", { name: "日历视图" }).getByRole("button", { name: "月视图" }).click();
+  const shiftMonthKey = (key, dir) => {
+    const [y, m] = key.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1 + dir, 1));
+    return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-01`;
+  };
+  await step.getByRole("button", { name: "下一周期" }).click();
+  await expect(page.getByRole("group", { name: monthLabel(shiftMonthKey(today, 1)) + "月历" })).toBeVisible();
+  await expect(page.locator(".cv2-insight-bar span").first()).toHaveText(monthLabel(shiftMonthKey(today, 1)));
+  await expect(pill).toHaveText("暂无排期");
+  await step.getByRole("button", { name: "今天" }).click();
+  await expect(page.getByRole("group", { name: monthLabel(today) + "月历" })).toBeVisible();
+  await expect(pill).toHaveText("1 项计划");
+});
+
+test("桌面：安排弹窗「取消」关闭；保存失败弹窗内报错且不关，解除故障后可保存并持久化", async ({ page }) => {
+  const today = todayKey();
+  await signup(page, "calendar-modal@example.test");
+  await openCalendar(page);
+
+  await page.getByRole("button", { name: "安排内容" }).click();
+  const dialog = page.getByRole("dialog", { name: "安排下一篇" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "取消" }).click();
+  await expect(dialog).not.toBeVisible();
+
+  // 真实故障注入：服务端 500 → 弹窗内错误提示，弹窗保持打开
+  await page.route("**/api/creator/topics", (route) =>
+    route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "合成故障：保存服务暂不可用" }),
+    })
+  );
+  await page.getByRole("button", { name: "安排内容" }).click();
+  await page.getByLabel("内容主题").fill("先失败一次的排期计划");
+  await page.getByLabel("目标日期").fill(today);
+  await dialog.getByRole("button", { name: /保存计划/ }).click();
+  await expect(dialog.locator(".cv2-status.is-error")).toContainText("合成故障：保存服务暂不可用");
+  await expect(dialog).toBeVisible();
+
+  // 解除故障后同一弹窗可完成保存：真实落库，刷新后仍在
+  await page.unroute("**/api/creator/topics");
+  await dialog.getByRole("button", { name: /保存计划/ }).click();
+  await expect(page.getByRole("status").last()).toContainText("已加入内容日历");
+  await expect(dialog).not.toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByRole("region", { name: "当日安排" }).getByText("先失败一次的排期计划")
+  ).toBeVisible();
+});
+
+test("桌面：调整系列安排 Esc 与「取消」关闭弹窗且不落库；间隔天数非法时禁用保存", async ({ page }) => {
+  const today = todayKey();
+  await signup(page, "calendar-series-modal@example.test");
+  const runAt = new Date(Date.parse(today + "T04:00:00.000Z") + 86400000).toISOString();
+  const series = await (
+    await page.request.post("/api/creator/series", {
+      data: { name: "弹窗门槛验证系列", goal: "持续核对弹窗行为", cadenceDays: 7, nextRunAt: runAt },
+    })
+  ).json();
+  expect(series.id).toMatch(/^sr_/);
+  await openCalendar(page);
+
+  const card = page.getByRole("region", { name: "长期内容系列" });
+  await card.getByRole("button", { name: "调整安排" }).click();
+  const dialog = page.getByRole("dialog", { name: "调整系列安排" });
+  const save = dialog.getByRole("button", { name: "保存安排" });
+  const cadence = page.getByLabel("准备间隔天数");
+  await expect(dialog).toBeVisible();
+
+  // 间隔天数边界门槛：<1、>365、非整数都禁用保存；1/365 合法
+  for (const [value, enabled] of [["0", false], ["1", true], ["365", true], ["366", false], ["2.5", false]]) {
+    await cadence.fill(value);
+    if (enabled) await expect(save).toBeEnabled();
+    else await expect(save).toBeDisabled();
+  }
+
+  // Esc 关闭（此前 e2e 只覆盖排期弹窗的 Esc 路径）
+  await page.keyboard.press("Escape");
+  await expect(dialog).not.toBeVisible();
+
+  // 重新打开后「取消」同样关闭
+  await card.getByRole("button", { name: "调整安排" }).click();
+  await expect(dialog).toBeVisible();
+  await expect(cadence).toHaveValue("7"); // 重开后回到当前真实值
+  await cadence.fill("99");
+  await dialog.getByRole("button", { name: "取消" }).click();
+  await expect(dialog).not.toBeVisible();
+
+  const after = await (await page.request.get("/api/creator/series/" + series.id)).json();
+  expect(after.revision).toBe(1); // Esc/取消只是关窗，不产生服务端写入
+  expect(after.cadenceDays).toBe(7);
+});
+
+test("桌面：调整安排提交遇 409（系列已变化）→ 弹窗内提示重新打开，服务端无部分写入", async ({ page }) => {
+  const today = todayKey();
+  await signup(page, "calendar-series-409@example.test");
+  const runAt = new Date(Date.parse(today + "T04:00:00.000Z") + 86400000).toISOString();
+  const series = await (
+    await page.request.post("/api/creator/series", {
+      data: { name: "修订冲突验证系列", goal: "验证 expectedRevision 冲突的 UI 路径", cadenceDays: 7, nextRunAt: runAt },
+    })
+  ).json();
+  await openCalendar(page);
+  const card = page.getByRole("region", { name: "长期内容系列" });
+  await card.getByRole("button", { name: "调整安排" }).click();
+  const dialog = page.getByRole("dialog", { name: "调整系列安排" });
+  await expect(dialog).toBeVisible();
+
+  // 弹窗打开期间，系列被另一处真实更新一次（revision +1）
+  const current = await (await page.request.get("/api/creator/series/" + series.id)).json();
+  const bump = await page.request.put("/api/creator/series/" + series.id, {
+    data: { expectedRevision: current.revision, cadenceDays: 2 },
+  });
+  expect(bump.ok()).toBeTruthy();
+
+  // 旧弹窗仍持旧 revision：保存 → 真实 409 → 弹窗内可操作提示（此前仅 API 层验证）
+  await dialog.getByRole("button", { name: "保存安排" }).click();
+  await expect(dialog.locator(".cv2-status.is-error")).toContainText("系列已变化，请重新打开后调整");
+  await expect(dialog).toBeVisible();
+
+  const after = await (await page.request.get("/api/creator/series/" + series.id)).json();
+  expect(after.revision).toBe(current.revision + 1); // 冲突保存没有部分写入
+  expect(after.cadenceDays).toBe(2);
+});
+
+test("桌面：当日安排与页面区块的跳转全部真实落地（去选题/打开作品/去系列/去作品库/全部作品/继续创作/查看待交付内容）", async ({ page }) => {
+  const today = todayKey();
+  await signup(page, "calendar-links@example.test");
+  const plain = await (
+    await page.request.post("/api/creator/topics", {
+      data: { title: "链接验证：去选题的排期", targetDate: today, reason: "内容日历排期计划" },
+    })
+  ).json();
+  const linked = await (
+    await page.request.post("/api/creator/topics", {
+      data: { title: "链接验证：已开作品的排期", targetDate: today, reason: "内容日历排期计划" },
+    })
+  ).json();
+  // startTopic：真实建项目并关联选题（projectId），状态进入创作中
+  const started = await page.request.post(
+    `/api/creator/topics/${linked.id}/start`,
+    { data: {} } // 写请求必须携带 JSON body（V58 边界契约，同 UI send）
+  );
+  expect(started.ok()).toBeTruthy();
+  const runAt = new Date(Date.parse(today + "T04:00:00.000Z")).toISOString(); // 今天 12:00 上海
+  const series = await (
+    await page.request.post("/api/creator/series", {
+      data: { name: "链接验证系列", goal: "验证去系列跳转", cadenceDays: 7, nextRunAt: runAt },
+    })
+  ).json();
+  expect(series.id).toMatch(/^sr_/);
+
+  await openCalendar(page);
+  const detail = page.getByRole("region", { name: "当日安排" });
+  await expect(detail.getByText("链接验证：去选题的排期")).toBeVisible();
+  await expect(detail.getByText("链接验证：已开作品的排期")).toBeVisible();
+
+  // 未关联作品的排期选题 → 去选题 → /topics?topic=tp_…
+  await detail.getByRole("link", { name: "去选题" }).click();
+  await expect(page).toHaveURL("/topics?topic=" + plain.id);
+  await expect(page.getByRole("heading", { name: "选题发现" })).toBeVisible();
+
+  // 已关联作品的排期选题 → 打开作品 → /compose?project=ep_…
+  await page.goto("/calendar");
+  await page.getByRole("region", { name: "当日安排" }).getByRole("link", { name: "打开作品" }).click();
+  await expect(page).toHaveURL(/\/compose\?project=ep_/);
+  const projectId = new URL(page.url()).searchParams.get("project");
+
+  // 系列事件 → 去系列 → /topics?view=series
+  await page.goto("/calendar");
+  await page.getByRole("region", { name: "当日安排" }).getByRole("link", { name: "去系列" }).click();
+  await expect(page).toHaveURL(/\/topics\?view=series$/);
+  await expect(page.getByRole("heading", { name: "选题发现" })).toBeVisible();
+
+  // 当日安排头部 → 去作品库 → /works
+  await page.goto("/calendar");
+  await page.getByRole("region", { name: "当日安排" }).getByRole("link", { name: "去作品库" }).click();
+  await expect(page).toHaveURL(/\/works$/);
+  await expect(page.getByRole("heading", { name: "每篇作品，都有清晰的下一步" })).toBeVisible();
+
+  // 未排期作品区 → 全部作品 → /works；继续创作 → /compose?project=…
+  await page.goto("/calendar");
+  const works = page.getByRole("region", { name: "未排期的进行中作品" });
+  await expect(works.getByText("链接验证：已开作品的排期")).toBeVisible();
+  await works.getByRole("link", { name: "全部作品" }).click();
+  await expect(page).toHaveURL(/\/works$/);
+  await page.goto("/calendar");
+  await page
+    .getByRole("region", { name: "未排期的进行中作品" })
+    .getByRole("link", { name: "继续创作" })
+    .click();
+  await expect(page).toHaveURL("/compose?project=" + encodeURIComponent(projectId));
+
+  // 完成条 → 查看待交付内容 → /publish
+  await page.goto("/calendar");
+  await page.getByRole("link", { name: "查看待交付内容" }).click();
+  await expect(page).toHaveURL(/\/publish$/);
+  await expect(page.getByRole("heading", { name: "发布之前，再确认一次" })).toBeVisible();
+});
+
+test("桌面：系列空态「去规划系列」与壳层次级入口（跳到主内容、看热点、新建作品）", async ({ page }) => {
+  await signup(page, "calendar-shell@example.test");
+  await openCalendar(page);
+
+  // 系列空态 CTA → /topics?view=series
+  await page.getByRole("link", { name: "去规划系列" }).click();
+  await expect(page).toHaveURL(/\/topics\?view=series$/);
+  await expect(page.getByRole("heading", { name: "选题发现" })).toBeVisible();
+
+  // skip link：首个 Tab 聚焦「跳到主内容」，Enter 后主内容获焦
+  await page.goto("/calendar");
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("link", { name: "跳到主内容" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#cv2-main")).toBeFocused();
+
+  // 顶栏次级入口：看热点 → /hotspots；新建作品 → /create（legacy 深链）
+  await page.getByRole("link", { name: "看热点" }).click();
+  await expect(page).toHaveURL(/\/hotspots$/);
+  await page.goto("/calendar");
+  await page.getByRole("link", { name: "新建作品" }).click();
+  await expect(page).toHaveURL(/\/create$/);
+  await expect(page.getByRole("navigation", { name: "面包屑" })).toContainText("新建作品");
+});
+
+test("桌面：侧栏 11 个工作区导航逐个跳转且高亮随路径移动，受管模式可退出登录", async ({ page }) => {
+  await signup(page, "calendar-nav@example.test");
+  await openCalendar(page);
+  const primary = page.getByRole("navigation", { name: "创作导航" });
+  const prefer = page.getByRole("navigation", { name: "偏好导航" });
+  await expect(primary.getByRole("link")).toHaveCount(10);
+  await expect(prefer.getByRole("link")).toHaveCount(1);
+  await expect(primary.getByRole("link", { name: "内容日历" })).toHaveAttribute("aria-current", "page");
+
+  const entries = [
+    ["工作台", /\/$/],
+    ["热点雷达", /\/hotspots$/],
+    ["选题发现", /\/topics$/],
+    ["创作空间", /\/compose$/],
+    ["视觉工作台", /\/illustrations$/],
+    ["作品", /\/works$/],
+    ["发布中心", /\/publish$/],
+    ["效果复盘", /\/insights$/],
+    ["素材库", /\/library$/],
+  ];
+  for (const [label, pattern] of entries) {
+    await primary.getByRole("link", { name: label, exact: true }).click();
+    await expect(page).toHaveURL(pattern);
+    await expect(primary.getByRole("link", { name: label, exact: true })).toHaveAttribute("aria-current", "page");
+  }
+  await prefer.getByRole("link", { name: "偏好与连接" }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+  await expect(prefer.getByRole("link", { name: "偏好与连接" })).toHaveAttribute("aria-current", "page");
+
+  // 回到内容日历，高亮回归本页
+  await primary.getByRole("link", { name: "内容日历" }).click();
+  await expect(page).toHaveURL(/\/calendar$/);
+  await expect(primary.getByRole("link", { name: "内容日历" })).toHaveAttribute("aria-current", "page");
+
+  // 受管模式（CONTENT_STUDIO_MULTIUSER=1）作者可退出登录并回到登录页
+  await page.getByRole("button", { name: "退出登录" }).click();
+  await expect(page).toHaveURL(/signin/);
+  await expect(page.getByRole("heading", { name: "回到你的创作空间" })).toBeVisible();
+});
+
+test("移动 390×844：「更多」面板头部「关闭」可关且焦点返还触发按钮；底部 5 个快捷 tab 逐个跳转", async ({ page }) => {
+  await signup(page, "calendar-mobile-shell@example.test");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openCalendar(page);
+  const tabs = page.getByRole("navigation", { name: "移动端导航" });
+  const moreButton = tabs.getByRole("button", { name: "更多" });
+
+  // 头部「关闭」按钮路径：面板消失且焦点返还「更多」触发按钮
+  await moreButton.click();
+  const panel = page.getByRole("dialog", { name: "更多工作区" });
+  await expect(panel).toBeVisible();
+  await panel.getByRole("button", { name: "关闭更多菜单" }).click();
+  await expect(panel).not.toBeVisible();
+  await expect(moreButton).toBeFocused();
+
+  // 底部 5 个快捷 tab：逐个真实跳转，高亮随路径移动
+  const quick = [
+    ["工作台", /\/$/],
+    ["热点", /\/hotspots$/],
+    ["选题", /\/topics$/],
+    ["作品", /\/works$/],
+    ["配图", /\/illustrations$/],
+  ];
+  for (const [label, pattern] of quick) {
+    await tabs.getByRole("link", { name: label, exact: true }).click();
+    await expect(page).toHaveURL(pattern);
+    await expect(tabs.getByRole("link", { name: label, exact: true })).toHaveAttribute("aria-current", "page");
+  }
+});
+
+test.fixme("移动：「更多」面板 Esc 关闭后焦点未返回「更多」触发按钮 @bug:deviations#5", async ({ page }) => {
+  // 缺陷登记：CREATOR-V2-DESIGN-DEVIATIONS.md /home #5（功能缺陷登记）+
+  // CREATOR-V2-FEATURE-MATRIX.md 横切 #1。Esc 分支只 setMoreOpen(false)
+  // （components/CreatorShell.jsx:128-136），未像头部「关闭」按钮路径
+  // （CreatorShell.jsx:244-248）那样调用 moreButtonRef.current?.focus()，
+  // 实测 Esc 后 activeElement=BODY；面板底部锚定，Esc 后的后续点击不能
+  // 证明面板已关，故 Esc 关闭本身也在此一并显式断言。修复后取消 fixme
+  // 并补回末尾的还焦断言。
+  await signup(page, "calendar-mobile-esc@example.test");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openCalendar(page);
+  const moreButton = page.getByRole("navigation", { name: "移动端导航" }).getByRole("button", { name: "更多" });
+  await moreButton.click();
+  const panel = page.getByRole("dialog", { name: "更多工作区" });
+  await expect(panel).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(panel).not.toBeVisible();
+  // TODO(@bug:deviations#5)：修复后应断言 await expect(moreButton).toBeFocused()；
+  // 当前 Esc 路径不还焦，该断言会失败，故整条用例保持 fixme。
+});
+
+test("移动 390×844：当日安排「去选题/打开作品」与未排期作品「继续创作」真实落地", async ({ page }) => {
+  const today = todayKey();
+  await signup(page, "calendar-mobile-links@example.test");
+  const plain = await (
+    await page.request.post("/api/creator/topics", {
+      data: { title: "移动端去选题的排期", targetDate: today, reason: "内容日历排期计划" },
+    })
+  ).json();
+  const linked = await (
+    await page.request.post("/api/creator/topics", {
+      data: { title: "移动端已开作品的排期", targetDate: today, reason: "内容日历排期计划" },
+    })
+  ).json();
+  const started = await page.request.post(`/api/creator/topics/${linked.id}/start`, {
+    data: {}, // 写请求必须携带 JSON body（V58 边界契约，同 UI send）
+  });
+  expect(started.ok()).toBeTruthy();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openCalendar(page);
+  const detail = page.getByRole("region", { name: "当日安排" });
+  await expect(detail.getByText("移动端去选题的排期")).toBeVisible();
+
+  // 去选题 → /topics?topic=tp_…
+  await detail.getByRole("link", { name: "去选题" }).click();
+  await expect(page).toHaveURL("/topics?topic=" + plain.id);
+
+  // 打开作品 → /compose?project=ep_…
+  await page.goto("/calendar");
+  await page.getByRole("region", { name: "当日安排" }).getByRole("link", { name: "打开作品" }).click();
+  await expect(page).toHaveURL(/\/compose\?project=ep_/);
+  const projectId = new URL(page.url()).searchParams.get("project");
+
+  // 未排期作品区 继续创作 → 同一 ep_ 作品
+  await page.goto("/calendar");
+  await page
+    .getByRole("region", { name: "未排期的进行中作品" })
+    .getByRole("link", { name: "继续创作" })
+    .click();
+  await expect(page).toHaveURL("/compose?project=" + encodeURIComponent(projectId));
 });
 
