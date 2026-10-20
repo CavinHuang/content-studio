@@ -457,9 +457,8 @@ test("creator reviews style evidence and configures encrypted BYOK connections t
     .last()
     .click();
   await expect(page.getByLabel("表达语气", { exact: true })).toHaveValue("");
-  await page
-    .getByRole("button", { name: "写作与配图服务", exact: true })
-    .click();
+  // V2 设置页：服务连接与额度同属「模型与费用」分组（设计 settings-grid 四组）
+  await page.getByRole("button", { name: "模型与费用", exact: true }).click();
   await page
     .getByRole("combobox", { name: "用途", exact: true })
     .selectOption("image");
@@ -481,7 +480,6 @@ test("creator reviews style evidence and configures encrypted BYOK connections t
     "synthetic-private-key-not-shown"
   );
   await expect(page.getByLabel("API Key", { exact: true })).toHaveValue("");
-  await page.getByRole("button", { name: "用量与额度", exact: true }).click();
   await page.getByLabel("图片请求上限", { exact: true }).fill("5");
   await page.getByRole("button", { name: "保存额度", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("每日请求上限已更新");

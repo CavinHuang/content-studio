@@ -1,0 +1,112 @@
+/* ============================================================
+   Creator V2 settings styles (/settings 偏好与连接).
+   Faithful reconstruction of public/design/creator-v2.2.html
+   settingsView (:164) + the V2.2 refinement (:183): the
+   基础编辑不依赖 AI declaration band (.v2-settings-head), the
+   settings-grid `180px / minmax(0,1fr)` with the four-group menu
+   (active #EEF1FF / #4A61CB), the white form card (max-width 730px,
+   .setting-field inputs with #E0E3E9 borders / 9px radius) and the
+   closing .v2-completion band.
+   Colors/radii/typography mirror the design source and the token
+   baseline in app/creator-v2.css (--cv2-*). Page-scoped classes only;
+   NOTE on specificity: the shell main element also carries the legacy
+   "creator-main" class (app/creator.css still styles
+   .creator-main button/input/label/summary with the legacy green
+   palette), so colliding selectors are prefixed with .cv2-app to win
+   the cascade without touching the legacy sheet — same approach as
+   app/creator-v2-insights.css.
+   ============================================================ */
+
+/* 声明条 — :106-107,183 .v2-settings-head */
+.cv2-set-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px;padding:13px 17px;background:var(--cv2-surface);border:1px solid #e5eaf4;border-radius:12px}
+.cv2-set-head>span:last-child{font-size:11px;color:#818a9c}
+
+/* 分栏 — :164 .settings-grid（180px 菜单 / 1fr 卡片） */
+.cv2-set-grid{display:grid;grid-template-columns:180px minmax(0,1fr);gap:21px;align-items:start}
+
+/* 分组菜单 — :164 .settings-menu（active #EEF1FF/#4A61CB） */
+.cv2-set-menu{display:grid;align-content:start;gap:6px}
+.cv2-app .cv2-set-menu button{padding:12px;border:0;border-radius:8px;background:transparent;text-align:left;color:#818693;font-size:12px;font-weight:540;cursor:pointer;min-height:0;display:block}
+.cv2-app .cv2-set-menu button:hover{background:#f2f4fb;color:#4a5568}
+.cv2-set-menu button.active{background:#eef1ff;color:#4a61cb;font-weight:750}
+.cv2-app .cv2-set-menu button.active:hover{background:#eef1ff;color:#4a61cb}
+
+/* 右侧卡片列 — 设计在白卡上使用 max-width:730px */
+.cv2-set-body{min-width:0;max-width:730px;display:grid;gap:20px}
+
+/* 组说明条 — :9 .setting-note（浅底声明块） */
+.cv2-set-note{border-radius:10px;background:#f6f7fc;padding:14px 16px;font-size:11px;color:#8991a5;line-height:1.8;margin:0 0 18px}
+
+/* 字段 — :9 .setting-field（12px 粗标签 + 9px 圆角输入） */
+.cv2-set-field{display:grid;gap:7px;margin:0 0 19px;font-size:12px;font-weight:650;color:#4e5665}
+.cv2-app .cv2-set-field :is(input,select,textarea){border:1px solid #e0e3e9;border-radius:9px;background:var(--cv2-surface);padding:11px 12px;width:100%;font-size:12px;color:#4e5665;margin:0;min-width:0;font-weight:400}
+.cv2-app .cv2-set-field textarea{min-height:90px;resize:vertical;line-height:1.8}
+
+/* 勾选行 — 沿用设计输入半径与主色勾选框 */
+.cv2-set-check{display:flex;align-items:flex-start;gap:8px;font-size:12px;font-weight:400;color:#5b6272;line-height:1.7;margin:0 0 12px}
+.cv2-app .cv2-set-check input[type="checkbox"]{accent-color:var(--cv2-primary);margin-top:2px;width:15px;height:15px;flex:none}
+
+/* 表单堆叠与列表行（列表行用设计 .source-item 的分隔线形态） */
+.cv2-set-stack{display:grid;gap:14px}
+.cv2-set-form{border-top:1px solid #eef0f3;padding-top:18px;margin-top:6px}
+.cv2-set-sub{font-size:13px;font-weight:735;letter-spacing:-.25px;margin:0;color:var(--cv2-text)}
+.cv2-set-row{border-top:1px solid #eef0f3;padding:15px 0}
+.cv2-set-row-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.cv2-set-row-head b{font-size:13px;color:var(--cv2-text)}
+.cv2-set-tags{display:flex;gap:6px;flex-wrap:wrap}
+.cv2-set-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.cv2-set-url{overflow-wrap:anywhere}
+.cv2-set-usage-line{margin:0 0 8px}
+
+/* 复选清单滚动区（作品/模型勾选） */
+.cv2-set-scroll{max-height:260px;overflow:auto;display:grid;gap:10px;border:1px solid #eef0f3;border-radius:10px;padding:12px 14px;margin:0 0 14px}
+.cv2-set-scroll .cv2-set-check{margin:0}
+
+/* 折叠区（高级字段 / 版本历史） */
+.cv2-app .cv2-set-more,.cv2-app .cv2-set-history{margin:0 0 16px;border:1px solid #eef0f3;border-radius:10px;padding:12px 14px}
+.cv2-app .cv2-set-more>summary,.cv2-app .cv2-set-history>summary{cursor:pointer;font-size:12px;font-weight:650;color:#4a5568}
+.cv2-app .cv2-set-more[open]>summary,.cv2-app .cv2-set-history[open]>summary{margin-bottom:12px}
+.cv2-set-history{margin-top:4px}
+.cv2-set-version{border-top:1px solid #eef0f3;padding:13px 0}
+.cv2-set-version:first-of-type{border-top:0;padding-top:2px}
+.cv2-set-version b{display:block;font-size:12px;color:var(--cv2-text)}
+.cv2-set-version small{display:block;font-size:11px;color:#8a92a3;margin:4px 0 8px;overflow-wrap:anywhere}
+.cv2-set-version pre{white-space:pre-wrap;overflow-wrap:anywhere;font-family:inherit;font-size:12px;line-height:1.9;color:#4b5568;background:#fafbfd;border:1px solid #eef0f3;border-radius:8px;padding:10px 12px;margin:0 0 10px;max-height:260px;overflow:auto}
+
+/* 额度表单 — 双字段并排（桌面） */
+.cv2-set-limits{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:start;margin:0 0 16px}
+.cv2-set-limits .cv2-set-field{margin:0}
+
+/* 复用组件容器再着色（CreatorStyleSuggestion / CreatorAccountProfile 的
+   legacy 皮肤在本页范围内对齐 V2 tokens；不改共享组件本身） */
+.cv2-set-suggest{margin-top:14px;display:grid;gap:12px}
+.cv2-app .cv2-set-suggest .creator-card{border-top:1px solid #eef0f3}
+.cv2-app .cv2-set-suggest .creator-badge{background:var(--cv2-info-soft);color:var(--cv2-info);border-radius:7px}
+.cv2-app .cv2-set-suggest .creator-pre{font-size:12px;line-height:1.9;color:#4b5568;background:#fafbfd;border:1px solid #eef0f3;border-radius:8px;padding:10px 12px}
+.cv2-app .cv2-set-suggest .creator-muted{color:#858c9b}
+.cv2-app .cv2-set-suggest button.primary{background:var(--cv2-primary);border-color:var(--cv2-primary);color:#fff}
+.cv2-app .cv2-set-suggest button.primary:hover{background:var(--cv2-primary-hover)}
+.cv2-app .cv2-set-suggest button{color:#373c4b;border-radius:var(--cv2-radius-button)}
+.cv2-app .cv2-set-suggest button.subtle{color:var(--cv2-text-muted)}
+.cv2-app .cv2-set-acct .creator-badge{background:var(--cv2-info-soft);color:var(--cv2-info);border-radius:7px}
+.cv2-app .cv2-set-acct .creator-muted{color:#858c9b}
+.cv2-app .cv2-set-acct summary{color:#3c4356;font-size:12px;font-weight:650}
+.cv2-app .cv2-set-acct button{border-radius:var(--cv2-radius-button)}
+.cv2-app .cv2-set-acct button.primary{background:var(--cv2-primary);border-color:var(--cv2-primary);color:#fff}
+.cv2-app .cv2-set-acct button.primary:hover{background:var(--cv2-primary-hover)}
+
+/* 底部完成条 — :70-71,183 .v2-completion */
+.cv2-set-done{background:var(--cv2-surface);border:1px solid #e5e9f5;border-radius:14px;padding:18px 21px;margin:20px 0 0;display:flex;align-items:center;gap:18px;justify-content:space-between;flex-wrap:wrap}
+.cv2-set-done strong{font-size:13px;color:var(--cv2-text)}
+.cv2-set-done p{font-size:11px;color:#9298a4;line-height:1.7;margin:5px 0 0;max-width:640px}
+
+@media(max-width:740px){
+  /* 设计 :12：设置分栏改单列，菜单变横向滚动条 */
+  .cv2-set-grid{grid-template-columns:1fr;gap:14px}
+  .cv2-set-menu{grid-auto-flow:column;overflow-x:auto;white-space:nowrap;align-content:start;padding-bottom:2px;max-width:100%}
+  .cv2-app .cv2-set-menu button{min-width:max-content}
+  .cv2-set-body{max-width:none;gap:16px}
+  .cv2-set-head{padding:12px 14px;align-items:flex-start}
+  .cv2-set-limits{grid-template-columns:1fr}
+  .cv2-set-done{padding:16px}
+}
