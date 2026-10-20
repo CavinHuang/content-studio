@@ -241,3 +241,46 @@
     - 设计源：`creator-v2.3-visual.html:14,:53`（正文/配图规划/选图编辑/预览，前两者切换原型内 editor 视图）；`:14`（`.shotitems` 横向滚动条）。
     - 实际差异：正文=跳转 `/compose?project=…`（真实编辑器）；配图规划=滚动到规划带；选图编辑=当前视图（active）；预览=打开预览弹窗。底栏位于全局移动底栏上方 5px，不合并不覆盖（同 /compose 偏差 #7）；页面底部预留双栏高度。
     - 证据：`e2e/creator-v2-illustrations.spec.mjs` 移动用例（两导航并存、位置断言、无横向溢出）；`docs/implementation/screenshots/illustrations/mobile.png`。
+## /publish 发布中心（2026-10-20，commit 范围 `feat/creator-v2-real-workspace` 分支）
+
+1. **正式页接管旧 StudioApp 发布入口；`/publish` 不再渲染 StudioApp**
+   - 设计源：设计对应表「V2.2 发布中心 → /publish」；任务书 P1「正式接管旧 StudioApp 的发布入口」。
+   - 实际差异：`app/publish/page.jsx` 改挂 `PublishCenter`（CreatorShell + V2 tokens）；旧 StudioApp 仍可通过 `/discover` `/review` 等其它深链到达（审计 §2），其发布分区自然退出该路由。`e2e/mobile-audit.spec.mjs` 的 /publish 无溢出断言继续成立。
+   - 必要原因：任务书点名要求；旧入口无法呈现按渠道独立检查与真实交付时间线。
+   - 证据：`e2e/creator-v2-publish.spec.mjs` 5 例全过；全量 `npx playwright test` 87 例通过（含 mobile-audit）。
+
+2. **「交付操作」区为渐进披露的真实功能块（原型此处只有 toast）**
+   - 设计源：`creator-v2.2.html:160,:202`（`data-publish` 按钮点击仅弹「原型不执行发布」toast）；`:160` 渠道卡底部只有 编辑渠道稿 + 主按钮。
+   - 实际差异：四项检查全勾后主按钮变「准备微信草稿交付/准备知乎交付」，点击在卡内展开交付操作区：本地交付包下载（`POST publishing/bundle`）、公众号草稿箱（账号+封面+同意+能力检查四重门槛，`POST publishing/draft`）、作者报告链接记录（`POST publishing/report`）；`outcome_unknown` 发送在时间线行内提供核对表单（`POST publishing/reconcile`）。
+   - 必要原因：导出/草稿箱/作者报告是既有真实领域能力，必须有真实入口；设计原型明确「正式版本将在此提供真实平台交付」，本页即为该正式版，且全程保持「导出≠草稿箱≠真实发布」文案红线。
+   - 证据：`e2e/creator-v2-publish.spec.mjs` 交付包下载/草稿门槛/作者报告三用例。
+
+3. **多作品时页头增加作品切换 select；深链 `?project=` 直达**
+   - 设计源：`creator-v2.2.html:160`（页头仅「返回作品」，原型只有单篇示例文章）。
+   - 实际差异：作品多于 1 篇时页头出现真实项目切换器；单篇时不渲染（与设计一致）；`/publish?project=ep_…` 深链对齐 /compose、/illustrations 的既有参数惯例。
+   - 必要原因：真实工作区存在多作品，发布中心必须能选择对象；无凭证不展示（单作品时零新增控件）。
+   - 证据：`e2e/creator-v2-publish.spec.mjs`「多作品时出现真实项目切换器，切换加载对应作品」。
+
+4. **卡片副标题与渠道状态行使用真实字段；手机预览不再显示「作者 · Content Studio」示例行**
+   - 设计源：`creator-v2.2.html:160`（公众号卡副标题《示例标题》、知乎卡副标题「独立标题、开头和段落结构」；预览手机壳内「作者 · Content Studio」）。
+   - 实际差异：两渠道卡副标题统一显示真实项目标题《…》；卡内新增真实「渠道状态」行（草稿/已导出（不是已发表）/作者报告已发表（未经平台核验）+ 已交付版本号）；预览以「移动端 · 本地排版示意」标注替代作者示例行。知乎稿的独立结构在预览分段切换中如实呈现（内容来自该渠道真实 Markdown）。
+   - 必要原因：示例文案不得伪装数据；真实状态行是导出≠发布的可见凭证。
+   - 证据：`docs/implementation/screenshots/publish/desktop.png`、`desktop-checks.png`。
+
+5. **四项检查标签采用设计的渠道化措辞，映射到同一组领域键 factual/privacy/rights/layout**
+   - 设计源：`creator-v2.2.html:160`（公众号：事实、数据与引用来源/隐私信息与敏感内容/图片及文字使用权/移动端排版与裁切预览；知乎：关键观点与资料出处/平台版本独立审阅/图片使用权与外链/平台真实展示预览）。
+   - 实际差异：标签文字与设计逐字一致，按位置映射到 `src/editorial.mjs:11` 的四个既有检查键，无新字段；勾选即真实 `POST /checks`（expectedRevision 冲突保护保留，乐观更新失败回滚并显示服务端错误）。
+   - 必要原因：设计的渠道化措辞是视觉层事实；领域键是存储事实，二者不冲突。
+   - 证据：`test/publish-center.test.mjs`（两渠道标签映射同一组键）；`e2e/creator-v2-publish.spec.mjs` 勾选/持久/渠道独立用例。
+
+6. **时间线由真实 facts/operations 派生，替换设计的固定三行与「演示状态」tag**
+   - 设计源：`creator-v2.2.html:179`（`.v2-delivery-log` 固定三行 + tag「演示状态」）。
+   - 实际差异：`src/publish-center.mjs` `buildDeliveryTimeline` 只从 `publishing.history`（exported/draft_saved/published facts + sending/failed/outcome_unknown operations）与 editorial 渠道状态派生；「等待完成发布前核查」「真实发布状态尚未确认」仅在确实未完成时出现；作者报告行保留「未经平台核验」；卡片 tag 用真实汇总 pill（有检查项未完成/两渠道检查已完成）。
+   - 必要原因：任务书红线「无后端事实不得展示状态」；设计三行是示例状态。
+   - 证据：`test/publish-center.test.mjs`（9 例：pending 行只在真实未完成时出现、succeeded 操作不与 draft_saved 事实重复成行等）；`e2e/creator-v2-publish.spec.mjs` 时间线断言。
+
+7. **预览为「本地排版示意」，不加载外部图片 URL；小红书渠道不在本页**
+   - 设计源：`creator-v2.2.html:160`（发布效果预览手机壳 + 「这不是平台真实渲染」）；原型仅公众号/知乎两卡。
+   - 实际差异：手机壳渲染当前渠道真实 Markdown 的轻量文本视图（`previewBlocks`，标题/引用/列表/分隔线/图片占位；`asset://` 显示本地素材标注，外链图片显示「预览不加载外部内容」占位，不发起任何外部请求）；页脚保留设计的「这不是平台真实渲染」声明并加强为本地排版示意。渠道卡按设计保留公众号/知乎两张；小红书图文交付继续在 /compose 小红书工作区（既有能力，设计未画，遵循 /compose 偏差 #3 同一先例）。
+   - 必要原因：任务书 V53/V52 边界——预览不得偷拉外部内容，也不得声称平台真实渲染；渠道分区以设计两张卡为准。
+   - 证据：`test/publish-center.test.mjs` previewBlocks 用例（外链不加载、asset 标注 local）；`docs/implementation/screenshots/publish/desktop.png`。
