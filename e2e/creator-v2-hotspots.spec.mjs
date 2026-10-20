@@ -168,14 +168,18 @@ function seedWorkspace(root) {
   const insItem = db.prepare(
     "INSERT OR IGNORE INTO creator_source_items(id,source_id,url,title,summary,published_at,synced_at) VALUES(?,?,?,?,?,?,?)"
   );
+  // Relative timestamps: the page renders real sync times, so absolute
+  // dates age into「昨天/M 月 D 日」and break the「同步 今天」assertion
+  // on any run after the day they were written.
+  const ago = (minutes) => new Date(Date.now() - minutes * 60000).toISOString();
   insItem.run(
     "csitem_a1",
     "cs_hot_a",
     "https://example-a.example/post-1",
     "当 AI Agent 真正进入工作流，大家最关心的还是可控性",
     "讨论集中在任务失败后的恢复、权限边界和结果验证。",
-    "2026-10-19T00:00:00Z",
-    "2026-10-19T09:10:00Z"
+    ago(120),
+    ago(180)
   );
   insItem.run(
     "csitem_a2",
@@ -184,7 +188,7 @@ function seedWorkspace(root) {
     "AI 产品的成本该如何向用户解释",
     "围绕按量收费、费用透明和产品留存展开。",
     "",
-    "2026-10-19T09:11:00Z"
+    ago(125)
   );
   insItem.run(
     "csitem_b1",
@@ -192,8 +196,8 @@ function seedWorkspace(root) {
     "https://example-b.example/post-3",
     "开源 Agent 工作台开始重视可恢复的任务状态",
     "社区更关注版本、执行证据以及流程中断后的恢复路径。",
-    "2026-10-18T15:00:00Z",
-    "2026-10-19T09:12:00Z"
+    ago(60 * 20),
+    ago(1)
   );
   insItem.run(
     "csitem_b2",
@@ -202,7 +206,7 @@ function seedWorkspace(root) {
     "内容创作者如何建立可持续的选题资料库",
     "围绕 RSS、来源管理和写作风格积累的实践经验。",
     "",
-    "2026-10-18T08:00:00Z"
+    ago(60 * 30)
   );
   db.close();
 }

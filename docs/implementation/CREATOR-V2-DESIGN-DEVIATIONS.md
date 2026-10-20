@@ -180,3 +180,64 @@
    - 必要原因：两条都是真实既有能力（AI/素材推荐、POST /api/creator/topics 建选题），折叠形态已把高度压到最小；再压缩会牺牲可发现性或砍功能。
    - 替代方案：折叠条收起时仅占单行（约 49px），记录行高 40px；保持行距与设计节奏一致。
    - 证据：`docs/implementation/screenshots/topics/desktop.png`（与 `design/topics-desktop.png` 对照）；`e2e/creator-v2-topics.spec.mjs`（折叠区与记录行用例）。
+
+## /illustrations 视觉工作台（2026-10-20，commit 范围 `feat/creator-v2-real-workspace` 分支）
+
+设计源：`public/design/creator-v2.3-visual.html`（studio 三栏 `:7`、图位清单/主视觉/候选 `:45-46`、右栏 inspector `:47`、对比弹窗 `:49`、平台预览弹窗 `:50`、生成确认 `:51`、移动 `:12-14`）；参考截图 `docs/implementation/screenshots/design/v23-*.png`。实现截图 `docs/implementation/screenshots/illustrations/`（1440×900 四张 + 390×844 两张，密封生产服务容器内真实渲染，`pageerror`/`console.error`=0，移动溢出=0；数据为环回合成图像供应商生成的真实位图资产）。
+
+1. **图位缩略图/主视觉是真实生成的位图素材，不是原型内嵌 SVG 示意图；「图片比例」行改为真实素材事实**
+   - 设计源：`creator-v2.3-visual.html:27-31`（`art()` 内嵌 SVG 示意图，showcase 角标「2.35:1 · 原型图」）。
+   - 实际差异：大图与缩略图渲染 `GET /api/assets/:id/preview` 的真实生成素材；showcase 角标显示真实 `mime · KB` 与当前画面方案；「图片比例：2.35:1」不再凭空展示——领域模型未存每图位目标比例，实测尺寸/比例由运维带的「离线图片技术体检」（V42）给出，与设计标注位置不同但更诚实。
+   - 必要原因：任务书红线「演示 SVG 不能伪装成已通过 AI 生成的资产」；领域 `content_assets` 不存目标比例字段，伪造比例即虚构指标。
+   - 替代方案：保留空态插画风格的「这一处还没有图片」（对齐设计 `.emptyart` 文案与渐变）。
+   - 证据：`docs/implementation/screenshots/illustrations/desktop.png`；`e2e/creator-v2-illustrations.spec.mjs`（真实素材 img 断言）。
+
+2. **视觉方向 chips 为真实 style 枚举（高级杂志插画/抽象结构示意/抽象隐喻），不是设计的 克制科技/杂志叙事/自然编辑**
+   - 设计源：`creator-v2.3-visual.html:41,:47`（`st.style` 三种 demo 风格 + 三色 swatch 卡）。
+   - 实际差异：保留设计的三色 swatch 卡视觉；选项绑定 `article_illustration_shots.style` 真实枚举（editorial/diagram/abstract，即旧工作台同一组选项），切换后需点「保存视觉方案」走 `PUT shots/:id/prompt`（携带 `expectedUpdatedAt` 冲突保护），保存会把该图位退回「待生成」、已批准状态需重新批准（历史候选保留）——按钮旁明示该后果。
+   - 必要原因：demo 风格名无后端字段；单击即改写并悄悄退掉已批准状态太危险，显式保存更贴近「修改仅影响尚未采用的新图片」语义。
+   - 证据：`test/illustrations-studio.test.mjs`（prompt 保存/冲突用例）；`e2e/creator-v2-illustrations.spec.mjs`。
+   - 连带后端小适配：`PUT prompt` 新增可选 `alt`（2–160 字）以支持「图像说明与可访问性」组的真实保存（设计中该组保存只弹 toast）。
+
+3. **「采用这张图」=领域「批准」决定；已批准态不是原型的一键「替换为当前版本」**
+   - 设计源：`creator-v2.3-visual.html:46,:56`（adopt → pill 变「已采用」、按钮变「替换为当前版本」、toast「其他位置不受影响」）。
+   - 实际差异：采用 = `POST shots/:id/decision {decision:'approve'}`（显式批准）；批准后按钮变为禁用「已批准」并说明「替换版本请在候选中选择（会回到待审阅），再重新批准」，另有「不采用」（reject）入口。候选选择（含对比弹窗「使用右侧版本预览」）只切换当前素材并使状态回到「待审阅」，全程不写文章；「已插入」是独立事实（主稿 markdown 真实出现 `asset://<assetId>` 才显示，见左清单状态 pill）。
+   - 必要原因：选中≠批准≠插入≠平台验证是不可破坏的领域不变量；一键替换会悄悄撤销批准。
+   - 证据：`e2e/creator-v2-illustrations.spec.mjs`「选中 ≠ 批准」用例（主稿 markdown 全程零 `asset://`）。
+
+4. **「再生成一版」在有图位时要求先填写自然语言修改方向；「调整裁切/添加参考图」示意工具不提供**
+   - 设计源：`creator-v2.3-visual.html:46`（一键 variation 出风格变体）、`:47`（裁切/参考图为示意 modal）。
+   - 实际差异：无图位时按钮为「生成第一版/重新生成」（真实 `generate`）；有图位时「再生成一版」必须先在右栏写 ≥12 字修改方向（走真实 `editImage` 参考图候选链路），未填时禁用并提示。裁切/参考图上传后端无对应操作，按「不做无效按钮」红线不渲染。
+   - 证据：`e2e/creator-v2-illustrations.spec.mjs`（editImage 候选链路通过，环回合成供应商，无费用）。
+
+5. **渠道交付与质量能力收拢为三栏之下的「运维带」；设计中未画**
+   - 设计源：`creator-v2.3-visual.html:45-53`（studio 无映射/交接/体检/质量评分界面；原型不调用模型与渠道）。
+   - 实际差异：网格下方新增「渠道交付与质量检查」带（四张卡）：渠道映射登记（含历史，V52 语义）+ 带图 Markdown 交接（V30/V31 只读提案）+ 四项人工核查（V40 handoff-qa）；离线技术体检（V42，与 URL 登记分卡、明示「分开的两件事」）；既有 `QualityEvidencePanel`（V43 质量评分与导回核对）与 `VisualSeriesPanel`（V37 系列视觉，沿容器对齐 V2 tokens，组件未改）。另有「跨文章队列」入口（jobline）。
+   - 必要原因：这些是任务书点名不可丢的真实能力（映射/审批/队列/预算/人工核查）；设计未覆盖 → 按 /topics 系列入口先例保留并登记。
+   - 证据：`e2e/illustration-workbench.spec.mjs`（映射前检/人工核查/队列三用例）、`e2e/visual-handoff-v42.spec.mjs`、`e2e/image-quality-roundtrip-v43.spec.mjs` 全部通过；`docs/implementation/screenshots/illustrations/desktop-preview.png`。
+
+6. **三种规划模式落在真实 API：只做封面=新增 `scope:'cover'` 小适配**
+   - 设计源：`creator-v2.3-visual.html:41`（编辑器助手 只做封面/完整配图/指定段落，demo 仅做列表过滤）。
+   - 实际差异：完整配图 = 既有默认 plan；指定段落 = 既有 `paragraphId` plan（会替换当前计划，UI 先 confirm「原图保留在素材库」）；只做封面 = `POST plan {expectedMasterRevision, scope:'cover'}`（`src/illustrations.mjs` 小适配：同一 plan/shot 存储，无新模型，单测覆盖）。无计划或计划过期（`stale`）时规划带出现；有计划时可通过清单头「重新规划」再次打开。
+   - 证据：`test/illustrations-studio.test.mjs`（scope cover/非法 scope/段落计划）；`e2e/creator-v2-illustrations.spec.mjs` 桌面用例（三种模式逐一驱动真实 API）。
+
+7. **批量生成走既有队列与预算机制（确认弹窗+轮询），失败与预算阻塞如实呈现**
+   - 设计源：`creator-v2.3-visual.html:51`（确认本次生成范围弹窗，demo 不调用模型）。
+   - 实际差异：确认弹窗列出真实待生成图位、供应商与单图调用上限，并显示真实预算行（V38「按请求预留计数，不是费用估算」）；确认后 `POST /queue/batches`（幂等键）+ `/queue/start`，页面轮询队列状态直至空闲。预算耗尽时：已完成图位保留「待审阅」，预算阻塞图位转「生成失败」并显示领域错误原文，未执行图位保持「待生成」——单图重试（`generate`）与后续生成互不阻塞。
+   - 必要原因：任务书 P0-C「按既有预算/队列机制发起批处理；一张失败不阻塞其他图」。
+   - 证据：`e2e/creator-v2-illustrations.spec.mjs` 预算用例（预算压到 1 → 批量 → 逐图重试，`budget.used===3`）。
+
+8. **jobline「已保存 · 原型模拟」替换为真实主稿版本 tag 与项目切换 select**
+   - 设计源：`creator-v2.3-visual.html:36`（保存状态为演示文案）；V2.3 studio 无项目切换。
+   - 实际差异：显示真实 `主稿 vN · 方案可用/计划已过期`（来自 `sourceRevision` 与 `stale`，过期时规划带给出「必须重新规划」警示）；「配图文章」select（aria-label 沿用旧页）保留多作品切换能力（既有 e2e 断言其值）。
+   - 证据：`e2e/illustration-workbench.spec.mjs`、`e2e/creator-v2-illustrations.spec.mjs`。
+
+9. **「查看最终效果」平台预览由真实主稿段落渲染；未登记渠道地址的已批准图如实标注「导出稿不会包含这张图」**
+   - 设计源：`creator-v2.3-visual.html:50`（仅显示已采用图片 + 「各平台仍须独立核对裁切」+ 页脚「已采用 n / 3 张」）。
+   - 实际差异：保留三条红线交互；段落来自真实主稿文档（markdown 标题行渲染为小节标题），图片仅为 `status==='approved'` 的图位；每张图下显示 alt 与该渠道映射状态（已登记地址·未验证显示效果 / 尚未登记·导出稿不包含）；页脚计数与「继续配图」保留。
+   - 证据：`e2e/creator-v2-illustrations.spec.mjs` 预览断言（公众号 1 图 + 知乎未映射提示）；`docs/implementation/screenshots/illustrations/desktop-preview.png`。
+
+10. **移动工作流底栏 4 键中「正文」为真实跳转；图位清单为横向滚动条**
+    - 设计源：`creator-v2.3-visual.html:14,:53`（正文/配图规划/选图编辑/预览，前两者切换原型内 editor 视图）；`:14`（`.shotitems` 横向滚动条）。
+    - 实际差异：正文=跳转 `/compose?project=…`（真实编辑器）；配图规划=滚动到规划带；选图编辑=当前视图（active）；预览=打开预览弹窗。底栏位于全局移动底栏上方 5px，不合并不覆盖（同 /compose 偏差 #7）；页面底部预留双栏高度。
+    - 证据：`e2e/creator-v2-illustrations.spec.mjs` 移动用例（两导航并存、位置断言、无横向溢出）；`docs/implementation/screenshots/illustrations/mobile.png`。

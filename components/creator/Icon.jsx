@@ -26,6 +26,12 @@ const PATHS = {
   bookmark: '<path d="M5 3h14v18l-7-5-7 5V3Z"/>',
   spark: '<path d="m12 2 2.1 7.9L22 12l-7.9 2.1L12 22l-2.1-7.9L2 12l7.9-2.1L12 2Z"/>',
   alert: '<path d="M12 9v4m0 4h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/>',
+  // V2.3 visual studio additions — path data copied verbatim from the
+  // committed design source public/design/creator-v2.3-visual.html:18.
+  eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>',
+  refresh: '<path d="M20 7V3h-4M4 17v4h4M20 7a8 8 0 0 0-14-1M4 17a8 8 0 0 0 14 1"/>',
+  download: '<path d="M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4"/>',
+  compare: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 3v18"/>',
 };
 
 export default function Icon({ name, size = 18 }) {
