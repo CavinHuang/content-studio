@@ -4,6 +4,99 @@
 > 当页面按原稿无法在真实数据、无障碍要求或安全约束下工作时，保留主要结构与视觉语言，做最小必要调整并在此登记。
 > 每条包含：设计源位置/参考截图、实际差异、必要原因、替代方案、对应测试/截图。
 
+## 全局壳层（2026-10-20，commit 9f28db6 起）
+
+1. **侧栏为 11 个工作区入口（原型侧栏 8 项）；移动端 5 快捷 tab +「更多」面板（原型 4 tab + 更多）**
+   - 设计源：`public/design/creator-v2.2.html:138`（侧栏 `data-nav` 8 项 + 底部偏好与连接）、`:167`（移动 4 tab + 更多）；参考截图 `design/home-desktop.png`、`design/mobile-nav-more.png`。
+   - 实际差异：`components/CreatorShell.jsx:19-31` 侧栏 10 个工作区 + 偏好与连接 = 11 项；移动端 工作台/热点/选题/作品/配图 5 快捷 tab +「更多」面板（6 入口，Esc 可关）。
+   - 必要原因：AGENTS.md 明确规定「eleven creator workspaces (mobile: five quick entries plus a More panel)」为交付基线；原型早于该基线。
+   - 替代方案：无（基线优先于原型）。
+   - 证据：各页实现截图共享同一侧栏/底栏（`screenshots/home/desktop.png` 等）；`e2e/mobile-audit.spec.mjs` 16 例通过（15 条路由循环 + 1 条创作工作台独立用例）。
+
+2. **真实数据页移除顶栏「交互原型 · 示例数据」徽标**
+   - 设计源：`creator-v2.2.html` 顶栏徽标（见 `v2-design-manifest` §0）。
+   - 实际差异：正式页不渲染该徽标（home/works 截图对照 design 截图可见）。
+   - 必要原因：正式页为真实数据，自称「示例数据」违反「不得自称演示数据」硬性要求。
+   - 证据：`screenshots/home/desktop-prod.png` vs `screenshots/design/home-desktop.png`。
+
+## /home 工作台（2026-10-20，commit 7f2fd22 + 2eca608；验收轮独立复核）
+
+设计源：`public/design/creator-v2.2.html:141,173`（homeView + V2.2 概览带/完成条）；参考截图 `docs/implementation/screenshots/design/home-desktop.png`、`home-mobile.png`。实现截图 `docs/implementation/screenshots/home/`（8 张，1440×900×5 + 390×844×3，PNG IHDR 校验；desktop-prod/mobile-prod 为封存生产服务重摄，health 回报 candidateCommit=2eca608）。
+
+1. **概览带第一格标签「当前最重要」→「正在创作」，数字 = 全部在创作品数**
+   - 设计源：`creator-v2.2.html:173`（v2-overview-band「当前最重要 01 篇」）。
+   - 实际差异：`components/CreatorHome.jsx:222` 标签为「正在创作」，数字为全部在创作品数而非单一焦点作品数。
+   - 必要原因：后端无「单一最重要作品」的可信推导；诚实计数优先，与 AGENTS.md「无证据指标不展示」一致。
+   - 替代方案：文案改为描述真实语义（正在创作 N 篇）。
+   - 证据：`screenshots/home/desktop.png` vs `design/home-desktop.png`；`src/creator-home.mjs`。
+
+2. **hero 副文案改词：「正在审稿的作品/值得跟进的线索」→「正在创作的作品/值得判断的线索」**
+   - 设计源：`creator-v2.2.html:141` hero 文案；`design/home-desktop.png`。
+   - 实际差异：`components/CreatorHome.jsx:185` 副文案改词，数量为真实值。
+   - 必要原因：与概览带真实语义保持一致（审稿状态由真实阶段承载，不预设）。
+   - 证据：`screenshots/home/desktop.png`。
+
+3. **通知类待办卡新增第二个 ghost 按钮「标为已读」**
+   - 设计源：`creator-v2.2.html:141`（任务行只有单按钮）。
+   - 实际差异：`components/CreatorHome.jsx:63-67` 主按钮「去查看」下新增 ghost「标为已读」，纵向堆叠（`app/creator-v2-home.css:65-66`），任务卡密度略高于设计。
+   - 必要原因：通知必须可真实消费（`POST /api/creator/notifications/:id` 标已读后任务消失且刷新不回），否则是无效按钮；2eca608 特性引入。
+   - 替代方案：按钮样式与主按钮拉开层级（ghost），减少密度影响。
+   - 证据：`screenshots/home/desktop-notification-task.png`；`e2e/creator-v2-home.spec.mjs` 4 passed；探针实测标已读 → SQLite `creator_notifications.read=1`。
+
+4. **选题信号行元信息以真实状态 tag 替代示例分类 tag**
+   - 设计源：`creator-v2.2.html:141`（分类 tag「AI 产品/独立开发」+「N 条参考线索」）。
+   - 实际差异：`src/creator-home.mjs:174-175` 渲染真实状态 tag（待整理/已准备/已确认）+ 可选「已收藏」+「N 条参考素材/尚无关联素材」。
+   - 必要原因：选题数据模型无分类字段（`src/creator.mjs` createTopic），伪造分类即虚构维度；状态是真实枚举。
+   - 证据：`screenshots/home/desktop.png`；`test/creator-home.test.mjs` 与 `e2e/creator-v2-home.spec.mjs` 断言。
+
+5. **【功能缺陷登记，非设计偏差】移动端「更多」面板 Esc 关闭后焦点未返回触发按钮**
+   - 位置：`components/CreatorShell.jsx:124-136` 注释声称『return focus to the toggle for keyboard users』，实测 Esc 路径 `focusBack=false, activeElement=BODY`（`.superpowers/home-accept-state.json` 39 项断言中唯一失败项）；面板头部关闭按钮路径可正确还焦（`CreatorShell.jsx:244-248`）。
+   - 建议：Esc 路径补 `moreButtonRef.current?.focus()`。其余键盘检查全部通过（首个 Tab 停在「跳到主内容」、≤25 步可达「继续创作」链接与「文章标题」输入框）。
+   - 证据：`.superpowers/home-accept-state.json`。
+
+6. **【环境备注，非页面缺陷】dev 截图左下角有 Next.js dev 徽标**
+   - dev 运行（配方 b）的截图中 dev 徽标在 390px 恰好盖住底部「工作台」tab、桌面端盖住侧栏头像；已在封存生产服务（`npm start` 过 runtime-guard，V64 回执）重摄 `desktop-prod.png` / `mobile-prod.png` 证明真实渲染无伪影（工作台 tab 靛蓝高亮、头像显示「我」）。
+   - 证据：`screenshots/home/desktop-prod.png`、`mobile-prod.png` vs 开发者提交的 `screenshots/impl/home-data-mobile.png`。
+
+## /works 作品库（2026-10-20，commit cd9e176；验收轮独立复核）
+
+设计源：`public/design/creator-v2.2.html:156,176,202-203`（worksView + 管线 + 筛选/弹窗）；参考截图 `docs/implementation/screenshots/design/works-desktop.png`、`works-mobile.png`。实现截图 `docs/implementation/screenshots/works/`（8 张验收截图 1440×900/390×844 + 实现期 works-*.png 2 张）。
+
+1. **稀疏态主列收窄为 718px 居中窄列（验收时实测）；机制根因已由 18a6c7f 修复，视觉复测未执行**
+   - 设计源：`creator-v2.2.html:156` + `design/works-desktop.png`（管线五格均分全宽）。
+   - 实际差异（验收时点，cd9e176）：空作品库/加载失败/搜索无匹配时 `.cv2-main` 收缩为 718px 居中（实测 mainWidth=718、margin 245px/245px、管线格 115px），有数据时为 1208px 满幅（格 213px）。
+   - 当时定位的根因：`app/creator-v2.css` `.cv2-main{width:auto;…;margin:0 auto}` 位于 flex 纵向容器 `.cv2-shell` 内，flex 自动外边距使 stretch 失效 → shrink-to-fit。
+   - **修复情况（本文档修正轮核实）**：commit 18a6c7f（2026-10-20 02:37）已把该规则改为 `.cv2-main{width:100%;…}`（现 `app/creator-v2.css:110`），附注明确说明 width:100% 正是为消除该 shrink-to-fit 机制——原文档描述的根因在 HEAD 已不存在；**稀疏态视觉复测未重摄**（验收轮截图均为 18a6c7f 之前所摄），当前视觉结果未验证。
+   - 证据（历史测量）：`screenshots/works/desktop-empty-firstuse.png`、`desktop-network-fail.png`、`desktop-search-no-match.png`；测量来自生产服务器实测（`.superpowers/works-prod-state.json`）；机制修复证据 `git show 18a6c7f -- app/creator-v2.css`。
+
+2. **「已发布」阶段 tag 渲染为「作者报告已发表（未核验）」（绿色 success），副标题保留「未经平台核验」**
+   - 设计源：`creator-v2.2.html:176`（阶段 tag「已发布」，success 色）；`design/works-desktop.png`。
+   - 实际差异：无平台核验事实，tag 用词为「作者报告已发表（未核验）」。
+   - 必要原因：AGENTS.md 域红线「作者报告≠平台核验、导出≠实际发布」；领域正确性优先于原型文案。
+   - 证据：`screenshots/works/desktop.png` 第一张卡。
+
+3. **工具栏右侧新增「搜索作品标题…」搜索框（设计 worksView 无搜索框）**
+   - 设计源：`creator-v2.2.html:156`（无搜索控件）。
+   - 实际差异：新增客户端标题搜索（样式与设计一致，不破坏布局）。
+   - 必要原因：作品多时检索是真实需求；`GET /api/editor/projects` 无搜索参数，客户端过滤为审计矩阵给定选项。
+   - 证据：`screenshots/works/desktop.png`、`desktop-search-no-match.png`；`e2e/creator-v2-works.spec.mjs` 搜索用例。
+
+4. **侧栏 10 工作区 + 移动快捷条第 5 项为「配图」而非直接「更多」**
+   - 设计源：`creator-v2.2.html:167`（第 5 项直接是「更多」）。
+   - 实际差异：移动快捷条为 工作台/热点/选题/作品/配图 + 更多（见全局壳层 #1）。
+   - 必要原因：AGENTS.md「five quick entries plus a More panel」基线。
+   - 证据：`screenshots/works/mobile.png`；生产底栏对照 `.superpowers/crop-home-mobileprod-tabbar.png`。
+
+5. **侧栏底部资料块为「我的创作空间/本地工作空间」；「发布中心」无「2」待办徽标**
+   - 设计源：`creator-v2.2.html`（「个人创作空间/未连接类型·无真实账号连接」、发布中心「2」徽标为示例数据）。
+   - 实际差异：资料块显示真实定位文案；无待办时不渲染计数徽标。
+   - 必要原因：真实数据无待办不得虚构「2」。
+   - 证据：`screenshots/works/desktop.png` 侧栏底部。
+
+6. **【既有文件备注】实现期 `works-desktop.png` 为 1280×720（`works-mobile.png` 为 390×844，符合移动约定）**
+   - works-desktop.png 不符合 1440×900 视口约定（设计 manifest 附录）；验收轮已按 1440×900 重摄 `desktop.png`/`mobile.png`，旧图保留未删、以新图为准。
+   - 证据：`screenshots/works/desktop.png`（1440×900）；IHDR 实测 works-desktop.png=1280×720、works-mobile.png=390×844。
+
 ## /compose 创作空间（2026-10-20，commit 范围 `feat/creator-v2-real-workspace` 分支）
 
 1. **编辑器正文为 CodeMirror Markdown（分栏源码+预览），不是原型的 contenteditable 富文本纸面**
@@ -11,7 +104,7 @@
    - 实际差异：正式页保留既有 `DoocsEditor`（CodeMirror 6，Markdown 源码）+ `WritingPreview`（doocs 本地渲染），默认「分栏」视图，白纸卡与 `MASTER DRAFT` 标签保留。
    - 必要原因：任务书「不可破坏」清单要求保留既有编辑器、自动保存、expectedRevision 冲突保护与不可变修订；contenteditable 原型只是视觉示意，没有保存/冲突语义。
    - 替代方案：以设计的稿纸卡（白底、圆角、纸标签、字数页脚）包住真实编辑器，视觉层级对齐设计。
-   - 证据：`docs/implementation/screenshots/compose/compose-desktop.png`；`e2e/writing-workspace.spec.mjs`（12 例全过）、`e2e/creator-v2-compose.spec.mjs`。
+   - 证据：`docs/implementation/screenshots/compose/compose-desktop.png`；`e2e/writing-workspace.spec.mjs`（13 例全过）、`e2e/creator-v2-compose.spec.mjs`。
 
 2. **正文中不渲染原型式的内联图位按钮；图位以「配图视图」卡片 + 左栏配图定位 + 移动助手呈现**
    - 设计源：`public/design/creator-v2.3-visual.html:38-39`（正文段落间 `.inline-slot` 虚线按钮）、`v23-article-mobile.png`。
@@ -66,6 +159,29 @@
    - 替代方案：状态标签（待生成/待审阅/已选用/生成失败）与设计一致。
    - 证据：`src/compose-view.mjs#shotTitle`、`test/compose-view.test.mjs`。
 
+### /compose 验收轮补充登记（2026-10-20 独立验收发现，未修复，登记备查）
+
+以下 5 项为验收轮新发现（commit 1a5f97b 复核），均不触及领域不变量，本轮未修复：
+
+10. **主稿（默认着陆）视图头部主按钮「发布准备」为禁用态淡紫，设计同位置为实色主按钮**
+    - 设计源：`design/compose-desktop.png` 头部主按钮实色 `#465FD7`。
+    - 实际差异：`creator-v2.css:136` disabled `opacity:.5`；`components/WritingWorkspace.jsx:1192` `disabled={...||channel==="master"}`（主稿无「平台发布」语义，禁用属领域正确）；公众号渠道启用态为实色与设计一致。
+    - 待办：如需贴近设计观感，可为禁用态保留实色但降低对比、并给出 hover 说明文案。
+    - 证据：`screenshots/compose/desktop.png` vs `design/compose-desktop.png`；`desktop-wechat-channel.png`（启用态一致）。
+
+11. **1440 头部按钮换行为两行（「发布准备」落到第二行），设计为单行**
+    - 原因：偏差 #4 已登记的按钮增多（文章切换 select/新建文章/版本）导致。证据：`screenshots/compose/desktop.png` vs `design/compose-desktop.png`。
+
+12. **中栏比设计多一行工具条（大纲与素材 / 分栏·源码·预览 / 排版与主题 / 收起助手）**
+    - 原因：分栏视图分段是偏差 #1（CodeMirror Markdown）的直接后果；「排版与主题/收起助手」为真实功能入口（doocs 本地排版、助手栏折叠），设计未画、此前未登记，现补记。证据：`components/WritingWorkspace.jsx:1557-1616`；`screenshots/compose/desktop.png`。
+
+13. **右栏助手信息密度高于设计（写作/配图分段、讨论/修改正文分段、技能与写模式下拉、任务要求、启动运行、模型服务设置说明）**
+    - 原因：这些是真实 agent 运行控件（设计为 4 个动作行 + 自由 prompt + 演示声明）；按「不做无效按钮」红线保留真实控件。证据：`screenshots/compose/desktop.png`、`desktop-conflict.png` 下半部。
+
+14. **Esc 不关闭「平台发布准备」对话框；错误反馈直接透出原始英文文案**
+    - 设计全局反馈要求 Esc 关闭 modal/抽屉（`creator-v2.2.html:204`）；`WritingWorkspace.jsx` 无 Escape 处理，实测 Esc 后对话框仍在，仅「关闭」按钮可关（轻微交互缺口）。
+    - 冲突 notice 显示英文原文（"Document revision conflict: …"）、网络失败显示 "Failed to fetch"，全中文界面夹英文（`screenshots/compose/desktop-conflict.png`、`desktop-network-fail.png`）；反馈机制本身完整（role=status、冲突横幅含 下载本地草稿/重试保存/载入服务器版本）。轻微 i18n 打磨项。
+
 ## /hotspots 热点雷达（2026-10-20，commit 范围 `feat/creator-v2-real-workspace` 分支）
 
 设计源：`public/design/creator-v2.2.html:142-153`（hotspotsView）+ V2.2 精修 `:174`（监控带/完成条）、`:166`（信源抽屉）、`:22,:25-44`（移动底部抽屉）；参考截图 `docs/implementation/screenshots/design/hotspots-*.png`。实现截图 `docs/implementation/screenshots/hotspots/`（1440×900 三张 + 390×844 两张，容器内真实渲染，`pageerror`/`console.error` = 0）。
@@ -73,7 +189,7 @@
 1. **趋势 tag（升温中/新出现/持续讨论）与热度分不渲染；「与我相关」筛选不提供**
    - 设计源：`creator-v2.2.html:128-133`（demoHotspots 每条带 trend/trendStyle 字段）、`:144`（与我相关按分类白名单过滤）、参考截图 `design/hotspots-desktop.png`。
    - 实际差异：行首与详情只显示真实字段（来源品牌 + 同步时间）；筛选只有「全部热点/我关注的」；监控带「风险提示」卡明示“后端没有可信的热度/趋势计算，本页不展示热度分”。
-   - 必要原因：任务书 P0-B「上升/热度评分/多源证据只有后端存在可信计算依据时才能展示；否则隐藏或标注未计算，绝不将演示分数写成真实指标」。`creator_source_items` 无 trend/heat/relevance 字段（`src/creator.mjs:2011-2018`）。
+   - 必要原因：任务书 P0-B「上升/热度评分/多源证据只有后端存在可信计算依据时才能展示；否则隐藏或标注未计算，绝不将演示分数写成真实指标」。`creator_source_items` 表无 trend/heat/relevance 字段（建表见 `src/creator.mjs:157`）。
    - 替代方案：列表头标注「按同步时间排序 · 未核验」；序号仅为列表位次（样式保留，前三位主色），不是热度名次。
    - 证据：`e2e/creator-v2-hotspots.spec.mjs` 桌面用例断言页面无「升温中/新出现/持续讨论」文本；`src/hotspots-radar.mjs` 注释。
 
@@ -120,6 +236,12 @@
    - 替代方案：来源维度已由真实信源 chips 承担（服务端 `?source=` 过滤），搜索只补文本维度。
    - 证据：`e2e/creator-v2-hotspots.spec.mjs` 桌面用例搜索段（按「费用透明」命中摘要）；`docs/implementation/screenshots/hotspots/desktop-search-filter.png`。
 
+### /hotspots 验收复核（2026-10-20，独立验收轮）
+
+- 上一轮验收发现的移动详情遮罩回归（`app/creator.css` `.creator-main button{background:#fff}` 特异性压过无前缀的 `.cv2-hot-backdrop`，遮罩呈不透明白）已由 commit 6f92c26 修复：两处 `.cv2-hot-backdrop` 规则补 `.cv2-app` 前缀（特异性 (0,2,0)），容器内探针实测 `getComputedStyle` `background` = `rgba(27, 33, 56, 0.66)`（即设计值 `#1b2138a8` 的浏览器序列化，设计源 `creator-v2.2.html:22`）；e2e 补遮罩颜色与遮罩点击关闭断言。
+- 独立功能探针 53/53 项通过（`.superpowers/hotspots-accept-report.json`），`e2e/creator-v2-hotspots.spec.mjs` 5 passed。
+- 实现截图补充 11 张验收态截图（详情选中/信源筛选/搜索/关注 tab/刷新失败/断网/转换落地/移动详情等），见 `docs/implementation/screenshots/hotspots/`。
+
 ## /topics 选题发现（2026-10-20，commit 范围 `feat/creator-v2-real-workspace` 分支）
 
 设计源：`public/design/creator-v2.2.html:155`（discoverView）+ V2.2 精修 `:172`（内容生产线步骤条）、`:175`（从线索到选题 banner + 三格证据卡）；参考截图 `docs/implementation/screenshots/design/topics-desktop.png`、`topics-mobile.png`。实现截图 `docs/implementation/screenshots/topics/`（1440×900 三张 + 390×844 两张，密封生产服务容器内真实渲染，`pageerror`/`console.error` = 0，移动溢出 = 0）。
@@ -145,7 +267,7 @@
 
 4. **「为我推荐」tab 以真实 provenance（reason）划分，不做相关性计算**
    - 设计源：`creator-v2.2.html:155`（tabbar 为我推荐/全部线索/已收藏，示例数据全部视为推荐）。
-   - 实际差异：`为我推荐` = reason ≠ 「作者提出的选题」（服务端默认值，`src/creator.mjs:641`），即热点雷达转入、素材推荐、模型候选、系列准备的真实来源；不推导任何分数。收藏为星标视图：已收藏线索不从其他 tab 移除（与原型 `state.saved` 语义一致）。
+   - 实际差异：`为我推荐` = reason ≠ 「作者提出的选题」（服务端默认值，`src/creator.mjs:655`），即热点雷达转入、素材推荐、模型候选、系列准备的真实来源；不推导任何分数。收藏为星标视图：已收藏线索不从其他 tab 移除（与原型 `state.saved` 语义一致）。
    - 必要原因：任务书红线「无后端可信依据不得展示推荐度」；provenance 是已持久化的真实字段。
    - 证据：`src/topics-discovery.mjs isRecommendedOrigin` + `test/topics-discovery.test.mjs`；`e2e/creator-v2-topics.spec.mjs` 收藏/桌面用例。
 
@@ -241,6 +363,15 @@
     - 设计源：`creator-v2.3-visual.html:14,:53`（正文/配图规划/选图编辑/预览，前两者切换原型内 editor 视图）；`:14`（`.shotitems` 横向滚动条）。
     - 实际差异：正文=跳转 `/compose?project=…`（真实编辑器）；配图规划=滚动到规划带；选图编辑=当前视图（active）；预览=打开预览弹窗。底栏位于全局移动底栏上方 5px，不合并不覆盖（同 /compose 偏差 #7）；页面底部预留双栏高度。
     - 证据：`e2e/creator-v2-illustrations.spec.mjs` 移动用例（两导航并存、位置断言、无横向溢出）；`docs/implementation/screenshots/illustrations/mobile.png`。
+
+### /illustrations 验收轮缺陷登记（2026-10-20 独立验收发现，截至当前 HEAD 未修复）
+
+独立功能探针（`.superpowers/illu-verify-summary.json`，2026-10-20 10:07，39 步，commit 1e8446b 之后）确认 3 项缺陷。其中 ①② 已在当前 HEAD 代码复核确认仍未修复（无修复 commit）：
+
+1. **页面加载失败后「重试」不清除错误态**：`components/IllustrationStudio.jsx:630-632` 的 `onRetry` 只调用 `loadState(projectId).catch(...)`，而 `loadState`（`:124`）成功路径不清 `loadError` —— 数据恢复后错误态仍驻留。探针记录：重试后 GET 全部 200 但错误卡仍在。
+2. **alt/视觉方案保存成功无反馈**：`savePromptFields`（`components/IllustrationStudio.jsx:355-364`）`await run(...)` 未 `return`，调用方 `if (await savePromptFields(...))`（`:1042`、`:1126`、`:1243`）恒为假 —— PUT 已落库但成功 toast 不出现、草稿面板不复位。
+3. **390×844 平台预览弹窗「继续配图」按钮不可点**：弹窗内容超出一屏，`scrollIntoView` 后页脚按钮仍不可达（探针以 Esc 关闭；记录于 `mobile-preview-footer` 失败项）。
+
 ## /publish 发布中心（2026-10-20，commit 范围 `feat/creator-v2-real-workspace` 分支）
 
 1. **正式页接管旧 StudioApp 发布入口；`/publish` 不再渲染 StudioApp**
@@ -328,7 +459,7 @@
 
 1. **设计示意事件映射为两类真实计划：选题 targetDate + 系列准备 next_run_at；作品不进日历网格**
    - 设计源：`creator-v2.2.html:162,:180`（周条「公众号 待发布」「独立开发 计划稿」；月视图「文章复盘」「线索研究」「微信公众号 · 待核查」等演示字符串）；参考截图 `docs/implementation/screenshots/design/calendar-desktop.png`、`calendar-month-desktop.png`。
-   - 实际差异：日历事件只来自两类真实作者计划——选题的 `targetDate`（小适配：既有 `creator_topic_details` JSON 增加 targetDate 字段，`createTopic`/`updateTopic` 经 `_briefDetails` 校验 YYYY-MM-DD，变更随 `creator_topic_history` 留痕并受 expectedRevision 409 保护）与激活内容系列的 `next_run_at`（既有 `creator_series` 下次准备到期日，src/creator.mjs:1803-1810 消费）。作品（editorial projects）没有排期字段，绝不伪装成日历事件，只在「未排期的进行中作品」清单出现；已搁置（dismissed）选题与非激活系列不再占用日期。
+   - 实际差异：日历事件只来自两类真实作者计划——选题的 `targetDate`（小适配：既有 `creator_topic_details` JSON 增加 targetDate 字段，`createTopic`/`updateTopic` 经 `_briefDetails` 校验 YYYY-MM-DD，变更随 `creator_topic_history` 留痕并受 expectedRevision 409 保护）与激活内容系列的 `next_run_at`（既有 `creator_series` 下次准备到期日，src/creator.mjs:1510 读出、:1908/:1982 随安排更新消费）。作品（editorial projects）没有排期字段，绝不伪装成日历事件，只在「未排期的进行中作品」清单出现；已搁置（dismissed）选题与非激活系列不再占用日期。
    - 必要原因：任务书红线「无排期时为空，不捏造发布日期或默认自动发布」；无后端事实的日期不得上日历。
    - 替代方案：纯前端周/月组装（审计矩阵给出的另一选项）仍需一个可持久化的日期来源，新增平行排期表反而更重。
    - 证据：`test/calendar-view.test.mjs`（targetDate 真实落库/409 冲突/坏日期 fail-closed/清空后事件消失；buildEvents 只认真实计划）；`e2e/creator-v2-calendar.spec.mjs`（排期→周/月视图→刷新持久化；未排期作品不在网格且 pill 为「暂无排期」）。
