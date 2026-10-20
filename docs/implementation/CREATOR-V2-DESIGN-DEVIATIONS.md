@@ -323,3 +323,38 @@
    - 实际差异：改为「每条素材都保留来源、加入时间、标签与关联作品；引用前先核实，移除前先看影响范围。」；授权状态无对应领域字段，不做假标签。详情面板展示真实的来源链接/加入时间/标签/关联作品/移除影响预览。
    - 必要原因：红线「无后端事实不得展示状态」；原型文案描述的是设计意图而非已实现字段。
    - 证据：`docs/implementation/screenshots/library/desktop.png`。
+
+## /calendar 内容日历（2026-10-20，commit 范围 `feat/creator-v2-real-workspace` 分支）
+
+1. **设计示意事件映射为两类真实计划：选题 targetDate + 系列准备 next_run_at；作品不进日历网格**
+   - 设计源：`creator-v2.2.html:162,:180`（周条「公众号 待发布」「独立开发 计划稿」；月视图「文章复盘」「线索研究」「微信公众号 · 待核查」等演示字符串）；参考截图 `docs/implementation/screenshots/design/calendar-desktop.png`、`calendar-month-desktop.png`。
+   - 实际差异：日历事件只来自两类真实作者计划——选题的 `targetDate`（小适配：既有 `creator_topic_details` JSON 增加 targetDate 字段，`createTopic`/`updateTopic` 经 `_briefDetails` 校验 YYYY-MM-DD，变更随 `creator_topic_history` 留痕并受 expectedRevision 409 保护）与激活内容系列的 `next_run_at`（既有 `creator_series` 下次准备到期日，src/creator.mjs:1803-1810 消费）。作品（editorial projects）没有排期字段，绝不伪装成日历事件，只在「未排期的进行中作品」清单出现；已搁置（dismissed）选题与非激活系列不再占用日期。
+   - 必要原因：任务书红线「无排期时为空，不捏造发布日期或默认自动发布」；无后端事实的日期不得上日历。
+   - 替代方案：纯前端周/月组装（审计矩阵给出的另一选项）仍需一个可持久化的日期来源，新增平行排期表反而更重。
+   - 证据：`test/calendar-view.test.mjs`（targetDate 真实落库/409 冲突/坏日期 fail-closed/清空后事件消失；buildEvents 只认真实计划）；`e2e/creator-v2-calendar.spec.mjs`（排期→周/月视图→刷新持久化；未排期作品不在网格且 pill 为「暂无排期」）。
+
+2. **「安排内容」从原型 toast 变为真实创建；标题+日期双必填，日期预填选中日、无默认发布日**
+   - 设计源：`creator-v2.2.html:165`（schedule modal 只有标题输入，finish-schedule 仅 toast「计划已添加（仅原型会话）」）。
+   - 实际差异：「安排下一篇」弹窗标题与目标日期都必填（日期预填当前选中日、作者可改可清空，清空后不可提交）；提交走真实 `POST /api/creator/topics` 落库并刷新日历；弹窗与事件行明示「计划日期，不是发布日期」「不会自动生成、计费或发布」。保存成功文案同步说明计划不自动执行。
+   - 必要原因：原型 toast 是假成功，正式页不做无效按钮；「安排」必须真的可持久化才有意义。
+   - 证据：`e2e/creator-v2-calendar.spec.mjs` 排期用例（API 验证 targetDate、刷新后仍在、弹窗空值门槛）；`test/calendar-view.test.mjs` 坏日期 400 用例。
+   - 截图：`docs/implementation/screenshots/calendar/desktop-schedule-modal.png`。
+
+3. **周/月共用常驻工具栏与当日安排行（修复原型 replace 缺陷），并补周期切换控件**
+   - 设计源：`creator-v2.2.html:180`（月视图工具栏因 `String.replace` 未命中而丢失——设计基准已知边界 #4 明示为实现时应修正的缺陷）；原型固定 2026 年 10 月、无任何周期导航。
+   - 实际差异：周/月两视图共用常驻工具栏（月份标签+计划数 pill+说明）与「M 月 D 日的安排」行；工具栏增加「上一周期/今天/下一周期」控件（与 v2-segments 同视觉语言），否则真实产品无法查看其他周/月；月视图格数按真实月份输出 35 或 42 格（原型硬编码 35，部分月份放不下）。
+   - 必要原因：设计基准自己登记的实现细节；真实日历必须可导航、能覆盖任意月份。
+   - 证据：`e2e/creator-v2-calendar.spec.mjs` 月视图断言（工具栏与事件胶囊在月视图可见、点日期更新安排行）；`test/calendar-view.test.mjs` monthCells 35/42 用例。
+   - 截图：`docs/implementation/screenshots/calendar/desktop-month.png`（工具栏在月视图常驻）。
+
+4. **「演示排期」pill 改为当前视图真实计划计数，空时如实「暂无排期」**
+   - 设计源：`creator-v2.2.html:180`（v2-pill「演示排期」）。
+   - 实际差异：pill 显示当前周/月内真实事件数（如「2 项计划」），无计划如实显示「暂无排期」；原型自称「演示」，正式页有后端事实支撑的计数。
+   - 必要原因：正式页不得自称演示数据；计数必须可由 API 复核。
+   - 证据：`e2e/creator-v2-calendar.spec.mjs` 空态（暂无排期）与排期后（1 项计划）断言。
+
+5. **长期内容系列卡接真实系列；「调整安排」为真实 PUT（expectedRevision 冲突保护）；无系列诚实空态**
+   - 设计源：`creator-v2.2.html:162`（固定一张示例系列卡，调整安排按钮无真实行为）。
+   - 实际差异：卡片列出真实 `creator_series`（名称/目标/状态标签 计划中·已暂停·已完成/节奏/下次准备日期/下一篇（长标题截断显示，完整标题在当日安排与选题页）/待确认篇数）；「调整安排」弹窗改下次准备日期与间隔天数，走既有 `PUT /api/creator/series/:id` + expectedRevision，409 时提示「系列已变化，请重新打开后调整」；非激活系列不再产生「系列准备」日历事件（与 updateSeries 取消队列任务同语义）；无系列时给出「去规划系列」（/topics?view=series）入口而非空白。
+   - 必要原因：系列事实在 SQLite 领域服务里；无效按钮与假状态不可上正式页。
+   - 证据：`e2e/creator-v2-calendar.spec.mjs` 系列用例（真实建系列→卡片+日历事件→调整→API 验证 next_run_at 移动与 cadenceDays=3→旧 revision 409）；`test/calendar-view.test.mjs` describeSeries/moveIsoToDay 用例。

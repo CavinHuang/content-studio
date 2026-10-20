@@ -20,6 +20,19 @@ const text = (s, label, max = 2000, min = 0) => {
     fail(label + "格式或长度不正确");
   return s.trim();
 };
+// 内容日历排期：作者显式选择的目标日期（YYYY-MM-DD），空值 = 未排期。
+// 存进既有 creator_topic_details JSON——不新增存储模型；变更随
+// creator_topic_history 记录，并受 updateTopic 的 expectedRevision
+// 冲突保护。没有默认日期：日历不捏造排期。
+const calendarDate = (s) => {
+  if (s === undefined || s === null || s === "") return "";
+  if (typeof s !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(s))
+    fail("排期日期格式无效，应为 YYYY-MM-DD");
+  const day = new Date(s + "T00:00:00Z");
+  if (Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== s)
+    fail("排期日期不是真实日历日");
+  return s;
+};
 const initialProfile = {
   domain: "",
   audience: "",
@@ -607,6 +620,7 @@ export class CreatorService {
       keyPoints: text(input.keyPoints ?? "", "核心观点", 8000),
       evidenceGaps: text(input.evidenceGaps ?? "", "证据缺口", 4000),
       platforms,
+      targetDate: calendarDate(input.targetDate),
     };
   }
   _recordTopic(id) {
