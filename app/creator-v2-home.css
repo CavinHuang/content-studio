@@ -1,0 +1,132 @@
+/* ============================================================
+   Creator V2 home workspace styles (/ and /create).
+   Faithful reconstruction of public/design/creator-v2.2.html
+   homeView (:141) + V2.2 refinements (:173): hero gradient band,
+   three-metric overview band, two-column workspace, task cards,
+   recent works table, clue signals, completion band. Colors/
+   radii/typography mirror the design source and the token
+   baseline in app/creator-v2.css (--cv2-*).
+   ============================================================ */
+
+/* hero — .hero (creator-v2.2.html:9) */
+.cv2-hero{background:#eef0f9;border:1px solid #e4e7f1;min-height:239px;border-radius:20px;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;overflow:hidden;position:relative;margin-bottom:26px}
+.cv2-hero-copy{padding:36px 39px;min-width:0}
+.cv2-hero-copy .cv2-eyebrow{color:#6878a7;margin-bottom:13px}
+.cv2-hero-copy h2{max-width:620px;font-size:33px;line-height:1.35;letter-spacing:-1.2px;margin:0;font-weight:750;color:var(--cv2-text)}
+.cv2-hero-copy p{color:#6b7187;font-size:13px;line-height:1.9;margin:12px 0 23px}
+.cv2-hero-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.cv2-hero-art{position:relative;min-height:230px}
+.cv2-orb{position:absolute;width:290px;height:290px;top:28px;right:13px;border-radius:60px;transform:rotate(27deg);background:linear-gradient(145deg,#c5cef9,#e2e6f7);border:1px solid #bcc8ee}
+.cv2-orb2{position:absolute;width:210px;height:210px;top:65px;right:40px;border-radius:52px;transform:rotate(-13deg);background:#dce2ff;border:1px solid #bcc9ef}
+.cv2-paper{position:absolute;right:72px;top:38px;background:#fff;width:198px;height:238px;transform:rotate(8deg);box-shadow:0 23px 33px #6875a52a;padding:25px 18px;border-radius:3px}
+.cv2-paper span{display:block;height:5px;background:#e2e4ec;border-radius:5px;margin-bottom:13px}
+.cv2-paper span:first-child{width:47px;background:#a4b1eb;height:7px}
+.cv2-paper span:nth-child(2){width:140px;height:11px;background:#454b61;margin-top:20px}
+.cv2-paper span:nth-child(3){width:117px;height:11px;background:#454b61}
+.cv2-paper span:nth-child(4){width:140px;margin-top:28px}
+.cv2-paper span:nth-child(5){width:155px}
+.cv2-paper span:nth-child(6){width:102px}
+
+/* overview band — .v2-overview-band/.v2-insight (creator-v2.2.html:60-64) */
+.cv2-overview-band{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:25px}
+.cv2-insight{border:1px solid #e7eaf2;background:var(--cv2-surface);border-radius:14px;padding:17px 19px;min-width:0}
+.cv2-insight .metric{font-size:25px;font-weight:740;letter-spacing:-.8px;margin:8px 0 3px;color:var(--cv2-text);font-variant-numeric:tabular-nums}
+.cv2-insight .metric .unit{font-size:11px;color:#7885a1;font-weight:550}
+.cv2-insight .cv2-label{font-size:11px;color:#8a93a1}
+.cv2-insight p{margin:0;font-size:10px;color:#a0a6b3;line-height:1.6}
+.cv2-overview-band .cv2-insight:first-child{background:linear-gradient(130deg,#f4f6ff,#fff);border-color:#e0e5ff}
+
+/* first-use guide */
+.cv2-firstuse{margin:0 0 21px}
+.cv2-guide-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}
+.cv2-guide-step{border:1px solid #e7eaf2;border-radius:13px;padding:16px 17px;display:flex;flex-direction:column;gap:9px;align-items:flex-start}
+.cv2-guide-step strong{font-size:13px;color:var(--cv2-text)}
+.cv2-guide-step p{margin:0;font-size:11px;line-height:1.75;color:#8a92a2;flex:1}
+
+/* two-column workspace — .home-cols (creator-v2.2.html:9) */
+.cv2-home-cols{display:grid;grid-template-columns:minmax(0,1.33fr) minmax(330px,.88fr);gap:21px;align-items:start}
+.cv2-home-main{min-width:0;display:flex;flex-direction:column;gap:0}
+.cv2-home-main .cv2-surface{margin-bottom:0}
+.cv2-recent{margin-top:22px}
+.cv2-home-side{min-width:0}
+.cv2-section-link{border:0;background:none;color:var(--cv2-primary);font-size:12px;font-weight:650;padding:5px 0;text-decoration:none;display:inline-flex;align-items:center}
+.cv2-app a.cv2-section-link:hover{background:none;color:var(--cv2-primary-hover)}
+.cv2-home-line{color:#9399a6;font-size:12px;line-height:1.8;margin:6px 0;padding:14px 0}
+
+/* task cards — .task-card (creator-v2.2.html:9) */
+.cv2-task-card{display:flex;gap:15px;align-items:start;border-top:1px solid #eff0f2;padding:17px 0}
+.cv2-task-card:first-of-type{border-top:0;padding-top:3px}
+.cv2-task-ico{width:37px;height:37px;border-radius:12px;background:#f2f3fb;display:grid;place-items:center;color:#5269d6;flex-shrink:0}
+.cv2-task-ico svg{width:18px;height:18px}
+.cv2-task-copy{min-width:0;flex:1}
+.cv2-task-copy strong{font-size:13px;font-weight:680;display:block;color:var(--cv2-text)}
+.cv2-task-copy p{color:#8a8f9d;font-size:11px;margin:5px 0 0;line-height:1.6}
+.cv2-task-card .cv2-btn{align-self:center}
+.cv2-task-actions{display:flex;flex-direction:column;gap:6px;align-self:center;flex:none}
+.cv2-task-actions .cv2-btn{align-self:stretch}
+
+/* recent works table — .works-table (creator-v2.2.html:9) */
+.cv2-works-table{width:100%;border-collapse:collapse}
+.cv2-works-table td{padding:16px 0;border-top:1px solid #eff0f3;font-size:12px}
+.cv2-works-table tr:first-child td{border-top:0}
+.cv2-table-title{border:0;background:none;color:#303542;font-size:12px;font-weight:650;padding:0;text-align:left;text-decoration:none;display:inline-block;max-width:100%}
+.cv2-app a.cv2-table-title:hover{color:var(--cv2-primary);background:none}
+.cv2-works-stage{text-align:center;white-space:nowrap}
+.cv2-works-time{text-align:right;color:#a0a4ac;white-space:nowrap}
+
+/* quick create (快捷建文) */
+.cv2-quick-create{border:1px dashed #c9d0e4;background:var(--cv2-surface);border-radius:var(--cv2-radius-card);padding:19px 21px;margin-top:22px}
+.cv2-quick-create strong{font-size:13px;color:var(--cv2-text)}
+.cv2-quick-create p{margin:6px 0 13px;font-size:11px;color:#8a92a2;line-height:1.7}
+.cv2-quick-create form{display:flex;gap:10px;flex-wrap:wrap}
+.cv2-quick-create input{flex:1;min-width:200px;border:1px solid #e0e3e9;border-radius:var(--cv2-radius-button);background:var(--cv2-surface);padding:11px 12px;font-size:12px;color:#4e5665;min-width:0}
+.cv2-quick-create input::placeholder{color:#a7adba}
+
+/* clue signals — .signal (creator-v2.2.html:9) */
+.cv2-signal{padding:18px 0;border-top:1px solid #eef0f2}
+.cv2-signal:first-of-type{padding-top:0;border-top:0}
+.cv2-signal-meta{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.cv2-signal-title{display:block;font-size:13px;font-weight:670;text-align:left;padding:8px 0;color:#2c3341;line-height:1.5;text-decoration:none}
+.cv2-app a.cv2-signal-title:hover{color:var(--cv2-primary);background:none}
+.cv2-signal p{font-size:11px;color:#89909f;line-height:1.6;margin:2px 0 8px}
+.cv2-source-line{font-size:11px;color:#959aa5}
+.cv2-micro{font-size:11px;color:#9699a4}
+
+/* completion band — .v2-completion (creator-v2.2.html:70-71) */
+.cv2-completion{background:var(--cv2-surface);border:1px solid #e5e9f5;border-radius:14px;padding:18px 21px;margin:20px 0 0;display:flex;align-items:center;gap:18px;justify-content:space-between;flex-wrap:wrap}
+.cv2-completion strong{font-size:13px;color:var(--cv2-text)}
+.cv2-completion p{font-size:11px;color:#9298a4;line-height:1.7;margin:5px 0 0}
+
+/* ------------------------------------------------------------
+   Responsive — mirrors creator-v2.2.html:10-12,117-118
+   ------------------------------------------------------------ */
+@media(max-width:1280px){
+  .cv2-hero{grid-template-columns:1fr 260px}
+  .cv2-paper{right:29px}
+  .cv2-home-cols{grid-template-columns:1.2fr .85fr}
+}
+@media(max-width:1040px){
+  .cv2-home-cols{grid-template-columns:1fr}
+  .cv2-recent{margin-top:21px}
+  .cv2-guide-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:740px){
+  .cv2-hero{display:block;min-height:auto}
+  .cv2-hero-copy{padding:29px 24px}
+  .cv2-hero-art{display:none}
+  .cv2-home-cols{display:block}
+  .cv2-home-cols>.cv2-surface,.cv2-home-main,.cv2-home-side{margin-bottom:16px}
+  .cv2-recent,.cv2-quick-create{margin-top:16px}
+  .cv2-overview-band{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+  .cv2-insight{padding:12px 9px}
+  .cv2-insight .metric{font-size:19px}
+  .cv2-insight .cv2-label{font-size:10px}
+  .cv2-insight p{font-size:9px}
+  .cv2-guide-grid{grid-template-columns:1fr}
+  .cv2-task-card .cv2-btn{flex:none}
+  .cv2-works-stage,.cv2-works-time{white-space:normal}
+  .cv2-works-table td{padding:13px 0}
+  .cv2-completion{padding:16px}
+  .cv2-signal-title{font-size:13px}
+  .cv2-source-line{font-size:10px}
+}

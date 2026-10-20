@@ -24,10 +24,12 @@ test('desktop and mobile layouts stay bounded and header pixels remain stable du
   const height=800;
   await page.setViewportSize({width,height});
   await page.goto('/illustrations?project='+project.id);
-  const head=page.getByRole('heading',{name:'文章写好，交给 Agent 配图'});
+  const head=page.getByRole('heading',{name:'让每一张图片都有它的位置'});
   await expect(head).toBeVisible();
   await page.evaluate(()=>document.fonts.ready);
-  const before=await page.locator('.compose-head').screenshot();
+  // The V2.3 studio keeps a stable jobline header (project select + revision
+  // tag + actions); an offline audit below must not repaint it.
+  const before=await page.locator('.cv2-illu-jobline').screenshot();
   const first=screenshotSize(before);
   expect(first.width).toBeLessThanOrEqual(width);
   expect(first.width).toBeGreaterThan(width/2);
@@ -35,12 +37,12 @@ test('desktop and mobile layouts stay bounded and header pixels remain stable du
   await page.getByRole('button',{name:'离线检查配图与候选素材'}).click();
   await expect(page.getByText(/额外模型请求：0 次/)).toBeVisible();
   await expect(page.getByText(/还没有可检查的生成素材/).first()).toBeVisible();
-  const after=await page.locator('.compose-head').screenshot();
+  const after=await page.locator('.cv2-illu-jobline').screenshot();
   // A read-only audit may change the results panel but cannot shift/repaint
   // the brand/nav header, a useful screenshot-based layout regression guard.
   expect(after.equals(before)).toBe(true);
   const metrics=await page.evaluate(()=>{
-   const target=document.querySelector('.compose-container'),header=document.querySelector('.compose-head');
+   const target=document.querySelector('.cv2-illu'),header=document.querySelector('.cv2-illu-jobline');
    const box=target.getBoundingClientRect(),nav=header.getBoundingClientRect();
    return {viewport:document.documentElement.clientWidth,containerLeft:box.left,
     containerRight:box.right,headerLeft:nav.left,headerRight:nav.right};

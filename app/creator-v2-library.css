@@ -1,0 +1,162 @@
+/* ============================================================
+   Creator V2 library styles (/library).
+   Faithful reconstruction of public/design/creator-v2.2.html
+   libraryView (:163) + the V2.2 refinement (:100-105, :182): the
+   我的内容资料夹 head (.v2-assets-head), the three collection cards
+   (.v2-collections with the good-pill active state, :54-55), the
+   filter row (.filter-row searchbox + chips), the three-column asset
+   grid (.asset-grid/.asset-card/.asset-visual with the one/two/three
+   colored tiles) and the closing completion band. Colors/radii mirror
+   the design source and the token baseline in app/creator-v2.css
+   (--cv2-*). Page-scoped classes only.
+   NOTE on specificity: the shell main element also carries the legacy
+   "creator-main" class (app/creator.css styles .creator-main
+   button (0,1,1) / input:not():not() (0,3,1) / label (0,1,1) /
+   summary for pre-V2 pages). Every selector here that targets those
+   elements is prefixed with .cv2-app and sets every visual property
+   explicitly so this page always wins the cascade (same lesson as
+   app/creator-v2-works.css / creator-v2-publish.css; ties resolve by
+   source order — page CSS loads after the layout CSS).
+   ============================================================ */
+
+/* design pill — .v2-pill (creator-v2.2.html:54-55) */
+.v2-pill{display:inline-flex;align-items:center;gap:5px;font-weight:660;padding:6px 9px;border-radius:7px;font-size:10px;color:#62718d;background:#eff2f8;white-space:nowrap}
+.v2-pill.good{background:#eaf5ee;color:#28764d}
+
+/* 我的内容资料夹 head — .v2-assets-head (creator-v2.2.html:100-101) */
+.cv2-assets-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:13px;flex-wrap:wrap}
+.cv2-assets-head strong{font-size:13px;color:var(--cv2-text)}
+.cv2-assets-head p{font-size:11px;color:#8992a1;line-height:1.7;margin:0}
+
+/* collections — .v2-collections (creator-v2.2.html:102-105); the .cv2-app
+   prefix + explicit flex-column beat the legacy .creator-main button rule */
+.cv2-collections{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:25px}
+.cv2-app .cv2-collections button{display:flex;flex-direction:column;align-items:stretch;gap:0;background:var(--cv2-surface);border:1px solid #e7eaf2;border-radius:13px;padding:16px 17px;text-align:left;cursor:pointer;min-width:0;color:var(--cv2-text);line-height:1.5}
+.cv2-app .cv2-collections button:hover{border-color:#aebaf2;background:#fcfcff}
+/* pill 贴内容宽度，不随 flex 列拉伸（设计 :182） */
+.cv2-collections .v2-pill{align-self:flex-start}
+.cv2-collections strong{font-size:12px;display:block;margin:9px 0 4px;color:var(--cv2-text);font-weight:730}
+.cv2-collections p{font-size:10px;color:#8994a5;margin:0;line-height:1.6;display:block}
+
+/* filter row — .filter-row (creator-v2.2.html:9) */
+.cv2-lib-toolbar{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin:0 0 14px}
+.cv2-app .cv2-lib-toolbar .cv2-searchbox{display:flex;align-items:center;gap:8px;border:1px solid #e1e3e8;border-radius:10px;background:var(--cv2-surface);padding:9px 13px;min-width:225px;flex:none;max-width:320px;width:100%;color:#9a9eac;font-size:12px}
+.cv2-lib-toolbar .cv2-searchbox svg{width:16px;height:16px;flex:none}
+.cv2-app .cv2-lib-toolbar .cv2-searchbox input{outline:none!important;border:0;border-radius:0;background:none;width:100%;padding:0;font-size:12px;color:#343945;min-width:0}
+.cv2-lib-toolbar .cv2-searchbox input::placeholder{color:#a7adba}
+.cv2-lib-toolbar .cv2-chips{flex:1;min-width:0}
+/* chips + 已归档切换重新声明（覆盖遗留 .creator-main button 的绿底绿字） */
+.cv2-app .cv2-lib-toolbar .cv2-chip{display:inline-flex;align-items:center;border:1px solid var(--cv2-border);padding:8px 12px;background:var(--cv2-surface);border-radius:999px;font-size:11px;color:#747b8a;cursor:pointer;line-height:1.5;min-height:0}
+.cv2-app .cv2-lib-toolbar .cv2-chip:hover{color:#565d6d}
+.cv2-app .cv2-lib-toolbar .cv2-chip[aria-pressed="true"]{background:var(--cv2-surface-soft);color:var(--cv2-primary);border-color:#d6ddff;font-weight:720}
+.cv2-lib-toolbar .cv2-lib-archived{margin-left:auto;flex:none}
+
+/* advanced filters — legacy capability kept as a collapsed block */
+.cv2-lib-advanced{border:1px solid var(--cv2-border);border-radius:12px;background:var(--cv2-surface);padding:12px 16px;margin:0 0 20px}
+.cv2-app .cv2-lib-advanced summary{cursor:pointer;color:#5b6272;font-size:12px;font-weight:650;list-style:none;display:flex;align-items:center;gap:7px}
+.cv2-app .cv2-lib-advanced summary::before{content:'▸';color:#98a0b3;font-size:10px}
+.cv2-lib-advanced[open] summary::before{content:'▾'}
+.cv2-lib-advanced-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:14px 0}
+.cv2-app .cv2-lib-advanced-grid label{display:grid;gap:7px;font-size:12px;font-weight:650;color:#4c556b}
+.cv2-app .cv2-lib-advanced-grid input:not([type="checkbox"]):not([type="radio"]),.cv2-app .cv2-lib-advanced-grid select{width:100%;background:var(--cv2-surface);border:1px solid #dfe3ea;border-radius:9px;padding:10px 12px;color:#3c4457;font-size:12px;min-width:0}
+.cv2-lib-advanced .cv2-btn.tiny{margin-top:2px}
+
+/* asset grid — .asset-grid/.asset-card/.asset-visual (creator-v2.2.html:9) */
+.cv2-asset-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:0 0 6px}
+.cv2-app button.cv2-asset-card{display:flex;flex-direction:column;align-items:stretch;gap:0;padding:18px;border-radius:var(--cv2-radius-card);border:1px solid #e8e9ec;background:var(--cv2-surface);text-align:left;min-height:190px;cursor:pointer;min-width:0;color:var(--cv2-text);transition:border-color .15s,transform .15s}
+.cv2-app button.cv2-asset-card:hover{border-color:#a7b6ed;transform:translateY(-1px);background:var(--cv2-surface)}
+.cv2-asset-visual{position:relative;height:87px;border-radius:9px;display:grid;place-items:center;color:#6b7ac2;background:#f0f1f9;overflow:hidden;flex:none;width:100%}
+.cv2-asset-visual.two{background:#f4ebe1;color:#bf895e}
+.cv2-asset-visual.three{background:#eaf2e6;color:#6b8f68}
+.cv2-asset-visual svg{width:30px;height:30px}
+.cv2-asset-visual img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.cv2-asset-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px}
+.cv2-asset-card h3{font-size:13px;line-height:1.5;margin:10px 0 8px;color:var(--cv2-text);font-weight:730;letter-spacing:-.1px}
+.cv2-asset-card>p{font-size:11px;line-height:1.7;color:#9297a2;margin:0;display:block}
+
+/* detail panel — real 来源/引用/移除影响 (prototype toasts here; see
+   the deviation register). .cv2-surface base comes from creator-v2.css */
+.cv2-lib-detail{padding:23px 25px;margin:0 0 22px}
+.cv2-lib-detail-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.cv2-lib-detail-title{min-width:0}
+.cv2-lib-detail-title h3{font-size:17px;line-height:1.5;letter-spacing:-.25px;margin:10px 0 6px;color:var(--cv2-text)}
+.cv2-lib-detail-title .cv2-micro{margin:0;line-height:1.7}
+.cv2-lib-figure{margin:16px 0 0;display:flex;flex-direction:column;gap:8px}
+.cv2-lib-figure img{max-width:100%;max-height:360px;object-fit:contain;background:#f5f6fa;border:1px solid var(--cv2-border);border-radius:10px;padding:8px}
+.cv2-lib-text{white-space:pre-wrap;overflow-wrap:anywhere;font-family:inherit;font-size:12px;line-height:1.9;color:#4b5362;background:#f8f9fc;border:1px solid var(--cv2-border);border-radius:10px;padding:14px 16px;max-height:300px;overflow:auto;margin:16px 0 0}
+.cv2-lib-source{display:inline-flex;margin-top:12px;color:var(--cv2-primary);font-size:12px;font-weight:650}
+.cv2-app .cv2-lib-source:hover{color:var(--cv2-primary-hover)}
+.cv2-lib-detail-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:16px;border-top:1px solid #eef0f5;padding-top:16px}
+.cv2-app .cv2-lib-detail-actions input:not([type="checkbox"]):not([type="radio"]){flex:1 1 200px;min-width:180px;width:auto;background:var(--cv2-surface);border:1px solid #dfe3ea;border-radius:9px;padding:9px 11px;font-size:12px;color:#3c4457}
+.cv2-lib-usage{margin-top:18px;border-top:1px solid #eef0f5;padding-top:14px}
+.cv2-lib-usage h4{margin:0 0 10px;font-size:12px;color:var(--cv2-text)}
+.cv2-lib-usage-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #f1f2f6;font-size:12px;color:#343b4d}
+.cv2-lib-usage-row:last-child{border-bottom:0}
+.cv2-app .cv2-lib-usage-row:hover{color:var(--cv2-primary)}
+.cv2-lib-fact{margin:0 0 8px;font-size:11px;color:#77809a;line-height:1.8}
+.cv2-lib-fact a{color:var(--cv2-primary)}
+
+/* removal block — V2 restyle of the real removal-preview/remove-source flow */
+.cv2-lib-removal{margin-top:18px;border-top:1px solid #eef0f5;padding-top:14px}
+.cv2-app .cv2-lib-removal summary{cursor:pointer;color:#8a533a;font-size:12px;font-weight:650;list-style:none;display:flex;align-items:center;gap:7px}
+.cv2-app .cv2-lib-removal summary::before{content:'▸';color:#b98d6f;font-size:10px}
+.cv2-lib-removal[open] summary::before{content:'▾'}
+.cv2-lib-removal .cv2-micro{margin:10px 0}
+.cv2-lib-removal-preview{margin-top:12px;border:1px solid #f1dfc7;background:#fffaf3;border-radius:10px;padding:14px}
+.cv2-lib-removal-preview p{margin:0 0 8px;font-size:11px;color:#7c6a58;line-height:1.8;overflow-wrap:anywhere}
+/* 同意勾选：.cv2-app 前缀压过遗留 .creator-main label 绿字 */
+.cv2-app label.cv2-lib-check{display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.7;color:#4c556b;margin:10px 0;font-weight:400}
+.cv2-app label.cv2-lib-check input[type="checkbox"]{accent-color:#4560cf;width:15px;height:15px;flex:none;margin:2px 0 0}
+.cv2-lib-removal-preview label.cv2-lib-check{margin:12px 0}
+
+/* visual series band — task-required capability (design未画，偏差登记) */
+.cv2-lib-series{padding:23px 25px;margin:20px 0 0}
+.cv2-lib-series-rows{display:grid;gap:0}
+.cv2-lib-series-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #f1f2f6;flex-wrap:wrap}
+.cv2-lib-series-row:last-child{border-bottom:0}
+.cv2-lib-series-row strong{font-size:12px;color:var(--cv2-text)}
+.cv2-lib-series-state{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.cv2-lib-series-state .cv2-status{margin:0}
+
+/* completion band — same block as app/creator-v2-works.css:65 */
+.cv2-completion{background:var(--cv2-surface);border:1px solid #e5e9f5;border-radius:14px;padding:18px 21px;margin:20px 0 0;display:flex;align-items:center;gap:18px;justify-content:space-between;flex-wrap:wrap}
+.cv2-completion strong{font-size:13px;color:var(--cv2-text)}
+.cv2-completion p{font-size:11px;color:#9298a4;line-height:1.7;margin:5px 0 0}
+
+/* import modal — .modal-overlay/.modal (creator-v2.2.html:9,165) */
+.cv2-modal-overlay{position:fixed;inset:0;z-index:90;background:#15192688;display:grid;place-items:center;padding:20px}
+.cv2-modal{background:var(--cv2-surface);max-width:520px;width:100%;border-radius:19px;padding:30px;box-shadow:0 22px 88px #0002;min-width:0}
+.cv2-modal h3{font-size:21px;margin:0 0 8px;color:var(--cv2-text);letter-spacing:-.3px}
+.cv2-modal>p{font-size:12px;color:#858b99;line-height:1.7;margin:0}
+.cv2-app .cv2-modal-overlay .cv2-modal input:not([type="checkbox"]){border:1px solid #dce0e8;border-radius:11px;padding:13px 14px;width:100%;margin:18px 0 12px;font-size:13px;color:#343945;background:var(--cv2-surface);min-width:0}
+.cv2-app .cv2-modal-overlay .cv2-modal textarea{border:1px solid #dce0e8;border-radius:11px;padding:12px 14px;width:100%;margin:0 0 12px;font-size:12px;line-height:1.7;color:#343945;background:var(--cv2-surface);resize:vertical;min-width:0}
+.cv2-modal input::placeholder,.cv2-modal textarea::placeholder{color:#a7adba}
+.cv2-modal-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:14px}
+.cv2-lib-modal-actions{display:inline-flex;gap:10px;margin-left:auto}
+/* 上传本地文件：label 也要完整按钮样式（cv2-btn 只覆盖 button/a） */
+.cv2-app label.cv2-lib-upload{display:inline-flex;align-items:center;gap:6px;border:1px solid #e1e3e9;border-radius:var(--cv2-radius-button);background:var(--cv2-surface);padding:7px 10px;min-height:30px;font-size:11px;font-weight:680;color:#373c4b;cursor:pointer;position:relative;overflow:hidden}
+.cv2-app label.cv2-lib-upload:hover{background:#f9faff;border-color:#c3cbef}
+.cv2-app label.cv2-lib-upload-busy{opacity:.5;pointer-events:none}
+
+/* ------------------------------------------------------------
+   Responsive — mirrors creator-v2.2.html:11 (asset grid 2-col at
+   ≤1040) and :118 (collections 1-col, grid 1-col on mobile).
+   ------------------------------------------------------------ */
+@media(max-width:1040px){
+  .cv2-asset-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:760px){
+  .cv2-collections{grid-template-columns:1fr;gap:8px;margin-bottom:20px}
+  .cv2-asset-grid{grid-template-columns:1fr}
+  .cv2-assets-head .v2-pill{display:none}
+  /* 工具栏改纵向堆叠，避免 searchbox 占满一行后 chips 被压成零宽竖列 */
+  .cv2-lib-toolbar{flex-direction:column;align-items:stretch}
+  .cv2-lib-toolbar .cv2-chips{flex:none}
+  .cv2-app .cv2-lib-toolbar .cv2-searchbox{min-width:0;max-width:none;flex:none}
+  .cv2-lib-toolbar .cv2-lib-archived{margin-left:0;align-self:flex-start}
+  /* 页头动作收成图标圆钮，可访问名不变（同 /works 建文按钮先例） */
+  .cv2-app .cv2-lib-import{font-size:0;padding:10px;gap:0;min-width:40px;min-height:40px}
+  .cv2-lib-import svg{width:17px;height:17px}
+  .cv2-lib-detail{padding:18px}
+  .cv2-app .cv2-lib-detail-actions input:not([type="checkbox"]):not([type="radio"]){flex-basis:100%}
+}

@@ -1,0 +1,115 @@
+/* ============================================================
+   Creator V2 calendar styles (/calendar).
+   Faithful reconstruction of public/design/creator-v2.2.html
+   calendarView (:162) + the V2.2 refinement (:180): the shared
+   toolbar (.v2-calendar-toolbar/.v2-insight-bar/.v2-segments), the
+   week strip (.calendar-strip/.day/.day .event), the month grid
+   (.v2-month with header cells / .off / .focused / em pills), the
+   长期内容系列 card and the closing .v2-completion band.
+   Colors/radii/typography mirror the design source and the token
+   baseline in app/creator-v2.css (--cv2-*). Page-scoped classes only;
+   NOTE on specificity: the shell main element also carries the legacy
+   "creator-main" class (app/creator.css still styles .creator-main
+   button/input/label), so selectors that collide are prefixed with
+   .cv2-app to win the cascade without touching the legacy sheet.
+   ============================================================ */
+
+/* toolbar — .v2-calendar-toolbar/.v2-insight-bar/.v2-segments (:88-89, :95-96) */
+.cv2-cal-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 16px;flex-wrap:wrap}
+.cv2-insight-bar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:0}
+.cv2-insight-bar>span{font-size:11px;color:#8b93a4}
+.v2-pill{display:inline-flex;align-items:center;gap:5px;font-weight:660;padding:6px 9px;border-radius:7px;font-size:10px;color:#62718d;background:#eff2f8;white-space:nowrap}
+.v2-pill.good{background:#eaf5ee;color:#28764d}
+.v2-pill.warn{color:#aa7339;background:#fff2e4}
+.cv2-cal-toolbar-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.cv2-segments{display:flex;gap:4px;background:#eef0f4;border-radius:9px;padding:4px;width:max-content}
+.cv2-app .cv2-segments button{background:transparent;border:0;border-radius:7px;padding:8px 14px;font-size:11px;color:#80899a;cursor:pointer;min-height:0;display:inline-flex;align-items:center}
+.cv2-app .cv2-segments button:hover{background:transparent;color:#4059bb}
+.cv2-segments button[aria-pressed="true"]{background:#fff;color:#4059bb;box-shadow:0 1px 5px #1a2a4910;font-weight:740}
+.cv2-cal-step{display:flex;gap:2px;background:#eef0f4;border-radius:9px;padding:4px}
+.cv2-app .cv2-cal-step button{background:transparent;border:0;border-radius:7px;padding:6px 11px;font-size:11px;color:#80899a;cursor:pointer;min-height:0;display:inline-flex;align-items:center}
+.cv2-app .cv2-cal-step button:hover{background:#fff;color:#4059bb}
+
+/* week strip — .calendar-strip/.day (:9 .calendar-strip, :162) */
+.cv2-week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:9px;margin:22px 0}
+.cv2-app .cv2-day{display:flex;flex-direction:column;align-items:flex-start;border:1px solid #e8e9ed;background:var(--cv2-surface);min-height:136px;border-radius:13px;padding:14px;text-align:left;cursor:pointer;min-width:0}
+.cv2-app .cv2-day:hover{border-color:#b9c3f2}
+.cv2-day small{color:#9ca1ac;font-size:10px}
+.cv2-day b{font-size:14px;display:block;margin-top:10px;color:var(--cv2-text);font-variant-numeric:tabular-nums}
+.cv2-day.selected{border:1.5px solid #8a9ef3;background:#f7f8ff}
+.cv2-day-event{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:6px;border-radius:6px;background:#eaf0ff;color:#4962ca;font-size:10px;line-height:1.5;margin-top:12px}
+.cv2-day-event.cv2-cal-pill-more{text-align:center;font-weight:700}
+
+/* month grid — .v2-month (:90-94) */
+.cv2-month{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:#e8ecf3;border:1px solid #e8ecf3;border-radius:12px;overflow:hidden}
+.cv2-month-head{min-height:32px;background:#f7f8fb;text-align:center;font-size:10px;color:#8a94a7;padding:8px 6px}
+.cv2-app .cv2-month>button,.cv2-month .cv2-month-cell{background:#fff;border:0;text-align:left;min-height:92px;padding:11px;font-size:11px;position:relative;min-width:0}
+.cv2-app .cv2-month>button{cursor:pointer;color:var(--cv2-text);display:block}
+.cv2-app .cv2-month>button:hover{background:#fbfcff}
+.cv2-month .cv2-month-cell.off{background:#fafafd;color:#b7bdc9}
+.cv2-month>button.focused{box-shadow:inset 0 0 0 2px #6179e0;z-index:1}
+.cv2-month-event,.cv2-month em{display:block;font-style:normal;font-size:9px;color:#4f65bb;background:#edf0ff;border-radius:5px;padding:4px;margin:8px 0 0;line-height:1.35;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cv2-month-event.cv2-cal-pill-more{font-weight:700;text-align:center}
+
+/* selected-day 安排行 — :162 说明行 + 真实事件列表 */
+.cv2-cal-day-detail{border-top:1px solid #eff0f3;margin-top:6px;padding-top:20px}
+.cv2-cal-day-detail .cv2-section-top{margin-bottom:14px}
+.cv2-cal-day-list{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.cv2-cal-day-event{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid #eef0f5;border-radius:11px;padding:12px 14px;background:#fdfdff}
+.cv2-cal-day-event strong{font-size:13px;color:var(--cv2-text);letter-spacing:-.2px}
+.cv2-cal-day-event .cv2-btn{margin-left:auto}
+
+/* 长期内容系列 — :162 系列卡行 */
+.cv2-cal-series{margin-top:21px}
+.cv2-cal-series-row{display:flex;justify-content:space-between;align-items:center;gap:18px;border-top:1px solid #eff0f3;padding:17px 0;flex-wrap:wrap}
+.cv2-cal-series-row:first-of-type{border-top:0;padding-top:2px}
+.cv2-cal-series-row b{font-size:14px;color:var(--cv2-text);letter-spacing:-.2px}
+.cv2-cal-series-row p{margin:5px 0 0;line-height:1.7}
+.cv2-cal-series-actions{display:flex;align-items:center;gap:10px}
+
+/* 未排期的进行中作品（真实作品无日期，不进日历网格） */
+.cv2-cal-works{margin-top:21px}
+.cv2-cal-work-list{list-style:none;margin:0;padding:0}
+.cv2-cal-work-list li{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid #eff0f3;padding:13px 0}
+.cv2-cal-work-list li:first-child{border-top:0}
+.cv2-cal-work-list strong{font-size:13px;color:var(--cv2-text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cv2-cal-work-list .cv2-btn{margin-left:auto}
+
+/* completion band — .v2-completion (:70-71, used by :180) */
+.cv2-completion{background:var(--cv2-surface);border:1px solid #e5e9f5;border-radius:14px;padding:18px 21px;margin:20px 0 0;display:flex;align-items:center;gap:18px;justify-content:space-between;flex-wrap:wrap}
+.cv2-completion strong{font-size:13px;color:var(--cv2-text)}
+.cv2-completion p{font-size:11px;color:#9298a4;line-height:1.7;margin:5px 0 0}
+
+/* modals — same page-scoped pattern as works/library (design :9 .modal-overlay/.modal);
+   the 安排下一篇 modal is creator-v2.2.html:165 schedule modal, 调整安排 is the
+   real series plan adjustment (PUT /api/creator/series/:id). */
+.cv2-modal-overlay{position:fixed;inset:0;z-index:90;background:#15192688;display:grid;place-items:center;padding:20px}
+.cv2-modal{background:var(--cv2-surface);max-width:520px;width:100%;border-radius:19px;padding:30px;box-shadow:0 22px 88px #0002;min-width:0}
+.cv2-modal h3{font-size:21px;margin:0 0 8px;color:var(--cv2-text);letter-spacing:-.3px}
+.cv2-modal>p{font-size:12px;color:#858b99;line-height:1.7;margin:0}
+.cv2-app .cv2-modal-overlay .cv2-modal input{border:1px solid #dce0e8;border-radius:11px;padding:13px 14px;width:100%;margin:18px 0 16px;font-size:13px;color:#343945;background:var(--cv2-surface);min-width:0}
+.cv2-modal input::placeholder{color:#a7adba}
+.cv2-cal-field{display:grid;gap:7px;font-size:12px;font-weight:650;color:#4e5665;margin:0 0 14px}
+.cv2-app .cv2-cal-field input{border:1px solid #dce0e8;border-radius:11px;padding:11px 12px;width:100%;font-size:13px;color:#343945;background:var(--cv2-surface);margin:0;font-weight:400}
+.cv2-modal-foot.cv2-cal-modal-foot{display:flex;justify-content:space-between;gap:10px;margin-top:18px}
+
+@media(max-width:1150px){
+  .cv2-cal-toolbar{align-items:flex-start;flex-direction:column}
+}
+@media(max-width:740px){
+  /* 设计 :12 .day 压缩 + :118 月格压缩 */
+  .cv2-week{gap:4px;margin:16px 0}
+  .cv2-app .cv2-day{min-height:95px;padding:10px 7px;border-radius:10px}
+  .cv2-day small{font-size:9px}
+  .cv2-day b{font-size:12px;margin-top:8px}
+  .cv2-day-event{font-size:9px;padding:4px 5px;margin-top:10px}
+  .cv2-month>button,.cv2-month .cv2-month-cell{padding:5px;min-height:63px}
+  .cv2-month-head{padding:6px 3px}
+  .cv2-month-event,.cv2-month em{font-size:8px;margin-top:4px;line-height:1.2;max-height:25px;overflow:hidden}
+  .cv2-cal-day-event .cv2-btn,.cv2-cal-work-list .cv2-btn{margin-left:0}
+  .cv2-cal-toolbar-actions{width:100%;justify-content:space-between}
+  .cv2-insight-bar{gap:8px}
+  /* 页头「安排内容」收成图标圆钮，可访问名不变（/works /library 同先例；设计 :12 .page-heading .btn{font-size:0}） */
+  .cv2-head-actions .cv2-btn.primary{font-size:0;padding:10px;gap:0;min-width:40px;min-height:40px}
+  .cv2-head-actions .cv2-btn.primary svg{width:17px;height:17px}
+}

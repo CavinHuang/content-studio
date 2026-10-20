@@ -1,0 +1,138 @@
+/* ============================================================
+   Creator V2 publish center styles (/publish).
+   Faithful reconstruction of public/design/creator-v2.2.html
+   publishView (:160) + the V2.2 refinement (:179): the
+   .v2-platform-state strip (可交付≠已发布), .publish-grid
+   (minmax(0,1fr)/360px), two .channel-card surfaces with the four
+   check items (accent #4560CF), the segmented .channel-tabs preview
+   rail with .preview-phone, and the .v2-delivery-log band with
+   .v2-log-row dots (#7B95E8 done / #E6BB80 pending).
+   Colors/radii/typography mirror the design source and the token
+   baseline in app/creator-v2.css (--cv2-*). Page-scoped classes only.
+   NOTE on specificity: the shell main also carries the legacy
+   "creator-main" class (app/creator.css styles .creator-main
+   button/input/select/label for pre-V2 pages). Publish selectors that
+   collide are prefixed with .cv2-app and set every visual property
+   explicitly so this page always wins the cascade (same lesson as
+   app/creator-v2-hotspots.css / the topics cv2-btn fix).
+   ============================================================ */
+
+/* top state strip — .v2-platform-state (creator-v2.2.html:82-83,179) */
+.cv2-platform-state{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:0 0 20px;background:linear-gradient(90deg,#f0f3fd,#fff);border:1px solid #e4e9fa;padding:15px 18px;border-radius:14px}
+.cv2-platform-state>div{flex:1;min-width:160px}
+.cv2-platform-state strong{font-size:12px;color:var(--cv2-text)}
+.cv2-platform-state small{font-size:11px;color:#9099a8;display:block;margin-top:5px}
+.cv2-app .cv2-platform-state .cv2-publish-related{flex:none}
+
+/* grid — .publish-grid (creator-v2.2.html:9,160) */
+.cv2-publish-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:start}
+
+/* channel cards — .channel-card (creator-v2.2.html:9,160) */
+.cv2-channel-card{padding:23px 25px;margin-bottom:16px}
+.cv2-channel-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.cv2-channel-id{display:flex;align-items:center;gap:11px;min-width:0}
+.cv2-channel-logo{display:grid;place-items:center;width:36px;height:36px;flex:none;border-radius:11px;background:#ebf6ed;color:#238348;font-size:18px;font-weight:900}
+.cv2-channel-logo.zhihu{background:#eaf1ff;color:#2866bf}
+.cv2-channel-id h3{font-size:15px;margin:0;color:var(--cv2-text)}
+.cv2-channel-id p{font-size:11px;color:#8a90a0;margin:6px 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+
+/* real blockers the domain service enforces on export (surfaces
+   _canExport hints; the server stays the source of truth) */
+.cv2-channel-blockers{margin:12px 0 0;padding:10px 13px;border:1px solid #f1e0cc;background:var(--cv2-warning-soft);border-radius:10px;list-style:none;display:grid;gap:4px}
+.cv2-channel-blockers li{font-size:11px;color:var(--cv2-warning);line-height:1.6}
+
+/* checklist — .checklist/.check-item (creator-v2.2.html:9,160);
+   accent #4560CF per design, not the legacy green */
+.cv2-checklist{margin-top:20px;border-top:1px solid #edf0f2;padding-top:8px}
+.cv2-app .cv2-check-item{display:flex;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid #f1f2f4;font-size:12px;color:#59606d;cursor:pointer;line-height:1.6}
+.cv2-app .cv2-check-item input[type="checkbox"]{accent-color:#4560cf;width:15px;height:15px;flex:none;margin:0}
+.cv2-check-state{margin-left:auto;color:#9ea5b1;font-size:10px;flex:none}
+
+.cv2-channel-status{margin:12px 0 0;font-size:11px;color:#8a91a0;line-height:1.7}
+.cv2-channel-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:18px;flex-wrap:wrap}
+
+/* delivery panel — progressive disclosure, real delivery mutations only
+   (the prototype toasts here; see deviation register #4) */
+.cv2-delivery-panel{margin-top:18px;border:1px solid #e4e9fa;background:#f8f9fe;border-radius:12px;padding:16px}
+.cv2-delivery-panel h4{margin:0 0 6px;font-size:12px;color:var(--cv2-text)}
+.cv2-delivery-note{margin:0 0 12px;font-size:11px;color:#77809a;line-height:1.7}
+.cv2-delivery-note strong{color:#a3542e}
+.cv2-delivery-row{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
+.cv2-app .cv2-delivery-field{display:grid;gap:7px;font-size:12px;font-weight:650;color:#4a5468;margin:10px 0 0}
+.cv2-app .cv2-delivery-field select,.cv2-app .cv2-delivery-field input,.cv2-app .cv2-delivery-field textarea{width:100%;background:var(--cv2-surface);border:1px solid #e0e3e9;border-radius:9px;padding:10px 12px;font-size:12px;color:#4e5665;min-width:0;font-weight:400}
+.cv2-app .cv2-delivery-consent{display:flex;align-items:flex-start;gap:8px;font-size:11px;color:#59606d;line-height:1.7;margin:12px 0 0;cursor:pointer}
+.cv2-app .cv2-delivery-consent input[type="checkbox"]{accent-color:#4560cf;width:14px;height:14px;flex:none;margin:2px 0 0}
+.cv2-delivery-hint{margin:8px 0 0;font-size:11px;color:#98642c;line-height:1.7}
+.cv2-app .cv2-delivery-hint a{color:#5066d6}
+.cv2-delivery-report{border-top:1px dashed #dfe4f2;margin-top:14px;padding-top:4px}
+.cv2-delivery-report .cv2-btn{margin-top:10px}
+
+/* preview rail — .channel-tabs/.preview-phone (creator-v2.2.html:9,160) */
+.cv2-publish-preview{position:sticky;top:23px}
+.cv2-channel-tabs{display:flex;gap:5px;background:#e9eaee;padding:4px;border-radius:10px;width:max-content;margin:0 auto}
+.cv2-app .cv2-channel-tabs button{border:0;background:none;border-radius:8px;color:#777e8b;font-size:11px;padding:8px 13px;cursor:pointer;min-height:0}
+.cv2-app .cv2-channel-tabs button.active{background:var(--cv2-surface);color:#34394c;box-shadow:0 2px 6px #292f4a13;font-weight:720}
+.cv2-preview-phone{background:#f6f7f9;border:8px solid #383d4e;border-radius:34px;padding:21px 17px;margin:15px auto 0;max-width:280px;min-height:402px;box-shadow:0 14px 28px #272d4420;overflow:hidden}
+.cv2-preview-phone .cv2-micro{margin:0}
+.cv2-preview-phone h4{font-size:16px;line-height:1.6;margin:13px 0;color:var(--cv2-text)}
+.cv2-preview-phone p{font-size:11px;color:#858b99;line-height:1.9;margin:10px 0}
+.cv2-preview-phone h5{font-size:13px;color:#3a4152;margin:14px 0 4px}
+.cv2-preview-phone blockquote{margin:12px 0;padding:8px 12px;border-left:3px solid #a4b6fd;background:#f7f8ff;color:#646e91;font-size:11px;line-height:1.8}
+.cv2-preview-phone .cv2-preview-li{margin:6px 0}
+.cv2-preview-phone hr{border:0;border-top:1px solid #dfe1e6;margin:14px 0}
+.cv2-preview-phone .cv2-preview-empty{font-size:11px;color:#9aa1ad;line-height:1.9;margin-top:18px}
+.cv2-preview-image{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:6px;height:86px;background:linear-gradient(135deg,#e5e8fa,#b8c6ee);border-radius:7px;margin:14px 0;font-size:10px;color:#5b6a94;overflow:hidden}
+.cv2-preview-image small{font-size:9px;color:#7c89ad}
+
+/* delivery log band — .v2-delivery-log (creator-v2.2.html:84-87,179) */
+.cv2-delivery-log{display:grid;grid-template-columns:1.2fr 1fr;gap:17px;margin-top:20px}
+.cv2-log-row{display:flex;align-items:start;gap:11px;padding:11px 0;border-top:1px solid #edeef1}
+.cv2-log-row:first-of-type{border-top:0}
+.cv2-log-dot{width:9px;height:9px;border-radius:50%;background:#7b95e8;flex:none;margin-top:5px}
+.cv2-log-dot.pending{background:#e6bb80}
+.cv2-log-row strong{font-size:12px;color:var(--cv2-text)}
+.cv2-log-row p{font-size:11px;color:#8a91a0;line-height:1.6;margin:4px 0;overflow-wrap:anywhere}
+.cv2-log-row .cv2-log-time{font-size:10px;color:#a7adb9}
+.cv2-app .cv2-log-row .cv2-btn{margin-top:6px}
+.cv2-reconcile{border:1px solid #e4e9fa;background:#f8f9fe;border-radius:10px;padding:12px;margin-top:8px}
+.cv2-reconcile-actions{display:flex;gap:8px;margin-top:10px}
+
+/* 交付原则 cards (design :179 交付原则) */
+.cv2-principles{display:grid;gap:10px}
+.cv2-principles article{border:1px solid #e4e8f1;background:var(--cv2-surface);padding:14px 16px;border-radius:13px}
+.cv2-principles h4{font-size:12px;margin:0;color:var(--cv2-text)}
+.cv2-principles p{font-size:11px;color:#878fa1;line-height:1.8;margin:6px 0 0}
+
+/* project select in the page header (real multi-project workspace) */
+.cv2-app .cv2-publish-select select{background:var(--cv2-surface);border:1px solid var(--cv2-border);border-radius:10px;padding:10px 13px;font-size:12px;color:#363c4c;max-width:260px;min-height:40px;cursor:pointer}
+
+/* ------------------------------------------------------------
+   Responsive — mirrors creator-v2.2.html:11 (publish-grid single
+   column at ≤1040, log band ≤1150) and :118 mobile paddings.
+   ------------------------------------------------------------ */
+@media(max-width:1150px){
+  .cv2-delivery-log{grid-template-columns:1fr}
+}
+@media(max-width:1040px){
+  .cv2-publish-grid{grid-template-columns:1fr}
+  .cv2-publish-preview{position:static}
+}
+@media(max-width:760px){
+  .cv2-page-head{margin-bottom:14px;align-items:center}
+  .cv2-page-head .cv2-eyebrow{display:none}
+  .cv2-page-head h1{font-size:23px;margin:0}
+  .cv2-page-head>p{font-size:11px;line-height:1.55;margin-top:6px}
+  /* 返回作品收成图标圆钮（文字保留在 DOM，可访问名不变）— 与 works/hotspots
+     移动页头动作收缩同一形态 */
+  .cv2-app .cv2-publish-back{font-size:0;min-height:36px;min-width:36px;padding:8px;border-radius:9px;gap:0}
+  .cv2-publish-back svg{width:17px;height:17px}
+  .cv2-app .cv2-publish-select select{max-width:150px;min-height:36px;padding:8px 10px}
+  .cv2-platform-state{padding:14px;border-radius:12px;margin-bottom:14px}
+  .cv2-platform-state .cv2-publish-related{display:none}
+  .cv2-publish-grid{gap:16px}
+  .cv2-channel-card{padding:18px}
+  .cv2-channel-head{align-items:flex-start}
+  .cv2-check-item{gap:8px}
+  .cv2-preview-phone{max-width:260px}
+  .cv2-delivery-log{margin-top:16px;gap:12px}
+}

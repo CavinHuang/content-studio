@@ -20,6 +20,19 @@ const text = (s, label, max = 2000, min = 0) => {
     fail(label + "格式或长度不正确");
   return s.trim();
 };
+// 内容日历排期：作者显式选择的目标日期（YYYY-MM-DD），空值 = 未排期。
+// 存进既有 creator_topic_details JSON——不新增存储模型；变更随
+// creator_topic_history 记录，并受 updateTopic 的 expectedRevision
+// 冲突保护。没有默认日期：日历不捏造排期。
+const calendarDate = (s) => {
+  if (s === undefined || s === null || s === "") return "";
+  if (typeof s !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(s))
+    fail("排期日期格式无效，应为 YYYY-MM-DD");
+  const day = new Date(s + "T00:00:00Z");
+  if (Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== s)
+    fail("排期日期不是真实日历日");
+  return s;
+};
 const initialProfile = {
   domain: "",
   audience: "",
@@ -607,6 +620,7 @@ export class CreatorService {
       keyPoints: text(input.keyPoints ?? "", "核心观点", 8000),
       evidenceGaps: text(input.evidenceGaps ?? "", "证据缺口", 4000),
       platforms,
+      targetDate: calendarDate(input.targetDate),
     };
   }
   _recordTopic(id) {
@@ -1373,6 +1387,32 @@ export class CreatorService {
       )
       .map((e) => ({ ...e, text: e.text.slice(0, 1500) }));
   }
+  // V2 /library「可复用视觉系列」：跨项目只读总览既有 visual_series（V37，
+  // 同一 SQLite，无新存储模型）。既有 list() 需要具体 projectId 且只面向
+  // 成员；资料库需要无项目上下文的总览。只暴露名称/修订/成员数/所属作品
+  // 标题——引用图与风格偏好仍须成员身份（visual-series.mjs view()），
+  // 这里绝不携带任何图片资产或预览 URL。
+  visualSeriesOverview() {
+    const rows = this.db
+      .prepare(
+        "SELECT s.id,s.name,s.revision,s.updated_at AS updatedAt," +
+          "s.owner_project_id AS ownerProjectId," +
+          "(SELECT COUNT(*) FROM visual_series_members m WHERE m.series_id=s.id) AS memberCount " +
+          "FROM visual_series s ORDER BY s.rowid DESC LIMIT 12"
+      )
+      .all();
+    return {
+      series: rows.map((r) => {
+        let ownerTitle = "";
+        try {
+          ownerTitle = this.core.editorial.get(r.ownerProjectId).title;
+        } catch {
+          ownerTitle = "";
+        }
+        return { ...r, ownerTitle };
+      }),
+    };
+  }
   assetMeta({ kind, id, tags = [], archived = false } = {}) {
     this._refs([{ kind, id }]);
     if (
@@ -2052,6 +2092,43 @@ export class CreatorService {
     }
     return { created, skipped };
   }
+  // 热点雷达「收为选题候选」：一条公开信源条目 → 可持久化选题。
+  // 复用既有领域服务，不新增存储模型：convertSourceItems 负责按 URL 去重
+  // 落成 creator_materials（原文链接/来源随素材保留，可追溯），再以
+  // material 引用创建 creator_topics 草稿候选。重复请求不重复建档：
+  // 同一素材已被某个选题引用时返回该选题（duplicate 标记），前端据此
+  // 打开既有候选而不是伪造“已创建”。
+  saveSourceItemTopic({ id, title, angle = "", audience = "" } = {}) {
+    const row = this.db
+      .prepare(
+        "SELECT i.id,i.url,i.title,i.summary,s.name AS sourceName FROM creator_source_items i JOIN creator_sources s ON s.id=i.source_id WHERE i.id=?"
+      )
+      .get(String(id || ""));
+    if (!row) fail("信源条目不存在或已被清理，请刷新热点后重试", 404);
+    const { created } = this.convertSourceItems([row.id]);
+    const material = this.db
+      .prepare("SELECT id,title,url FROM creator_materials WHERE url=?")
+      .get(row.url);
+    if (!material) fail("素材落库未完成，请重试", 500);
+    const existing = this.topics().find((t) =>
+      (t.refs || []).some((r) => r.kind === "material" && r.id === material.id)
+    );
+    if (existing)
+      return {
+        topic: existing,
+        material,
+        materialCreated: created > 0,
+        duplicate: true,
+      };
+    const topic = this.createTopic({
+      title: typeof title === "string" && title.trim() ? title : row.title,
+      angle: text(angle, "写作角度", 4000),
+      audience: text(audience, "读者", 1000),
+      refs: [{ kind: "material", id: material.id }],
+      reason: `热点雷达转入 · ${row.sourceName} 公开线索，标题与摘要未经核实`,
+    });
+    return { topic, material, materialCreated: created > 0, duplicate: false };
+  }
   async syncSource(id) {
     const source = this.sources().find((s) => s.id === id);
     if (!source) fail("信源不存在", 404);
@@ -2249,6 +2326,14 @@ export class CreatorService {
         "SELECT * FROM creator_metrics WHERE project_id=? ORDER BY created_at DESC"
       )
       .all(id);
+  }
+  // Read-only cross-project listing for the V2 insights page (GET
+  // /api/creator/insights). Same rows as metrics(), just not scoped to
+  // one project; titles are joined by the route from editorial.list().
+  allMetrics() {
+    return this.db
+      .prepare("SELECT * FROM creator_metrics ORDER BY created_at DESC")
+      .all();
   }
 }
 

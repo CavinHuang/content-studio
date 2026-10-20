@@ -1,0 +1,218 @@
+/* ============================================================
+   Creator V2 topic discovery styles (/topics).
+   Faithful reconstruction of public/design/creator-v2.2.html
+   discoverView (:155) + V2.2 refinements (:172 step line,
+   :175 banner + evidence grid, :9/:11-12 discovery layout and
+   mobile stacking). Colors/radii/typography mirror the design
+   source and the token baseline in app/creator-v2.css (--cv2-*).
+   Page-scoped only; .cv2-completion is copied here because
+   /topics does not import the home/hotspots stylesheets.
+   NOTE on specificity: the shell main also carries the legacy
+   "creator-main" class (app/creator.css styles .creator-main
+   button/input/textarea/label for pre-V2 pages). Selectors that
+   collide are prefixed with .cv2-app and set every visual
+   property explicitly so this page always wins the cascade
+   (same recipe as app/creator-v2-hotspots.css).
+   Honest-derivation notes:
+   - the design's theme chips (全部主题/AI 产品/独立开发/效率工具)
+     have no backend category field; the chip row filters by real
+     topic status instead (deviation doc /topics #2);
+   - no heat/relevance styles exist on purpose — the backend has
+     no such computation for topics.
+   ============================================================ */
+
+/* step line — .v2-step-line (creator-v2.2.html:56-57) */
+.cv2-step-line{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 0 22px;padding:12px 15px;background:var(--cv2-surface);border:1px solid var(--cv2-border);border-radius:12px;color:#8c93a5;font-size:11px}
+.cv2-step-line .cv2-hint{display:inline-flex;align-items:center;gap:6px;color:#8992a3;font-size:11px}
+.cv2-step-line b{font-size:11px;letter-spacing:.1px;color:inherit}
+.cv2-step-line .arrow{color:#bec4d1}
+.cv2-app .cv2-step-line a{border:0;background:none;min-height:26px;padding:5px 8px;font-size:10px;font-weight:inherit;color:#8c93a5;border-radius:9px;text-decoration:none;display:inline-flex;align-items:center;cursor:pointer}
+.cv2-app .cv2-step-line a:hover{background:#eef0f8;color:#34394a}
+/* 当前步 = 设计 .btn.primary 的 indigo 实心胶囊白字（creator-v2.2.html:172
+   `${current===v?'primary':'ghost'}` + btn tiny 形态） */
+.cv2-app .cv2-step-line a.on,.cv2-step-line b.on{background:var(--cv2-primary);border-color:var(--cv2-primary);color:#fff;font-weight:680;border-radius:9px;min-height:26px;padding:5px 8px;font-size:10px;display:inline-flex;align-items:center}
+.cv2-app .cv2-step-line a.on:hover{background:var(--cv2-primary-hover);color:#fff}
+.cv2-step-line b{font-weight:inherit;color:#8c93a5}
+
+/* banner — .v2-banner (creator-v2.2.html:58-59) */
+.cv2-banner{border:1px solid #e5eafa;border-radius:15px;padding:19px 22px;margin:0 0 22px;background:linear-gradient(105deg,#fafbff,#f0f3fe);display:flex;align-items:center;justify-content:space-between;gap:24px}
+.cv2-banner>div{min-width:0}
+.cv2-banner .cv2-pill{display:inline-flex;align-items:center;gap:5px;font-weight:660;padding:6px 9px;border-radius:7px;font-size:10px;color:#62718d;background:#eff2f8}
+.cv2-banner h3{margin:5px 0;font-size:16px;letter-spacing:-.3px;color:var(--cv2-text);font-weight:735}
+.cv2-banner p{font-size:12px;line-height:1.75;color:#768197;margin:5px 0;max-width:640px}
+
+/* tab bar — .tabbar/.tab (creator-v2.2.html:9) */
+.cv2-tabbar{display:flex;gap:5px;border-bottom:1px solid #e8e9ed;margin-bottom:24px;overflow:auto}
+.cv2-app .cv2-tabbar .cv2-tab{border:0;background:none;padding:11px 15px 14px;font-size:12px;color:#858996;white-space:nowrap;position:relative;cursor:pointer;min-height:0;border-radius:0}
+.cv2-app .cv2-tabbar .cv2-tab:hover{color:#34394a;background:none}
+.cv2-app .cv2-tabbar .cv2-tab.active{font-weight:720;color:#283659}
+.cv2-app .cv2-tabbar .cv2-tab.active:after{content:"";position:absolute;height:2px;background:var(--cv2-primary);bottom:0;left:9px;right:9px;border-radius:99px}
+
+/* filter row — .filter-row (creator-v2.2.html:9); chips reuse creator-v2.css */
+.cv2-filter-row{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-bottom:20px}
+.cv2-filter-note{margin-left:auto;font-size:10px;color:#a0a4ae}
+.cv2-app .cv2-filter-row .cv2-chip{cursor:pointer}
+
+/* record strip — real "记录选题" entry (deviation /topics #3; keeps the
+   existing POST /api/creator/topics capability from the pre-V2 page).
+   Width tracks the design's left column (1.33fr of the discovery grid). */
+.cv2-record-strip{display:flex;gap:9px;align-items:center;margin:0 0 13px;flex-wrap:wrap;max-width:660px}
+.cv2-app .cv2-record-input{flex:1;min-width:200px;display:flex;align-items:center;gap:9px;background:var(--cv2-surface);border:1px solid #e4e7ef;border-radius:10px;padding:9px 11px;color:#989dae}
+.cv2-record-input svg{width:15px;height:15px;flex:none}
+.cv2-app .cv2-record-input input{outline:none!important;border:0;background:none;padding:0;font-size:12px;min-width:0;width:100%;color:#373c4b;border-radius:0;box-shadow:none}
+.cv2-record-input input::placeholder{color:#a7adba}
+
+/* discovery grid — .discovery-grid (creator-v2.2.html:9) */
+.cv2-discovery-grid{display:grid;grid-template-columns:minmax(0,1.33fr) minmax(310px,.76fr);gap:22px;align-items:start}
+
+/* story card — .story-card (creator-v2.2.html:9) */
+.cv2-story-card{padding:23px;border:1px solid #e8e9ed;background:var(--cv2-surface);border-radius:16px;margin-bottom:13px;transition:border-color .15s;min-width:0}
+.cv2-app .cv2-story-card:hover{border-color:#bfc6ef}
+.cv2-story-card.selected{border-color:#97a7ee;background:#fdfdff}
+.cv2-story-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.cv2-app .cv2-story-title{font-size:16px;font-weight:740;letter-spacing:-.2px;line-height:1.5;margin:12px 0;display:block;text-align:left;color:#2c3341;border:0;background:none;padding:0;width:100%;cursor:pointer}
+.cv2-app .cv2-story-title:hover{color:var(--cv2-primary);background:none}
+.cv2-story-desc{font-size:12px;color:#7d8493;line-height:1.8;margin:0 0 17px}
+.cv2-story-bottom{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.cv2-source-line{font-size:11px;color:#959aa5}
+
+/* design .empty (creator-v2.2.html:9) */
+.cv2-tplist-empty{padding:40px;color:#9399a6;font-size:12px;text-align:center;line-height:1.9}
+
+/* detail panel — .detail-panel (creator-v2.2.html:9,155) */
+.cv2-detail-panel{position:sticky;top:23px;min-width:0}
+.cv2-detail-panel h4{font-size:12px;margin:23px 0 9px;color:var(--cv2-text)}
+.cv2-detail-panel .cv2-detail-note{font-size:12px;line-height:1.9;color:#7e8492;margin:9px 0}
+.cv2-detail-footnote{text-align:center;font-size:10px;color:#9ca1aa;line-height:1.7;margin:13px 0 0}
+
+/* title field — editable, looks like the design h3 (.detail-panel h3:
+   18px/1.5, margin 8px 0 13px) so editing does not change the visual */
+.cv2-app .cv2-detail-title-input{font-size:18px;line-height:1.5;font-weight:730;letter-spacing:-.25px;color:var(--cv2-text);margin:8px 0 13px;width:100%;background:transparent;border:1px solid transparent;border-radius:8px;padding:4px 8px;margin-left:-8px}
+.cv2-app .cv2-detail-title-input:hover{border-color:#e3e8f6}
+.cv2-app .cv2-detail-title-input:focus{outline:none;border-color:#c3cbef;background:#fbfcff}
+
+/* quote — .detail-quote (creator-v2.2.html:9) with an editable core */
+.cv2-detail-quote{font-size:12px;background:#f7f8ff;padding:14px;border-radius:10px;color:#566395;line-height:1.85;border-left:2px solid #8fa2ff;margin-top:10px}
+.cv2-app .cv2-detail-quote textarea{display:block;width:100%;background:transparent;border:0;outline:none!important;color:#566395;font-size:12px;line-height:1.85;padding:0;resize:vertical;min-height:44px;border-radius:0;box-shadow:none}
+.cv2-detail-quote[data-empty="true"] textarea::placeholder{color:#a3abc9}
+
+/* judgment fields — design paragraph typography in quiet editable boxes */
+.cv2-app .cv2-brief-field textarea{display:block;width:100%;font-size:12px;line-height:1.9;color:#4a5160;background:#fbfcfe;border:1px solid transparent;border-radius:9px;padding:9px 12px;resize:vertical;box-shadow:none}
+.cv2-app .cv2-brief-field textarea:hover{border-color:#e3e8f6}
+.cv2-app .cv2-brief-field textarea:focus{outline:none;border-color:#c3cbef;background:#fff}
+.cv2-brief-field textarea::placeholder{color:#b3b9c8}
+.cv2-refs-list{display:grid;gap:6px;margin:0}
+.cv2-refs-list li{list-style:none;font-size:12px;line-height:1.7;color:#5b6272;display:flex;gap:7px;align-items:baseline;flex-wrap:wrap}
+.cv2-refs-list .cv2-ref-kind{font-size:10px;color:#666d7c;background:#f3f4f5;border-radius:6px;padding:3px 6px;white-space:nowrap}
+.cv2-refs-list .cv2-ref-unavailable{color:#a86a2f}
+.cv2-judgment-hint{margin:12px 0 0;font-size:11px;line-height:1.7;color:#a86a2f;background:#fff8f1;border:1px solid #f4e6d3;border-radius:9px;padding:9px 11px}
+
+/* actions — design gives the primary button full width (.detail-panel .btn) */
+.cv2-detail-actions{display:grid;gap:9px;margin-top:20px}
+.cv2-detail-actions .cv2-btn.primary{width:100%}
+.cv2-detail-actions-row{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+
+/* collapsed areas (完整简报 / 讨论) inside the panel */
+.cv2-app .cv2-detail-details{border:1px solid var(--cv2-border);border-radius:11px;margin-top:13px;background:#fcfcfe}
+.cv2-app .cv2-detail-details>summary{display:flex;align-items:center;gap:8px;padding:12px 14px;font-size:12px;font-weight:680;color:#4a5568;cursor:pointer;list-style:none;border-radius:11px}
+.cv2-app .cv2-detail-details>summary::-webkit-details-marker{display:none}
+.cv2-app .cv2-detail-details>summary:hover{background:#f4f6fd;color:#34394a}
+.cv2-app .cv2-detail-details[open]>summary{border-bottom:1px solid var(--cv2-border);border-radius:11px 11px 0 0}
+.cv2-detail-details>summary .cv2-nav-icon{margin-left:auto;color:#aab1c2;transition:transform .15s}
+.cv2-detail-details[open]>summary .cv2-nav-icon{transform:rotate(90deg)}
+.cv2-detail-details-body{padding:14px;display:grid;gap:13px}
+.cv2-app .cv2-detail-details-body label{display:grid;gap:7px;font-size:12px;font-weight:650;color:#4a5568}
+.cv2-app .cv2-detail-details-body textarea{display:block;width:100%;font-size:12px;line-height:1.8;color:#373c4b;background:var(--cv2-surface);border:1px solid #e0e3e9;border-radius:9px;padding:10px 12px;resize:vertical;box-shadow:none}
+.cv2-app .cv2-detail-details-body textarea:focus{outline:none;border-color:#c3cbef}
+.cv2-app .cv2-checkline{display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.7;color:#5b6272;font-weight:500}
+.cv2-app .cv2-checkline input[type="checkbox"]{accent-color:#4560cf;width:14px;height:14px;flex:none;margin-top:3px}
+.cv2-refpicker{display:grid;gap:8px;max-height:220px;overflow:auto;padding-top:4px}
+.cv2-history-item{border:1px solid var(--cv2-border);border-radius:10px;padding:12px;background:var(--cv2-surface);display:grid;gap:9px}
+.cv2-history-item strong{font-size:12px;color:var(--cv2-text)}
+.cv2-history-item pre{white-space:pre-wrap;font-size:11px;line-height:1.8;color:#6b7280;margin:0;font-family:inherit}
+.cv2-conversation{display:grid;gap:12px}
+.cv2-conversation small{font-size:10px;color:#9699a4}
+.cv2-conversation p{margin:4px 0 0;font-size:12px;line-height:1.8;color:#4a5160;background:#f7f8fc;border-radius:9px;padding:9px 12px}
+.cv2-app .cv2-conversation pre{white-space:pre-wrap;font-size:11px;line-height:1.8;color:#6b7280;margin:6px 0 0;font-family:inherit}
+
+/* batch recommend box — collapsed surface above the grid (ask:
+   批量推荐放折叠区); AI consent + service precondition live here */
+.cv2-recommend-box{margin:0 0 20px}
+.cv2-app .cv2-recommend-box>summary{display:flex;align-items:center;gap:9px;padding:14px 18px;font-size:12px;font-weight:680;color:#4a5568;cursor:pointer;list-style:none;border-radius:var(--cv2-radius-card)}
+.cv2-app .cv2-recommend-box>summary::-webkit-details-marker{display:none}
+.cv2-app .cv2-recommend-box>summary:hover{background:#f7f9ff;color:#34394a}
+.cv2-app .cv2-recommend-box[open]>summary{border-bottom:1px solid var(--cv2-border);border-radius:var(--cv2-radius-card) var(--cv2-radius-card) 0 0}
+.cv2-recommend-box>summary .cv2-nav-icon{margin-left:auto;color:#aab1c2;transition:transform .15s}
+.cv2-recommend-box[open]>summary .cv2-nav-icon{transform:rotate(90deg)}
+.cv2-recommend-body{padding:16px 18px;display:grid;gap:13px}
+.cv2-recommend-body .cv2-recommend-intro{margin:0;font-size:11px;color:#8991a5;line-height:1.8}
+.cv2-recommend-pick{display:grid;gap:8px;max-height:240px;overflow:auto}
+.cv2-recommend-hint{margin:0;font-size:11px;line-height:1.7;color:#8991a5}
+.cv2-app .cv2-recommend-actions{display:flex;gap:9px;flex-wrap:wrap}
+
+/* bottom evidence grid — .v2-evidence-grid (creator-v2.2.html:75-77) */
+.cv2-evidence-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;margin:22px 0 0}
+.cv2-evidence-grid article{border:1px solid #e4e8f1;background:var(--cv2-surface);padding:18px 19px;border-radius:13px;min-width:0}
+.cv2-evidence-grid h4{font-size:12px;margin:8px 0;color:var(--cv2-text)}
+.cv2-evidence-grid p{font-size:11px;color:#878fa1;line-height:1.8;margin:0}
+.cv2-evidence-grid .cv2-n{font-size:10px;color:#556cd0;font-weight:780;letter-spacing:1px}
+
+/* completion band — .v2-completion (creator-v2.2.html:70-71) */
+.cv2-completion{background:var(--cv2-surface);border:1px solid #e5e9f5;border-radius:14px;padding:18px 21px;margin:20px 0 0;display:flex;align-items:center;gap:18px;justify-content:space-between;flex-wrap:wrap}
+.cv2-completion strong{font-size:13px;color:var(--cv2-text)}
+.cv2-completion p{font-size:11px;color:#9298a4;line-height:1.7;margin:5px 0 0}
+
+/* ------------------------------------------------------------
+   Series view — design-uncovered real capability (deviation
+   /topics #5): the pre-V2 page's series planner and prep jobs
+   stay reachable from the page header, restyled with V2 tokens.
+   ------------------------------------------------------------ */
+.cv2-series-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}
+.cv2-series-col{display:grid;gap:20px;min-width:0}
+.cv2-app .cv2-series-form{display:grid;gap:15px}
+.cv2-app .cv2-series-form label{display:grid;gap:7px;font-size:12px;font-weight:650;color:#4a5568}
+.cv2-app .cv2-series-form input,.cv2-app .cv2-series-form textarea,.cv2-app .cv2-series-form select{display:block;width:100%;font-size:12px;line-height:1.7;color:#373c4b;background:var(--cv2-surface);border:1px solid #e0e3e9;border-radius:9px;padding:10px 12px;box-shadow:none}
+.cv2-app .cv2-series-form textarea{resize:vertical}
+.cv2-app .cv2-series-form input:focus,.cv2-app .cv2-series-form textarea:focus,.cv2-app .cv2-series-form select:focus{outline:none;border-color:#c3cbef}
+.cv2-series-card{border:1px solid var(--cv2-border);background:var(--cv2-surface);border-radius:13px;padding:17px 19px;display:grid;gap:11px;min-width:0}
+.cv2-series-card h3{margin:0;font-size:14px;color:var(--cv2-text)}
+.cv2-series-card p{margin:0;font-size:11px;color:#8a91a0;line-height:1.7}
+.cv2-series-headrow{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.cv2-series-two{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.cv2-app .cv2-series-jobrow{border-top:1px solid #eef0f5;padding:11px 0;display:grid;gap:8px}
+.cv2-app .cv2-series-jobrow:first-of-type{border-top:0;padding-top:2px}
+
+/* ------------------------------------------------------------
+   Responsive — mirrors creator-v2.2.html :11 (≤1040 single
+   column, static panel) and :12 (≤740 compact rhythm)
+   ------------------------------------------------------------ */
+@media(max-width:1040px){
+  .cv2-discovery-grid{grid-template-columns:1fr}
+  .cv2-detail-panel{position:static}
+  .cv2-evidence-grid{grid-template-columns:1fr 1fr}
+  .cv2-series-grid{grid-template-columns:1fr}
+}
+@media(max-width:1150px){
+  .cv2-evidence-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:760px){
+  /* banner：设计移动端 CTA 与标题同行（design/topics-mobile.png：按钮右上，
+     文块左），flex 行不换行、文块可收缩换行 */
+  .cv2-banner{padding:17px;align-items:flex-start;flex-wrap:nowrap;gap:14px}
+  .cv2-banner .cv2-btn{font-size:11px;flex:none}
+  /* 页头动作区：按设计移动形态收缩为纯图标圆钮（「查看热点雷达」；
+     「内容系列」为已登记偏差 #5 的连带入口，同样收缩以保持单一形态） */
+  .cv2-app .cv2-page-head>div:first-child{flex:1;min-width:0}
+  .cv2-app .cv2-head-actions{flex-wrap:nowrap;flex:none;gap:8px}
+  .cv2-app .cv2-head-actions .cv2-btn{font-size:0;gap:0;width:38px;height:38px;padding:0;justify-content:center;border-radius:999px;flex:none}
+  .cv2-app .cv2-head-actions .cv2-btn svg{width:17px;height:17px}
+  .cv2-tabbar{margin-bottom:17px}
+  .cv2-story-card{padding:18px}
+  .cv2-story-bottom{align-items:flex-start}
+  .cv2-source-line{font-size:10px}
+  .cv2-evidence-grid{grid-template-columns:1fr;margin-top:18px}
+  .cv2-app .cv2-detail-title-input{font-size:16px}
+  .cv2-detail-actions-row{grid-template-columns:1fr}
+  .cv2-record-strip{gap:7px}
+  .cv2-filter-note{display:none}
+}
