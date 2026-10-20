@@ -1,0 +1,120 @@
+/* ============================================================
+   Creator V2 insights styles (/insights).
+   Faithful reconstruction of public/design/creator-v2.2.html
+   reviewView (:161) + the V2.2 refinement (:181): the
+   data-source declaration band (.setting-note form), the shared
+   range toolbar (.v2-insight-bar/.v2-segments + warn pill), the
+   three KPI cards (.insight-kpis), the trend bars (.trend-bars),
+   the two-column body (.home-cols proportions) and the
+   .v2-learning principle cards.
+   Colors/radii/typography mirror the design source and the token
+   baseline in app/creator-v2.css (--cv2-*). Page-scoped classes
+   only; NOTE on specificity: the shell main element also carries
+   the legacy "creator-main" class (app/creator.css still styles
+   .creator-main button/input/label), so colliding selectors are
+   prefixed with .cv2-app to win the cascade without touching the
+   legacy sheet.
+   ============================================================ */
+
+/* 数据来源声明条 — 设计 :161 .setting-note（浅底声明块） */
+.cv2-ins-note{border-radius:10px;background:#f6f7fc;padding:14px 16px;font-size:11px;color:#8991a5;line-height:1.8;margin:0 0 16px}
+.cv2-ins-note strong{color:#4a5568}
+
+/* 范围工具栏 — .v2-insight-bar/.v2-segments/:95-96,181（与日历页同源） */
+.cv2-ins-bar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:0 0 18px}
+.cv2-ins-bar>span{font-size:11px;color:#8b93a4}
+.v2-pill{display:inline-flex;align-items:center;gap:5px;font-weight:660;padding:6px 9px;border-radius:7px;font-size:10px;color:#62718d;background:#eff2f8;white-space:nowrap}
+.v2-pill.warn{color:#aa7339;background:#fff2e4}
+.cv2-segments{display:flex;gap:4px;background:#eef0f4;border-radius:9px;padding:4px;width:max-content}
+.cv2-app .cv2-segments button{background:transparent;border:0;border-radius:7px;padding:8px 14px;font-size:11px;color:#80899a;cursor:pointer;min-height:0;display:inline-flex;align-items:center}
+.cv2-app .cv2-segments button:hover{background:transparent;color:#4059bb}
+.cv2-segments button[aria-pressed="true"]{background:#fff;color:#4059bb;box-shadow:0 1px 5px #1a2a4910;font-weight:740}
+
+/* KPI 三格 — :9 .insight-kpis（数字 29px/-1px 字距） */
+.cv2-ins-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:17px;margin-bottom:21px}
+.cv2-ins-kpis .cv2-surface-pad{padding:20px 23px}
+.cv2-ins-kpis strong{display:block;font-size:29px;margin:12px 0 8px;letter-spacing:-1px;color:var(--cv2-text);font-variant-numeric:tabular-nums}
+.cv2-ins-kpis small{display:block;color:#9299a7;font-size:11px;line-height:1.6}
+
+/* 双栏 — :9 .home-cols 比例（1.33fr / minmax(330px,.88fr)） */
+.cv2-ins-cols{display:grid;grid-template-columns:minmax(0,1.33fr) minmax(330px,.88fr);gap:21px;align-items:start}
+
+/* 趋势柱 — :9 .trend-bars（205px 高、7 列、渐变柱） */
+.cv2-ins-trend{height:205px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:24px;border-bottom:1px solid #e4e6eb;align-items:end;margin:25px 0 10px}
+.cv2-ins-trend>div{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:end;gap:12px;min-width:0}
+.cv2-ins-trend span{display:block;width:65%;border-radius:5px 5px 0 0;background:linear-gradient(180deg,#7187e9,#c0ccff)}
+.cv2-ins-trend small{font-size:10px;color:#979eac;white-space:nowrap}
+.cv2-ins-trend-note{margin:10px 0 0}
+
+/* 记录表 — :161 .works-table 形态（标题按钮 + 标签 + 右对齐数值） */
+.cv2-ins-table-head{border-top:1px solid #eff0f3;margin-top:18px}
+.cv2-ins-table{width:100%;border-collapse:collapse}
+.cv2-ins-table td{padding:14px 0;border-top:1px solid #eff0f3;font-size:12px;vertical-align:top}
+.cv2-ins-table tr:first-child td{border-top:0}
+.cv2-ins-table-main{min-width:0}
+.cv2-app .cv2-ins-table-title{display:block;border:0;background:none;color:#303542;font-size:12px;font-weight:650;padding:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.cv2-app .cv2-ins-table-title:hover{color:var(--cv2-primary)}
+.cv2-ins-table-main .cv2-micro{display:block;margin-top:5px}
+.cv2-ins-table-note{color:#8a90a0;overflow-wrap:anywhere}
+.cv2-ins-tags{display:flex;gap:6px;flex-wrap:wrap}
+.cv2-ins-num{text-align:right;white-space:nowrap;color:#5b6272}
+.cv2-ins-num b{font-weight:730;color:var(--cv2-text);font-variant-numeric:tabular-nums}
+.cv2-ins-num-sub{display:block;margin-top:4px;font-size:10px;color:#979eac}
+
+/* 风格建议卡 — :161 .agent-suggest 形态（软底建议块 + 主次双按钮） */
+.cv2-ins-suggest{background:#f5f6fc;border-radius:12px;padding:15px 16px;margin:0 0 14px}
+.cv2-ins-suggest-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:10px}
+.cv2-ins-suggest-lines{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.cv2-ins-suggest-lines li{display:flex;gap:9px;font-size:12px;line-height:1.7;color:#4b5568}
+.cv2-ins-suggest-lines b{flex:none;font-size:11px;color:#8a92a3;font-weight:650}
+.cv2-ins-suggest p{font-size:11px;color:#727b93;line-height:1.7;margin:10px 0 0}
+.cv2-ins-suggest-actions{display:flex;gap:8px;margin-top:12px}
+
+/* 偏好行 — :161 .source-item 形态（一行摘要 + 状态 tag） */
+.cv2-ins-pref{border-bottom:1px solid #eef0f3;padding:13px 0}
+.cv2-ins-pref:last-of-type{border-bottom:0}
+.cv2-app .cv2-ins-pref summary{display:flex;align-items:center;gap:10px;cursor:pointer;list-style:none;font-size:12px;color:#3c4356}
+.cv2-app .cv2-ins-pref summary::-webkit-details-marker{display:none}
+.cv2-ins-pref-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cv2-ins-pref-side{display:flex;align-items:center;gap:8px;flex:none}
+.cv2-ins-pref .cv2-ins-suggest-lines{margin-top:10px}
+.cv2-ins-pref .cv2-micro{margin:10px 0 0}
+
+/* 学习原则三卡 — :97-99,181 .v2-learning */
+.cv2-learning{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;margin:19px 0 0}
+.cv2-learning article{padding:18px;background:var(--cv2-surface);border:1px solid #e7eaf2;border-radius:13px}
+.cv2-learning strong{font-size:12px;display:block;margin-top:12px;color:var(--cv2-text)}
+.cv2-learning p{font-size:11px;color:#8690a0;line-height:1.7;margin:8px 0 0}
+
+/* 记录弹窗 — 与日历/作品页同一页面级 modal 模式（设计 :9 .modal/.modal-overlay） */
+.cv2-modal-overlay{position:fixed;inset:0;z-index:90;background:#15192688;display:grid;place-items:center;padding:20px}
+.cv2-modal{background:var(--cv2-surface);max-width:520px;width:100%;border-radius:19px;padding:30px;box-shadow:0 22px 88px #0002;min-width:0;max-height:calc(100vh - 40px);overflow:auto}
+.cv2-modal h3{font-size:21px;margin:0 0 8px;color:var(--cv2-text);letter-spacing:-.3px}
+.cv2-modal>p{font-size:12px;color:#858b99;line-height:1.7;margin:0}
+.cv2-ins-field{display:grid;gap:7px;font-size:12px;font-weight:650;color:#4e5665;margin:0 0 13px}
+.cv2-app .cv2-ins-field input,.cv2-app .cv2-ins-field select,.cv2-app .cv2-ins-field textarea{border:1px solid #dce0e8;border-radius:11px;padding:11px 12px;width:100%;font-size:13px;color:#343945;background:var(--cv2-surface);margin:0;min-width:0;font-weight:400}
+.cv2-ins-field textarea{resize:vertical}
+.cv2-ins-field-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.cv2-modal-foot.cv2-ins-modal-foot{display:flex;justify-content:space-between;gap:10px;margin-top:18px}
+
+@media(max-width:1150px){
+  .cv2-ins-cols{grid-template-columns:1fr}
+}
+@media(max-width:740px){
+  /* 设计 :12/:118：KPI 单列、双栏堆叠、学习卡单列、趋势柱压缩 */
+  .cv2-ins-kpis{grid-template-columns:1fr;gap:12px;margin-bottom:16px}
+  .cv2-ins-kpis .cv2-surface-pad{padding:16px 18px}
+  .cv2-ins-kpis strong{font-size:25px;margin:10px 0 6px}
+  .cv2-ins-trend{gap:8px;height:150px;margin:18px 0 8px}
+  .cv2-ins-bar{gap:8px;margin-bottom:14px}
+  .cv2-ins-bar>span{width:100%}
+  .cv2-ins-num{text-align:left}
+  .cv2-ins-table td{display:block;padding:12px 0 0;border-top:0}
+  .cv2-ins-table tr{display:block;border-top:1px solid #eff0f3;padding:12px 0}
+  .cv2-ins-table tr:first-child{border-top:0}
+  .cv2-learning{grid-template-columns:1fr}
+  .cv2-ins-field-row{grid-template-columns:1fr}
+  /* 页头「记录复盘数据」收成图标圆钮，可访问名不变（/calendar /works 同先例；设计 :12 .page-heading .btn{font-size:0}） */
+  .cv2-head-actions .cv2-btn{font-size:0;padding:10px;gap:0;min-width:40px;min-height:40px}
+  .cv2-head-actions .cv2-btn svg{width:17px;height:17px}
+}

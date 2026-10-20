@@ -316,7 +316,7 @@
    - 设计源：设计基准 library 无复盘 UI（旧 CreatorLibrary 详情内有 metrics 表单）。
    - 实际差异：V2 详情保留「发布与交付记录」（真实 publishing facts），不保留 metrics 录入表单；`components/CreatorLibrary.jsx` 原样保留该逻辑，审计矩阵指定 /insights 复用（v2-audit.md §1 /insights 行）。
    - 必要原因：效果复盘属 /insights 范围（任务书 P1）；资料库详情聚焦素材、来源、图像与关联作品。
-   - 证据：`docs/implementation/CREATOR-V2-FEATURE-MATRIX.md` 待 /insights 页落地时登记其指标录入入口。
+   - 证据：`docs/implementation/CREATOR-V2-FEATURE-MATRIX.md` 待 /insights 页落地时登记其指标录入入口。（已承接：见下文「/insights 效果复盘」偏差 #2——录入弹窗走既有 `POST /api/creator/projects/:id/metrics`。）
 
 6. **完成条与集合格文案按真实能力改写，不再写「正式版应…」原型语气**
    - 设计源：`creator-v2.2.html:182`（完成条「正式版应标注来源、抓取时间、授权状态、关联文章和移除影响…」）。
@@ -358,3 +358,32 @@
    - 实际差异：卡片列出真实 `creator_series`（名称/目标/状态标签 计划中·已暂停·已完成/节奏/下次准备日期/下一篇（长标题截断显示，完整标题在当日安排与选题页）/待确认篇数）；「调整安排」弹窗改下次准备日期与间隔天数，走既有 `PUT /api/creator/series/:id` + expectedRevision，409 时提示「系列已变化，请重新打开后调整」；非激活系列不再产生「系列准备」日历事件（与 updateSeries 取消队列任务同语义）；无系列时给出「去规划系列」（/topics?view=series）入口而非空白。
    - 必要原因：系列事实在 SQLite 领域服务里；无效按钮与假状态不可上正式页。
    - 证据：`e2e/creator-v2-calendar.spec.mjs` 系列用例（真实建系列→卡片+日历事件→调整→API 验证 next_run_at 移动与 cadenceDays=3→旧 revision 409）；`test/calendar-view.test.mjs` describeSeries/moveIsoToDay 用例。
+
+## /insights 效果复盘（2026-10-20，commit 范围 `feat/creator-v2-real-workspace` 分支）
+
+1. **「示例阅读量/示例互动数」KPI 改为作者手工录入的复盘数据；无录入显示「—」与显式「暂无已验证平台数据」空态**
+   - 设计源：`creator-v2.2.html:161`（KPI「示例阅读量 2,480 / 示例互动数 126 / 已发布作品 1」+ setting-note 自述演示数据）、`:181`「未连接真实账号」pill；参考截图 `docs/implementation/screenshots/design/insights-desktop.png`。
+   - 实际差异：三张 KPI 卡改接真实数据——已记录阅读量/已记录互动 = 各渠道「最新一次」人工录入合计（`creator_metrics`，按 7/30/90 天窗口过滤；同渠道重复录入不累加快照，缺失项显示「—」并标注「N 条未填」）；第三卡为「作者报告已发表 N · 未经平台核验」（editorial `reported_published` 状态，沿用 `projectStage` 的诚实标签）。无任何录入时 KPI 显示「—」，内容表现区显示「暂无已验证平台数据」空态；「未连接平台统计」warn pill 常驻（本产品没有平台统计接入，是结构性事实而非条件态）。
+   - 必要原因：任务书红线「未连接统计时清晰显示暂无已验证平台数据；不伪造点击率/阅读量」。原型 KPI 数值全部是演示数据。
+   - 替代方案：把最新快照按日插值成平滑趋势曲线——被否决，插值会伪造未采集的逐日增量；趋势柱只画真实录入当天的快照。
+   - 证据：`test/insights-view.test.mjs`（最新快照聚合/缺失不补零/空态 null/hasVerifiedPlatformData 恒 false）；`e2e/creator-v2-insights.spec.mjs` 空态与记录用例。
+2. **页头「连接数据源」按钮改为真实的「记录复盘数据」人工录入弹窗（旧素材库详情的复盘表单随本页承接）**
+   - 设计源：`creator-v2.2.html:161`（连接数据源按钮 → toast「正式版按平台权限接入表现数据」）；`/library` 偏差 #5 已登记 metrics 录入表单随 /insights 承接。
+   - 实际差异：页头按钮改为「记录复盘数据」：选作品 + 渠道（公众号/知乎/小红书）+ 阅读/点赞/评论（选填，空=缺失「—」）+ 文章链接（选填）+ 备注，走既有 `POST /api/creator/projects/:id/metrics` 落库并刷新 KPI/趋势/表格。连接平台统计的能力仍不存在，声明条明示；平台账号连接入口保留在 /settings。
+   - 必要原因：原型按钮是无效演示；正式页不做无真实效果的按钮，而人工复盘是本页唯一真实的数据来源路径（`/library` 详情已按偏差 #5 移除该表单）。
+   - 证据：`e2e/creator-v2-insights.spec.mjs` 记录用例（弹窗空值门槛 → 保存 → API 验证 `creator_metrics` 行 → 刷新仍在）。
+3. **趋势柱从演示的「7 日曲线」改为按录入快照绘制，30/90 天按时段分桶**
+   - 设计源：`creator-v2.2.html:161`（`.trend-bars` 固定 7 根演示柱，标注「示例趋势 · 7 天」）。
+   - 实际差异：7 天 = 逐日柱（柱高 = 当天录入的最新阅读量快照，空白 = 当天没有录入）；30 天 = 10×3 天桶、90 天 = 13×7 天桶（桶内取最新快照，90/7 余数由最旧一桶吸收）；柱图下方常驻说明「快照不是逐日增量」。7 天窗口是「过去 7 天」滚动窗口（设计自身 KPI 文案即「过去 7 天」），非固定周一~周日。
+   - 必要原因：无平台逐日统计，平滑曲线会伪造未采集的数据点；快照柱只表达真实发生过的人工记录。
+   - 证据：`test/insights-view.test.mjs`（trendBuckets 分桶/同日两条取最新/无录入无柱）；`e2e/creator-v2-insights.spec.mjs` 柱数断言。
+4. **「你的写作风格」卡接真实 style-suggestions 决策流；提炼入口保留在偏好与连接**
+   - 设计源：`creator-v2.2.html:161`（编辑习惯建议卡「确认学习/暂不学习」为原型本地状态 + 三条固定偏好行）。
+   - 实际差异：pending 建议卡显示真实建议字段（表达语气/结构偏好/避免表达/篇幅习惯）与依据（来源文章 v 修订号），「采纳到画像」走既有 `POST /api/creator/style-suggestions/:id`（expectedRevision 409 冲突保护），「暂不采纳」保留拒绝记录；已采纳/已拒绝行可展开查看全部字段与依据。新建议的提炼（需勾选发送同意）保留在 /settings，本页给出入口而非重复 consent 流程；画像学习暂停时显示提示条。
+   - 必要原因：任务书红线「风格学习只来自作者确认的修改」——采纳是唯一写入画像的路径，且必须可冲突保护、可追溯依据。
+   - 证据：`e2e/creator-v2-insights.spec.mjs` 风格用例（提炼 → 拒绝后画像不变 → 采纳后 GET /api/creator/profile 真实更新 → 旧 revision 409）；`test/insights-view.test.mjs` 分组与 revoked 排除用例。
+5. **学习原则三卡保留设计文案；范围分段从「仅改选中态」变为真实过滤**
+   - 设计源：`creator-v2.2.html:181`（v2-learning 三卡为原则声明；范围分段「仅改选中态，数据为示例」）。
+   - 实际差异：三卡为设计原文的原则声明（不含任何数据主张），原样保留；范围分段改为真实过滤——只统计所选窗口内录入的复盘记录，说明文字同步更新（「只统计这段时间内录入的复盘记录」）。
+   - 必要原因：原则卡无数据主张可原样保留；范围切换在真实产品中必须影响真实数据。
+   - 证据：`e2e/creator-v2-insights.spec.mjs` 空态用例（切换范围不产生假数据）与记录用例（90 天范围仍计入同一条记录）。

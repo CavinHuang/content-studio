@@ -2327,6 +2327,14 @@ export class CreatorService {
       )
       .all(id);
   }
+  // Read-only cross-project listing for the V2 insights page (GET
+  // /api/creator/insights). Same rows as metrics(), just not scoped to
+  // one project; titles are joined by the route from editorial.list().
+  allMetrics() {
+    return this.db
+      .prepare("SELECT * FROM creator_metrics ORDER BY created_at DESC")
+      .all();
+  }
 }
 
 Object.assign(CreatorService.prototype, sourceLifecycle);
