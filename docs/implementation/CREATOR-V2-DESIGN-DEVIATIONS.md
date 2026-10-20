@@ -387,3 +387,48 @@
    - 实际差异：三卡为设计原文的原则声明（不含任何数据主张），原样保留；范围分段改为真实过滤——只统计所选窗口内录入的复盘记录，说明文字同步更新（「只统计这段时间内录入的复盘记录」）。
    - 必要原因：原则卡无数据主张可原样保留；范围切换在真实产品中必须影响真实数据。
    - 证据：`e2e/creator-v2-insights.spec.mjs` 空态用例（切换范围不产生假数据）与记录用例（90 天范围仍计入同一条记录）。
+
+## /settings 偏好与连接（2026-10-20，commit 范围 `feat/creator-v2-real-workspace` 分支）
+
+设计源：`public/design/creator-v2.2.html:164`（settingsView）+ V2.2 精修 `:183`（声明条/完成条）、`:106-107`（.v2-settings-head）、`:9`（.settings-grid/.setting-field/.setting-note）；参考截图 `docs/implementation/screenshots/design/settings-desktop.png`、`settings-models-desktop.png`、`settings-mobile.png`。实现截图 `docs/implementation/screenshots/settings/`（1440×900 四组四张 + 390×844 两张，容器内真实渲染，`pageerror`/`console.error` = 0，双视口无横向溢出）。
+
+1. **画像组沿用真实 profile 契约（8 字段+时区+2 开关），不是设计的 3 个示例字段；3 个主字段对齐设计三行，其余折叠**
+   - 设计源：`creator-v2.2.html:164`（画像组只有 创作方向/目标读者/写作偏好 三个单行 input）。
+   - 实际差异：主字段=创作领域/希望写给谁/表达语气（与旧 UI 及 e2e 契约一致的多行 textarea），创作目标/结构偏好/避免的表达/篇幅偏好/视觉偏好/创作计划时区/两个学习开关折叠进「更多画像字段与时区」；textarea 保留 2000 字容量。
+   - 必要原因：字段名与容量来自真实 `creator_profile_versions` 契约（`src/creator.mjs:198-276`），改名或砍字段会丢既有功能与 e2e 链路；设计要求「模型参数与高级设置后置」由折叠区实现。
+   - 证据：`e2e/creator-v2-settings.spec.mjs`（保存 v2 落库、折叠区展开）、`e2e/creator-v1.spec.mjs` 设置全链。
+
+2. **「这是独立的 UI/UX 演示…」提示条与「保存演示设置/已演示设置保存反馈」替换为真实语义与真实保存**
+   - 设计源：`:164`（setting-note 自述演示 + data-action="settings-save" 仅 toast）。
+   - 实际差异：各组提示条改为真实语义（画像版本留痕与恢复、默认发布策略=人工确认、来源边界、单次费用提醒的实际行为）；「保存」按组真实落库（画像 `PUT /api/creator/profile` + expectedRevision、服务连接 POST/PUT 加密保存、平台账号 POST、信源订阅同意门、额度 PUT），反馈文案对应真实结果。
+   - 必要原因：正式页不做无效按钮、不得自称演示数据（任务书硬性要求 3/5）。
+   - 证据：`e2e/creator-v2-settings.spec.mjs` 五个用例全部服务端核对。
+
+3. **「当前写作模型=未连接（设计演示）」改为真实连接列表或诚实空态；「单次费用提醒」由文案变为真实额度与调用核对**
+   - 设计源：`:164`（models 组三个演示值 input：未连接（设计演示）/按需配置/调用前展示范围与成本）。
+   - 实际差异：服务连接卡展示真实 connections（写作/配图 tag、当前使用/备用 badge 对应设计的当前/备用模型、密钥已配置且零回显、V76 开放模型目录流原样保留），无连接时显示「未连接模型服务」空态；费用侧为真实 每日请求上限表单 + 今日请求计数 + 最近调用记录（unknown 状态提供已核对/未产生请求两个结算动作，`POST /api/creator/usage/:su`）。
+   - 必要原因：任务书红线「禁止 mock 成功状态；无数据诚实空态」；设计演示值没有后端事实。
+   - 证据：`e2e/creator-v2-settings.spec.mjs` 深链用例（密钥不出现在页面与 GET 响应、额度落库、移除后回到空态）。
+
+4. **旧五个 tab（作者画像/写作与配图服务/发布账号/公开信源/用量与额度）收敛为设计的四组；旧深链 #services/#usage/#sources 映射保留**
+   - 设计源：`:164`（settings-menu 四组）；`components/CreatorSettings.jsx`（旧五 tab + hash 切换）。
+   - 实际差异：四组=创作画像/模型与费用（服务连接+额度合并）/发布账号/信源与研究；旧 hash 深链 #services、#usage（额外滚动到费用与额度卡）、#sources 继续定位对应分组；旧 CreatorSettings 组件保留在仓库不再挂载。
+   - 必要原因：分组还原设计；hash 兼容保住书签与 `e2e/mobile-audit.spec.mjs` 的 `/settings#services` 路由断言。
+   - 证据：`e2e/creator-v2-settings.spec.mjs` #services/#usage 用例；`e2e/mobile-audit.spec.mjs` 全绿。
+
+5. **风格学习与账号定位复用既有组件（CreatorStyleSuggestion / CreatorAccountProfile），容器内再着色对齐 V2 tokens**
+   - 设计源：`:164`（设计中无这两个子流程的形态）。
+   - 实际差异：提炼/采纳/修订采纳/移出建议列表与账号独立定位编辑沿用共享组件的交互与内部样式，仅在本页 scope 内以 `.cv2-set-suggest/.cv2-set-acct` 覆盖配色（indigo 主按钮、info 徽标、灰边卡片）。
+   - 必要原因：`e2e/creator-v1.spec.mjs` 依赖这两个组件的完整决策流；重写会危及修订采纳与 expectedRevision 保护链路。
+   - 证据：`e2e/creator-v1.spec.mjs`「reviews style evidence and configures encrypted BYOK connections」用例通过。
+
+6. **信源组显示真实内置默认信源；设计的「推荐方式」一行无真实配置项，不渲染**
+   - 设计源：`:164`（sources 组演示值 AIHOT / Hacker News / OpenAI / DeepMind + 推荐方式=优先证据充分的线索）。
+   - 实际差异：列表为真实 `creator_sources`（含运营者 2026-10-19 决定内置的 6 个默认信源，名称与设计演示吻合；显示 订阅中/已暂停、上次读取时间与暂存条数、暂停/恢复订阅、立即读取、移除）；「推荐方式」在后端没有对应可持久化配置，按红线不虚构，仅保留「来源边界：公开内容作为线索，重要事实必须核查」真实原则说明。
+   - 证据：`e2e/creator-v2-settings.spec.mjs` 信源用例（默认信源可见、暂停落库 enabled=0、添加同意门、移除后服务端消失；全程不触发外部抓取）。
+
+7. **底部完成条「回到写作」指向正式路由 /compose**
+   - 设计源：`:183`（data-nav="editor" 指原型内部编辑器视图）。
+   - 实际差异：按钮为 Link 到 `/compose`（V2.2 创作空间正式路由，见设计对应表）；同批把旧深链 `/discover→/topics`、`/review→/insights`、`/editor→/compose`（查询参数原样保留）改为有意义的重定向，`/sources` `/validation` `/knowledge` 仍由旧 StudioApp 提供直至后续迁移。
+   - 必要原因：原型无真实路由；旧深链保住书签与既有 e2e（`delivery-readiness-v44` 的 /editor 链接断言）。
+   - 证据：`e2e/mobile-audit.spec.mjs`（/review 重定向后无横向溢出）、`e2e/delivery-readiness-v44.spec.mjs` 通过。
