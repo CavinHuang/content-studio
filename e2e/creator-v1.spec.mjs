@@ -230,14 +230,15 @@ test("author moves from profile and topic discussion through MD writing, XHS PNG
   await page.getByRole("button", { name: "保存作者画像", exact: true }).click();
   await expect(page.getByRole("status").last()).toContainText("已保存");
   await page.getByRole("link", { name: "素材库" }).click();
-  await page.getByText("添加自己的笔记或公开链接", { exact: true }).click();
-  await page.getByLabel("素材标题", { exact: true }).fill("我的第一轮写作实践");
+  // V2 素材库：参考笔记经由「导入素材」弹窗（真实 POST /api/creator/materials）
+  await page.getByRole("button", { name: "导入素材" }).click();
+  await page.getByLabel("素材标题或网址").fill("我的第一轮写作实践");
   await page
     .getByLabel("内容或摘录", { exact: true })
     .fill(
       "先写下问题，再采访一位真实读者。反馈应作为观察记录，不能直接推断普遍结论。"
     );
-  await page.getByRole("button", { name: "保存笔记" }).click();
+  await page.getByRole("button", { name: "保存素材" }).click();
   await expect(page.getByRole("status").last()).toContainText("参考笔记已保存");
   await page.getByRole("link", { name: "选题发现" }).click();
   await page.getByLabel("新选题标题").fill("新作者怎样建立创作习惯");
@@ -350,13 +351,16 @@ test("author moves from profile and topic discussion through MD writing, XHS PNG
     JSON.parse(strFromU8(files["manifest.json"])).publicationVerified
   ).toBe(false);
   // V2 统一侧栏把 /library 入口命名为「素材库」（旧创作页内导航的
-  // 「资产库」链接已被统一 Shell 取代）。
+  // 「资产库」链接已被统一 Shell 取代）；类型筛选为设计 chip，打开卡片
+  // 进入真实详情面板查看交付记录。
   await page.getByRole("link", { name: "素材库", exact: true }).click();
-  await page.getByLabel("资产类型").selectOption("article");
+  await page.getByRole("button", { name: "文章", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "从实践中建立写作流程", exact: true })
   ).toBeVisible();
-  await page.getByRole("button", { name: "查看与复用 →", exact: true }).click();
+  await page
+    .getByRole("button", { name: "查看素材详情：从实践中建立写作流程" })
+    .click();
   await expect(page.getByText(/已导出.*本地导出/)).toBeVisible();
   expect(errors).toEqual([]);
   const d = await (
@@ -837,14 +841,16 @@ test("source removal previews impact, revokes learned style and keeps article hi
     data: { action: "accept", expectedRevision: 1 },
   });
   await page.getByRole("link", { name: "素材库" }).click();
-  await page.getByLabel("搜索资产").fill(material.title);
+  await page.getByLabel("搜索素材或作品").fill(material.title);
   await expect(
     page.getByRole("heading", { name: material.title, exact: true })
   ).toBeVisible();
-  await page.getByRole("button", { name: "查看与复用 →", exact: true }).click();
+  // V2 素材库：卡片打开真实详情，移除影响流在详情内渐进披露
   await page
-    .getByRole("button", { name: "移除素材并查看画像影响", exact: true })
+    .getByRole("button", { name: `查看素材详情：${material.title}` })
     .click();
+  await page.getByText("移除素材并查看画像影响").click();
+  await page.getByRole("button", { name: "查看影响范围", exact: true }).click();
   await expect(page.getByText(/涉及 1 篇文章，1 条风格建议/)).toBeVisible();
   await expect(
     page.getByRole("button", {
@@ -856,7 +862,7 @@ test("source removal previews impact, revokes learned style and keeps article hi
   await page
     .getByRole("button", { name: "确认移除来源并撤销相关推断", exact: true })
     .click();
-  await expect(page.getByRole("status")).toContainText("来源已移除");
+  await expect(page.getByRole("status").last()).toContainText("来源已移除");
   expect(
     (await (await page.request.get("/api/creator/profile")).json()).tone
   ).toBe("");

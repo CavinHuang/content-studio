@@ -32,6 +32,10 @@ const PATHS = {
   refresh: '<path d="M20 7V3h-4M4 17v4h4M20 7a8 8 0 0 0-14-1M4 17a8 8 0 0 0 14 1"/>',
   download: '<path d="M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4"/>',
   compare: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 3v18"/>',
+  // /library additions — path data copied verbatim from the committed
+  // design source public/design/creator-v2.2.html:124 (icoPath map).
+  upload: '<path d="M12 16V3m-5 5 5-5 5 5M4 17v4h16v-4"/>',
+  link: '<path d="M10 13a5 5 0 0 0 7.4.2l2-2a5 5 0 0 0-7-7l-1.3 1.3M14 11a5 5 0 0 0-7.4-.2l-2 2a5 5 0 0 0 7 7l1.3-1.3"/>',
 };
 
 export default function Icon({ name, size = 18 }) {

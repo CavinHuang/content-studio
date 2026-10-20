@@ -1373,6 +1373,32 @@ export class CreatorService {
       )
       .map((e) => ({ ...e, text: e.text.slice(0, 1500) }));
   }
+  // V2 /library「可复用视觉系列」：跨项目只读总览既有 visual_series（V37，
+  // 同一 SQLite，无新存储模型）。既有 list() 需要具体 projectId 且只面向
+  // 成员；资料库需要无项目上下文的总览。只暴露名称/修订/成员数/所属作品
+  // 标题——引用图与风格偏好仍须成员身份（visual-series.mjs view()），
+  // 这里绝不携带任何图片资产或预览 URL。
+  visualSeriesOverview() {
+    const rows = this.db
+      .prepare(
+        "SELECT s.id,s.name,s.revision,s.updated_at AS updatedAt," +
+          "s.owner_project_id AS ownerProjectId," +
+          "(SELECT COUNT(*) FROM visual_series_members m WHERE m.series_id=s.id) AS memberCount " +
+          "FROM visual_series s ORDER BY s.rowid DESC LIMIT 12"
+      )
+      .all();
+    return {
+      series: rows.map((r) => {
+        let ownerTitle = "";
+        try {
+          ownerTitle = this.core.editorial.get(r.ownerProjectId).title;
+        } catch {
+          ownerTitle = "";
+        }
+        return { ...r, ownerTitle };
+      }),
+    };
+  }
   assetMeta({ kind, id, tags = [], archived = false } = {}) {
     this._refs([{ kind, id }]);
     if (

@@ -284,3 +284,42 @@
    - 实际差异：手机壳渲染当前渠道真实 Markdown 的轻量文本视图（`previewBlocks`，标题/引用/列表/分隔线/图片占位；`asset://` 显示本地素材标注，外链图片显示「预览不加载外部内容」占位，不发起任何外部请求）；页脚保留设计的「这不是平台真实渲染」声明并加强为本地排版示意。渠道卡按设计保留公众号/知乎两张；小红书图文交付继续在 /compose 小红书工作区（既有能力，设计未画，遵循 /compose 偏差 #3 同一先例）。
    - 必要原因：任务书 V53/V52 边界——预览不得偷拉外部内容，也不得声称平台真实渲染；渠道分区以设计两张卡为准。
    - 证据：`test/publish-center.test.mjs` previewBlocks 用例（外链不加载、asset 标注 local）；`docs/implementation/screenshots/publish/desktop.png`。
+
+## /library 素材库（2026-10-20，commit 范围 `feat/creator-v2-real-workspace` 分支）
+
+1. **正式页接管旧 CreatorLibrary 入口；点卡片从原型 toast 变为真实详情面板**
+   - 设计源：设计对应表「V2.2 素材库 → /library」；`creator-v2.2.html:163,:203`（点素材卡仅弹「正式版将显示来源、引用关联、可用状态与移除影响」toast）。
+   - 实际差异：`app/library/page.jsx` 改挂 `LibraryWorkspace`（CreatorShell + V2 tokens，页头/集合格/筛选行/三列网格/完成条按设计还原）；点卡片展开真实详情面板：素材全文（GET materials/:id）或主稿摘录、来源链接、标签与归档（PUT library/meta）、关联作品（真实 creator_asset_usage 行）、文章交付记录（publishing facts）、移除影响流（removal-preview→remove-source）、以此为素材创建选题（POST topics）。`components/CreatorLibrary.jsx` 保留未删，供 /insights 复用其人工复盘逻辑。
+   - 必要原因：来源/引用关联/移除影响正是设计 toast 承诺的正式版能力，也是任务书 P1 点名范围；toast 本身不做无效按钮。
+   - 证据：`e2e/creator-v2-library.spec.mjs`（详情/关联作品/移除影响用例）；`e2e/creator-v1.spec.mjs` 三处选择器适配后全链通过。
+
+2. **设计四类卡片映射到真实三种 kind；「链接」chip 与「参考线索」集合同为 material**
+   - 设计源：`creator-v2.2.html:163`（卡片类型 研究资料/公开线索/视觉资产/作品参考；chip 全部/文章/链接/图片）。
+   - 实际差异：领域只有 material/article/image 三种素材（src/creator.mjs library()）。映射：带 url 的 material→公开线索、无 url material→研究资料、article→作品参考、image→视觉资产（src/library-view.mjs 纯派生，单测覆盖）；chip「文章」→kind=article、「链接」→kind=material（含笔记与公开线索，卡片类型标签区分）、「图片」→kind=image。
+   - 必要原因：不新增平行存储模型；设计类型是视觉层事实，kind 是存储事实。
+   - 证据：`test/library-view.test.mjs`（映射与诚实副标题用例）；`e2e/creator-v2-library.spec.mjs` 四类卡与筛选用例。
+
+3. **「查看已归档」切换与「更多筛选」折叠区为既有能力保留，设计未画**
+   - 设计源：`creator-v2.2.html:163`（筛选行只有搜索+四个 chip）。
+   - 实际差异：筛选行尾保留「查看已归档」切换（归档资产若无入口找回即等于丢失）；下方新增折叠「更多筛选（系列、平台、日期与标签）」，承接既有 GET /api/creator/library 的 series/platform/from/to/tag 服务端参数。
+   - 必要原因：归档与高级筛选是旧页真实能力（`e2e/creator-v1.spec.mjs` 系列链路依赖素材可达）；直接删除会丢功能。
+   - 替代方案：折叠区不占设计首屏；归档切换为 chip 同语言的次级样式。
+   - 证据：`e2e/creator-v2-library.spec.mjs` 归档→找回→恢复用例。
+
+4. **「可复用视觉系列」带为任务书点名能力，设计未画；新增只读小适配 `GET /api/creator/library/visual-series`**
+   - 设计源：设计基准 library 只有 集合格/筛选/网格/完成条（`creator-v2.2.html:163,:182`）。
+   - 实际差异：网格下新增「可复用视觉系列」卡：跨项目只读总览既有 visual_series（V37）——名称/修订/成员数/所属作品标题；`src/creator.mjs visualSeriesOverview()` 直接读同一 SQLite，无新存储模型；绝不携带图片资产或引用内容（成员视角数据仍须 series 成员身份）。无系列时如实空态，接口失败时给可操作错误+重试。
+   - 必要原因：任务书 P1「/library：…可复用视觉系列」；既有 series list API 需要具体 projectId 且只面向成员，资料库需要无项目上下文的总览。
+   - 证据：`test/library-view.test.mjs`（总览字段与 404/405 边界用例）；`e2e/creator-v2-library.spec.mjs` 系列带用例（真实建系列+加入后断言）。
+
+5. **人工复盘（metrics 录入）不在本页；随 /insights 承接**
+   - 设计源：设计基准 library 无复盘 UI（旧 CreatorLibrary 详情内有 metrics 表单）。
+   - 实际差异：V2 详情保留「发布与交付记录」（真实 publishing facts），不保留 metrics 录入表单；`components/CreatorLibrary.jsx` 原样保留该逻辑，审计矩阵指定 /insights 复用（v2-audit.md §1 /insights 行）。
+   - 必要原因：效果复盘属 /insights 范围（任务书 P1）；资料库详情聚焦素材、来源、图像与关联作品。
+   - 证据：`docs/implementation/CREATOR-V2-FEATURE-MATRIX.md` 待 /insights 页落地时登记其指标录入入口。
+
+6. **完成条与集合格文案按真实能力改写，不再写「正式版应…」原型语气**
+   - 设计源：`creator-v2.2.html:182`（完成条「正式版应标注来源、抓取时间、授权状态、关联文章和移除影响…」）。
+   - 实际差异：改为「每条素材都保留来源、加入时间、标签与关联作品；引用前先核实，移除前先看影响范围。」；授权状态无对应领域字段，不做假标签。详情面板展示真实的来源链接/加入时间/标签/关联作品/移除影响预览。
+   - 必要原因：红线「无后端事实不得展示状态」；原型文案描述的是设计意图而非已实现字段。
+   - 证据：`docs/implementation/screenshots/library/desktop.png`。
