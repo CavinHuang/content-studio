@@ -1,0 +1,85 @@
+/* ============================================================
+   Creator V2 works library styles (/works).
+   Faithful reconstruction of public/design/creator-v2.2.html
+   worksView (:156) + V2.2 refinements (:72-74, :176): five-bucket
+   stage pipeline, tab filter bar, three-column work grid with the
+   dashed create card, and the quick-create modal (:9, :165).
+   Colors/radii/typography mirror the design source and the token
+   baseline in app/creator-v2.css (--cv2-*). Page-scoped classes only;
+   shared primitives (.cv2-work-grid/.cv2-work-card/.cv2-tag) live in
+   app/creator-v2.css.
+   NOTE on specificity: the shell main element also carries the legacy
+   "creator-main" class (app/creator.css still styles .creator-main
+   button/.creator-main input/.creator-main label for pre-V2 pages).
+   Works selectors that collide with those legacy rules are prefixed
+   with .cv2-app so this page always wins the cascade without touching
+   the legacy stylesheet.
+   ============================================================ */
+
+/* pipeline — .v2-pipeline (creator-v2.2.html:72-74). Flex column beats
+   the legacy .creator-main button{display:inline-flex} so label/count/
+   hint stack exactly like the design cells. */
+.cv2-pipeline{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:11px;margin:0 0 23px}
+.cv2-app .cv2-pipeline button{display:flex;flex-direction:column;align-items:stretch;gap:0;border:1px solid #e6e9f1;border-radius:12px;padding:15px;background:var(--cv2-surface);text-align:left;min-width:0;cursor:pointer}
+.cv2-app .cv2-pipeline button:hover{border-color:#aebaf2;background:var(--cv2-surface)}
+.cv2-app .cv2-pipeline button[aria-pressed="true"]{border-color:#aebaf2;background:#fcfcff}
+.cv2-pipeline small{font-size:10px;color:#9da4b3;display:block}
+.cv2-pipeline strong{font-size:18px;display:block;margin:5px 0;color:#33405d;font-variant-numeric:tabular-nums}
+.cv2-pipeline span{font-size:11px;color:#8a92a2;display:block}
+
+/* toolbar: stage tabs + search box. button.cv2-tab ties with the legacy
+   .creator-main button rule and wins by source order for every property
+   it sets (border/background/padding/radius are all set explicitly). */
+.cv2-works-toolbar{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin:0 0 24px;flex-wrap:wrap}
+.cv2-tabbar{display:flex;gap:5px;border-bottom:1px solid #e8e9ed;overflow:auto;flex:1;min-width:0}
+button.cv2-tab{display:inline-flex;border:0;border-radius:0;background:none;padding:11px 15px 14px;font-size:12px;line-height:1.5;color:#858996;white-space:nowrap;cursor:pointer;position:relative}
+.cv2-app button.cv2-tab:hover{color:#34394a;background:none}
+button.cv2-tab[aria-pressed="true"]{font-weight:720;color:#283659}
+button.cv2-tab[aria-pressed="true"]:after{content:"";position:absolute;height:2px;background:var(--cv2-primary);bottom:0;left:9px;right:9px;border-radius:99px}
+/* .cv2-app prefix + full property coverage outrun the legacy
+   .creator-main label (0,1,1) and .creator-main input:not():not() (0,3,1)
+   rules — ties resolve by source order (page CSS loads after layout CSS). */
+.cv2-app .cv2-searchbox{display:flex;align-items:center;gap:8px;border:1px solid #e1e3e8;border-radius:10px;background:var(--cv2-surface);padding:9px 13px;min-width:225px;flex:none;max-width:320px;width:100%;color:#9a9eac;font-size:12px}
+.cv2-searchbox svg{width:16px;height:16px;flex:none}
+.cv2-app .cv2-works-toolbar .cv2-searchbox input{outline:none!important;border:0;border-radius:0;background:none;width:100%;padding:0;font-size:12px;color:#343945;min-width:0}
+.cv2-searchbox input::placeholder{color:#a7adba}
+
+/* work cards: shared .cv2-work-card (app/creator-v2.css) + works extras */
+.cv2-work-arrow{color:#6c7fe0;display:inline-flex;flex:none}
+.cv2-app button.cv2-work-new{border:1px dashed #e9e9ed;align-items:center;justify-content:center;text-align:center;color:#8c92a1;cursor:pointer;display:flex;padding:23px;border-radius:var(--cv2-radius-card);background:var(--cv2-surface);min-height:185px;flex-direction:column;gap:12px;width:auto}
+.cv2-app button.cv2-work-new:hover{border-color:#a7b6ed;transform:translateY(-1px);background:var(--cv2-surface)}
+.cv2-work-new b{font-size:13px;color:#6d7484}
+.cv2-work-new p{margin:0;font-size:11px;color:#9aa0ae;line-height:1.7}
+.cv2-work-new-icon{color:#9aa4d7;display:inline-flex}
+
+/* quick-create modal — .modal-overlay/.modal (creator-v2.2.html:9, :165) */
+.cv2-modal-overlay{position:fixed;inset:0;z-index:90;background:#15192688;display:grid;place-items:center;padding:20px}
+.cv2-modal{background:var(--cv2-surface);max-width:520px;width:100%;border-radius:19px;padding:30px;box-shadow:0 22px 88px #0002;min-width:0}
+.cv2-modal h3{font-size:21px;margin:0 0 8px;color:var(--cv2-text);letter-spacing:-.3px}
+.cv2-modal>p{font-size:12px;color:#858b99;line-height:1.7;margin:0}
+.cv2-app .cv2-modal-overlay .cv2-modal input{border:1px solid #dce0e8;border-radius:11px;padding:13px 14px;width:100%;margin:18px 0 16px;font-size:13px;color:#343945;background:var(--cv2-surface);min-width:0}
+.cv2-modal input::placeholder{color:#a7adba}
+.cv2-modal-foot{display:flex;align-items:center;justify-content:space-between;gap:10px}
+
+/* completion band — same block as app/creator-v2-home.css:96 */
+.cv2-completion{background:var(--cv2-surface);border:1px solid #e5e9f5;border-radius:14px;padding:18px 21px;margin:20px 0 0;display:flex;align-items:center;gap:18px;justify-content:space-between;flex-wrap:wrap}
+.cv2-completion strong{font-size:13px;color:var(--cv2-text)}
+.cv2-completion p{font-size:11px;color:#9298a4;line-height:1.7;margin:5px 0 0}
+
+/* ------------------------------------------------------------
+   Responsive — mirrors creator-v2.2.html:117-118 (pipeline 3-col
+   at ≤1150, 2-col on mobile) and the 740px heading-button collapse
+   (:12 .page-heading .btn{font-size:0}), scoped to this page's
+   create button so no other page is affected.
+   ------------------------------------------------------------ */
+@media(max-width:1150px){
+  .cv2-pipeline{grid-template-columns:repeat(3,1fr)}
+}
+@media(max-width:760px){
+  .cv2-pipeline{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .cv2-pipeline button{padding:11px}
+  .cv2-works-toolbar{flex-direction:column-reverse;align-items:stretch;margin-bottom:17px}
+  .cv2-searchbox{min-width:0;max-width:none}
+  .cv2-app .cv2-works-create{font-size:0;padding:10px;gap:0;min-width:40px;min-height:40px}
+  .cv2-works-create svg{width:17px;height:17px}
+}

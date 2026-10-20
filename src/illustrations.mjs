@@ -104,15 +104,20 @@ export class IllustrationService {
   return this.get(projectId);
  }
  _inheritCreatorVisual(projectId){const visual=this.creator?.context(projectId).profile.visual;if(visual&&this.visualProfile(projectId).revision===0)this.setVisualProfile(projectId,{expectedRevision:0,profile:{...DEFAULT_VISUAL_PROFILE,mood:normalize(visual).slice(0,200)}})}
- plan(projectId,{expectedMasterRevision,paragraphId}={}){const project=this._project(projectId),doc=project.channels.master.document;
+ plan(projectId,{expectedMasterRevision,paragraphId,scope}={}){const project=this._project(projectId),doc=project.channels.master.document;
   if(!Number.isInteger(expectedMasterRevision)||expectedMasterRevision!==doc.revision)fail('Article changed; reload before creating illustration plan',409);
+  if(scope!==undefined&&!['full','cover'].includes(scope))fail('Plan scope must be full or cover');
   if(paragraphId!==undefined){
    const paragraph=doc.paragraphs.find(p=>p.id===paragraphId);if(!paragraph)fail('Selected paragraph is not in the current master draft',409);
    this._inheritCreatorVisual(projectId);const excerpt=normalize(paragraph.text).slice(0,maxExcerpts),profile=this.visualProfile(projectId);
    const shot={role:'section',paragraphId,ordinal:1,excerpt,alt:`章节概念配图：${excerpt.slice(0,40)}`,scene:`An editorial illustration communicating this section: ${excerpt}`,style:'editorial'};
    return this._insertPlan(projectId,doc,[{...shot,prompt:composeImagePrompt({...shot,title:project.title,visualProfile:profile})}]);
   }
-  this._inheritCreatorVisual(projectId);return this._insertPlan(projectId,doc,slotPlan(project,doc,this.visualProfile(projectId)));
+  this._inheritCreatorVisual(projectId);
+  // V2.3 planning modes: full = cover + up to two section slots (unchanged
+  // default); cover = the cover slot only. Same plan/shot storage, no new model.
+  const slots=slotPlan(project,doc,this.visualProfile(projectId));
+  return this._insertPlan(projectId,doc,scope==='cover'?slots.filter(x=>x.role==='cover'):slots);
  }
  async agentPlan(projectId,{expectedMasterRevision,allowExternalAI=false}={}){
   if(!allowExternalAI)fail('Explicit consent required before sending excerpts to a planning model',403);
@@ -132,17 +137,18 @@ export class IllustrationService {
   const source=slotPlan(project,project.channels.master.document,this.visualProfile(projectId)).find(x=>x.role===row.role&&x.paragraphId===row.paragraph_id);
   return {provider,role:row.role,style:row.style||'editorial',prompt:composeImagePrompt({title:project.title,role:row.role,scene:row.scene||row.prompt,style:row.style||'editorial',excerpt:source?.excerpt||'',provider,visualProfile:this.visualProfile(projectId)})+this._memoryPrompt(projectId),sourceRevision:row.master_revision,stale:row.master_revision!==project.channels.master.document.revision};
  }
- editPrompt(projectId,shotId,{expectedUpdatedAt,scene,style='editorial',provider='openai'}={}){
+ editPrompt(projectId,shotId,{expectedUpdatedAt,scene,style='editorial',alt,provider='openai'}={}){
   const row=this._shot(projectId,shotId),project=this._project(projectId);
   if(row.master_revision!==project.channels.master.document.revision)fail('Article changed; illustration plan is stale',409);
   if(typeof expectedUpdatedAt!=='string'||row.updated_at!==expectedUpdatedAt)fail('Illustration prompt changed; reload before editing',409);
   if(row.status==='generating')fail('Cannot edit while generating image',409);
   if(typeof scene!=='string'||scene.trim().length<12||scene.length>800)fail('Visual scene must be 12-800 characters');
+  if(alt!==undefined&&(typeof alt!=='string'||alt.trim().length<2||alt.length>160))fail('Alt text must be 2-160 characters');
   const source=slotPlan(project,project.channels.master.document,this.visualProfile(projectId)).find(x=>x.role===row.role&&x.paragraphId===row.paragraph_id);
   const prompt=composeImagePrompt({title:project.title,role:row.role,excerpt:source?.excerpt||'',scene,style,provider,visualProfile:this.visualProfile(projectId)});
   const updated=new Date(Math.max(Date.now(),Date.parse(row.updated_at)+1)).toISOString();
   if(row.asset_id)this.series.revokeProjectReferences(projectId,row.asset_id);
-  this.db.prepare("UPDATE article_illustration_shots SET scene=?,style=?,prompt=?,asset_id='',model='',provider='',status='planned',error='',review_json='',updated_at=? WHERE id=?").run(scene.trim(),style,prompt,updated,shotId);
+  this.db.prepare("UPDATE article_illustration_shots SET scene=?,style=?,alt=?,prompt=?,asset_id='',model='',provider='',status='planned',error='',review_json='',updated_at=? WHERE id=?").run(scene.trim(),style,alt!==undefined?alt.trim():row.alt,prompt,updated,shotId);
   return this._present(this._shot(projectId,shotId));
  }
  async generate(projectId,shotId,{allowExternalAI=false,provider='openai',fallbackProviders=[],maxAttempts=1,shouldContinue=null}={}){

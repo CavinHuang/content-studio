@@ -23,6 +23,7 @@ const validateBlocks=blocks=>{
 function titleField(t){if(typeof t!=='string'||t.trim().length<3||t.length>240)fail('Title needs 3-240 characters');return safeText(t,240)}
 function cleanUrl(url){if(typeof url!=='string'||url.length>1500)fail('Invalid external URL');try{let u=new URL(url);if(!['https:','http:'].includes(u.protocol)||u.username||u.password)throw Error();return u.href}catch{fail('External URL must be http(s)')}}
 const statusName={draft:'草稿',exported:'已导出（不是已发表）',reported_published:'作者报告已发表（未经平台核验）'};
+import {SEED_PARAGRAPH_TEXT} from './seed-paragraph.mjs';
 export class EditorialService{
  constructor(store,knowledge,precision){this.store=store;this.db=store.db;this.knowledge=knowledge;this.precision=precision;
  this.db.exec(`
@@ -48,7 +49,7 @@ export class EditorialService{
   return[r.channel,{referenceId:r.id,document:doc,checks:parse(r.checklist_json),status:r.status,statusLabel:r.status==='reported_published'&&(this.db.prepare('SELECT exported_revision FROM editorial_publication_reports WHERE reference_id=? ORDER BY rowid DESC LIMIT 1').get(r.id)?.exported_revision??r.exported_revision)!==doc?.revision?'旧版作者报告已发表；当前稿未交付':statusName[r.status],reportedUrl:r.reported_url,sourceMasterRevision:r.source_master_revision,ackMasterRevision:r.ack_master_revision,masterRevision:masterDoc?.revision||0,masterOutdated:r.channel!=='master'&&(r.ack_master_revision<(masterDoc?.revision||0)),exportedRevision:r.exported_revision,publicationReports:this.db.prepare('SELECT exported_revision,reported_url,created_at FROM editorial_publication_reports WHERE reference_id=? ORDER BY rowid DESC').all(r.id),claims,tasks,openCorrections:tasks.filter(t=>['pending','proposed','planned'].includes(t.status)).length}];
  }))};}
  create({title,briefId='',paragraphs,idempotencyKey}={}){
- const titleText=titleField(title),blocks=validateBlocks(paragraphs||[{text:'请用自己的实践、观察和可靠来源逐段写作，未经核实的结论不可直接发表。'}]);
+ const titleText=titleField(title),blocks=validateBlocks(paragraphs||[{text:SEED_PARAGRAPH_TEXT}]);
  if(briefId&&(!/^br_[a-f0-9]{24}$/.test(briefId)||!this.store.brief(briefId)))fail('Brief not found',404);
  if(idempotencyKey!==undefined&&(typeof idempotencyKey!=='string'||idempotencyKey.length>240))fail('Invalid project key');
  const id='ep_'+(idempotencyKey?createHash('sha256').update(idempotencyKey).digest('hex').slice(0,32):randomUUID()),at=now();

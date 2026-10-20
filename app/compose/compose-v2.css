@@ -1,0 +1,220 @@
+/* ============================================================
+   Creator V2 compose (/compose) — 创作空间.
+   Visual form follows the approved design sources:
+   public/design/creator-v2.2.html (:9 editor layout, :159 editorView,
+   :178 v2-editor-ribbon + v2-assistant-scope) and the V2.3 配图专项
+   public/design/creator-v2.3-visual.html (:5 editgrid/whitepaper,
+   :38 inline-slot). Tokens come from app/creator-v2.css (--cv2-*).
+   This file only re-skins the /compose route; the shared shell styles
+   in creator-v2.css and the legacy writing.css component styles used
+   by child panels (WritingContext/WritingImages/dialogs) stay intact.
+   ============================================================ */
+
+/* The editor canvas fills the shell main column edge-to-edge
+   (design .editor-wrap margin:-43px -49px -84px over .main padding). */
+.cv2-compose{
+  --compose-canvas:#f5f5f4;
+  --compose-line:#e6e7ea;
+  --compose-ink:#3e4351;
+  margin:-43px -49px -84px;
+  background:var(--compose-canvas);
+  min-height:calc(100vh - var(--cv2-topbar-h));
+  padding:0 0 44px;
+  color:var(--cv2-text);
+  font-family:var(--cv2-font);
+}
+.cv2-compose .writing-workspace{background:transparent;color:inherit;min-height:0}
+
+/* ---- editor header (creator-v2.2.html :159 .editor-header) ---- */
+.cv2-compose-header{padding:25px 34px 17px;background:var(--cv2-surface);border-bottom:1px solid #e8e9ec;display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap}
+.cv2-compose-header .cv2-eyebrow{margin:0 0 8px}
+.cv2-compose-header h1{font-size:20px;letter-spacing:-.5px;margin:0;font-weight:750;line-height:1.5;min-width:0;overflow-wrap:anywhere}
+.cv2-compose-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.cv2-compose-save{font-size:11px;color:#858c9b;white-space:nowrap}
+.cv2-compose-save.has-error{color:var(--cv2-error);font-weight:700}
+.cv2-compose-actions select{border:1px solid var(--cv2-border);border-radius:var(--cv2-radius-button);background:var(--cv2-surface);padding:9px 11px;font-size:12px;color:#373c4b;max-width:230px}
+
+/* ---- steps strip (creator-v2.2.html :159 .steps) ---- */
+.cv2-compose-steps{display:flex;background:var(--cv2-surface);border-bottom:1px solid #e9eaf0;padding:0 27px;gap:10px;overflow:auto;scrollbar-width:none}
+.cv2-compose-steps::-webkit-scrollbar{display:none}
+.cv2-compose-step{font-size:11px;color:#9ca0aa;padding:13px 9px;display:flex;align-items:center;gap:9px;white-space:nowrap}
+.cv2-compose-step i{display:inline-grid;place-items:center;font-style:normal;background:#f0f1f5;color:#989ca7;border-radius:50%;height:21px;width:21px;font-size:10px;font-weight:700}
+.cv2-compose-step.done{color:#427553}
+.cv2-compose-step.done i{background:#e6f3e9;color:#408055}
+.cv2-compose-step.now{color:#304aaf;font-weight:800}
+.cv2-compose-step.now i{background:#eaf0ff;color:#4b64da}
+.cv2-compose-step-sep{color:#d5d8df;align-self:center}
+
+/* ---- ribbon (creator-v2.2.html :178 .v2-editor-ribbon) ---- */
+.cv2-compose-ribbon{background:#f7f8fc;border-bottom:1px solid #e4e8ef;display:flex;justify-content:space-between;align-items:center;gap:14px;padding:10px 28px;flex-wrap:wrap}
+.cv2-compose-ribbon .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11px;color:#7e899c}
+.cv2-compose-ribbon strong{color:#344669;font-weight:700}
+.cv2-pill{display:inline-flex;align-items:center;gap:5px;font-weight:660;padding:6px 9px;border-radius:7px;font-size:10px;color:#62718d;background:#eff2f8;white-space:nowrap}
+.cv2-pill.warn{color:#aa7339;background:#fff2e4}
+.cv2-pill.good{color:#28764d;background:#eaf5ee}
+
+/* ---- three-column grid (creator-v2.2.html :9 .editor-layout) ---- */
+.cv2-compose-grid{display:grid;grid-template-columns:200px minmax(460px,1fr) 292px;max-width:1530px;margin:0 auto;min-height:650px;align-items:stretch}
+.cv2-compose-grid.no-rail{grid-template-columns:minmax(460px,1fr) 292px}
+
+/* ---- left context rail (.context-rail) ---- */
+.cv2-compose-rail{padding:29px 18px;border-right:1px solid var(--compose-line);min-width:0}
+.cv2-compose-rail h4{font-size:10px;color:#969ba9;text-transform:uppercase;letter-spacing:1.1px;margin:0 0 14px;font-weight:700}
+.cv2-compose-outline-link{display:block;width:100%;text-align:left;padding:9px 10px;border:0;border-left:2px solid transparent;background:transparent;font-size:11px;color:#777e8d;line-height:1.5;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cv2-compose-outline-link:hover{color:#455cca}
+.cv2-compose-outline-link.active{border-color:var(--cv2-primary);color:#455cca;font-weight:700;background:#eef1fd}
+.cv2-compose-reference{border-top:1px solid #e4e6eb;margin-top:27px;padding-top:22px}
+.cv2-compose-reference p{font-size:11px;line-height:1.75;color:#9297a2;margin:0 0 10px}
+.cv2-compose-rail .writing-context{width:auto;border:0;padding:0;margin:0;overflow:visible}
+.cv2-compose-rail .writing-upload{margin:12px 0}
+.cv2-compose-rail .writing-assets img{max-height:84px}
+.cv2-compose-rail>a{font-size:11px;display:inline-block;margin:4px 8px 0 0}
+
+/* ---- middle: channel tabs + paper (.editor-middle/.channel-tabs/.editor-paper) ---- */
+.cv2-compose-middle{min-width:0;padding:23px 24px 40px}
+.cv2-compose-tools{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.cv2-channel-tabs{display:flex;gap:5px;background:#e9eaee;padding:4px;border-radius:10px}
+.cv2-channel-tabs [role="tab"]{border:0;background:none;border-radius:8px;color:#777e8b;font-size:11px;padding:8px 11px;cursor:pointer;white-space:nowrap}
+.cv2-channel-tabs [role="tab"].active{background:var(--cv2-surface);color:#34394c;box-shadow:0 2px 6px #292f4a13;font-weight:720}
+.cv2-compose-toolrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.cv2-view-seg{display:flex;gap:3px;background:#f0f1f4;border:1px solid #e8eaf0;border-radius:9px;padding:3px}
+.cv2-view-seg button{border:0;background:transparent;border-radius:7px;color:#80899a;font-size:11px;padding:7px 11px;cursor:pointer;white-space:nowrap}
+.cv2-view-seg button.active{background:var(--cv2-surface);color:#4059bb;box-shadow:0 1px 5px #1a2a4910;font-weight:740}
+
+.cv2-paper{background:var(--cv2-surface);border:1px solid #e5e6e9;border-radius:12px;box-shadow:0 13px 27px #33384608;padding:26px 30px 34px;min-width:0}
+.cv2-paper-bar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap}
+.cv2-paper-label{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#9197a2;font-weight:700}
+.cv2-paper-meta{font-size:11px;color:#9699a4}
+/* editor + preview panes keep their functional classes from writing.css;
+   the V2 skin only adjusts their frame inside the paper. */
+.cv2-compose .writing-canvases{min-height:520px;border:0}
+.cv2-compose .writing-code{border-right:1px solid #eef0f2}
+.cv2-compose .writing-editor-shell{background:var(--cv2-surface)}
+.cv2-compose .writing-format{background:#fafafa;border-bottom:1px solid #eef0f2}
+.cv2-compose .writing-format span{color:#a2a7b3}
+.cv2-compose .writing-preview{padding:26px 30px;max-height:calc(100vh - 320px)}
+.cv2-compose .writing-document-footer{border-top:1px solid #eef0f2;color:#8a90a0;margin-top:14px;padding-top:10px}
+.cv2-theme-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:0 0 12px;font-size:11px;color:#8a90a0}
+.cv2-theme-row select{border:1px solid #dfe2eb;border-radius:8px;background:var(--cv2-surface);padding:7px 10px;font-size:12px;color:#454d5c}
+.cv2-source-note{font-size:11px;color:#87612e;background:#fff8ef;border:1px solid #f1e3cd;border-radius:8px;padding:8px 12px;margin:0 0 12px}
+
+/* ---- V2.3 visual board (creator-v2.2.html :158 visualBoard + V2.3 inline-slot) ---- */
+.cv2-visual-board{background:var(--cv2-surface);border:1px solid #e5e6ec;border-radius:12px;box-shadow:0 13px 27px #33384608;padding:28px;min-height:520px}
+.cv2-visual-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:6px}
+.cv2-visual-head h3{font-size:23px;margin:4px 0 7px;letter-spacing:-.4px;font-weight:750}
+.cv2-visual-head .muted{font-size:12px;line-height:1.8;color:#858c9b;margin:0}
+.cv2-visual-slots{display:grid;gap:15px;margin:22px 0 4px}
+.cv2-slot{width:100%;text-align:left;border:1px dashed #c8d2eb;background:#f8faff;border-radius:12px;padding:13px;margin:0;display:flex;gap:14px;align-items:center;min-height:110px;cursor:pointer;font:inherit;color:inherit}
+.cv2-slot:hover{background:#f0f4ff;border-color:#92a5e9}
+.cv2-slot .cv2-slot-art{width:148px;min-width:148px;aspect-ratio:1.7;overflow:hidden;border-radius:7px;background:#e5eaff;display:grid;place-items:center}
+.cv2-slot .cv2-slot-art img{width:100%;height:100%;object-fit:cover;display:block}
+.cv2-slot .cv2-slot-art.is-empty{background:#f2f4f8;border:1px solid #e6e9f0;color:#a9afbe;font-size:24px}
+.cv2-slot-text{min-width:0}
+.cv2-slot-text strong{display:block;font-size:12px;color:#3e4e81}
+.cv2-slot-text small{display:block;color:#828ba0;margin:7px 0;line-height:1.65}
+.cv2-slot-text em{font-style:normal;font-size:11px;font-weight:700;color:var(--cv2-primary)}
+.cv2-slot.is-planned{background:#f9fafc;border-color:#dfe3e9}
+.cv2-slot-status{margin-left:auto;flex:none}
+.cv2-slot-status .cv2-tag{font-size:10px}
+.cv2-visual-note{border-radius:10px;background:#f6f7fc;border:1px solid #e6eafa;padding:14px;font-size:11px;color:#8991a5;line-height:1.8;margin:18px 0 0}
+
+/* ---- right assistant (.editor-assistant) ---- */
+.cv2-compose-assistant{background:var(--cv2-surface);border-left:1px solid #e6e8ec;padding:22px 20px;min-width:0}
+.cv2-agent-header{display:flex;gap:10px;align-items:center;margin-bottom:17px}
+.cv2-agent-symbol{background:#eef1ff;color:#556bd9;border-radius:10px;width:32px;height:32px;display:grid;place-items:center;flex:none}
+.cv2-agent-header b{font-size:12px;display:block}
+.cv2-agent-header small{display:block;color:#959bad;margin-top:3px;font-size:10px}
+.cv2-assistant-scope{border:1px solid #e0e7f7;border-radius:12px;background:#f6f8ff;padding:13px 14px;font-size:11px;color:#6c7893;line-height:1.7;margin:0 0 16px}
+.cv2-assistant-scope strong{color:#455676;display:block;margin-bottom:3px;font-size:11px}
+.cv2-agent-suggest{background:#f5f6fc;border-radius:12px;padding:15px;margin:0 0 16px;font-size:11px}
+.cv2-agent-suggest p{color:#727b93;font-size:11px;line-height:1.7;margin:8px 0 12px}
+.cv2-assistant-section-title{font-size:12px;font-weight:735;margin:20px 0 10px;letter-spacing:-.2px}
+.cv2-agent-action{border:1px solid #e9eaf0;background:var(--cv2-surface);width:100%;display:flex;gap:9px;align-items:center;text-align:left;padding:12px;border-radius:9px;margin-top:8px;font-size:11px;color:#545b6b;cursor:pointer}
+.cv2-agent-action:hover{border-color:#b5c1f2;background:#f9faff}
+.cv2-agent-action span.cv2-agent-chevron{margin-left:auto;color:#bdc1ce;display:inline-flex}
+/* assistant child panels keep their writing.css layout, framed by the V2 rail */
+.cv2-compose .writing-assistant{width:auto;border:0;padding:0;background:transparent;max-height:none;height:auto;position:static;overflow:visible;display:block}
+.cv2-compose .writing-assistant-head,.cv2-compose .writing-assistant-modes{display:none}
+.cv2-compose .writing-prompt{border:1px solid #dfe2eb;border-radius:13px;padding:11px;margin-top:22px}
+.cv2-compose .writing-quick-actions button{background:transparent;border:0;padding:0;text-align:left}
+.cv2-compose .writing-quick-actions{display:block}
+.cv2-compose .writing-quick-actions>.cv2-agent-action{margin-top:8px}
+
+/* ---- master-wechat-zhihu independence note strip ---- */
+.cv2-channel-note{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px;color:#8a90a0;margin:0 0 12px}
+
+/* ---- inline create form / loading hint / rail action rows ---- */
+.cv2-compose .writing-new.cv2-compose-new{margin:14px 28px 0;padding:18px 20px;background:var(--cv2-surface);border:1px solid var(--cv2-border);border-radius:12px;box-shadow:var(--cv2-shadow)}
+.cv2-compose .writing-new .cv2-btn{flex:none}
+.cv2-compose-loading{margin:18px 28px;font-size:12px;color:#8a90a0}
+.cv2-rail-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0 0}
+.cv2-rail-actions a{font-size:11px;color:var(--cv2-primary)}
+.cv2-xhs-body{background:var(--cv2-surface);border:1px solid #e5e6e9;border-radius:12px;margin:14px 28px 0;min-height:520px}
+.cv2-compose .writing-notice,.cv2-compose .writing-conflict,.cv2-compose .writing-migration{margin:14px 28px 0}
+/* V2 button vocabulary for child-panel buttons inside the compose canvas */
+.cv2-compose .writing-button{border:1px solid #e1e3e9;background:var(--cv2-surface);border-radius:8px;color:#373c4b}
+.cv2-compose .writing-button.primary{background:var(--cv2-primary);border-color:var(--cv2-primary);color:#fff}
+.cv2-compose .writing-tabs{display:none}
+
+/* ---- mobile workflow nav (V2.3 :53 .mobilebottom; stays ABOVE the
+   global bottom tabs, never merged with or hiding them) ---- */
+.cv2-compose-workflow{display:none}
+
+/* ============================================================
+   Responsive (V2.2 :10-12 + V2.3 :12-15 breakpoints)
+   ============================================================ */
+@media(max-width:1280px){
+  .cv2-compose{margin:-32px -28px -65px}
+  .cv2-compose-grid{grid-template-columns:155px minmax(380px,1fr) 268px}
+  .cv2-compose-grid.no-rail{grid-template-columns:minmax(380px,1fr) 268px}
+  .cv2-compose-rail{padding:23px 12px}
+  .cv2-paper{padding:24px 24px 30px}
+  .cv2-compose-actions{gap:7px}
+  .cv2-compose-actions .cv2-btn{padding:8px 10px;min-height:36px}
+  .cv2-compose-actions select{max-width:160px}
+}
+@media(max-width:1040px){
+  .cv2-compose-grid{grid-template-columns:minmax(0,1fr) 258px}
+  .cv2-compose-grid.no-rail{grid-template-columns:minmax(0,1fr) 258px}
+  .cv2-compose-rail{display:none}
+  /* 编辑/预览分栏在窄屏改为上下堆叠（沿用旧 writing.css 的行为） */
+  .cv2-compose .writing-canvases.view-split{flex-direction:column}
+  .cv2-compose .writing-preview{max-height:none;min-height:280px}
+  .cv2-compose .writing-code{border-right:0;border-bottom:1px solid #eef0f2}
+  .cv2-compose .writing-editor-shell,.cv2-compose .writing-editor-host,.cv2-compose .writing-editor-host .cm-editor{min-height:350px}
+}
+@media(max-width:760px){
+  .cv2-compose{margin:-23px -16px calc(var(--cv2-mobile-nav-h) + 21px);padding-bottom:96px}
+  .cv2-compose-header{padding:20px 17px;flex-direction:column;gap:12px}
+  .cv2-compose-header h1{font-size:17px}
+  .cv2-compose-actions{width:100%;justify-content:space-between}
+  .cv2-compose-actions .cv2-btn:not(.primary),.cv2-compose-actions select,.cv2-compose-actions .cv2-compose-hide-m{display:none}
+  .cv2-compose-actions .cv2-compose-save{flex:1}
+  .cv2-compose-steps{padding:0 12px}
+  .cv2-compose-ribbon{padding:11px 14px}
+  .cv2-compose-grid{display:block;min-height:0}
+  .cv2-compose-middle{padding:14px 12px}
+  .cv2-paper{padding:20px 16px 26px;min-height:460px}
+  .cv2-visual-board{padding:18px 14px}
+  .cv2-slot{padding:9px;gap:10px;min-height:90px}
+  .cv2-slot .cv2-slot-art{width:108px;min-width:108px}
+  .cv2-compose-assistant{border-left:0;border-top:1px solid #eaecf0;padding:20px 16px 20px;margin-top:6px}
+  /* V2.3 editor mobile: sticky 正文/AI 配图助手 double tab + in-workflow
+     bottom nav above the global mobile tabs (never merged). */
+  .cv2-compose-mobiletabs{position:sticky;top:0;z-index:20;display:flex;background:var(--cv2-surface);border-bottom:1px solid var(--compose-line);padding:8px 12px;gap:7px}
+  .cv2-compose-mobiletabs button{flex:1;border:0;background:transparent;border-radius:8px;padding:9px 4px;color:#9098a6;font-weight:650;font-size:12px;cursor:pointer}
+  .cv2-compose-mobiletabs button.active{background:var(--cv2-surface-soft);color:var(--cv2-primary)}
+  .cv2-compose-workflow{display:flex;position:fixed;left:0;right:0;bottom:calc(var(--cv2-mobile-nav-h) + max(5px,env(safe-area-inset-bottom)));z-index:59;align-items:center;justify-content:space-around;border-top:1px solid #e2e6ee;background:rgba(255,255,255,.96);backdrop-filter:blur(16px);padding:7px 4px;box-shadow:0 -5px 30px #2229430a}
+  .cv2-compose-workflow button,.cv2-compose-workflow a{border:0;background:none;font-size:10px;min-width:65px;color:#969ba9;display:grid;gap:4px;justify-items:center;padding:4px;cursor:pointer;text-decoration:none}
+  .cv2-compose-workflow .active{color:#4c63ca;font-weight:700}
+  .cv2-compose-workflow svg{width:17px;height:17px}
+}
+/* Desktop: the mobile double tab is hidden. */
+@media(min-width:761px){
+  .cv2-compose-mobiletabs{display:none}
+}
+@media(max-width:760px){
+  .cv2-compose.is-assistant-pane .cv2-compose-middle{display:none}
+  .cv2-compose.is-assistant-pane .cv2-compose-assistant{border-top:0}
+  .cv2-compose.is-article-pane .cv2-compose-assistant{display:none}
+}

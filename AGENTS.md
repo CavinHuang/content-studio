@@ -7,7 +7,7 @@
 - `node:sqlite.backup` in V45 requires Node 22.16+ and a persistent single-process disk. Never deploy to Edge or a stateless serverless runtime.
 - Default to localhost; require separate security work for authentication, authorization, CSRF, backups and multi-tenancy before production deployment.
 - Every change: run `npm run check`, `npm test`, `npm run build` once dependencies are available; update QA reports honestly.
-- User-facing interface: restrained off-white, forest green accent, five creator nav items, clear evidence/provenance, no noise.
+- User-facing interface (Creator V2.2/V2.3 design baseline; tokens: public/design/assets/creator-v2-tokens.json): restrained off-white canvas #F7F8FA, indigo accent #465FD7, dark #242635 sidebar with eleven creator workspaces (mobile: five quick entries plus a "More" panel), clear evidence/provenance, no noise.
 
 - V49: operational `npm start` uses `scripts/runtime-guard.mjs` to deny unauthenticated remote access, public secret env names, demo seed and SQLite symlinks. Do not bypass this wrapper for production startup. After `npm run build`, execute `npm run test:production` for genuine process restart persistence.
 

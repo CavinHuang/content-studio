@@ -1,5 +1,9 @@
 import {test,expect} from '@playwright/test';
 
+// Updated for the Creator V2.3 视觉工作台 page (three-column studio): the
+// same V40/V50 guarantees are asserted through the new UI — provider
+// contract preflight stays local-only, channel readiness never claims
+// platform verification, and queue enqueue/cancel never makes a paid call.
 async function makeArticle(request,prefix='浏览器验收'){
  const title=prefix+' '+Math.random().toString(36).slice(2,9);
  const created=await request.post('/api/editor/projects',{data:{title,paragraphs:[
@@ -19,11 +23,13 @@ async function makeArticle(request,prefix='浏览器验收'){
 test('illustration page checks provider configuration and channel readiness without paid calls',async({page,request})=>{
  const {project,plan}=await makeArticle(request);
  await page.goto('/illustrations?project='+project.id);
- await expect(page.getByRole('heading',{name:'文章写好，交给 Agent 配图'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'让每一张图片都有它的位置'})).toBeVisible();
  await expect(page.getByLabel('配图文章')).toHaveValue(project.id);
+ // provider preflight: local config/URL checks only, no network, no cost
  await page.getByRole('button',{name:'检查三家供应商配置'}).click();
  await expect(page.getByText(/openai · fixture-image-model · 配置和地址格式检查通过/)).toBeVisible();
- await expect(page.getByText(/不发送正文、不产生模型费用/)).toBeVisible();
+ await expect(page.getByText(/不验证密钥、不发送正文、不产生费用/)).toBeVisible();
+ // channel readiness stays honest with nothing approved
  await page.getByRole('button',{name:'检查当前渠道的交接条件'}).click();
  await expect(page.getByText(/尚不具备全部交接条件/)).toBeVisible();
  await expect(page.getByText(/待批准/)).toBeVisible();
@@ -68,7 +74,7 @@ test('narrow mobile viewport retains manual QA controls and clear unverified sta
  const {project}=await makeArticle(request,'移动端验收');
  await page.setViewportSize({width:390,height:844});
  await page.goto('/illustrations?project='+project.id);
- await expect(page.getByRole('heading',{name:'文章写好，交给 Agent 配图'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'让每一张图片都有它的位置'})).toBeVisible();
  await page.getByRole('button',{name:'检查当前渠道的交接条件'}).click();
  await expect(page.getByText(/尚不具备全部交接条件/)).toBeVisible();
  await expect(page.getByText('手工记录平台实际检查结果')).toBeVisible();

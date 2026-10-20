@@ -211,7 +211,7 @@ async function signup(page, email = "creator@example.test") {
     .fill("synthetic-strong-password");
   await page.getByRole("button", { name: "创建并登录", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "让下一篇好文章，从这里开始" })
+    page.getByRole("heading", { name: "今天，先把一篇好文章写完。" })
   ).toBeVisible();
 }
 
@@ -222,40 +222,47 @@ test("author moves from profile and topic discussion through MD writing, XHS PNG
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await signup(page);
-  await page.getByRole("link", { name: "⚙ 创作者设置" }).click();
+  await page.getByRole("link", { name: "偏好与连接" }).click();
   await page.getByLabel("创作领域", { exact: true }).fill("独立创作与写作实践");
   await page
     .getByLabel("希望写给谁", { exact: true })
     .fill("刚开始写作的创作者");
   await page.getByRole("button", { name: "保存作者画像", exact: true }).click();
   await expect(page.getByRole("status").last()).toContainText("已保存");
-  await page.getByRole("link", { name: "▤ 资产库" }).click();
-  await page.getByText("添加自己的笔记或公开链接", { exact: true }).click();
-  await page.getByLabel("素材标题", { exact: true }).fill("我的第一轮写作实践");
+  await page.getByRole("link", { name: "素材库" }).click();
+  // V2 素材库：参考笔记经由「导入素材」弹窗（真实 POST /api/creator/materials）
+  await page.getByRole("button", { name: "导入素材" }).click();
+  await page.getByLabel("素材标题或网址").fill("我的第一轮写作实践");
   await page
     .getByLabel("内容或摘录", { exact: true })
     .fill(
       "先写下问题，再采访一位真实读者。反馈应作为观察记录，不能直接推断普遍结论。"
     );
-  await page.getByRole("button", { name: "保存笔记" }).click();
+  await page.getByRole("button", { name: "保存素材" }).click();
   await expect(page.getByRole("status").last()).toContainText("参考笔记已保存");
-  await page.getByRole("link", { name: "◎ 选题" }).click();
+  await page.getByRole("link", { name: "选题发现" }).click();
   await page.getByLabel("新选题标题").fill("新作者怎样建立创作习惯");
   await page.getByRole("button", { name: "记录选题", exact: true }).click();
+  // V2 选题页：参考素材选择位于「完整简报与版本历史」折叠区内
+  await page.getByText("完整简报与版本历史", { exact: true }).click();
   await page.getByText("选择参考素材（0）", { exact: true }).click();
   await page.getByLabel("我的第一轮写作实践 · 素材").check();
   await page.getByRole("button", { name: "保存简报", exact: true }).click();
+  // 讨论位于「与选题助手讨论」折叠区内
+  await page.getByText("与选题助手讨论", { exact: true }).click();
   await page
     .getByLabel("选题讨论", { exact: true })
     .fill("请结合我的实践，帮我确定具体的写作角度和大纲");
   await page.getByLabel("允许本次向模型发送选题、所选素材与讨论内容").check();
   await page.getByRole("button", { name: "发送讨论", exact: true }).click();
-  await expect(page.locator(".creator-conversation")).toHaveCount(2);
+  await expect(page.locator(".cv2-conversation > div")).toHaveCount(2);
   await page.getByRole("button", { name: "采纳这份简报", exact: true }).click();
   await expect(page.getByLabel("选题标题", { exact: true })).toHaveValue(
     "从实践中建立写作流程"
   );
-  await page.getByRole("button", { name: "确认选题，开始写作 →" }).click();
+  await page
+    .getByRole("button", { name: "围绕这个选题开始写作", exact: true })
+    .click();
   await expect(page).toHaveURL(/compose\?project=ep_/);
   await expect(
     page.getByRole("heading", {
@@ -343,12 +350,17 @@ test("author moves from profile and topic discussion through MD writing, XHS PNG
   expect(
     JSON.parse(strFromU8(files["manifest.json"])).publicationVerified
   ).toBe(false);
-  await page.getByRole("link", { name: "资产库", exact: true }).click();
-  await page.getByLabel("资产类型").selectOption("article");
+  // V2 统一侧栏把 /library 入口命名为「素材库」（旧创作页内导航的
+  // 「资产库」链接已被统一 Shell 取代）；类型筛选为设计 chip，打开卡片
+  // 进入真实详情面板查看交付记录。
+  await page.getByRole("link", { name: "素材库", exact: true }).click();
+  await page.getByRole("button", { name: "文章", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "从实践中建立写作流程", exact: true })
   ).toBeVisible();
-  await page.getByRole("button", { name: "查看与复用 →", exact: true }).click();
+  await page
+    .getByRole("button", { name: "查看素材详情：从实践中建立写作流程" })
+    .click();
   await expect(page.getByText(/已导出.*本地导出/)).toBeVisible();
   expect(errors).toEqual([]);
   const d = await (
@@ -364,7 +376,7 @@ test("series prepares while page is closed and another author cannot see or open
   const context = await browser.newContext({ baseURL }),
     page = await context.newPage();
   await signup(page, "series-owner@example.test");
-  await page.getByRole("link", { name: "◎ 选题" }).click();
+  await page.getByRole("link", { name: "选题发现" }).click();
   await page.getByRole("button", { name: "内容系列", exact: true }).click();
   await page.getByLabel("系列名称", { exact: true }).fill("独立创作方法系列");
   await page
@@ -428,7 +440,7 @@ test("creator reviews style evidence and configures encrypted BYOK connections t
       },
     }
   );
-  await page.getByRole("link", { name: "⚙ 创作者设置" }).click();
+  await page.getByRole("link", { name: "偏好与连接" }).click();
   await page.getByLabel("风格学习的合成文章", { exact: true }).check();
   await page
     .getByLabel("允许本次向模型发送所选文章及已接受 / 拒绝的写作建议")
@@ -445,9 +457,8 @@ test("creator reviews style evidence and configures encrypted BYOK connections t
     .last()
     .click();
   await expect(page.getByLabel("表达语气", { exact: true })).toHaveValue("");
-  await page
-    .getByRole("button", { name: "写作与配图服务", exact: true })
-    .click();
+  // V2 设置页：服务连接与额度同属「模型与费用」分组（设计 settings-grid 四组）
+  await page.getByRole("button", { name: "模型与费用", exact: true }).click();
   await page
     .getByRole("combobox", { name: "用途", exact: true })
     .selectOption("image");
@@ -469,7 +480,6 @@ test("creator reviews style evidence and configures encrypted BYOK connections t
     "synthetic-private-key-not-shown"
   );
   await expect(page.getByLabel("API Key", { exact: true })).toHaveValue("");
-  await page.getByRole("button", { name: "用量与额度", exact: true }).click();
   await page.getByLabel("图片请求上限", { exact: true }).fill("5");
   await page.getByRole("button", { name: "保存额度", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("每日请求上限已更新");
@@ -491,7 +501,9 @@ test("complete briefs, explicit recommendation sources and context conflict reco
   await page.request.post("/api/creator/materials", {
     data: { title: "本次不选择的个人日记", body: "本次不要发送的个人内容" },
   });
-  await page.getByRole("link", { name: "◎ 选题" }).click();
+  await page.getByRole("link", { name: "选题发现" }).click();
+  // V2 选题页：批量推荐整体收进折叠区
+  await page.getByText("批量推荐：从素材与模型获取候选", { exact: true }).click();
   await page
     .getByText("选择推荐可使用的私有素材（0）", { exact: true })
     .click();
@@ -505,17 +517,19 @@ test("complete briefs, explicit recommendation sources and context conflict reco
   await page
     .getByRole("button", { name: "从授权素材发现具体的创作方向", exact: true })
     .click();
-  await expect(page.getByLabel("核心问题", { exact: true })).toHaveValue(
+  await expect(page.getByLabel("读者问题", { exact: true })).toHaveValue(
     "怎样把经验写清楚？"
   );
   await page
-    .getByLabel("核心问题", { exact: true })
+    .getByLabel("读者问题", { exact: true })
     .fill("作者如何建立可以复用的创作流程？");
+  // 核心观点/平台位于「完整简报与版本历史」折叠区内
+  await page.getByText("完整简报与版本历史", { exact: true }).click();
   await page
     .getByLabel("核心观点与写作主张", { exact: true })
     .fill("先有自己的实践，再形成有证据的表达");
   await page
-    .getByLabel("证据缺口与待核实事项", { exact: true })
+    .getByLabel("证据缺口", { exact: true })
     .fill("还需要验证长期效果，避免过度归因");
   await page.getByLabel("小红书", { exact: true }).check();
   await page.getByRole("button", { name: "保存简报", exact: true }).click();
@@ -551,10 +565,20 @@ test("complete briefs, explicit recommendation sources and context conflict reco
   await expect(
     page.getByRole("button", { name: "恢复简报为新版本", exact: true }).first()
   ).toBeDisabled();
-  await page.getByRole("button", { name: "确认选题，开始写作 →" }).click();
+  await page
+    .getByRole("button", { name: "围绕这个选题开始写作", exact: true })
+    .click();
   await expect(page).toHaveURL(/compose\?project=ep_/);
   const projectId = new URL(page.url()).searchParams.get("project");
-  await page.getByRole("button", { name: "大纲与素材", exact: true }).click();
+  {
+    // V2 创作空间默认展开左栏；确保打开而不是把已打开的左栏关掉。
+    const railToggle = page.getByRole("button", {
+      name: "大纲与素材",
+      exact: true,
+    });
+    if ((await railToggle.getAttribute("aria-pressed")) === "false")
+      await railToggle.click();
+  }
   await expect(page.locator(".writing-context")).toContainText(
     "作者如何建立可以复用的创作流程？"
   );
@@ -609,7 +633,7 @@ test("authors refine learned style before applying it and retain the original ev
       markdown: "从一次具体实践开始，写出作者自己的方法和观察。",
     },
   });
-  await page.getByRole("link", { name: "⚙ 创作者设置" }).click();
+  await page.getByRole("link", { name: "偏好与连接" }).click();
   await page.getByLabel("用于修订风格建议的文章", { exact: true }).check();
   await page
     .getByLabel("允许本次向模型发送所选文章及已接受 / 拒绝的写作建议")
@@ -646,7 +670,7 @@ test("blocked series tasks require author review and cost consent before a new a
   page,
 }) => {
   await signup(page, "followup-retry@example.test");
-  await page.getByRole("link", { name: "◎ 选题" }).click();
+  await page.getByRole("link", { name: "选题发现" }).click();
   await page.getByRole("button", { name: "内容系列", exact: true }).click();
   await page.getByLabel("系列名称", { exact: true }).fill("需要作者核对的系列");
   await page.getByLabel("这个系列想帮助读者完成什么").fill("模拟准备失败一次");
@@ -711,7 +735,7 @@ test("author configures a publication account style and explicitly selects it fo
   page,
 }) => {
   await signup(page, "remaining-account@example.test");
-  await page.getByRole("link", { name: "⚙ 创作者设置" }).click();
+  await page.getByRole("link", { name: "偏好与连接" }).click();
   await page.getByRole("button", { name: "发布账号", exact: true }).click();
   await page.getByLabel("发布平台", { exact: true }).selectOption("zhihu");
   await page
@@ -749,7 +773,15 @@ test("author configures a publication account style and explicitly selects it fo
     },
   });
   await page.goto("/compose?project=" + doc.projectId + "&channel=zhihu");
-  await page.getByRole("button", { name: "大纲与素材", exact: true }).click();
+  {
+    // V2 创作空间默认展开左栏；确保打开而不是把已打开的左栏关掉。
+    const railToggle = page.getByRole("button", {
+      name: "大纲与素材",
+      exact: true,
+    });
+    if ((await railToggle.getAttribute("aria-pressed")) === "false")
+      await railToggle.click();
+  }
   await page.getByText("本篇与平台偏好", { exact: true }).click();
   await page
     .getByLabel("本篇写作定位账号", { exact: true })
@@ -806,15 +838,17 @@ test("source removal previews impact, revokes learned style and keeps article hi
   await page.request.post("/api/creator/style-suggestions/" + suggestion.id, {
     data: { action: "accept", expectedRevision: 1 },
   });
-  await page.getByRole("link", { name: "▤ 资产库" }).click();
-  await page.getByLabel("搜索资产").fill(material.title);
+  await page.getByRole("link", { name: "素材库" }).click();
+  await page.getByLabel("搜索素材或作品").fill(material.title);
   await expect(
     page.getByRole("heading", { name: material.title, exact: true })
   ).toBeVisible();
-  await page.getByRole("button", { name: "查看与复用 →", exact: true }).click();
+  // V2 素材库：卡片打开真实详情，移除影响流在详情内渐进披露
   await page
-    .getByRole("button", { name: "移除素材并查看画像影响", exact: true })
+    .getByRole("button", { name: `查看素材详情：${material.title}` })
     .click();
+  await page.getByText("移除素材并查看画像影响").click();
+  await page.getByRole("button", { name: "查看影响范围", exact: true }).click();
   await expect(page.getByText(/涉及 1 篇文章，1 条风格建议/)).toBeVisible();
   await expect(
     page.getByRole("button", {
@@ -826,7 +860,7 @@ test("source removal previews impact, revokes learned style and keeps article hi
   await page
     .getByRole("button", { name: "确认移除来源并撤销相关推断", exact: true })
     .click();
-  await expect(page.getByRole("status")).toContainText("来源已移除");
+  await expect(page.getByRole("status").last()).toContainText("来源已移除");
   expect(
     (await (await page.request.get("/api/creator/profile")).json()).tone
   ).toBe("");
