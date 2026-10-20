@@ -259,8 +259,8 @@ test("发布账号：知乎真实落库、账号定位可编辑，微信能力�
   // 添加微信账号后，「检查公众号接口」必须先显式同意（不允许无授权外呼）。
   await page.getByLabel("发布平台", { exact: true }).selectOption("wechat");
   await page.getByLabel("账号名称", { exact: true }).fill("合成公众号");
-  await page.getByLabel("公众号 AppID", { exact: true }).fill("wx-synthetic-id");
-  await page.getByLabel("公众号 AppSecret", { exact: true }).fill("synthetic-secret-not-shown");
+  await page.getByLabel("公众号 AppID", { exact: true }).fill("wxabcdef0123456789");
+  await page.getByLabel("公众号 AppSecret", { exact: true }).fill("synthetic-secret-0123456789");
   await page.getByRole("button", { name: "保存发布账号", exact: true }).click();
   await expect(page.getByRole("status").last()).toContainText("平台账号已保存");
   const probeButton = page.getByRole("button", { name: "检查公众号接口", exact: true });
