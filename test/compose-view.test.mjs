@@ -4,6 +4,7 @@ import {
   checkSummary,
   composeSteps,
   outlineItems,
+  parseStage,
   shotTitle,
   slotView,
 } from "../src/compose-view.mjs";
@@ -101,6 +102,21 @@ test("slotView maps real shot statuses without inventing states", () => {
   assert.deepEqual(slotView("rejected"), { label: "已拒绝", tone: "default" });
   assert.deepEqual(slotView("mystery"), { label: "mystery", tone: "default" });
   assert.deepEqual(slotView(""), { label: "未知", tone: "default" });
+});
+
+test("parseStage keeps the five-stage whitelist and falls back to write", () => {
+  // 白名单五个焦点视图原样通过。
+  for (const s of ["research", "write", "review", "images", "publish"])
+    assert.equal(parseStage(s), s);
+  // 非法值（伪造参数、手输、大小写、尾随空白）一律安全落回写作阶段。
+  assert.equal(parseStage("publishx"), "write");
+  assert.equal(parseStage("PUBLISH"), "write");
+  assert.equal(parseStage("write "), "write");
+  assert.equal(parseStage("../write"), "write");
+  // 缺省（?stage= 不存在或为空）也是写作阶段：缺省即 write。
+  assert.equal(parseStage(""), "write");
+  assert.equal(parseStage(null), "write");
+  assert.equal(parseStage(undefined), "write");
 });
 
 test("shotTitle keeps cover and numbered section figures apart", () => {
