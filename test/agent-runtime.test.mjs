@@ -147,7 +147,7 @@ test('agent routes expose skills, profile editing, run lifecycle and NDJSON even
  const doc=core.writing.create({title:'路由测试'}),id=doc.projectId;
  const req=(path,method='GET',input)=>dispatchApi(new Request('http://127.0.0.1:4312'+path,{method,headers:input?{'content-type':'application/json'}:{},body:input?JSON.stringify(input):undefined}),core);
  const skills=await (await req('/api/creator/agent-skills')).json();
- assert.equal(skills.skills.length,4);
+ assert.equal(skills.skills.length,7);
  const profile=await (await req('/api/creator/agent')).json();
  assert.equal(profile.profile.writeMode,'suggestions');
  const narrowed=await (await req('/api/creator/agent','PUT',{tools:['read_document','read_context']})).json();
