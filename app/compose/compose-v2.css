@@ -79,6 +79,10 @@
 .cv2-stage-sources a{color:var(--cv2-primary);font-weight:650}
 .cv2-stage-sources small{display:block;color:#8f95a3;margin-top:2px}
 .cv2-stage-actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:14px}
+/* 四项检查复选框：弹窗外没有 .writing-dialog 前缀，阶段卡片里补同样式 */
+.cv2-stage-publish-card .writing-check{display:flex;align-items:center;gap:10px;font-size:12px;color:#3f4655;margin:0 0 10px}
+.cv2-stage-publish-card hr{border:0;border-top:1px solid #eceef2;margin:16px 0}
+.cv2-stage-publish-card label{font-size:12px;color:#3f4655}
 .cv2-stage-side{min-width:0;display:grid;gap:18px;align-content:start}
 .cv2-check-list{list-style:none;margin:4px 0 10px;padding:0;display:grid;gap:7px}
 .cv2-check-list li{display:flex;gap:9px;align-items:baseline;font-size:12px;color:#5c6373}

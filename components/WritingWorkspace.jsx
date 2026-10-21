@@ -430,6 +430,13 @@ export default function WritingWorkspace() {
     配图: "images",
     发布: "publish",
   };
+  // 写作视图里只高亮一个步骤（有真实标题→写作，否则→大纲），与 done 事实一致。
+  const stageOnlyLabel = {
+    research: "研究",
+    review: "审稿",
+    images: "配图",
+    publish: "发布",
+  };
   function goStage(next) {
     setStage(next);
     setMobilePane("article");
@@ -1305,16 +1312,19 @@ export default function WritingWorkspace() {
             <div className="cv2-compose-steps" aria-label="创作阶段">
               {steps.map((s, i) => {
                 const target = stepTargets[s.label];
+                const isActive =
+                  target === stage &&
+                  (stage === "write"
+                    ? s.state === "now"
+                    : s.label === stageOnlyLabel[stage]);
                 return (
                   <button
                     key={s.label}
                     type="button"
                     className={
-                      "cv2-compose-step " +
-                      s.state +
-                      (target === stage ? " active" : "")
+                      "cv2-compose-step " + s.state + (isActive ? " active" : "")
                     }
-                    aria-current={target === stage ? "step" : undefined}
+                    aria-current={isActive ? "step" : undefined}
                     aria-label={"切换到" + s.label + "阶段"}
                     onClick={() => goStage(target)}
                   >
