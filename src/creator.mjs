@@ -107,7 +107,7 @@ export function nextSeriesRun(input, days, timezone) {
 // 内置公开信源：此前遗留界面 defaultSources 的 RSS 等价物（GitHub 用 releases.atom，
 // AIHOT 用官方 RSS）。syncSource 只解析 RSS/Atom，JSON 型旧接口不能直接迁移。
 const DEFAULT_CREATOR_SOURCES = [
-  { id: "cs_seed_aihot", name: "AIHOT 精选", url: "https://aihot.news/rss" },
+  { id: "cs_seed_aihot", name: "AIHOT 精选", url: "https://aihot.news/feed.xml" },
   { id: "cs_seed_hn", name: "Hacker News · 热门", url: "https://hnrss.org/frontpage" },
   { id: "cs_seed_gh_claude", name: "GitHub · Claude Code Releases", url: "https://github.com/anthropics/claude-code/releases.atom" },
   { id: "cs_seed_gh_opencode", name: "GitHub · OpenCode Releases", url: "https://github.com/anomalyco/opencode/releases.atom" },
