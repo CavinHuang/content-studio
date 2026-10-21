@@ -321,7 +321,7 @@ npm start
 | 精准证据锚点与更正 | 保留兼容页 | V26/V27 APIs 不变 | 原生 Next 交互尚待接入 |
 | V21 旧原型 | 提供 `/app.html` 等兼容页面 | 旧 API 仍可用 | 旧 localStorage 不自动双向同步 |
 
-遗留 HTML 在 `public/*.html` 和 `public/legacy/*.html`，便于迁移核对；Next.js 页面是 `/`, `/discover`, `/editor`, `/publish`, `/review`, `/sources`, `/validation`, `/knowledge`。
+遗留 HTML 在 `public/*.html`（`legacy:dev` 兼容服务的数据文件；`public/legacy/` 归档副本已删除），便于迁移核对；Creator V2 正式页面是 `/`, `/works`, `/compose`, `/hotspots`, `/topics`, `/illustrations`, `/publish`, `/library`, `/calendar`, `/insights`, `/settings`，旧深链 `/create`, `/discover`, `/editor`, `/review` 以重定向兼容，StudioApp 仍服务 `/sources`, `/validation`, `/knowledge`。
 
 ## 测试
 
