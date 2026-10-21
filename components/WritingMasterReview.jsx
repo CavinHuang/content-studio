@@ -5,6 +5,7 @@ export default function WritingMasterReview({
   comparison,
   busy,
   error,
+  projectId,
   onApply,
   onClose,
 }) {
@@ -16,6 +17,15 @@ export default function WritingMasterReview({
       ])
     )
   );
+  const [flavor, setFlavor] = useState(null);
+  // AI 腔提示是辅助参考：懒加载、只读、绝不据此改稿或拦截合并。
+  const loadFlavor = (open) => {
+    if (!open || flavor || !projectId) return;
+    fetch(`/api/writing/projects/${projectId}/ai-flavor`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then(setFlavor)
+      .catch(() => setFlavor({ level: "unavailable", hint: "提示加载失败；可直接人工判断语气。" }));
+  };
   return (
     <div className="writing-dialog-backdrop">
       <section
@@ -104,6 +114,28 @@ export default function WritingMasterReview({
             )}
           </article>
         ))}
+        <details onToggle={(e) => loadFlavor(e.target.open)}>
+          <summary>AI 腔辅助提示（最新主稿，仅供参考）</summary>
+          {!flavor && <p>加载中…</p>}
+          {flavor && flavor.level !== "unavailable" && (
+            <div data-testid="ai-flavor-hint">
+              <p>
+                提示等级：{flavor.level}（{flavor.score}/100，扫描 {flavor.scannedChars} 字）。
+                {flavor.hint}
+              </p>
+              {flavor.hits.length > 0 && (
+                <ul>
+                  {flavor.hits.map((h) => (
+                    <li key={h.id}>
+                      {h.label} × {h.count}，例如「{h.excerpt}」
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          {flavor && flavor.level === "unavailable" && <p role="status">{flavor.hint}</p>}
+        </details>
         <details>
           <summary>查看完整平台稿与最新主稿</summary>
           <h3>当前平台稿</h3>

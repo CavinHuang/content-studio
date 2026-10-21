@@ -2,6 +2,7 @@ import { sourceLifecycle } from "./creator-source-lifecycle.mjs";
 import { randomUUID, createHash } from "node:crypto";
 import { ValidationError } from "./verification.mjs";
 import { publicResource, publicRequest } from "./public-http.mjs";
+import { matchHotlistApi, parseHotlistPayload } from "./hotlist-sources.mjs";
 import { parseFeed, item } from "./normalize.mjs";
 import { decodeHTML } from "entities";
 const fail = (s, status = 400) => {
@@ -478,6 +479,33 @@ export class CreatorService {
         );
       return this.profile();
     });
+  }
+  // 编辑飞轮（软升级）：同类建议被作者连续拒绝 ≥2 次只是「候选规则」信号。
+  // 本方法绝不写画像——升级为硬规则必须由作者显式确认（AGENTS：人工确认学习）。
+  styleFlywheel() {
+    const norm = (s) => String(s ?? "").replace(/[\s，。；、,.!?!？?]/g, "");
+    const groups = new Map();
+    for (const s of this.styleSuggestions()) {
+      if (s.status !== "rejected" || !s.data?.avoid) continue;
+      const key = norm(s.data.avoid).slice(0, 24);
+      if (!key) continue;
+      if (!groups.has(key))
+        groups.set(key, { avoid: s.data.avoid, suggestionIds: [] });
+      groups.get(key).suggestionIds.push(s.id);
+    }
+    return {
+      candidates: [...groups.values()]
+        .filter((g) => g.suggestionIds.length >= 2)
+        .map((g) => ({
+          avoid: g.avoid,
+          rejectedCount: g.suggestionIds.length,
+          suggestionIds: g.suggestionIds,
+          proposal:
+            "作者已连续拒绝 " +
+            g.suggestionIds.length +
+            " 次同类建议；建议写入画像禁忌（需作者显式确认，系统不自动写入）",
+        })),
+    };
   }
   material(id) {
     const row = this.db
@@ -2132,13 +2160,16 @@ export class CreatorService {
   async syncSource(id) {
     const source = this.sources().find((s) => s.id === id);
     if (!source) fail("信源不存在", 404);
+    const hotlist = matchHotlistApi(source.url);
     try {
       const r = await publicRequest(publicResource(source.url), {
         timeout: 12000,
         maxBytes: 1500000,
       });
       if (!r.ok) throw Error();
-      const items = parseFeed(await r.text(), source.url, 30);
+      const items = hotlist
+        ? parseHotlistPayload(hotlist, await r.json())
+        : parseFeed(await r.text(), source.url, 30);
       let fresh = 0;
       this.db.exec("BEGIN IMMEDIATE");
       try {
@@ -2184,10 +2215,10 @@ export class CreatorService {
     } catch {
       this.db
         .prepare(
-          "UPDATE creator_sources SET last_run=?,status='读取失败；请检查公开 RSS/Atom 地址' WHERE id=?"
+          "UPDATE creator_sources SET last_run=?,status=? WHERE id=?"
         )
-        .run(now(), id);
-      fail("公开信源读取失败，未自动跟随跳转", 502);
+        .run(now(), hotlist ? "热榜 API 读取失败；白名单端点或返回格式可能已变化" : "读取失败；请检查公开 RSS/Atom 地址", id);
+      fail(hotlist ? "热榜 API 读取失败，未伪造任何条目" : "公开信源读取失败，未自动跟随跳转", 502);
     }
   }
   scheduleLearning(projectId, revision) {

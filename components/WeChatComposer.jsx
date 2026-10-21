@@ -17,6 +17,8 @@ export default function WeChatComposer(){
  const [doocsStatus,setDoocsStatus]=useState(null),[checkingDoocs,setCheckingDoocs]=useState(false);
  const [imageAudit,setImageAudit]=useState(null),[checkingImageAudit,setCheckingImageAudit]=useState(false);
  const [networkConsent,setNetworkConsent]=useState(false),[networkReport,setNetworkReport]=useState(null),[checkingNetwork,setCheckingNetwork]=useState(false);
+ const [themes,setThemes]=useState([]),[typesetTheme,setTypesetTheme]=useState('ink-classic');
+ const [typesetResult,setTypesetResult]=useState(null),[typesetBusy,setTypesetBusy]=useState(false);
  const current=useMemo(()=>projects.find(p=>p.id===projectId),[projectId,projects]);
  const loadProjects=useCallback(async()=>{const data=await getJSON('/api/editor/projects');setProjects(data.projects||[]);return data.projects||[];},[]);
  useEffect(()=>{loadProjects().then(ps=>{const p=query.get('project');if(p&&ps.some(x=>x.id===p))setProjectId(p);else if(ps.length)setProjectId(ps[0].id);if(labels[query.get('channel')])setChannel(query.get('channel'));}).catch(e=>setNotice(e.message));},[loadProjects,query]);
@@ -28,6 +30,21 @@ export default function WeChatComposer(){
   finally{setCheckingDoocs(false)}
  },[]);
  useEffect(()=>{probeDoocs()},[probeDoocs]);
+ useEffect(()=>{getJSON('/api/composer/themes').then(d=>setThemes(d.themes||[])).catch(()=>setThemes([]))},[]);
+ const typeset=async()=>{
+  if(!layout?.markdown)return;
+  setTypesetBusy(true);setTypesetResult(null);
+  try{setTypesetResult(await getJSON('/api/composer/typeset',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({markdown:layout.markdown,themeId:typesetTheme})}))}
+  catch(e){setNotice('排版未生成：'+e.message)}
+  finally{setTypesetBusy(false)}
+ };
+ function downloadTypesetHtml(){
+  if(!typesetResult)return;
+  const blob=new Blob([typesetResult.html],{type:'text/html;charset=utf-8'}),url=URL.createObjectURL(blob),link=document.createElement('a');
+  link.href=url;link.download=basename(current?.title,channel,layout?.layoutRevision||0).replace(/\.md$/,'')+`-wechat-${typesetResult.themeId}.html`;
+  link.click();URL.revokeObjectURL(url);
+  setNotice('已下载主题排版 HTML。样式仍需在公众号编辑器实测；导出 HTML 不等于发表。');
+ }
  const doocsLabel=doocsStatus?.status==='reachable'
   ?'本机排版器服务可连接（未核实 doocs 身份或实际排版效果）'
   :doocsStatus?.status==='blocked'?'排版器地址不符合本机安全检查'
@@ -162,6 +179,21 @@ export default function WeChatComposer(){
        <Link className="compose-research-link" href={`/editor?project=${encodeURIComponent(projectId)}&channel=${channel}`}>返回人工证据核查 →</Link>
      </aside>
    </div>
+   <section className="compose-panel" style={{marginTop:16}} data-testid="wechat-typeset-panel">
+    <div className="compose-panel-title">04 · 内置主题排版（无需外部排版器）</div>
+    <p className="compose-note">主题化 Markdown → 公众号兼容 HTML：外链自动转脚注、中西文间距、句读移出加粗、样式全内联。这是本地产物，不连接微信；粘贴后仍须在平台编辑器逐项核对样式。</p>
+    <div className="compose-actions">
+     <label style={{marginRight:12}}>主题<select aria-label="选择排版主题" value={typesetTheme} onChange={e=>setTypesetTheme(e.target.value)}>{(themes.length?themes:[{id:'ink-classic',name:'墨版经典'},{id:'paper-warm',name:'纸面暖调'},{id:'cool-tech',name:'冷静科技'}]).map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
+     <button className="btn primary" disabled={!layout?.markdown||typesetBusy} onClick={typeset}>{typesetBusy?'排版中…':'生成主题排版'}</button>
+     <button className="btn secondary" disabled={!typesetResult||!typesetResult.validation.ok} onClick={downloadTypesetHtml}>下载排版 HTML</button>
+    </div>
+    {typesetResult&&<>
+     {!typesetResult.validation.ok&&<div className="compose-danger" role="status">{typesetResult.validation.errors.map((e,i)=><p key={i}>⚠ {e}</p>)}</div>}
+     <p className="compose-note" data-testid="typeset-summary">主题「{typesetResult.themeName}」· 外链脚注 {typesetResult.footnotes.length} 条 · 校验{typesetResult.validation.ok?'通过':'有阻断项，下载已禁用'}</p>
+     <iframe className="compose-iframe" title="内置主题排版预览" srcDoc={typesetResult.html} sandbox="allow-same-origin" style={{minHeight:420}}/>
+    </>}
+   </section>
   </div>
+ </div>
  </div>;
 }
