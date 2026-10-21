@@ -1303,16 +1303,26 @@ test("系列参考图「撤销共享」真实撤销：无 body 的 DELETE 按边
   await page.reload();
   await panelA.getByText("共享批准图片至系列参考图集").click();
   await panelA.getByLabel("待共享图片").selectOption({ index: 1 });
-  await panelA.getByLabel("共享用途说明").fill("统一封面构图与大面积留白基调");
+  await panelA.getByLabel("共享用途说明").fill("合成参考：统一封面构图与留白基调");
   await panelA.getByLabel(/我明确授权将这张已批准图片作为系列成员的参考图/).check();
   await panelA.getByRole("button", { name: "共享到系列图库", exact: true }).click();
-  await expect(panelA.getByText("合成参考：统一封面留白与基调")).toBeVisible();
-  await panelA.getByRole("button", { name: "撤销共享", exact: true }).click();
-  await expect(panelA.getByText("合成参考：统一封面留白与基调")).toHaveCount(0);
-  const listed = await (
+  let listed = await (
     await page.request.get(`/api/illustrations/projects/${idA}/series`)
   ).json();
-  expect(listed.series.references).toHaveLength(0);
+  expect(listed.series.references).toHaveLength(1);
+  await page.reload();
+  await expect(
+    panelA.getByText("合成参考：统一封面构图与留白基调")
+  ).toBeVisible();
+  await panelA.getByRole("button", { name: "撤销共享", exact: true }).click();
+  const after = await (
+    await page.request.get(`/api/illustrations/projects/${idA}/series`)
+  ).json();
+  expect(after.series.references).toHaveLength(0);
+  await page.reload();
+  await expect(
+    panelA.getByText("合成参考：统一封面构图与留白基调")
+  ).toHaveCount(0);
 });
 
 test("本页出发的桌面侧栏 11 工作区跳转与高亮", async ({ page }) => {
