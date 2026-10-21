@@ -105,8 +105,16 @@ test('V75 validates exact HTTPS proxy domain and rejects host/forwarded spoofing
  for(const headers of [{host:'evil.example'},
   {'x-forwarded-proto':'http'},{'x-forwarded-proto':'https,http'},
   {'x-forwarded-host':'evil.example'},{'x-forwarded-host':'studio.example.com,evil.com'},
-  {'sec-fetch-site':'cross-site'},{'sec-fetch-site':'same-site'}])
+  {'sec-fetch-site':'cross-site'}])
   denied(()=>validateRemoteTransport(request('/api/status',headers),env));
+ // 同站上下文与「跨站页面导航」放行：内容仍由登录门保护（未登录 303 到 /signin），
+ // 跨站写由 validateRemoteWrite 的精确 Origin 强制；跨站 API 面与非读方法仍拒绝。
+ assert.equal(validateRemoteTransport(request('/api/status',{'sec-fetch-site':'same-site'}),env).origin,
+  env.CONTENT_STUDIO_PUBLIC_ORIGIN);
+ assert.equal(validateRemoteTransport(request('/works',{'sec-fetch-site':'cross-site'}),env).origin,
+  env.CONTENT_STUDIO_PUBLIC_ORIGIN);
+ denied(()=>validateRemoteTransport(request('/works',{'sec-fetch-site':'cross-site'},'POST'),env));
+ denied(()=>validateRemoteTransport(request('/api/creator/overview',{'sec-fetch-site':'cross-site'}),env));
  assert.equal(validateRemoteTransport(new Request('http://127.0.0.1:4312/api/health',
   {headers:{host:'127.0.0.1:4312'}}),env,{allowHealthLoopback:true}).internalHealth,true);
  denied(()=>validateRemoteTransport(new Request('http://127.0.0.1:4312/api/status',

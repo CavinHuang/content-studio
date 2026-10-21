@@ -144,7 +144,15 @@ export function validateRemoteTransport(request,env=runtimeEnv,{allowHealthLoopb
  if(proto!=='https')safe('Untrusted proxy protocol');
  if(forwardedHost&&forwardedHost!==host)safe('Untrusted proxy forwarded host');
  const site=request.headers.get('sec-fetch-site');
- if(site&&!['none','same-origin'].includes(site))safe('Cross-site request not permitted');
+ if(site&&!['none','same-origin','same-site'].includes(site)){
+  // 页面导航（GET/HEAD 且非 API）不按跨站拒绝：内容仍由登录门保护
+  //（未登录一律 303 到 /signin），跨站写由 validateRemoteWrite 的精确
+  // Origin + JSON 头强制。只对 API 面与读之外的请求拒绝跨站上下文，
+  // 否则从聊天工具/外部链接点进来后的正常刷新会撞上不可用的 403。
+  const path=new URL(request.url).pathname;
+  if(path.startsWith('/api/')||(request.method!=='GET'&&request.method!=='HEAD'))
+   safe('Cross-site request not permitted');
+ }
  return {internalHealth:false,origin:target};
 }
 export function validateRemoteWrite(request,env=runtimeEnv){
