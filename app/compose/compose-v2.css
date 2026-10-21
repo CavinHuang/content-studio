@@ -34,16 +34,22 @@
 .cv2-compose-save.has-error{color:var(--cv2-error);font-weight:700}
 .cv2-compose-actions select{border:1px solid var(--cv2-border);border-radius:var(--cv2-radius-button);background:var(--cv2-surface);padding:9px 11px;font-size:12px;color:#373c4b;max-width:230px}
 
-/* ---- steps strip (creator-v2.2.html :159 .steps) ---- */
-.cv2-compose-steps{display:flex;background:var(--cv2-surface);border-bottom:1px solid #e9eaf0;padding:0 27px;gap:10px;overflow:auto;scrollbar-width:none}
+/* ---- steps strip = Easel 式阶段导航（creator-v2.2.html :159 .steps）：
+       done 只来自真实事实，active 是作者当前所在阶段；点击切换焦点视图 ---- */
+.cv2-compose-steps{display:flex;background:var(--cv2-surface);border-bottom:1px solid #e9eaf0;padding:0 27px;gap:4px;overflow:auto;scrollbar-width:none}
 .cv2-compose-steps::-webkit-scrollbar{display:none}
-.cv2-compose-step{font-size:11px;color:#9ca0aa;padding:13px 9px;display:flex;align-items:center;gap:9px;white-space:nowrap}
+.cv2-compose-step{border:0;background:transparent;font:inherit;font-size:11px;color:#9ca0aa;padding:13px 9px;display:flex;align-items:center;gap:9px;white-space:nowrap;cursor:pointer}
 .cv2-compose-step i{display:inline-grid;place-items:center;font-style:normal;background:#f0f1f5;color:#989ca7;border-radius:50%;height:21px;width:21px;font-size:10px;font-weight:700}
 .cv2-compose-step.done{color:#427553}
 .cv2-compose-step.done i{background:#e6f3e9;color:#408055}
 .cv2-compose-step.now{color:#304aaf;font-weight:800}
 .cv2-compose-step.now i{background:#eaf0ff;color:#4b64da}
-.cv2-compose-step-sep{color:#d5d8df;align-self:center}
+.cv2-compose-step:hover{color:#455cca}
+.cv2-compose-step.active{color:#304aaf;font-weight:800;box-shadow:inset 0 -2px 0 #4b64da}
+.cv2-compose-step.active.done{color:#427553;box-shadow:inset 0 -2px 0 #7fb99a}
+
+/* ---- stage bar：渠道页签 + 编辑阶段工具行（跨阶段共用的窄条） ---- */
+.cv2-compose-stagebar{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--cv2-surface);border-bottom:1px solid #eceef2;padding:9px 28px;flex-wrap:wrap}
 
 /* ---- ribbon (creator-v2.2.html :178 .v2-editor-ribbon) ---- */
 .cv2-compose-ribbon{background:#f7f8fc;border-bottom:1px solid #e4e8ef;display:flex;justify-content:space-between;align-items:center;gap:14px;padding:10px 28px;flex-wrap:wrap}
@@ -53,9 +59,34 @@
 .cv2-pill.warn{color:#aa7339;background:#fff2e4}
 .cv2-pill.good{color:#28764d;background:#eaf5ee}
 
-/* ---- three-column grid (creator-v2.2.html :9 .editor-layout) ---- */
+/* ---- three-column grid (creator-v2.2.html :9 .editor-layout)；
+       编辑阶段（写作/配图）专用，其余阶段用 .cv2-stage-* 焦点布局 ---- */
 .cv2-compose-grid{display:grid;grid-template-columns:200px minmax(460px,1fr) 292px;max-width:1530px;margin:0 auto;min-height:650px;align-items:stretch}
-.cv2-compose-grid.no-rail{grid-template-columns:minmax(460px,1fr) 292px}
+
+/* ---- 阶段焦点视图（研究/审稿/发布）：单列卡片流 + 侧栏 ---- */
+.cv2-stage-flow{max-width:800px;margin:0 auto;padding:26px 24px 60px;display:grid;gap:18px}
+.cv2-stage-review,.cv2-stage-publish{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;max-width:1160px;margin:0 auto;padding:26px 24px 60px;align-items:start}
+.cv2-stage-review .cv2-stage-main{min-width:0}
+.cv2-stage-headline h2{font-size:19px;margin:0 0 6px;letter-spacing:-.3px}
+.cv2-stage-headline .cv2-micro{margin:0 0 14px}
+.cv2-stage-card{background:var(--cv2-surface);border:1px solid #e5e6e9;border-radius:12px;box-shadow:0 13px 27px #33384608;padding:22px 24px 24px}
+.cv2-stage-card h2{font-size:16px;margin:0 0 10px;letter-spacing:-.3px}
+.cv2-stage-card+.cv2-stage-card,.cv2-stage-side .cv2-stage-card+.cv2-stage-card{margin-top:18px}
+.cv2-stage-lede{font-size:13px;line-height:1.8;color:#3f4655;margin:0 0 10px}
+.cv2-stage-audience{font-size:11px;color:#8a90a0;margin:0 0 10px}
+.cv2-stage-sources{display:grid;gap:10px;margin:6px 0 14px}
+.cv2-stage-sources p{margin:0;font-size:12px;line-height:1.7}
+.cv2-stage-sources a{color:var(--cv2-primary);font-weight:650}
+.cv2-stage-sources small{display:block;color:#8f95a3;margin-top:2px}
+.cv2-stage-actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.cv2-stage-side{min-width:0;display:grid;gap:18px;align-content:start}
+.cv2-check-list{list-style:none;margin:4px 0 10px;padding:0;display:grid;gap:7px}
+.cv2-check-list li{display:flex;gap:9px;align-items:baseline;font-size:12px;color:#5c6373}
+.cv2-check-list li i{font-style:normal;flex:none;width:18px;height:18px;display:inline-grid;place-items:center;border-radius:50%;background:#f0f1f5;color:#989ca7;font-size:10px}
+.cv2-check-list li.done{color:#2c6a48}
+.cv2-check-list li.done i{background:#e6f3e9;color:#408055}
+.cv2-assistant-advanced{border-top:1px solid #eceef2;margin-top:18px;padding-top:12px}
+.cv2-assistant-advanced summary{cursor:pointer;font-size:12px;font-weight:700;color:#545b6b;padding:6px 0}
 
 /* ---- left context rail (.context-rail) ---- */
 .cv2-compose-rail{padding:29px 18px;border-right:1px solid var(--compose-line);min-width:0}
@@ -156,9 +187,7 @@
 .cv2-compose .writing-button.primary{background:var(--cv2-primary);border-color:var(--cv2-primary);color:#fff}
 .cv2-compose .writing-tabs{display:none}
 
-/* ---- mobile workflow nav (V2.3 :53 .mobilebottom; stays ABOVE the
-   global bottom tabs, never merged with or hiding them) ---- */
-.cv2-compose-workflow{display:none}
+/* ---- 阶段导航取代旧移动端底部工作流栏（阶段条在页首承担同样的切换职责） ---- */
 
 /* ============================================================
    Responsive (V2.2 :10-12 + V2.3 :12-15 breakpoints)
@@ -166,22 +195,22 @@
 @media(max-width:1280px){
   .cv2-compose{margin:-32px -28px -65px}
   .cv2-compose-grid{grid-template-columns:155px minmax(380px,1fr) 268px}
-  .cv2-compose-grid.no-rail{grid-template-columns:minmax(380px,1fr) 268px}
   .cv2-compose-rail{padding:23px 12px}
   .cv2-paper{padding:24px 24px 30px}
   .cv2-compose-actions{gap:7px}
   .cv2-compose-actions .cv2-btn{padding:8px 10px;min-height:36px}
   .cv2-compose-actions select{max-width:160px}
+  .cv2-stage-review,.cv2-stage-publish{grid-template-columns:minmax(0,1fr) 262px;padding:22px 18px 50px}
 }
 @media(max-width:1040px){
   .cv2-compose-grid{grid-template-columns:minmax(0,1fr) 258px}
-  .cv2-compose-grid.no-rail{grid-template-columns:minmax(0,1fr) 258px}
   .cv2-compose-rail{display:none}
   /* 编辑/预览分栏在窄屏改为上下堆叠（沿用旧 writing.css 的行为） */
   .cv2-compose .writing-canvases.view-split{flex-direction:column}
   .cv2-compose .writing-preview{max-height:none;min-height:280px}
   .cv2-compose .writing-code{border-right:0;border-bottom:1px solid #eef0f2}
   .cv2-compose .writing-editor-shell,.cv2-compose .writing-editor-host,.cv2-compose .writing-editor-host .cm-editor{min-height:350px}
+  .cv2-stage-review,.cv2-stage-publish{grid-template-columns:minmax(0,1fr)}
 }
 @media(max-width:760px){
   .cv2-compose{margin:-23px -16px calc(var(--cv2-mobile-nav-h) + 21px);padding-bottom:96px}
@@ -191,7 +220,12 @@
   .cv2-compose-actions .cv2-btn:not(.primary),.cv2-compose-actions select,.cv2-compose-actions .cv2-compose-hide-m{display:none}
   .cv2-compose-actions .cv2-compose-save{flex:1}
   .cv2-compose-steps{padding:0 12px}
+  .cv2-compose-stagebar{padding:8px 12px;gap:8px}
+  .cv2-channel-tabs{max-width:100%;overflow:auto;scrollbar-width:none}
   .cv2-compose-ribbon{padding:11px 14px}
+  .cv2-stage-flow{padding:16px 12px 46px;gap:14px}
+  .cv2-stage-review,.cv2-stage-publish{grid-template-columns:minmax(0,1fr);padding:16px 12px 46px;gap:14px}
+  .cv2-stage-card{padding:18px 15px 20px}
   .cv2-compose-grid{display:block;min-height:0}
   .cv2-compose-middle{padding:14px 12px}
   .cv2-paper{padding:20px 16px 26px;min-height:460px}
@@ -199,15 +233,11 @@
   .cv2-slot{padding:9px;gap:10px;min-height:90px}
   .cv2-slot .cv2-slot-art{width:108px;min-width:108px}
   .cv2-compose-assistant{border-left:0;border-top:1px solid #eaecf0;padding:20px 16px 20px;margin-top:6px}
-  /* V2.3 editor mobile: sticky 正文/AI 配图助手 double tab + in-workflow
-     bottom nav above the global mobile tabs (never merged). */
+  /* V2.3 editor mobile: sticky 正文/助手 double tab（阶段条承担工作流切换，
+     不再有独立底部工作流栏）。 */
   .cv2-compose-mobiletabs{position:sticky;top:0;z-index:20;display:flex;background:var(--cv2-surface);border-bottom:1px solid var(--compose-line);padding:8px 12px;gap:7px}
   .cv2-compose-mobiletabs button{flex:1;border:0;background:transparent;border-radius:8px;padding:9px 4px;color:#9098a6;font-weight:650;font-size:12px;cursor:pointer}
   .cv2-compose-mobiletabs button.active{background:var(--cv2-surface-soft);color:var(--cv2-primary)}
-  .cv2-compose-workflow{display:flex;position:fixed;left:0;right:0;bottom:calc(var(--cv2-mobile-nav-h) + max(5px,env(safe-area-inset-bottom)));z-index:59;align-items:center;justify-content:space-around;border-top:1px solid #e2e6ee;background:rgba(255,255,255,.96);backdrop-filter:blur(16px);padding:7px 4px;box-shadow:0 -5px 30px #2229430a}
-  .cv2-compose-workflow button,.cv2-compose-workflow a{border:0;background:none;font-size:10px;min-width:65px;color:#969ba9;display:grid;gap:4px;justify-items:center;padding:4px;cursor:pointer;text-decoration:none}
-  .cv2-compose-workflow .active{color:#4c63ca;font-weight:700}
-  .cv2-compose-workflow svg{width:17px;height:17px}
 }
 /* Desktop: the mobile double tab is hidden. */
 @media(min-width:761px){

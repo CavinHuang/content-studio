@@ -196,6 +196,8 @@ test("agent run streams tool steps, files a reviewed suggestion and leaves the a
   const baseline = await stored(page, doc);
   await page.goto("/compose?project=" + doc.projectId);
   await expect(cm(page)).toContainText(TARGET);
+  // 技能任务面板收在助手栏「技能任务（多步 Agent）」details 里
+  await page.getByText("技能任务（多步 Agent）").click();
   const panel = page.locator('section[aria-label="agent 任务运行"]'),
     skills = page.getByLabel("agent 技能");
   await expect(skills.locator("option")).toHaveCount(7);

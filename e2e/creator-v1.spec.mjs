@@ -327,7 +327,7 @@ test("author moves from profile and topic discussion through MD writing, XHS PNG
     unchanged
   );
   await page.getByRole("button", { name: "发布准备", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "平台发布准备" });
+  const dialog = page.locator('section[aria-label="平台发布准备"]');
   for (const label of [
     "事实与引用已核对",
     "隐私信息已核对",
@@ -339,7 +339,7 @@ test("author moves from profile and topic discussion through MD writing, XHS PNG
     .getByRole("button", { name: "保存当前版本检查", exact: true })
     .click();
   await expect(page.getByRole("status").last()).toContainText("四项检查已保存");
-  await dialog.getByRole("button", { name: "关闭", exact: true }).click();
+  await page.getByRole("button", { name: "返回图文创作", exact: true }).click();
   const downloaded = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "下载图片与文案包", exact: true })
@@ -570,18 +570,11 @@ test("complete briefs, explicit recommendation sources and context conflict reco
     .click();
   await expect(page).toHaveURL(/compose\?project=ep_/);
   const projectId = new URL(page.url()).searchParams.get("project");
-  {
-    // V2 创作空间默认展开左栏；确保打开而不是把已打开的左栏关掉。
-    const railToggle = page.getByRole("button", {
-      name: "大纲与素材",
-      exact: true,
-    });
-    if ((await railToggle.getAttribute("aria-pressed")) === "false")
-      await railToggle.click();
-  }
-  await expect(page.locator(".writing-context")).toContainText(
-    "作者如何建立可以复用的创作流程？"
-  );
+  // 作者设定移到「研究」阶段焦点视图（Easel 式流程）
+  await page.getByRole("button", { name: "切换到研究阶段" }).click();
+  await expect(
+    page.locator('section[aria-label="作者设定与参考资料"]')
+  ).toContainText("作者如何建立可以复用的创作流程？");
   await page.getByText("本篇与平台偏好", { exact: true }).click();
   await page
     .getByLabel("表达语气（本篇）", { exact: true })
@@ -773,15 +766,8 @@ test("author configures a publication account style and explicitly selects it fo
     },
   });
   await page.goto("/compose?project=" + doc.projectId + "&channel=zhihu");
-  {
-    // V2 创作空间默认展开左栏；确保打开而不是把已打开的左栏关掉。
-    const railToggle = page.getByRole("button", {
-      name: "大纲与素材",
-      exact: true,
-    });
-    if ((await railToggle.getAttribute("aria-pressed")) === "false")
-      await railToggle.click();
-  }
+  // 作者设定在「研究」阶段；设定完成后回写作阶段核对发送上下文与正文
+  await page.getByRole("button", { name: "切换到研究阶段" }).click();
   await page.getByText("本篇与平台偏好", { exact: true }).click();
   await page
     .getByLabel("本篇写作定位账号", { exact: true })
@@ -789,6 +775,7 @@ test("author configures a publication account style and explicitly selects it fo
   await page
     .getByRole("button", { name: "保存创作上下文", exact: true })
     .click();
+  await page.getByRole("button", { name: "切换到写作阶段" }).click();
   const context = page.locator('details[aria-label="本次写作上下文"]');
   await context.getByText("本次将发送的画像与素材", { exact: true }).click();
   await expect(context).toContainText("面向开发者的知乎账号");
