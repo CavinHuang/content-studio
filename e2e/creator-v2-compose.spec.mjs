@@ -262,11 +262,14 @@ test("V2 版式：真实空稿的诚实空态、阶段条与 ribbon，正文输�
 
   // 诚实空态：结构/配图定位都没有编造内容；稿纸标注 MASTER DRAFT
   await expect(page.getByText("正文中的 # 标题会显示在这里。")).toBeVisible();
+  await expect(page.locator(".cv2-paper-label")).toContainText("Master Draft");
+  await expect(cm(page)).toBeVisible();
+  // 配图定位空态在配图阶段左栏
+  await page.getByRole("button", { name: "切换到配图阶段" }).click();
   await expect(
     page.getByText("还没有配图计划；在配图助手里依据主稿规划封面和插图。")
   ).toBeVisible();
-  await expect(page.locator(".cv2-paper-label")).toContainText("Master Draft");
-  await expect(cm(page)).toBeVisible();
+  await page.getByRole("button", { name: "切换到写作阶段" }).click();
 
   // 真实自动保存：输入落入 SQLite；大纲与阶段条随之由真实事实驱动
   const markdown = "# 城市步行观察\n\n第一段真实观察记录。";
@@ -396,7 +399,7 @@ test("V2.3 配图入口：空态诚实，真实计划出现真实图位状态并
   ).toBeVisible();
 });
 
-test("移动 390×844：正文/助手双面板、工作流底栏在全局导航之上且无横向溢出", async ({
+test("移动 390×844：正文/助手双面板与全局导航共存且无横向溢出", async ({
   page,
 }) => {
   await signup(page, "compose-mobile@example.test");
@@ -520,7 +523,7 @@ test("头部「返回作品」：干净直达 /works，未落盘修改先 flush 
     .toBe("# 返回前落盘\n\n这段内容尚未自动保存就要离开。");
 });
 
-test("头部与左栏新窗链接：配图工作台/完整视觉工作台新窗到 /illustrations，证据链接经 /editor 回 /compose", async ({
+test("阶段栏链接：完整视觉工作台新窗到 /illustrations，证据链接经 /editor 回 /compose", async ({
   page,
 }) => {
   await signup(page, "compose-newtab@example.test");
@@ -528,9 +531,10 @@ test("头部与左栏新窗链接：配图工作台/完整视觉工作台新窗�
   await page.goto("/compose?project=" + id);
   await expect(cm(page)).toBeVisible();
 
-  // 头部「配图工作台」target=_blank（WritingWorkspace.jsx:1180-1189）
+  // 配图阶段左栏「完整视觉工作台 ↗」target=_blank
+  await page.getByRole("button", { name: "切换到配图阶段" }).click();
   let popupPromise = page.context().waitForEvent("page");
-  await page.getByRole("link", { name: "配图工作台", exact: true }).click();
+  await page.getByRole("link", { name: "完整视觉工作台 ↗" }).click();
   let popup = await popupPromise;
   await expect(popup).toHaveURL(new RegExp("/illustrations\\?project=" + id));
   await expect(
@@ -538,18 +542,9 @@ test("头部与左栏新窗链接：配图工作台/完整视觉工作台新窗�
   ).toBeVisible();
   await popup.close();
 
-  // 左栏「完整视觉工作台 ↗」（WritingWorkspace.jsx:1424-1430）
-  popupPromise = page.context().waitForEvent("page");
-  await page.getByRole("link", { name: "完整视觉工作台 ↗" }).click();
-  popup = await popupPromise;
-  await expect(popup).toHaveURL(new RegExp("/illustrations\\?project=" + id));
-  await expect(
-    popup.getByRole("heading", { name: "让每一张图片都有它的位置" })
-  ).toBeVisible();
-  await popup.close();
-
-  // 左栏「查看证据与核查 ↗」href=/editor?project&channel（1489-1496）；
+  // 审稿阶段「查看证据与核查 ↗」href=/editor?project&channel；
   // /editor 是旧深链，服务端重定向回 /compose 并保留参数（app/editor/page.jsx）
+  await page.getByRole("button", { name: "切换到审稿阶段" }).click();
   popupPromise = page.context().waitForEvent("page");
   await page.getByRole("link", { name: "查看证据与核查 ↗" }).click();
   popup = await popupPromise;
@@ -923,10 +918,8 @@ test("左栏大纲链接点击聚焦编辑器；空简报文案诚实", async ({
   // 点击大纲链接 → editor.focus()（WritingWorkspace.jsx:1369-1386）
   await outlineLink.click();
   await expect(cm(page)).toBeFocused();
-  // 无简报时的诚实空态（details.writing-brief 只在有简报时渲染）
-  await expect(
-    page.getByText("还没有选题简报；可从选题发现开始创作。")
-  ).toBeVisible();
+  // 无简报时的诚实空态（写作阶段左栏不再展开简报来源；来源在研究阶段）
+  await expect(page.getByText("还没有选题简报。")).toBeVisible();
 });
 
 test("建议卡「在正文中查看」「查看替换内容」「拒绝」三控件", async ({
