@@ -194,6 +194,5 @@ export default function WeChatComposer(){
     </>}
    </section>
   </div>
- </div>
  </div>;
 }
