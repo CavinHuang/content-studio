@@ -512,18 +512,12 @@ test("创建失败（POST 500）：弹窗内错误 notice 反馈与 busy 复位"
   ).toBeVisible();
 });
 
-test.fixme("@bug 创建失败后同一弹窗重试成功（产品缺陷：失败后输入被清空）", async ({
+test("创建失败后同一弹窗重试成功：父组件重渲染不清空已输入的标题", async ({
   page,
 }) => {
-  // 产品缺陷证据：CreateWorkModal 的 open-effect 依赖 [open, onClose, inputRef]
-  // （WorksLibrary.jsx:56），而父组件以内联箭头传入 onClose（WorksLibrary.jsx:263），
-  // 每次父组件重渲染（如失败后 setNotice/setBusy）都会生成新 onClose 身份并
-  // 重新执行 setTitle('')，把作者已输入的标题清空。实测：填入标题 → 首次创建
-  // 失败后 inputValue 为 ""（容器复跑 INPUTDUMP ""，round-1 快照
-  // playwright-report/data/1fd2bac2943da684376f79f172dd47360a3a6c05.md 中
-  // 文本框无值且 status 为「先写下一个标题或想法」），重试永远无法带上标题，
-  // 「同一弹窗可重试成功」不成立。修复方向：把 open-effect 的清理范围限定在
-  // open 的真实变化（如仅依赖 [open]），或用 ref 稳定 onClose。
+  // 回归守卫：CreateWorkModal 的 open-effect 不得依赖每次渲染都变化的内联
+  // onClose（失败提示触发的父组件重渲染曾把已输入标题清空，重试永远无法
+  // 带上标题）；回调经 ref 读取，标题只在打开瞬间重置。
   await signup(page, "works-fail-retry@example.test");
   await openWorks(page);
   await page.route("**/api/writing/projects", async (route) => {

@@ -39,6 +39,13 @@ function dayLabel(iso) {
 
 function CreateWorkModal({ open, busy, inputRef, onClose, onCreate }) {
   const [title, setTitle] = useState('');
+  // The parent passes a fresh inline onClose on every render; reading it
+  // through a ref keeps the open-effect from re-running (and re-clearing the
+  // title the author already typed) while the modal stays open.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -46,14 +53,14 @@ function CreateWorkModal({ open, busy, inputRef, onClose, onCreate }) {
     // autofocus like the prototype's modal input (creator-v2.2.html:165)
     const t = setTimeout(() => inputRef.current?.focus(), 0);
     const onKey = (e) => {
-      if (e.key === 'Escape') onClose?.();
+      if (e.key === 'Escape') onCloseRef.current?.();
     };
     document.addEventListener('keydown', onKey);
     return () => {
       clearTimeout(t);
       document.removeEventListener('keydown', onKey);
     };
-  }, [open, onClose, inputRef]);
+  }, [open, inputRef]);
 
   if (!open) return null;
   return (

@@ -1283,20 +1283,12 @@ test("系列面板：加入现有系列、共享已授权偏好、共享已批�
   await expect(panelA.getByText("合成参考：统一封面留白与基调")).toBeVisible();
 });
 
-test.fixme("@bug 系列参考图「撤销共享」真实撤销（产品缺陷：无 JSON 头的 DELETE 被自家边界拒绝）", async ({
+test("系列参考图「撤销共享」真实撤销：无 body 的 DELETE 按边界设计放行", async ({
   page,
 }) => {
-  // 产品缺陷证据：VisualSeriesPanel.jsx:3 的本地 api() 只在带 payload 时设置
-  // content-type，撤销按钮（:24）发出的 DELETE 无 content-type。本地 API 边界
-  // （src/local-api-boundary.mjs，V58）在代理/中间件运行时对这类 DELETE 判定
-  // 有请求体（request.body 非 null），按「写请求缺 JSON Content-Type」拒绝，
-  // proxy.js:24 的 catch 把它变成 403 文本「作者服务暂不可用或请求来源不可信」，
-  // 面板上显示为「HTTP 403」。容器实测（node 直连同款服务）：
-  //   DELETE 无 content-type   -> 403 文本（代理拒绝，未到业务层）
-  //   DELETE + content-type    -> 到达业务层（返回业务 JSON）
-  // 即「撤销共享」按钮在产品中永远无法成功，测试无法走通真实撤销路径。
-  // 修复方向：面板 api() 对所有写方法补 JSON Content-Type（与 lib/creator-client
-  // 的 send 一致），或边界对无 body 的 DELETE 放行（V58「bodyless 动作有效」）。
+  // 回归守卫：本地 API 边界（V58）按帧头判定请求体——面板 api() 发出的
+  // 无 content-type、无 body 的 DELETE 是合法的 bodyless 写动作，代理运行时
+  // 不得因 request.body 流对象非空而把它拒成 403。
   await signup(page, "illu-revoke@example.test");
   const idA = await createProject(page, "系列撤销共享源作品");
   await openStudio(page, idA);

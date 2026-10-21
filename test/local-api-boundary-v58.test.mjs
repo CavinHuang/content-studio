@@ -48,3 +48,24 @@ test('V58 disallows simple-form payloads and untyped browser writes',()=>{
   denied(BASE,{method:'POST',headers:{'content-type':'application/json; charset=UTF-8','sec-fetch-site':'cross-site'},body:'{}'},403);
   denied(BASE,{method:'POST',headers:{'content-type':'text/plain'},body:'{'},400);
 });
+
+// V58 judges "has a body" by wire framing headers, not the request.body
+// object: the proxy runtime exposes a non-null body stream even for
+// bodyless requests, which used to reject every bodyless local write.
+const shaped=(method,headers)=>({
+  url:BASE, method, headers:new Headers(headers), body:new ReadableStream({start(){}}),
+});
+const framed=(method,headers)=>validateLocalApiRequest({
+  url:BASE, method, headers:new Headers(headers), body:null,
+});
+test('V58 keeps bodyless writes valid even when the runtime exposes a body stream',()=>{
+  assert.equal(check(BASE,{method:'DELETE'}).checked,true);
+  assert.equal(validateLocalApiRequest(shaped('DELETE',{})).checked,true);
+  assert.equal(framed('DELETE',{'content-length':'0'}).checked,true);
+});
+test('V58 still requires JSON content-type for writes that actually carry a body',()=>{
+  assert.throws(()=>framed('DELETE',{'content-length':'5'}),e=>e.status===400);
+  assert.throws(()=>framed('DELETE',{'transfer-encoding':'chunked'}),e=>e.status===400);
+  assert.throws(()=>framed('POST',{'content-length':'2','content-type':'text/plain'}),e=>e.status===400);
+  assert.throws(()=>validateLocalApiRequest(shaped('POST',{'content-length':'2','content-type':'text/plain'})),e=>e.status===400);
+});

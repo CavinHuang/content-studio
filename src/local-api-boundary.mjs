@@ -61,7 +61,13 @@ export function validateLocalApiRequest(request){
     // A cross-site form can submit text/plain or form-urlencoded without CORS
     // preflight; JSON is non-simple and cannot be sent by such a form.
     const contentType = request.headers.get('content-type');
-    const hasBody = request.body !== null;
+    // Framing headers are the wire truth for "has a body": HTTP/1.1 bodies are
+    // only readable when framed by content-length or chunked encoding, while
+    // the proxy runtime exposes a non-null request.body stream even for
+    // bodyless requests. Bodyless local writes stay valid either way.
+    const contentLength = request.headers.get('content-length');
+    const chunked = /chunked/i.test(request.headers.get('transfer-encoding') ?? '');
+    const hasBody = chunked || (contentLength !== null && contentLength !== '0');
     if(contentType && !/^application\/json(?:\s*;\s*charset\s*=\s*"?utf-8"?\s*)?$/i.test(contentType))
       deny('JSON Content-Type required for local API writes',400);
     if(hasBody && !contentType) deny('JSON Content-Type required for local API writes',400);
