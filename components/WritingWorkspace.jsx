@@ -1,5 +1,5 @@
 "use client";
-import { Fragment, useDeferredValue, useEffect, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Message, MessageContent, MessageResponse } from "./ai-elements/message";
@@ -21,7 +21,6 @@ import WritingModelContext from "./WritingModelContext";
 import AgentRuns from "./AgentRuns";
 import CreatorShell from "./CreatorShell";
 import Icon from "./creator/Icon";
-import { Tag } from "./creator/primitives";
 import ComposeVisualBoard from "./ComposeVisualBoard";
 import { checkSummary, composeSteps, outlineItems, shotTitle, slotView } from "../src/compose-view.mjs";
 
@@ -137,8 +136,7 @@ export default function WritingWorkspace() {
     [history, setHistory] = useState(null),
     [assets, setAssets] = useState([]),
     [assetsOpen, setAssetsOpen] = useState(false);
-  const [publishOpen, setPublishOpen] = useState(false),
-    [checks, setChecks] = useState({}),
+  const [checks, setChecks] = useState({}),
     [publishedUrl, setPublishedUrl] = useState(""),
     [publishAccountId, setPublishAccountId] = useState("");
   const [recovery, setRecovery] = useState(null),
@@ -152,6 +150,10 @@ export default function WritingWorkspace() {
   const [composeMode, setComposeMode] = useState("write"),
     [mobilePane, setMobilePane] = useState("article"),
     [illustrationPlan, setIllustrationPlan] = useState(null);
+  // Easel 式阶段焦点视图（研究/写作/审稿/配图/发布）：一次只呈现一个阶段
+  // 的工作面。阶段只是呈现层状态——修订树、expectedRevision、保存与建议
+  // 流程完全不变；done 标记仍只来自 src/compose-view.mjs 的真实事实。
+  const [stage, setStage] = useState("write");
   const dirty = !!doc && (markdown !== doc.markdown || theme !== doc.theme),
     canMigrate = (!doc?.legacyLayout || !!legacyChoice) && !recovery;
   current.current = {
@@ -179,6 +181,8 @@ export default function WritingWorkspace() {
     hasInsertedImages: markdown.includes("](asset://"),
   });
   const planShots = illustrationPlan?.shots || [];
+  const editorStage = stage === "write" || stage === "images";
+  const allChecksDone = Object.keys(checkLabels).every((key) => checks[key]);
   const paperLabels = {
     master: "Master Draft",
     wechat: "Wechat Draft",
@@ -314,13 +318,13 @@ export default function WritingWorkspace() {
     setConsent(false);
     setSelection(null);
     setFocusedSuggestion("");
-    setPublishOpen(false);
     setPublishAccountId("");
     setRecovery(null);
     setXhsPlan(null);
     setNotice("");
     setComposeMode("write");
     setMobilePane("article");
+    setStage("write");
     if (!projectId) return () => controller.abort();
     const ready =
       channel === "xiaohongshu"
@@ -410,10 +414,34 @@ export default function WritingWorkspace() {
     };
   }, [projectId, channel, doc?.revision, assistantTab, composeMode]);
   function openPlanner() {
+    setStage("images");
     setComposeMode("write");
     setMobilePane("assistant");
     setRightOpen(true);
     setAssistantTab("images");
+  }
+  // 六步阶段条 → 五个焦点视图：大纲与写作共用写作工作面（同一个编辑器
+  // 实例，切换不重挂载、不丢光标与未保存内容）。
+  const stepTargets = {
+    研究: "research",
+    大纲: "write",
+    写作: "write",
+    审稿: "review",
+    配图: "images",
+    发布: "publish",
+  };
+  // 写作视图里只高亮一个步骤（有真实标题→写作，否则→大纲），与 done 事实一致。
+  const stageOnlyLabel = {
+    research: "研究",
+    review: "审稿",
+    images: "配图",
+    publish: "发布",
+  };
+  function goStage(next) {
+    setStage(next);
+    setMobilePane("article");
+    if (next === "images") setAssistantTab("images");
+    if (next === "write") setAssistantTab("writing");
   }
 
   async function persist() {
@@ -1092,6 +1120,96 @@ export default function WritingWorkspace() {
     }
   }
 
+  // 待审阅建议清单：写作助手与审稿阶段共用同一渲染（接受/拒绝语义一致）。
+  const suggestionsList = (
+    <Conversation className="writing-suggestions" aria-live="polite">
+      <ConversationContent>
+      {suggestions.map((s) => (
+        <article
+          key={s.id}
+          className={
+            "writing-suggestion " +
+            (active?.id === s.id ? "selected" : "")
+          }
+        >
+          <p className="writing-user-request">
+            {s.instruction}
+          </p>
+          {s.status === "conversation" ? (
+            <Message from="assistant">
+              <MessageContent className="rounded-lg border border-[var(--writing-line)] bg-[#fffefa]">
+                <MessageResponse>
+                  {s.reason}
+                </MessageResponse>
+              </MessageContent>
+            </Message>
+          ) : (
+            <p>{s.reason}</p>
+          )}
+          <small>
+            {s.status === "accepted"
+              ? "已接受"
+              : s.status === "rejected"
+              ? "已拒绝"
+              : s.status === "revoked"
+              ? "来源已移除，建议已撤销"
+              : s.status === "conversation"
+              ? "讨论回复"
+              : s.baseRevision !== doc.revision
+              ? "旧版本建议 · 可重新提出请求"
+              : "待审阅 · v" + s.baseRevision}
+            {modelLabel(s.id)
+              ? " · 由 " + modelLabel(s.id) + " 生成"
+              : ""}
+          </small>
+          {s.contextSnapshot && (
+            <WritingModelContext
+              context={s.contextSnapshot}
+              historical
+            />
+          )}
+          {s.status === "pending" && (
+            <>
+              <button
+                onClick={() => {
+                  setFocusedSuggestion(s.id);
+                  setView("split");
+                  goStage("write");
+                }}
+              >
+                在正文中查看
+              </button>
+              <details>
+                <summary>查看替换内容</summary>
+                <pre>{s.replacement}</pre>
+              </details>
+              <div>
+                <button
+                  disabled={
+                    dirty ||
+                    resolving ||
+                    s.baseRevision !== doc.revision
+                  }
+                  onClick={() => decide(s, "accept")}
+                >
+                  接受修改
+                </button>
+                <button
+                  disabled={resolving}
+                  onClick={() => decide(s, "reject")}
+                >
+                  拒绝
+                </button>
+              </div>
+            </>
+          )}
+        </article>
+      ))}
+      </ConversationContent>
+      <ConversationScrollButton />
+    </Conversation>
+  );
+
   return (
     <CreatorShell>
       <div
@@ -1177,20 +1295,11 @@ export default function WritingWorkspace() {
             >
               返回作品
             </Link>
-            {projectId ? (
-              <Link
-                className="cv2-btn cv2-compose-hide-m"
-                href={`/illustrations?project=${projectId}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                配图工作台
-              </Link>
-            ) : null}
             <button
               className="cv2-btn primary"
               disabled={!doc || channel === "master" || resolving}
-              onClick={() => setPublishOpen((v) => !v)}
+              aria-pressed={stage === "publish"}
+              onClick={() => goStage("publish")}
             >
               发布准备 <Icon name="arrow" size={14} />
             </button>
@@ -1198,61 +1307,157 @@ export default function WritingWorkspace() {
         </header>
         {doc && channel !== "xiaohongshu" ? (
           <>
-            {/* 引导性阶段条 — creator-v2.2.html :159 .steps；done 只来自真实事实
-                （src/compose-view.mjs），不作为阻塞门 */}
+            {/* Easel 式阶段导航 — done 只来自真实事实（src/compose-view.mjs），
+                点击切换焦点视图；非阻塞门，可随时回到任意阶段 */}
             <div className="cv2-compose-steps" aria-label="创作阶段">
-              {steps.map((s, i) => (
-                <Fragment key={s.label}>
-                  {i ? <span className="cv2-compose-step-sep">›</span> : null}
-                  <div className={"cv2-compose-step " + s.state}>
+              {steps.map((s, i) => {
+                const target = stepTargets[s.label];
+                const isActive =
+                  target === stage &&
+                  (stage === "write"
+                    ? s.state === "now"
+                    : s.label === stageOnlyLabel[stage]);
+                return (
+                  <button
+                    key={s.label}
+                    type="button"
+                    className={
+                      "cv2-compose-step " + s.state + (isActive ? " active" : "")
+                    }
+                    aria-current={isActive ? "step" : undefined}
+                    aria-label={"切换到" + s.label + "阶段"}
+                    onClick={() => goStage(target)}
+                  >
                     <i>{s.state === "done" ? "✓" : i + 1}</i>
                     {s.label}
-                  </div>
-                </Fragment>
-              ))}
+                  </button>
+                );
+              })}
             </div>
-            <div className="cv2-compose-ribbon">
-              <div className="row">
-                {checkInfo.complete ? (
-                  <span className="cv2-pill good">
-                    人工检查 {checkInfo.done}/{checkInfo.total} 完成
-                  </span>
-                ) : (
-                  <>
-                    <span className="cv2-pill warn">待完成人工检查</span>
-                    <span>
-                      <strong>{checkInfo.total - checkInfo.done} 项</strong>{" "}
-                      逐项核对后才可导出（{labels[channel]}独立记录）
-                    </span>
-                  </>
-                )}
-                <span className="cv2-pill">主稿 / 平台稿独立</span>
+            <div className="cv2-compose-stagebar">
+              <div
+                className="cv2-channel-tabs"
+                role="tablist"
+                aria-label="稿件渠道"
+              >
+                {Object.entries(labels).map(([key, name]) => (
+                  <button
+                    role="tab"
+                    aria-selected={channel === key}
+                    className={channel === key ? "active" : ""}
+                    disabled={busy || resolving || saving}
+                    key={key}
+                    onClick={() => switchTo(projectId, key)}
+                  >
+                    {name}
+                  </button>
+                ))}
               </div>
-              <span>AI 建议先进入待采纳区，不直接写入文章</span>
+              {editorStage ? (
+                <div className="cv2-compose-toolrow">
+                  {stage === "images" ? (
+                    <button
+                      className="cv2-btn tiny"
+                      onClick={() =>
+                        setComposeMode((m) => (m === "write" ? "visual" : "write"))
+                      }
+                    >
+                      {composeMode === "write" ? (
+                        <>
+                          <Icon name="image" size={13} /> 切换到配图
+                        </>
+                      ) : (
+                        <>
+                          <Icon name="edit" size={13} /> 返回编辑
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <>
+                      <div
+                        className="cv2-view-seg"
+                        role="group"
+                        aria-label="编辑视图"
+                      >
+                        {[
+                          ["split", "分栏"],
+                          ["source", "源码"],
+                          ["preview", "预览"],
+                        ].map(([key, name]) => (
+                          <button
+                            className={view === key ? "active" : ""}
+                            key={key}
+                            onClick={() => setView(key)}
+                          >
+                            {name}
+                          </button>
+                        ))}
+                      </div>
+                      <button
+                        className="cv2-btn tiny"
+                        onClick={() => setShowTheme((v) => !v)}
+                      >
+                        排版与主题
+                      </button>
+                    </>
+                  )}
+                  <button
+                    className="cv2-btn tiny"
+                    onClick={() => setRightOpen((v) => !v)}
+                  >
+                    {rightOpen ? "收起助手" : "创作助手"}
+                  </button>
+                </div>
+              ) : null}
             </div>
+            {(stage === "review" || stage === "publish") && (
+              <div className="cv2-compose-ribbon">
+                <div className="row">
+                  {checkInfo.complete ? (
+                    <span className="cv2-pill good">
+                      人工检查 {checkInfo.done}/{checkInfo.total} 完成
+                    </span>
+                  ) : (
+                    <>
+                      <span className="cv2-pill warn">待完成人工检查</span>
+                      <span>
+                        <strong>{checkInfo.total - checkInfo.done} 项</strong>{" "}
+                        逐项核对后才可导出（{labels[channel]}独立记录）
+                      </span>
+                    </>
+                  )}
+                  <span className="cv2-pill">主稿 / 平台稿独立</span>
+                </div>
+                <span>AI 建议先进入待采纳区，不直接写入文章</span>
+              </div>
+            )}
             {/* V2.3 移动端双面板切换（creator-v2.3-visual.html :43）；
-                仅在窄屏渲染，桌面隐藏 */}
-            <div className="cv2-compose-mobiletabs">
-              <button
-                type="button"
-                className={mobilePane === "article" ? "active" : ""}
-                aria-pressed={mobilePane === "article"}
-                onClick={() => setMobilePane("article")}
-              >
-                正文
-              </button>
-              <button
-                type="button"
-                className={mobilePane === "assistant" ? "active" : ""}
-                aria-pressed={mobilePane === "assistant"}
-                onClick={() => {
-                  setMobilePane("assistant");
-                  setAssistantTab("images");
-                }}
-              >
-                AI 配图助手{planShots.length ? ` · ${planShots.length}` : ""}
-              </button>
-            </div>
+                仅在编辑阶段的窄屏渲染，桌面隐藏 */}
+            {editorStage ? (
+              <div className="cv2-compose-mobiletabs">
+                <button
+                  type="button"
+                  className={mobilePane === "article" ? "active" : ""}
+                  aria-pressed={mobilePane === "article"}
+                  onClick={() => setMobilePane("article")}
+                >
+                  正文
+                </button>
+                <button
+                  type="button"
+                  className={mobilePane === "assistant" ? "active" : ""}
+                  aria-pressed={mobilePane === "assistant"}
+                  onClick={() => {
+                    setMobilePane("assistant");
+                    setAssistantTab(stage === "images" ? "images" : "writing");
+                  }}
+                >
+                  {stage === "images"
+                    ? `AI 配图助手${planShots.length ? ` · ${planShots.length}` : ""}`
+                    : "AI 写作助手"}
+                </button>
+              </div>
+            ) : null}
           </>
         ) : null}
         {(showNew || (!projects.length && !projectId)) && (
@@ -1320,7 +1525,7 @@ export default function WritingWorkspace() {
             从上方选择一篇文章继续创作，或点「新建文章」。
           </p>
         ) : null}
-        {doc && channel === "xiaohongshu" ? (
+        {doc && stage !== "publish" && channel === "xiaohongshu" ? (
           <main className="writing-body without-assistant cv2-xhs-body">
             {leftOpen && (
               <aside className="writing-context">
@@ -1357,34 +1562,268 @@ export default function WritingWorkspace() {
             />
           </main>
         ) : null}
-        {doc && channel !== "xiaohongshu" ? (
-          <div
-            className={
-              "cv2-compose-grid" + (leftOpen ? "" : " no-rail")
-            }
-          >
-            {leftOpen && (
-              <aside className="cv2-compose-rail writing-context">
-                <h4>文章结构</h4>
-                {outline.length ? (
-                  outline.map((o, i) => (
+        {doc && stage === "research" && channel !== "xiaohongshu" ? (
+          <div className="cv2-stage-flow">
+            <section className="cv2-stage-card" aria-label="选题研究">
+              <h2>选题与素材</h2>
+              {doc.brief ? (
+                <>
+                  <p className="cv2-stage-lede">{doc.brief.title}</p>
+                  {doc.brief.audience ? (
+                    <p className="cv2-stage-audience">{doc.brief.audience}</p>
+                  ) : null}
+                  <p className="cv2-micro">
+                    已关联 {doc.brief.sources.length} 条选题素材，来源逐条可溯。
+                  </p>
+                  <div className="cv2-stage-sources">
+                    {doc.brief.sources.map((source) => (
+                      <p key={source.id}>
+                        <a
+                          href={
+                            /^https?:\/\//i.test(source.url || "")
+                              ? source.url
+                              : undefined
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {source.title}
+                        </a>
+                        <small>{source.summary}</small>
+                      </p>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="cv2-stage-lede">
+                  还没有选题简报。可从 <Link href="/topics">选题发现</Link>{" "}
+                  带着素材开始，或直接进入写作。
+                </p>
+              )}
+              <div className="cv2-stage-actions">
+                <button
+                  className="cv2-btn primary"
+                  onClick={() => goStage("write")}
+                >
+                  下一步：进入写作 <Icon name="arrow" size={14} />
+                </button>
+              </div>
+            </section>
+            <section className="cv2-stage-card" aria-label="作者设定与参考资料">
+              <h2>作者设定与参考资料</h2>
+              <p className="cv2-micro">
+                语气、篇幅与参考材料按渠道独立保存；发送给模型前会再次向你确认。
+              </p>
+              <WritingContext
+                projectId={projectId}
+                channel={channel}
+                onNotice={setNotice}
+                onSaved={updateRequestContext}
+              />
+            </section>
+          </div>
+        ) : null}
+        {doc && stage === "publish" ? (
+          <div className="cv2-stage-publish">
+            {channel === "master" ? (
+              <section className="cv2-stage-card" aria-label="主稿发布说明">
+                <h2>主稿不直接发布</h2>
+                <p className="cv2-stage-lede">
+                  主稿是独立草稿的来源。选择一个目标渠道创建平台稿，独立改写后再回到审稿与发布。
+                </p>
+                <div className="cv2-stage-actions">
+                  {["wechat", "zhihu", "xiaohongshu"].map((key) => (
                     <button
-                      key={i + o.text}
-                      type="button"
-                      className={
-                        "cv2-compose-outline-link" + (i === 0 ? " active" : "")
-                      }
-                      style={{ paddingLeft: 10 + (o.level - 1) * 9 }}
-                      title={o.text}
-                      onClick={() => editor.current?.focus()}
+                      key={key}
+                      className="cv2-btn"
+                      disabled={busy || resolving || saving}
+                      onClick={() => switchTo(projectId, key)}
                     >
-                      {o.text}
+                      创建{labels[key]}平台稿
                     </button>
-                  ))
-                ) : (
-                  <p className="cv2-micro">正文中的 # 标题会显示在这里。</p>
-                )}
-                <div className="cv2-compose-reference">
+                  ))}
+                  <button
+                    className="cv2-btn"
+                    onClick={() => goStage("write")}
+                  >
+                    返回写作
+                  </button>
+                </div>
+              </section>
+            ) : (
+              <>
+                <section
+                  className="cv2-stage-card cv2-stage-publish-card"
+                  aria-label="平台发布准备"
+                >
+                  <h2>{labels[channel]} · 发布准备</h2>
+                  <p className="cv2-micro">
+                    确认当前版本后，可复制排版、导出交付包，或按账号能力发送到草稿箱。
+                    {channel === "xiaohongshu"
+                      ? "小红书图片包在图文工作区下载。"
+                      : ""}
+                  </p>
+                  {Object.entries(checkLabels).map(([key, label]) => (
+                    <label className="writing-check" key={key}>
+                      <input
+                        type="checkbox"
+                        checked={!!checks[key]}
+                        onChange={(e) =>
+                          setChecks((rows) => ({
+                            ...rows,
+                            [key]: e.target.checked,
+                          }))
+                        }
+                      />
+                      {label}
+                    </label>
+                  ))}
+                  <div className="cv2-stage-actions">
+                    <button
+                      className="writing-button"
+                      disabled={resolving || dirty || !allChecksDone}
+                      onClick={async () => {
+                        try {
+                          await prepareChecks();
+                          setNotice("当前版本的四项检查已保存。");
+                        } catch (e) {
+                          setNotice(e.message);
+                        }
+                      }}
+                    >
+                      保存当前版本检查
+                    </button>
+                  </div>
+                  <p className="cv2-micro">
+                    本地图片需先在配图工作台登记对应平台的图片地址。
+                  </p>
+                  <div className="writing-dialog-actions">
+                    <button
+                      className="writing-button primary"
+                      disabled={resolving || dirty || !allChecksDone}
+                      onClick={() => exportDocument("copy")}
+                    >
+                      复制排版
+                    </button>
+                    <button
+                      className="writing-button"
+                      disabled={resolving || dirty || !allChecksDone}
+                      onClick={() => exportDocument("download")}
+                    >
+                      下载 Markdown
+                    </button>
+                  </div>
+                  <hr />
+                  <label>
+                    已发布链接
+                    <input
+                      aria-label="实际发布链接"
+                      type="url"
+                      value={publishedUrl}
+                      onChange={(e) => setPublishedUrl(e.target.value)}
+                      placeholder="在平台实际发布后填写"
+                    />
+                  </label>
+                  <div className="cv2-stage-actions">
+                    <button
+                      className="writing-button"
+                      disabled={!publishedUrl || dirty || resolving}
+                      onClick={reportPublished}
+                    >
+                      记录作者确认已发布
+                    </button>
+                  </div>
+                  <p className="cv2-micro">
+                    导出、草稿和实际发布分别记录；人工记录不等于平台核实。
+                  </p>
+                  <PublishingControls
+                    onAccount={setPublishAccountId}
+                    projectId={projectId}
+                    channel={channel}
+                    disabled={resolving || dirty || !allChecksDone}
+                    onNotice={setNotice}
+                    prepare={prepareChecks}
+                  />
+                </section>
+                <aside className="cv2-stage-side">
+                  <div className="cv2-stage-card" aria-label="发布边界">
+                    <h2>发布边界</h2>
+                    <p className="cv2-micro">
+                      导出 ≠ 实际发布：复制排版与下载
+                      Markdown 只生成本地交付物，发送到草稿箱也只是草稿。真正的发布状态以你在平台上核对后的记录为准。
+                    </p>
+                    <p className="cv2-micro">
+                      人工检查 {checkInfo.done}/{checkInfo.total}
+                      完成（{labels[channel]}独立记录）。
+                    </p>
+                    <div className="cv2-stage-actions">
+                      {channel === "xiaohongshu" ? (
+                        <button
+                          className="cv2-btn"
+                          onClick={() => goStage("write")}
+                        >
+                          返回图文创作
+                        </button>
+                      ) : (
+                        <button
+                          className="cv2-btn"
+                          onClick={() => goStage("review")}
+                        >
+                          返回审稿
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </aside>
+              </>
+            )}
+          </div>
+        ) : null}
+        {doc && channel !== "xiaohongshu" && editorStage ? (
+          <div className="cv2-compose-grid">
+            <aside className="cv2-compose-rail writing-context">
+              {stage === "write" ? (
+                <>
+                  <h4>文章结构</h4>
+                  {outline.length ? (
+                    outline.map((o, i) => (
+                      <button
+                        key={i + o.text}
+                        type="button"
+                        className={
+                          "cv2-compose-outline-link" + (i === 0 ? " active" : "")
+                        }
+                        style={{ paddingLeft: 10 + (o.level - 1) * 9 }}
+                        title={o.text}
+                        onClick={() => editor.current?.focus()}
+                      >
+                        {o.text}
+                      </button>
+                    ))
+                  ) : (
+                    <p className="cv2-micro">
+                      正文中的 # 标题会显示在这里。大纲建议可让 AI 助手生成。
+                    </p>
+                  )}
+                  <div className="cv2-compose-reference">
+                    <p className="cv2-micro">
+                      {doc.brief
+                        ? `已关联 ${doc.brief.sources.length} 条选题素材。`
+                        : "还没有选题简报。"}
+                    </p>
+                    <p className="cv2-rail-actions">
+                      <button
+                        type="button"
+                        className="cv2-btn tiny"
+                        onClick={() => goStage("research")}
+                      >
+                        研究与设定
+                      </button>
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
                   <h4>配图定位</h4>
                   {planShots.length ? (
                     planShots.map((shot) => {
@@ -1429,192 +1868,54 @@ export default function WritingWorkspace() {
                       完整视觉工作台 ↗
                     </Link>
                   </p>
-                </div>
-                <div className="cv2-compose-reference">
-                  <h4>参考资料</h4>
-                  {doc.brief ? (
-                    <p>
-                      已关联 {doc.brief.sources.length} 条选题素材
-                      {doc.brief.title ? ` · ${doc.brief.title}` : ""}
+                  <div className="cv2-compose-reference">
+                    <h4>素材</h4>
+                    <p className="cv2-rail-actions">
+                      <button className="cv2-btn tiny" onClick={loadAssets}>
+                        从素材库插图
+                      </button>
                     </p>
-                  ) : (
-                    <p>还没有选题简报；可从选题发现开始创作。</p>
-                  )}
-                  {doc.brief && (
-                    <details className="writing-brief">
-                      <summary>选题简报与来源</summary>
-                      <p>{doc.brief.title}</p>
-                      <small>{doc.brief.audience}</small>
-                      {doc.brief.sources.map((source) => (
-                        <p key={source.id}>
-                          <a
-                            href={
-                              /^https?:\/\//i.test(source.url || "")
-                                ? source.url
-                                : undefined
-                            }
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            {source.title}
-                          </a>
-                          <small>{source.summary}</small>
-                        </p>
-                      ))}
-                    </details>
-                  )}
-                  <WritingContext
-                    projectId={projectId}
-                    channel={channel}
-                    onNotice={setNotice}
-                    onSaved={updateRequestContext}
-                  />
-                </div>
-                <div className="cv2-compose-reference">
-                  <h4>内容状态</h4>
-                  <p>
-                    <Tag tone={checkInfo.complete ? "success" : "warning"}>
-                      {checkInfo.complete
-                        ? "四项检查已完成"
-                        : `还有 ${checkInfo.total - checkInfo.done} 项待核查`}
-                    </Tag>
-                  </p>
-                  <p className="cv2-micro">
-                    人工检查按渠道独立记录；AI 的建议会保留为候选，不会自动覆盖你的正文。
-                  </p>
-                  <p className="cv2-rail-actions">
-                    <button className="cv2-btn tiny" onClick={loadAssets}>
-                      从素材库插图
-                    </button>
-                    <Link
-                      className="cv2-btn tiny"
-                      href={`/editor?project=${projectId}&channel=${channel}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      查看证据与核查 ↗
-                    </Link>
-                  </p>
-                  <label className="writing-upload">
-                    上传图片
-                    <input
-                      aria-label="上传文章图片"
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp,image/gif"
-                      onChange={uploadImage}
-                    />
-                  </label>
-                  {assetsOpen && (
-                    <div className="writing-assets">
-                      {assets.length ? (
-                        assets.map((asset) => (
-                          <button
-                            key={asset.id}
-                            onClick={() =>
-                              editor.current?.insert(
-                                `\n\n![${asset.alt.replace(
-                                  /[\[\]\\]/g,
-                                  ""
-                                )}](asset://${asset.id})\n\n`
-                              )
-                            }
-                          >
-                            <img
-                              src={asset.previewUrl}
-                              alt={asset.alt || asset.filename}
-                            />
-                            <span>{asset.filename}</span>
-                          </button>
-                        ))
-                      ) : (
-                        <p>还没有图片，可上传或生成。</p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </aside>
-            )}
-            <section className="cv2-compose-middle" aria-label="文章编辑工作区">
-              <div className="cv2-compose-tools">
-                <div
-                  className="cv2-channel-tabs"
-                  role="tablist"
-                  aria-label="稿件渠道"
-                >
-                  {Object.entries(labels).map(([key, name]) => (
-                    <button
-                      role="tab"
-                      aria-selected={channel === key}
-                      className={channel === key ? "active" : ""}
-                      disabled={busy || resolving || saving}
-                      key={key}
-                      onClick={() => switchTo(projectId, key)}
-                    >
-                      {name}
-                    </button>
-                  ))}
-                </div>
-                <div className="cv2-compose-toolrow">
-                  <button
-                    className="cv2-btn tiny"
-                    aria-pressed={leftOpen}
-                    onClick={() => setLeftOpen((v) => !v)}
-                  >
-                    大纲与素材
-                  </button>
-                  <button
-                    className="cv2-btn tiny"
-                    onClick={() =>
-                      setComposeMode((m) => (m === "write" ? "visual" : "write"))
-                    }
-                  >
-                    {composeMode === "write" ? (
-                      <>
-                        <Icon name="image" size={13} /> 切换到配图
-                      </>
-                    ) : (
-                      <>
-                        <Icon name="edit" size={13} /> 返回编辑
-                      </>
-                    )}
-                  </button>
-                  {composeMode === "write" ? (
-                    <>
-                      <div
-                        className="cv2-view-seg"
-                        role="group"
-                        aria-label="编辑视图"
-                      >
-                        {[
-                          ["split", "分栏"],
-                          ["source", "源码"],
-                          ["preview", "预览"],
-                        ].map(([key, name]) => (
-                          <button
-                            className={view === key ? "active" : ""}
-                            key={key}
-                            onClick={() => setView(key)}
-                          >
-                            {name}
-                          </button>
-                        ))}
+                    <label className="writing-upload">
+                      上传图片
+                      <input
+                        aria-label="上传文章图片"
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        onChange={uploadImage}
+                      />
+                    </label>
+                    {assetsOpen && (
+                      <div className="writing-assets">
+                        {assets.length ? (
+                          assets.map((asset) => (
+                            <button
+                              key={asset.id}
+                              onClick={() =>
+                                editor.current?.insert(
+                                  `\n\n![${asset.alt.replace(
+                                    /[\[\]\\]/g,
+                                    ""
+                                  )}](asset://${asset.id})\n\n`
+                                )
+                              }
+                            >
+                              <img
+                                src={asset.previewUrl}
+                                alt={asset.alt || asset.filename}
+                              />
+                              <span>{asset.filename}</span>
+                            </button>
+                          ))
+                        ) : (
+                          <p>还没有图片，可上传或生成。</p>
+                        )}
                       </div>
-                      <button
-                        className="cv2-btn tiny"
-                        onClick={() => setShowTheme((v) => !v)}
-                      >
-                        排版与主题
-                      </button>
-                      <button
-                        className="cv2-btn tiny"
-                        onClick={() => setRightOpen((v) => !v)}
-                      >
-                        {rightOpen ? "收起助手" : "创作助手"}
-                      </button>
-                    </>
-                  ) : null}
-                </div>
-              </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </aside>
+            <section className="cv2-compose-middle" aria-label="文章编辑工作区">
               {channel !== "master" &&
                 doc.masterRevision > doc.sourceMasterRevision && (
                   <p className="cv2-source-note">
@@ -1739,30 +2040,11 @@ export default function WritingWorkspace() {
                   </strong>
                   围绕当前文章、选中的参考资料与写作风格工作。执行前应展示将发送的材料、使用模型及费用；失败不覆盖正文。
                 </div>
-                <div
-                  className="cv2-view-seg"
-                  role="group"
-                  aria-label="助手面板"
-                  style={{ marginBottom: 14 }}
-                >
-                  <button
-                    className={assistantTab === "writing" ? "active" : ""}
-                    onClick={() => setAssistantTab("writing")}
-                  >
-                    写作
-                  </button>
-                  <button
-                    className={assistantTab === "images" ? "active" : ""}
-                    onClick={() => setAssistantTab("images")}
-                  >
-                    配图
-                  </button>
-                </div>
                 <p className="writing-model-link">
                   <Link href="/settings#services">模型服务设置</Link>
                   ：配置写作 / 配图模型（OpenAI 兼容接口，密钥服务端加密，不回传浏览器）。
                 </p>
-                {assistantTab === "images" ? (
+                {stage === "images" ? (
                   <WritingImages
                     key={projectId}
                     projectId={projectId}
@@ -1837,160 +2119,6 @@ export default function WritingWorkspace() {
                         </button>
                       ))}
                     </div>
-                    <AgentRuns
-                      projectId={projectId}
-                      channel={channel}
-                      revision={doc.revision}
-                      onNotice={setNotice}
-                    />
-                    <div className="writing-context-summary">
-                      本次上下文：当前{labels[channel]}
-                      {selection?.text ? "与选中文字" : ""}
-                      {doc.brief?.sources.length
-                        ? `，以及 ${doc.brief.sources.length} 条选题素材`
-                        : ""}
-                      。<br />
-                      文章只在你确认后发送至已配置的写作模型。
-                    </div>
-                    <WritingModelContext
-                      context={
-                        requestContext
-                          ? {
-                              ...requestContext,
-                              briefSources: doc.brief?.sources || [],
-                            }
-                          : null
-                      }
-                      onRefresh={refreshRequestContext}
-                      busy={busy || resolving}
-                    />
-                    {!doc.aiConfigured && (
-                      <details className="writing-model-help" open>
-                        <summary>写作模型尚未配置</summary>
-                        <p>
-                          前往「创作者设置」添加写作模型，再重新载入文章。配图使用独立的服务连接。
-                        </p>
-                      </details>
-                    )}
-                    {busy && (
-                      <div
-                        className="writing-live-generation"
-                        aria-live="polite"
-                      >
-                        <strong>正在生成，尚未写入正文</strong>
-                        {compareProgress && (
-                          <p className="text-[#7a8780]">
-                            模型对比（{compareProgress.index}/
-                            {compareProgress.total}）：
-                            {compareProgress.label}
-                          </p>
-                        )}
-                        {streamPreview ? (
-                          <div className="text-sm">
-                            <MessageResponse>{streamPreview}</MessageResponse>
-                          </div>
-                        ) : (
-                          <p className="text-[#7a8780]">等待模型返回…</p>
-                        )}
-                        <button
-                          className="writing-button"
-                          onClick={stopGeneration}
-                        >
-                          停止生成
-                        </button>
-                      </div>
-                    )}
-                    <WritingGenerations
-                      records={generationRecords}
-                      onResume={resumeGeneration}
-                      onDownload={download}
-                      busy={busy}
-                    />
-                    <Conversation className="writing-suggestions" aria-live="polite">
-                      <ConversationContent>
-                      {suggestions.map((s) => (
-                        <article
-                          key={s.id}
-                          className={
-                            "writing-suggestion " +
-                            (active?.id === s.id ? "selected" : "")
-                          }
-                        >
-                          <p className="writing-user-request">
-                            {s.instruction}
-                          </p>
-                          {s.status === "conversation" ? (
-                            <Message from="assistant">
-                              <MessageContent className="rounded-lg border border-[var(--writing-line)] bg-[#fffefa]">
-                                <MessageResponse>
-                                  {s.reason}
-                                </MessageResponse>
-                              </MessageContent>
-                            </Message>
-                          ) : (
-                            <p>{s.reason}</p>
-                          )}
-                          <small>
-                            {s.status === "accepted"
-                              ? "已接受"
-                              : s.status === "rejected"
-                              ? "已拒绝"
-                              : s.status === "revoked"
-                              ? "来源已移除，建议已撤销"
-                              : s.status === "conversation"
-                              ? "讨论回复"
-                              : s.baseRevision !== doc.revision
-                              ? "旧版本建议 · 可重新提出请求"
-                              : "待审阅 · v" + s.baseRevision}
-                            {modelLabel(s.id)
-                              ? " · 由 " + modelLabel(s.id) + " 生成"
-                              : ""}
-                          </small>
-                          {s.contextSnapshot && (
-                            <WritingModelContext
-                              context={s.contextSnapshot}
-                              historical
-                            />
-                          )}
-                          {s.status === "pending" && (
-                            <>
-                              <button
-                                onClick={() => {
-                                  setFocusedSuggestion(s.id);
-                                  setView("split");
-                                }}
-                              >
-                                在正文中查看
-                              </button>
-                              <details>
-                                <summary>查看替换内容</summary>
-                                <pre>{s.replacement}</pre>
-                              </details>
-                              <div>
-                                <button
-                                  disabled={
-                                    dirty ||
-                                    resolving ||
-                                    s.baseRevision !== doc.revision
-                                  }
-                                  onClick={() => decide(s, "accept")}
-                                >
-                                  接受修改
-                                </button>
-                                <button
-                                  disabled={resolving}
-                                  onClick={() => decide(s, "reject")}
-                                >
-                                  拒绝
-                                </button>
-                              </div>
-                            </>
-                          )}
-                        </article>
-                      ))}
-                      </ConversationContent>
-                      <ConversationScrollButton />
-                    </Conversation>
                     <div className="writing-prompt">
                       {!!modelOptions.length && (
                         <div>
@@ -2100,61 +2228,211 @@ export default function WritingWorkspace() {
                           : "生成写作建议"}
                       </button>
                     </div>
+                    {busy && (
+                      <div
+                        className="writing-live-generation"
+                        aria-live="polite"
+                      >
+                        <strong>正在生成，尚未写入正文</strong>
+                        {compareProgress && (
+                          <p className="text-[#7a8780]">
+                            模型对比（{compareProgress.index}/
+                            {compareProgress.total}）：
+                            {compareProgress.label}
+                          </p>
+                        )}
+                        {streamPreview ? (
+                          <div className="text-sm">
+                            <MessageResponse>{streamPreview}</MessageResponse>
+                          </div>
+                        ) : (
+                          <p className="text-[#7a8780]">等待模型返回…</p>
+                        )}
+                        <button
+                          className="writing-button"
+                          onClick={stopGeneration}
+                        >
+                          停止生成
+                        </button>
+                      </div>
+                    )}
+                    <WritingGenerations
+                      records={generationRecords}
+                      onResume={resumeGeneration}
+                      onDownload={download}
+                      busy={busy}
+                    />
+                    {suggestionsList}
+                    <div className="writing-context-summary">
+                      本次上下文：当前{labels[channel]}
+                      {selection?.text ? "与选中文字" : ""}
+                      {doc.brief?.sources.length
+                        ? `，以及 ${doc.brief.sources.length} 条选题素材`
+                        : ""}
+                      。<br />
+                      文章只在你确认后发送至已配置的写作模型。
+                    </div>
+                    <WritingModelContext
+                      context={
+                        requestContext
+                          ? {
+                              ...requestContext,
+                              briefSources: doc.brief?.sources || [],
+                            }
+                          : null
+                      }
+                      onRefresh={refreshRequestContext}
+                      busy={busy || resolving}
+                    />
+                    {!doc.aiConfigured && (
+                      <details className="writing-model-help" open>
+                        <summary>写作模型尚未配置</summary>
+                        <p>
+                          前往「创作者设置」添加写作模型，再重新载入文章。配图使用独立的服务连接。
+                        </p>
+                      </details>
+                    )}
+                    <details className="cv2-assistant-advanced">
+                      <summary>技能任务（多步 Agent）</summary>
+                      <AgentRuns
+                        projectId={projectId}
+                        channel={channel}
+                        revision={doc.revision}
+                        onNotice={setNotice}
+                      />
+                    </details>
                   </>
                 )}
               </aside>
             )}
           </div>
         ) : null}
-        {doc && channel !== "xiaohongshu" ? (
-          <nav className="cv2-compose-workflow" aria-label="移动端创作工作流">
-            <button
-              type="button"
-              className={
-                mobilePane === "article" && composeMode === "write"
-                  ? "active"
-                  : ""
-              }
-              onClick={() => {
-                setMobilePane("article");
-                setComposeMode("write");
-              }}
-            >
-              <Icon name="file" size={17} />
-              正文
-            </button>
-            <button
-              type="button"
-              className={mobilePane === "assistant" ? "active" : ""}
-              onClick={() => {
-                setMobilePane("assistant");
-                setAssistantTab("images");
-              }}
-            >
-              <Icon name="spark" size={17} />
-              配图规划
-            </button>
-            <Link
-              href={`/illustrations?project=${projectId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Icon name="image" size={17} />
-              选图编辑
-            </Link>
-            <button
-              type="button"
-              className={view === "preview" ? "active" : ""}
-              onClick={() => {
-                setMobilePane("article");
-                setComposeMode("write");
-                setView("preview");
-              }}
-            >
-              <Icon name="book" size={17} />
-              预览
-            </button>
-          </nav>
+        {doc && stage === "review" && channel !== "xiaohongshu" ? (
+          <div className="cv2-stage-review">
+            <div className="cv2-stage-main">
+              <div className="cv2-stage-headline">
+                <h2>审稿</h2>
+                <p className="cv2-micro">
+                  AI 建议先进入待采纳区，不直接写入文章；接受后才生成新版本。
+                </p>
+              </div>
+              {suggestions.length ? (
+                suggestionsList
+              ) : (
+                <div className="cv2-stage-card">
+                  <p className="cv2-stage-lede">还没有待审阅的建议。</p>
+                  <p className="cv2-micro">
+                    回到写作阶段让助手生成修改建议，或直接进入发布准备。
+                  </p>
+                  <div className="cv2-stage-actions">
+                    <button
+                      className="cv2-btn"
+                      onClick={() => goStage("write")}
+                    >
+                      返回写作
+                    </button>
+                    {channel !== "master" ? (
+                      <button
+                        className="cv2-btn primary"
+                        onClick={() => goStage("publish")}
+                      >
+                        下一步：发布准备
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              )}
+            </div>
+            <aside className="cv2-stage-side">
+              <div className="cv2-stage-card" aria-label="人工检查状态">
+                <h2>四项人工检查</h2>
+                <ul className="cv2-check-list">
+                  {Object.entries(checkLabels).map(([key, label]) => (
+                    <li key={key} className={checks[key] ? "done" : ""}>
+                      <i>{checks[key] ? "✓" : "·"}</i>
+                      {label}
+                    </li>
+                  ))}
+                </ul>
+                <p className="cv2-micro">
+                  人工检查按渠道独立记录（{labels[channel]}）；逐项勾选在发布准备里完成。
+                </p>
+                {channel !== "master" ? (
+                  <div className="cv2-stage-actions">
+                    <button
+                      className="cv2-btn primary"
+                      onClick={() => goStage("publish")}
+                    >
+                      去发布准备
+                    </button>
+                  </div>
+                ) : null}
+                <p className="cv2-rail-actions">
+                  <Link
+                    className="cv2-btn tiny"
+                    href={`/editor?project=${projectId}&channel=${channel}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    查看证据与核查 ↗
+                  </Link>
+                </p>
+              </div>
+              {channel !== "master" ? (
+                <div className="cv2-stage-card" aria-label="主稿同步">
+                  <h2>主稿同步</h2>
+                  <p className="cv2-micro">
+                    {doc.masterRevision > doc.sourceMasterRevision
+                      ? "主稿已有更新；当前平台稿独立保存，可选择重新适配。"
+                      : "平台稿独立保存，主稿不会被自动改写。"}
+                  </p>
+                  <div className="cv2-stage-actions">
+                    <button
+                      className="cv2-btn"
+                      disabled={resolving || busy || !canMigrate}
+                      onClick={copyMaster}
+                    >
+                      从主稿创建新版本
+                    </button>
+                    {["wechat", "zhihu"].includes(channel) ? (
+                      <button
+                        className="cv2-btn"
+                        disabled={
+                          resolving ||
+                          busy ||
+                          !canMigrate ||
+                          blocked ||
+                          !!recovery
+                        }
+                        onClick={reviewMaster}
+                      >
+                        查看并合并主稿差异
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <div className="cv2-stage-card" aria-label="平台稿入口">
+                  <h2>平台稿</h2>
+                  <p className="cv2-micro">
+                    主稿不直接发布。选择目标渠道创建独立的平台稿，再回到审稿与发布。
+                  </p>
+                  <div className="cv2-stage-actions">
+                    {["wechat", "zhihu", "xiaohongshu"].map((key) => (
+                      <button
+                        key={key}
+                        className="cv2-btn"
+                        disabled={busy || resolving || saving}
+                        onClick={() => switchTo(projectId, key)}
+                      >
+                        创建{labels[key]}平台稿
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </aside>
+          </div>
         ) : null}
       {masterReview && (
         <WritingMasterReview
@@ -2213,108 +2491,6 @@ export default function WritingWorkspace() {
                 </button>
               </article>
             ))}
-          </section>
-        </div>
-      )}
-      {publishOpen && doc && (
-        <div className="writing-dialog-backdrop">
-          <section
-            className="writing-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-label="平台发布准备"
-          >
-            <h2>{labels[channel]} · 发布准备</h2>
-            <button onClick={() => setPublishOpen(false)}>关闭</button>
-            <p>
-              确认当前版本后，可复制排版、导出交付包，或按账号能力发送到草稿箱。小红书请在图文工作区下载图片包。
-            </p>
-            {Object.entries(checkLabels).map(([key, label]) => (
-              <label className="writing-check" key={key}>
-                <input
-                  type="checkbox"
-                  checked={!!checks[key]}
-                  onChange={(e) =>
-                    setChecks((rows) => ({ ...rows, [key]: e.target.checked }))
-                  }
-                />
-                {label}
-              </label>
-            ))}
-            <button
-              className="writing-button"
-              disabled={
-                resolving ||
-                dirty ||
-                !Object.keys(checkLabels).every((key) => checks[key])
-              }
-              onClick={async () => {
-                try {
-                  await prepareChecks();
-                  setNotice("当前版本的四项检查已保存。");
-                } catch (e) {
-                  setNotice(e.message);
-                }
-              }}
-            >
-              保存当前版本检查
-            </button>
-            <p>本地图片需先在配图工作台登记对应平台的图片地址。</p>
-            <div className="writing-dialog-actions">
-              <button
-                className="writing-button primary"
-                disabled={
-                  resolving ||
-                  dirty ||
-                  !Object.keys(checkLabels).every((key) => checks[key])
-                }
-                onClick={() => exportDocument("copy")}
-              >
-                复制排版
-              </button>
-              <button
-                className="writing-button"
-                disabled={
-                  resolving ||
-                  dirty ||
-                  !Object.keys(checkLabels).every((key) => checks[key])
-                }
-                onClick={() => exportDocument("download")}
-              >
-                下载 Markdown
-              </button>
-            </div>
-            <hr />
-            <label>
-              已发布链接
-              <input
-                aria-label="实际发布链接"
-                type="url"
-                value={publishedUrl}
-                onChange={(e) => setPublishedUrl(e.target.value)}
-                placeholder="在平台实际发布后填写"
-              />
-            </label>
-            <button
-              className="writing-button"
-              disabled={!publishedUrl || dirty || resolving}
-              onClick={reportPublished}
-            >
-              记录作者确认已发布
-            </button>
-            <p>导出、草稿和实际发布分别记录；人工记录不等于平台核实。</p>
-            <PublishingControls
-              onAccount={setPublishAccountId}
-              projectId={projectId}
-              channel={channel}
-              disabled={
-                resolving ||
-                dirty ||
-                !Object.keys(checkLabels).every((key) => checks[key])
-              }
-              onNotice={setNotice}
-              prepare={prepareChecks}
-            />
           </section>
         </div>
       )}

@@ -410,10 +410,8 @@ test("image insertion is persisted, platform draft stays independent and reviewe
   const doc = await create(request, "配图插入与平台导出");
   await page.goto("/compose?project=" + doc.projectId);
   await cm(page).fill("# 含图文章\n\n本篇文章的正文。");
-  // V2 创作空间默认展开左栏；确保打开而不是把已打开的左栏关掉。
-  const railToggle = page.getByRole("button", { name: "大纲与素材" });
-  if ((await railToggle.getAttribute("aria-pressed")) === "false")
-    await railToggle.click();
+  // 素材上传在配图阶段的左栏；编辑器保持挂载，插入即时落稿
+  await page.getByRole("button", { name: "切换到配图阶段" }).click();
   const png =
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/gHcAAAAASUVORK5CYII=";
   await cm(page).click();
@@ -476,7 +474,7 @@ test("selected paragraph image is planned, generated via loopback service and in
     .toBe(original);
   await cm(page).click();
   await page.keyboard.press("ControlOrMeta+a");
-  await page.getByRole("button", { name: "配图", exact: true }).click();
+  await page.getByRole("button", { name: "切换到配图阶段" }).click();
   await page.getByRole("button", { name: "为选段规划配图" }).click();
   const panel = page.getByLabel("文章配图助手");
   await expect(panel).toContainText("当前计划 1 张");

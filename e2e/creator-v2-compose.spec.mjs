@@ -243,13 +243,14 @@ test("V2 版式：真实空稿的诚实空态、阶段条与 ribbon，正文输�
   for (const name of ["微信公众号", "知乎", "小红书"])
     await expect(tabs.getByRole("tab", { name })).toBeAttached();
 
-  // 阶段条：空稿 → 大纲是当前步骤，其余是数字，不谎报完成
+  // 阶段条：空稿 → 大纲是当前步骤，其余是数字，不谎报完成；默认落在写作阶段
   const steps = page.locator(".cv2-compose-steps .cv2-compose-step");
   await expect(steps).toHaveCount(6);
   await expect(steps.nth(1)).toHaveClass(/now/);
   await expect(steps.nth(0)).toHaveClass(/todo/);
 
-  // ribbon：真实的检查计数 + 不变量声明
+  // ribbon（检查计数 + 不变量声明）跟随审稿/发布阶段出现
+  await page.getByRole("button", { name: "切换到审稿阶段" }).click();
   await expect(page.locator(".cv2-compose-ribbon")).toContainText(
     "待完成人工检查"
   );
@@ -257,14 +258,18 @@ test("V2 版式：真实空稿的诚实空态、阶段条与 ribbon，正文输�
   await expect(
     page.locator(".cv2-compose-ribbon").getByText("主稿 / 平台稿独立")
   ).toBeAttached();
+  await page.getByRole("button", { name: "切换到写作阶段" }).click();
 
   // 诚实空态：结构/配图定位都没有编造内容；稿纸标注 MASTER DRAFT
   await expect(page.getByText("正文中的 # 标题会显示在这里。")).toBeVisible();
+  await expect(page.locator(".cv2-paper-label")).toContainText("Master Draft");
+  await expect(cm(page)).toBeVisible();
+  // 配图定位空态在配图阶段左栏
+  await page.getByRole("button", { name: "切换到配图阶段" }).click();
   await expect(
     page.getByText("还没有配图计划；在配图助手里依据主稿规划封面和插图。")
   ).toBeVisible();
-  await expect(page.locator(".cv2-paper-label")).toContainText("Master Draft");
-  await expect(cm(page)).toBeVisible();
+  await page.getByRole("button", { name: "切换到写作阶段" }).click();
 
   // 真实自动保存：输入落入 SQLite；大纲与阶段条随之由真实事实驱动
   const markdown = "# 城市步行观察\n\n第一段真实观察记录。";
@@ -359,8 +364,9 @@ test("V2.3 配图入口：空态诚实，真实计划出现真实图位状态并
     .poll(async () => (await stored(page, id)).markdown)
     .toBe(markdown);
 
-  // 打开配图视图：没有计划 → 诚实空态 + 指向配图助手
-  await page.getByRole("button", { name: "切换到配图" }).click();
+  // 打开配图阶段：没有计划 → 诚实空态 + 指向配图助手
+  await page.getByRole("button", { name: "切换到配图阶段" }).click();
+  await page.getByRole("button", { name: "切换到配图", exact: true }).click();
   const board = page.getByLabel("配图工作台视图");
   await expect(board).toBeVisible();
   await expect(board.getByText("这篇文章还没有配图计划")).toBeVisible();
@@ -376,7 +382,7 @@ test("V2.3 配图入口：空态诚实，真实计划出现真实图位状态并
 
   // 重新打开配图视图：真实图位 + 真实状态 pill + 工作台入口
   await page.getByRole("button", { name: "返回编辑" }).click();
-  await page.getByRole("button", { name: "切换到配图" }).click();
+  await page.getByRole("button", { name: "切换到配图", exact: true }).click();
   await expect(board.getByText("文章封面 · 待生成")).toBeVisible();
   await expect(board.getByText("正文配图 02 · 待生成")).toBeVisible();
   const slotLink = board.getByRole("link", { name: /打开完整视觉工作台/ });
@@ -393,7 +399,7 @@ test("V2.3 配图入口：空态诚实，真实计划出现真实图位状态并
   ).toBeVisible();
 });
 
-test("移动 390×844：正文/助手双面板、工作流底栏在全局导航之上且无横向溢出", async ({
+test("移动 390×844：正文/助手双面板与全局导航共存且无横向溢出", async ({
   page,
 }) => {
   await signup(page, "compose-mobile@example.test");
@@ -427,13 +433,18 @@ test("移动 390×844：正文/助手双面板、工作流底栏在全局导航�
     `横向溢出 ${overflow.scrollWidth}>${overflow.viewport}：\n${overflow.offenders.join("\n")}`
   ).toBeLessThanOrEqual(0);
 
-  // 双面板切换：默认正文，助手面板隐藏；切到助手后编辑区隐藏
+  // 双面板切换（编辑阶段）：默认正文，助手面板隐藏；切到助手后编辑区隐藏
   const mobileTabs = page.locator(".cv2-compose-mobiletabs");
   await expect(mobileTabs).toBeVisible();
-  await expect(
-    page.getByRole("navigation", { name: "移动端创作工作流" })
-  ).toBeVisible();
   await expect(page.locator(".cv2-compose-middle")).toBeVisible();
+  await mobileTabs.getByRole("button", { name: "AI 写作助手" }).click();
+  await expect(page.locator(".cv2-compose-middle")).toBeHidden();
+  await expect(page.getByLabel("文章配图助手")).toHaveCount(0);
+  await mobileTabs.getByRole("button", { name: "正文", exact: true }).click();
+  await expect(page.locator(".cv2-compose-middle")).toBeVisible();
+
+  // 配图阶段：移动端助手面板切换为 AI 配图助手
+  await page.getByRole("button", { name: "切换到配图阶段" }).click();
   await mobileTabs.getByRole("button", { name: "AI 配图助手" }).click();
   await expect(page.locator(".cv2-compose-middle")).toBeHidden();
   await expect(page.getByLabel("文章配图助手")).toBeVisible();
@@ -512,7 +523,7 @@ test("头部「返回作品」：干净直达 /works，未落盘修改先 flush 
     .toBe("# 返回前落盘\n\n这段内容尚未自动保存就要离开。");
 });
 
-test("头部与左栏新窗链接：配图工作台/完整视觉工作台新窗到 /illustrations，证据链接经 /editor 回 /compose", async ({
+test("阶段栏链接：完整视觉工作台新窗到 /illustrations，证据链接经 /editor 回 /compose", async ({
   page,
 }) => {
   await signup(page, "compose-newtab@example.test");
@@ -520,9 +531,10 @@ test("头部与左栏新窗链接：配图工作台/完整视觉工作台新窗�
   await page.goto("/compose?project=" + id);
   await expect(cm(page)).toBeVisible();
 
-  // 头部「配图工作台」target=_blank（WritingWorkspace.jsx:1180-1189）
+  // 配图阶段左栏「完整视觉工作台 ↗」target=_blank
+  await page.getByRole("button", { name: "切换到配图阶段" }).click();
   let popupPromise = page.context().waitForEvent("page");
-  await page.getByRole("link", { name: "配图工作台", exact: true }).click();
+  await page.getByRole("link", { name: "完整视觉工作台 ↗" }).click();
   let popup = await popupPromise;
   await expect(popup).toHaveURL(new RegExp("/illustrations\\?project=" + id));
   await expect(
@@ -530,18 +542,9 @@ test("头部与左栏新窗链接：配图工作台/完整视觉工作台新窗�
   ).toBeVisible();
   await popup.close();
 
-  // 左栏「完整视觉工作台 ↗」（WritingWorkspace.jsx:1424-1430）
-  popupPromise = page.context().waitForEvent("page");
-  await page.getByRole("link", { name: "完整视觉工作台 ↗" }).click();
-  popup = await popupPromise;
-  await expect(popup).toHaveURL(new RegExp("/illustrations\\?project=" + id));
-  await expect(
-    popup.getByRole("heading", { name: "让每一张图片都有它的位置" })
-  ).toBeVisible();
-  await popup.close();
-
-  // 左栏「查看证据与核查 ↗」href=/editor?project&channel（1489-1496）；
+  // 审稿阶段「查看证据与核查 ↗」href=/editor?project&channel；
   // /editor 是旧深链，服务端重定向回 /compose 并保留参数（app/editor/page.jsx）
+  await page.getByRole("button", { name: "切换到审稿阶段" }).click();
   popupPromise = page.context().waitForEvent("page");
   await page.getByRole("link", { name: "查看证据与核查 ↗" }).click();
   popup = await popupPromise;
@@ -586,7 +589,7 @@ test("右栏「模型服务设置」跳转 /settings#services 并落在服务连
   ).toBeVisible();
 });
 
-test("「大纲与素材」与「收起助手/创作助手」开关真实折叠左右两栏", async ({
+test("阶段焦点视图：助手栏「收起助手/创作助手」真实折叠，阶段切换隐藏编辑工作区", async ({
   page,
 }) => {
   await signup(page, "compose-toggles@example.test");
@@ -594,22 +597,22 @@ test("「大纲与素材」与「收起助手/创作助手」开关真实折叠�
   await page.goto("/compose?project=" + id);
   const rail = page.locator(".cv2-compose-rail");
   const assistant = page.locator(".cv2-compose-assistant");
-  // 默认两栏都展开（useState(true)），开关点击后条件渲染移除整栏
-  const leftToggle = page.getByRole("button", { name: "大纲与素材" });
-  await expect(rail).toBeVisible();
-  await expect(leftToggle).toHaveAttribute("aria-pressed", "true");
-  await leftToggle.click();
-  await expect(leftToggle).toHaveAttribute("aria-pressed", "false");
-  await expect(rail).toHaveCount(0);
-  await leftToggle.click();
-  await expect(rail).toBeVisible();
-
+  const grid = page.locator(".cv2-compose-grid");
+  // 默认助手栏展开；收起后条件渲染移除整栏，再点恢复
   const rightToggle = page.getByRole("button", { name: "收起助手" });
   await expect(assistant).toBeVisible();
   await rightToggle.click();
   await expect(assistant).toHaveCount(0);
   await page.getByRole("button", { name: "创作助手", exact: true }).click();
   await expect(assistant).toBeVisible();
+
+  // 阶段切换：研究阶段没有编辑工作区，回到写作阶段恢复
+  await page.getByRole("button", { name: "切换到研究阶段" }).click();
+  await expect(grid).toHaveCount(0);
+  await expect(page.getByText("作者设定与参考资料")).toBeVisible();
+  await page.getByRole("button", { name: "切换到写作阶段" }).click();
+  await expect(grid).toBeVisible();
+  await expect(rail).toBeVisible();
 });
 
 test("编辑视图分段：源码隐藏预览、预览隐藏编辑器并渲染排版、分栏恢复双栏", async ({
@@ -875,7 +878,9 @@ test("「从素材库插图」：空态诚实，点选素材插入正文并持�
   const id = await createProject(page, "素材库插图验证");
   await page.goto("/compose?project=" + id);
   await cm(page).fill("# 素材验证\n\n插图前的段落。");
-  // 空素材库的诚实空态（WritingWorkspace.jsx:1507-1533）
+  // 素材面板在配图阶段左栏（编辑器保持挂载，插入即时落稿）
+  await page.getByRole("button", { name: "切换到配图阶段" }).click();
+  // 空素材库的诚实空态（WritingWorkspace 配图阶段左栏）
   await page.getByRole("button", { name: "从素材库插图" }).click();
   await expect(page.getByText("还没有图片，可上传或生成。")).toBeVisible();
 
@@ -913,10 +918,8 @@ test("左栏大纲链接点击聚焦编辑器；空简报文案诚实", async ({
   // 点击大纲链接 → editor.focus()（WritingWorkspace.jsx:1369-1386）
   await outlineLink.click();
   await expect(cm(page)).toBeFocused();
-  // 无简报时的诚实空态（details.writing-brief 只在有简报时渲染）
-  await expect(
-    page.getByText("还没有选题简报；可从选题发现开始创作。")
-  ).toBeVisible();
+  // 无简报时的诚实空态（写作阶段左栏不再展开简报来源；来源在研究阶段）
+  await expect(page.getByText("还没有选题简报。")).toBeVisible();
 });
 
 test("建议卡「在正文中查看」「查看替换内容」「拒绝」三控件", async ({
@@ -1013,7 +1016,7 @@ test("版本历史「恢复为新版本」产生新修订且历史保留", async
     .click();
 });
 
-test("发布准备对话框：复制排版进剪贴板、记录作者确认已发布、草稿箱控件", async ({
+test("发布准备阶段：复制排版进剪贴板、记录作者确认已发布、草稿箱控件", async ({
   page,
 }) => {
   await signup(page, "compose-publish@example.test");
@@ -1038,7 +1041,7 @@ test("发布准备对话框：复制排版进剪贴板、记录作者确认已�
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
 
   await page.getByRole("button", { name: "发布准备", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "平台发布准备" });
+  const dialog = page.locator('section[aria-label="平台发布准备"]');
   await expect(dialog).toBeVisible();
   await expect(
     dialog.getByRole("heading", { name: "微信公众号 · 发布准备" })
@@ -1224,7 +1227,7 @@ test("加载态「正在载入稿件…」在稿件拉取期间出现", async ({
   await page.unroute("**/api/writing/projects/" + id + "/master");
 });
 
-test("移动 390：工作流底栏 配图规划/选图编辑/预览 真实动作，通知可关闭", async ({
+test("移动 390：阶段条与助手双面板真实动作，通知可关闭", async ({
   page,
 }) => {
   await signup(page, "compose-mobile-flow@example.test");
@@ -1243,23 +1246,20 @@ test("移动 390：工作流底栏 配图规划/选图编辑/预览 真实动作
   await expect(cm(page)).toBeVisible();
   await cm(page).fill("# 移动预览标题\n\n移动端预览的正文段落。");
 
-  const workflow = page.getByRole("navigation", { name: "移动端创作工作流" });
-  // 「配图规划」：助手面板取代正文面板
-  await workflow.getByRole("button", { name: "配图规划" }).click();
+  // 阶段条切换：配图阶段助手面板为 AI 配图助手，正文可返回
+  await page.getByRole("button", { name: "切换到配图阶段" }).click();
+  const mobileTabs = page.locator(".cv2-compose-mobiletabs");
+  await mobileTabs.getByRole("button", { name: "AI 配图助手" }).click();
   await expect(page.locator(".cv2-compose-middle")).toBeHidden();
   await expect(page.getByLabel("文章配图助手")).toBeVisible();
-  // 「正文」：回到正文面板（编辑器视图未被底栏改动）
-  await workflow.getByRole("button", { name: "正文", exact: true }).click();
+  await mobileTabs.getByRole("button", { name: "正文", exact: true }).click();
   await expect(cm(page)).toBeVisible();
-  // 「选图编辑」：新窗 /illustrations?project=
-  const popupPromise = page.context().waitForEvent("page");
-  await workflow.getByRole("link", { name: "选图编辑" }).click();
-  const popup = await popupPromise;
-  await expect(popup).toHaveURL(new RegExp("/illustrations\\?project=" + id));
-  await popup.close();
-  // 「预览」：切到预览视图（底栏 setView("preview") 路径；底栏正文
-  // 不复位 view，故放在最后断言）
-  await workflow.getByRole("button", { name: "预览" }).click();
+  // 回到写作阶段：编辑视图分段切到预览（排版预览可见、编辑器隐藏）
+  await page.getByRole("button", { name: "切换到写作阶段" }).click();
+  await page
+    .getByRole("group", { name: "编辑视图" })
+    .getByRole("button", { name: "预览" })
+    .click();
   await expect(cm(page)).toBeHidden();
   await expect(page.getByLabel("文章排版预览")).toBeVisible();
   await expect(page.getByLabel("文章排版预览")).toContainText(
@@ -1307,12 +1307,13 @@ test("从 /compose 出发：桌面侧栏与移动全局底栏（含「更多」�
 });
 
 test.fixme(
-  "三个对话框（版本历史/主稿更新审阅/平台发布准备）Esc 关闭 @bug:deviations#14",
+  "两个对话框（版本历史/主稿更新审阅）Esc 关闭 @bug:deviations#14",
   async () => {
     // 已知缺陷，登记于 docs/implementation/CREATOR-V2-DESIGN-DEVIATIONS.md
-    // 「/compose 验收轮补充登记」偏差 #14：WritingWorkspace 的版本历史与
-    // 平台发布准备对话框、WritingMasterReview 的主稿更新审阅对话框均没有
-    // Escape/onKeyDown 处理，Esc 不会关闭，仅「关闭」按钮可关。
+    // 「/compose 验收轮补充登记」偏差 #14：WritingWorkspace 的版本历史对话
+    // 框、WritingMasterReview 的主稿更新审阅对话框均没有 Escape/onKeyDown
+    // 处理，Esc 不会关闭，仅「关闭」按钮可关。（发布准备自阶段焦点视图改版
+    // 起不再是对话框。）
     // 修复后应补：打开对话框 → page.keyboard.press("Escape") → 断言
     // getByRole("dialog", …) not visible。缺陷修复前任何此类断言都会失败，
     // 因此按规范以 fixme 保留该交互记录，不写会失败的断言。
