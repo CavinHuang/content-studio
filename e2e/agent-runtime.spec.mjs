@@ -198,7 +198,7 @@ test("agent run streams tool steps, files a reviewed suggestion and leaves the a
   await expect(cm(page)).toContainText(TARGET);
   const panel = page.locator('section[aria-label="agent 任务运行"]'),
     skills = page.getByLabel("agent 技能");
-  await expect(skills.locator("option")).toHaveCount(4);
+  await expect(skills.locator("option")).toHaveCount(7);
   await skills.selectOption("selection-rewriter");
   await expect(panel).toContainText(
     "将加载工具：read_document、read_brief、write_suggestions"

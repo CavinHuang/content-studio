@@ -2161,6 +2161,7 @@ export default function WritingWorkspace() {
           comparison={masterReview}
           error={masterReviewError}
           busy={resolving}
+          projectId={projectId}
           onClose={() => setMasterReview(null)}
           onApply={applyMaster}
         />
