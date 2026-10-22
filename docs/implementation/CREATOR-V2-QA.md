@@ -245,3 +245,50 @@ e2e 同步更新：creator-v2-compose（就绪度条全阶段断言 + 诚实性�
 - **SA-02**：resume 步骤 payload 含 `fromStatus`（规格写 `{resumeOf,baseRevision}` 的超集），因 UI 文案要求显示「（原状态）」；interrupted 态需进程重启，难以在 e2e 真实构造——语义由 node 测试承载（含 :30-36 reopen 形态之外的 gated/漂移构造与 '{}' 空绑定行），QA 如实记录该覆盖边界，不虚报 e2e 已覆盖。
 - **SA-03**：模拟 HTTPS 头（无真实 TLS）；冒烟中发现 provider 收到过非 chat-completions 形状的请求，已对合成 provider 做防御性解析（非攻击面变更）。每作者隔离是**进程内两套独立 SQLite 经真实 HTTP 首次自动化验证**，不等价于多租户生产部署认证。
 - 边界保持：修订树/expectedRevision 冲突检测、四项人工检查按渠道独立、导出 ≠ 实际发布、AI 建议待采纳区语义全部不变；`src/writing.mjs`、SQLite schema、`lib/api.mjs` 门禁零 diff；真实平台发布、真实付费模型、生产部署仍未执行/未验证。
+
+## 10. 完整还原 · vendor 适配期（Run C：AG-01/AG-02 + VA-03/VA-04，2026-10-22，feat/easel-full-port）
+
+### 10.1 改动内容（对应 EASEL-PORT-PLAN.md §11.3–§11.6）
+
+**AG-01 `article-pipeline` 全流程技能（技能本体 + 域级单测）**
+- `src/agent-skills.mjs` 追加第 8 技能 `article-pipeline`（version 1，全流程初稿流水线，stage:"write"），tools=[read_document,read_brief,read_context,search_assets,write_revision,write_suggestions] ⊆ DEFAULT_AGENT_TOOLS，结构性排除发布/导出/配图/图组工具；systemPrompt 五步编排（读→确保大纲→生成初稿（revisions 直写 / 建议制降级，空稿+建议制如实说明需切换直写）→自审一轮（一律 write_suggestions ≤12 处，四维与 edit-review 同）→收尾止于「导出准备」）+ GUARD 结尾；文件头来源注释列出 5 个 vendor adaptedFrom 与全部弃用替代（三层加载/references 层不引入、WebSearch→search_assets、outline.md 落盘→修订制、wordcount.py 字数门不做、persona_prefix→read_context）。
+- 同文件为全部 8 技能新增纯展示字段 `stage`（白名单同 compose-view parseStage；映射 task-brief→research、article-pipeline/draft-writer→write、claim-evidence/edit-review/selection-rewriter→review、illustration-orchestrator→images、xhs-group→publish），只进 UI（`skills()` 投影透出，src/agent-runtime.mjs），不进 systemPrompt/门禁/存储。
+- 单测：agent-skills ids 7→8 + 新增 pipeline 声明断言（GUARD/tools 子集/双模式契约/五步关键字/无「自动发布/已发布」承诺）+ stage 白名单与 8 映射断言；agent-runtime 技能数 7→8 + fetchImpl 脚本化全流程（revisions 模式：read_brief→write_revision→write_suggestions→收尾，断言步骤序、修订推进（note 落库）、无越权工具名、收尾 content 含「人工/导出准备」且无发布措辞）。
+
+**AG-02 e2e 全流程用例 + HTTP 冒烟**
+- `e2e/agent-runtime.spec.mjs`：技能数 toHaveCount(7)→8（optgroup 下 option 计数语义不变）；新增 article-pipeline 全流程用例（脚本化 provider 依次回 read_brief→write_revision（标题骨架+正文）→write_suggestions（1 条自审）→final；断言 completed、模型/工具步骤序列、修订历史 +1（revision=baseline+1 且 markdown=直写稿）、建议列表 1 条待审、收尾止于「导出准备」且面板文本无「已发布/自动发布」；finally 恢复写模式）。
+- curl 全流程实跑记录见 §10.2。
+
+**VA-03 首页作品行六槽进度点**
+- `src/creator-home.mjs` 新增纯函数 `projectProgress(project)`：固定六槽 research/body/review/checks/delivery/publish，每槽 {key,tone good|warn|info|todo,title}，只吃 overview 既有载荷（editorial.get()，briefId/document.paragraphs/openCorrections/checks/status）；研究=briefId 非空；正文=master 非种子内容（channelHasContent 同源判定）；核对=无内容→todo、openCorrections 0→good、>0→warn；检查=两渠道四检查合计 n/8（8/8→good、0→todo、其余 warn；title 明示「公众号稿与知乎稿独立记录」）；交付=任一渠道 exported→info「已导出（未发布）」；发表=任一渠道 reported_published→warn「作者报告已发表（未核验）」。大纲标题数/待采纳建议数/配图状态不在载荷内——不设槽。不建表/不加列/不新增端点或响应字段（manifest.py Python 落盘契约 → 请求时派生，零新存储；failed 断点续跑语义由既有 SA-02 resumeOf 承担）。
+- `components/CreatorHome.jsx` 最近作品行：projectStage Tag 保留承载终态文字 + `cv2-progress-dots` 点串（每槽一颗 `cv2-progress-dot is-<tone>`，title 承载诚实文案）；`CalendarWorkspace.jsx:372` 与 `src/insights-view.mjs` 的 projectStage 用法零改动（防回归面）；`app/creator-v2-home.css` 新增点串样式（--cv2-success/warning/info/border 语义 token，无内联新 hex；窄屏沿用 .cv2-works-stage white-space:normal 先例折行）。
+- 单测：projectProgress 六槽键序与 tone 枚举、空稿全 todo、部分完成（2/8 warn）、待核对>0 warn、全完成（8/8 good + 已导出 info）、报告已发表（warn + 未核验）五态 + 逐槽无「已发布/自动发布」断言。
+
+**VA-04 AgentRuns 轨迹卡片化 + 技能分组与诚实角标**
+- `components/AgentRuns.jsx`（follow/redrive/取消逻辑零改动，只动渲染层）：①技能 select 平铺 options → 按 stage 分组 `<optgroup>`（组名 研究/写作/审稿/配图/发布，组序固定、空组不渲染，option 数不变）；②技能说明行诚实角标：`skill.tools ∩ profile.tools` 为空 → 「工具全部被禁用，启动将被拒绝」（对应服务端工具交集空 403 门禁），tools 含 generate_image 且交集缺它 → 「需先在偏好中启用图片工具」——事后 403 变事前预告；③时间线折叠：`.agent-run-steps` 外包 `<details class="agent-run-steps-box">`，运行中 open 自动展开、终态默认收起为「执行过程 N 步」（N=steps 真实计数）；SA-01 重连提示保持在折叠层外附着可见。文件头注明 adaptedFrom（MessageBubble.tsx:87-92 doneSteps details、SkillPage.tsx:74-83 layer 分区、capabilityMenu.ts:9-19 legend）与弃用清单（113 技能手工菜单/SkillDrawer/layer 五色体系不搬）。
+- 单测：stage 白名单 + 8 技能映射齐全（test/agent-skills.test.mjs）。
+
+### 10.2 §10.3 curl 全流程实跑记录（本期真跑，此前设计阶段未实跑）
+
+- **环境**：Linux 容器 node22-studio（Node v22.23.3），真实构建生产服务经 `node scripts/runtime-guard.mjs start` 拉起（local-only 模式，HOST/PORT=127.0.0.1:4412，V64 回执 candidateCommit=ec73910、buildId=UtfDIrgAZoNWe0EjhmojM、健康检查 mode=local-only）；SQLite 落容器本地 /tmp/qa-ag02/data.sqlite（一次性，不落挂载盘、无真实用户数据）；模型指向回环合成 provider（127.0.0.1:43990，脚本化五步响应，无真实付费调用）。容器无 curl，用 node fetch 等价回放同一回环 HTTP 面（脚本 `.superpowers` 留档 /tmp/qa-ag02/flow.mjs + transcript.txt）。
+- **实跑结果（全部通过）**：① GET /api/creator/agent-skills → 200，8 技能含 article-pipeline（tools/outputContract 如声明，stage:"write" 透出）；② PUT /api/creator/agent {"writeMode":"revisions"} → 200；③ POST /api/writing/projects + PUT master 种子（无标题正文）→ revision 3；④ POST /api/creator/projects/<id>/agent-runs {skillId:"article-pipeline",consent} → 201 running（channel master，baseRevision 3）；⑤ GET …/events → content-type application/x-ndjson，帧序 model→tool:read_brief→model→tool:write_revision→model→tool:write_suggestions→model→run_done(completed)；⑥ GET …/agent-runs/<id> 轨迹 → completed，steps 与帧序一致，stopReason=收尾文案（含「人工下一步…导出准备」）；⑦ 领域效果：master revision 3→4、markdown=直写稿、note=「全流程冒烟初稿」；GET …/master/suggestions → 1 条 pending（original/replacement 为自审编辑，instruction「agent：全流程初稿流水线」）；⑧ 取消路径：provider 挂起（instruction 含 QA-HANG 永不响应）→ 201 running → POST …/cancel → 200 cancelled（stopReason「作者取消运行」）；⑨ 负例：text/plain 写请求 → 400（V58 JSON-only 守卫）。
+- **边界说明**：本地默认模式（非 dokploy、非 MULTIUSER）无会话要求，V58 边界内回环 + JSON-only 写请求；`CONTENT_STUDIO_MULTIUSER=1` 下需持登录会话 cookie（e2e agent-runtime 夹具的 page.request 形态即该差异的自动化覆盖，本期全绿）。留档服务仅监听容器回环，无任何远程/公网请求。
+
+### 10.3 门禁与验证（容器内 node22-studio / node22-studio:pw；最终代码态）
+
+| 命令 | 结果 |
+|---|---|
+| `npm run check` | **PASS**（exit 0） |
+| `npm test` | **676 tests = 671 pass / 2 fail / 3 skipped**——2 失败（V74 root 容器环境豁免，test/container-recovery-v74.test.mjs:81,:100）与 3 跳过（V69 sudo）与 §3/§9.2 基线完全一致，零新增失败；净增 9 项单测全部通过（pipeline 声明/stage 白名单/脚本化全流程/projectProgress 五态等） |
+| `npm run build`（build-guard 封存） | **PASS**：✓ Compiled successfully in 25.4s，26/26 页面；施工中多次重建（含 A/B 对拍临时构建），最终构建 buildId=Q7qvhOpMkts0hkimW-YKr |
+| `npx playwright test`（全量，pw 容器 + agent_pw_browsers 卷） | 最终代码态全量：**277 passed / 0 failed / 16 skipped（既有 fixme），11.5m**（较 Run B 276 净增 1 条：article-pipeline 全流程用例）。过程留档：首轮全量 276 passed / 1 failed（creator-v1:662 系列任务重试流程，与本批改动无交集，单独复跑 10.8s 通过，按 §7.2 既有抖动定性规则归为套内负载时序抖动）；三套件复跑与首页套件三连跑中 creator-v2-home:399 一次因 worker tick 超时抖动失败（单独复跑与最终全量均通过）。最终态复跑：agent-runtime 3/3（含新 pipeline 用例，既有两用例零回归）、creator-v1 全套 8/8、creator-v2-home 16/16 ×2 |
+| VA-04 交互冒烟（真实浏览器 headless chromium + 真实构建服务 + 合成回环 provider，`.superpowers/va04-smoke.mjs`） | **13/13 全过**：optgroup 下技能 option 计数 8；运行中 details 自动展开 + 真实步数摘要（挂起中「执行过程 0 步」）；终态 details 默认收起；failed 出现重驱动按钮；重驱动 UI 点击 → 运行完成且轨迹含 resume/续跑与 write_suggestions、摘要「执行过程 4 步」；图片工具角标「需先在偏好中启用图片工具」与工具全禁角标「工具全部被禁用，启动将被拒绝」两态均现；API 层 resumeOf（201→completed+resume 首步骤）补验通过；全程 0 pageerror |
+| AG-02 curl 冒烟 | 见 §10.2，全流程实跑通过 |
+
+### 10.4 边界、缺陷与已知偏差（如实登记）
+
+1. **既有缺陷（非本期回归，A/B 对拍定位）**：AgentRuns 面板「取消运行」按钮在运行中点击不触发任何网络请求（真实浏览器点击与键盘 Enter 均不触发；elementFromPoint 命中按钮本身、无遮挡、无 pageerror、window.fetch 打点为空）。**同问题在本批改动前 HEAD 构建（仅回退 AgentRuns.jsx 的 A/B 对拍构建）上完全复现**，且本期 spec 明确「取消逻辑零改动、只动渲染层」，故不修复、如实登记：取消的领域语义由既有单测（cancelled 不被迟到结果覆盖等）与 §10.2 curl 冒烟（API cancel → cancelled）承载。「重新驱动」按钮点击正常（冒烟内 UI 全链路走通）。探测证据留档 `.superpowers/va04-probe.mjs`。
+2. **e2e 覆盖边界**：article-pipeline 的 provider 脚本为合成指令回放（SKILL-SPEC tests 契约的关键字匹配映射），不覆盖真实模型行为；「不过先改再交付」质量门由脚本编排的自审建议轮验证（social-content 步骤 7 语义）；空稿+建议制「如实说明需切换直写」分支由单测断言 prompt 措辞承载，未单列 e2e。SA-02 interrupted→resumeOf 的 e2e 未构造（进程重启语义，沿用 Run B §9.3 口径，node 测试承载）。
+3. **VA-03**：检查槽 tone 按规格公式纯由 checksDone 决定（8/8 good、0 todo、其余 warn），未叠加「主稿无内容→todo」的额外条件；发表槽规格文案写作「warning」，按 tone 枚举 good|warn|info|todo 落为 warn（诚实上限不变：「作者报告已发表（未核验）」，六槽任何文案无「已发布」，单测断言）。首页视觉仅行内多一串点，creator-v2-home e2e 16/16 两次通过证明选择器无冲突。
+4. **VA-04**：stage 只进 `/api/creator/agent-skills` 响应与 UI 分组，不进 systemPrompt/门禁/存储（agent_runs 行零 schema 变更）；optgroup 下 e2e toHaveCount(8) 实测语义不变（playwright locator("option") 计含 optgroup 内 option，实测通过并记 QA）；诚实角标只读 `skills × profile` 既有数据，不发新请求（冒烟中工具变更后需重挂载重取 profile，与设置页返回 compose 的真实路径一致）。
+5. **环境与口径**：权威验证在容器内（Windows 宿主不作为口径，§8.4 既有登记继续有效）；真实付费模型、真实平台发布、生产部署仍未执行/未验证（与此前边界一致）；`npm run test:production`（V49）本分支仍未补跑（§2 既有欠账，合并前须补）。

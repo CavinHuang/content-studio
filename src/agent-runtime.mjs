@@ -138,8 +138,10 @@ export class AgentRuntime {
       .run(status, String(stopReason || "").slice(0, 500), stamp(), runId);
   }
   skills() {
-    return AGENT_SKILLS.map(({ id, version, title, description, tools, outputContract }) =>
-      ({ id, version, title, description, tools, outputContract }));
+    // stage 是 VA-04 的纯展示字段（compose 阶段白名单），只透出给 UI 分组，
+    // 不参与门禁、不落库（agent_runs 行不含 stage）。
+    return AGENT_SKILLS.map(({ id, version, title, description, tools, outputContract, stage }) =>
+      ({ id, version, title, description, tools, outputContract, stage }));
   }
   async startRun(projectId, channel, { skillId, instruction, expectedRevision, allowExternalAI, fetchImpl, resumeOf } = {}) {
     // 续跑缺省技能：未传 skillId 时直接用原运行的技能（计划 §SA-02）。

@@ -16,7 +16,7 @@ import CreatorShell from './CreatorShell';
 import Icon from './creator/Icon';
 import { ErrorState, InlineStatus, SectionCard, Tag } from './creator/primitives';
 import { api, send } from '../lib/creator-client';
-import { projectStage } from '../src/creator-home.mjs';
+import { projectStage, projectProgress } from '../src/creator-home.mjs';
 
 const WEEKDAYS = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
@@ -324,6 +324,11 @@ export default function CreatorHome({ creation = false }) {
                     <tbody>
                       {projects.slice(0, 3).map((p) => {
                         const stage = projectStage(p);
+                        // VA-03 六槽进度点（adapted from Easel DashboardPage
+                        // 最近产物行）：单 projectStage Tag 保留承载终态文字，
+                        // 点串只陈述 src/creator-home.mjs 派生的既有事实，
+                        // title 承载诚实文案（无「已发布」，上限是「未核验」）。
+                        const progress = projectProgress(p);
                         return (
                           <tr key={p.id}>
                             <td>
@@ -333,6 +338,15 @@ export default function CreatorHome({ creation = false }) {
                             </td>
                             <td className="cv2-works-stage">
                               <Tag tone={stage.tone}>{stage.label}</Tag>
+                              <span className="cv2-progress-dots">
+                                {progress.map((slot) => (
+                                  <span
+                                    key={slot.key}
+                                    className={`cv2-progress-dot is-${slot.tone}`}
+                                    title={slot.title}
+                                  />
+                                ))}
+                              </span>
                             </td>
                             <td className="cv2-works-time">{dayLabel(p.updatedAt)}</td>
                           </tr>

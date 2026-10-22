@@ -74,6 +74,16 @@
 .cv2-works-stage{text-align:center;white-space:nowrap}
 .cv2-works-time{text-align:right;color:#a0a4ac;white-space:nowrap}
 
+/* VA-03 六槽进度点（adapted from Easel DashboardPage 最近产物行的单 badge，
+   升级为点串；颜色沿用 --cv2-* 语义 token，对齐 P2-01 就绪度条 good/warn/info
+   语义，todo 为未填充描边）：每槽一颗点，title 承载诚实文案。 */
+.cv2-progress-dots{display:inline-flex;align-items:center;gap:4px;margin-left:8px;vertical-align:middle;flex-wrap:wrap}
+.cv2-progress-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.cv2-progress-dot.is-good{background:var(--cv2-success)}
+.cv2-progress-dot.is-warn{background:var(--cv2-warning)}
+.cv2-progress-dot.is-info{background:var(--cv2-info)}
+.cv2-progress-dot.is-todo{background:transparent;border:1.5px solid var(--cv2-border)}
+
 /* quick create (快捷建文) */
 .cv2-quick-create{border:1px dashed #c9d0e4;background:var(--cv2-surface);border-radius:var(--cv2-radius-card);padding:19px 21px;margin-top:22px}
 .cv2-quick-create strong{font-size:13px;color:var(--cv2-text)}

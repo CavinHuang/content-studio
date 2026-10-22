@@ -147,7 +147,7 @@ test('agent routes expose skills, profile editing, run lifecycle and NDJSON even
  const doc=core.writing.create({title:'路由测试'}),id=doc.projectId;
  const req=(path,method='GET',input)=>dispatchApi(new Request('http://127.0.0.1:4312'+path,{method,headers:input?{'content-type':'application/json'}:{},body:input?JSON.stringify(input):undefined}),core);
  const skills=await (await req('/api/creator/agent-skills')).json();
- assert.equal(skills.skills.length,7);
+ assert.equal(skills.skills.length,8);
  const profile=await (await req('/api/creator/agent')).json();
  assert.equal(profile.profile.writeMode,'suggestions');
  const narrowed=await (await req('/api/creator/agent','PUT',{tools:['read_document','read_context']})).json();
@@ -623,4 +623,60 @@ test('resumeOf 复用原运行绑定：切换选中连接后，续跑调用仍�
  assert.equal(core.agent.run(id,resumed.id).status,'completed');
  assert.ok(seen.some(u=>u.startsWith('https://binding-a.example/v1/')),'续跑应复用原连接甲，实际：'+seen.join(' , '));
  assert.ok(!seen.some(u=>u.startsWith('https://binding-b.example/v1/')),'续跑不得静默换到当前选中的连接乙');
+});
+
+// ---- AG-01：article-pipeline 全流程技能的脚本化全流程运行（revisions 模式）----
+
+test('article-pipeline 全流程：读 → write_revision → write_suggestions → 收尾，步骤序与修订推进',async t=>{
+ provider(t);const env=setup(t),core=env.core;
+ const doc=core.writing.create({title:'全流程流水线'}),id=doc.projectId;
+ const saved=core.writing.save(id,'master',{expectedRevision:doc.revision,markdown:'尚无标题的正文起点。'});
+ core.agent.saveProfile({writeMode:'revisions'});
+ const draft='# 全流程标题骨架\n\n## 第一节\n\n流水线直写的完整初稿正文。';
+ let phase=0;
+ const reply=calls=>new Response(JSON.stringify({choices:[{finish_reason:'tool_calls',
+  message:{role:'assistant',content:null,tool_calls:calls}}]}),{headers:{'content-type':'application/json'}});
+ const fetchImpl=async(url,options)=>{
+  const body=JSON.parse(options.body);
+  if(phase===0){phase=1;
+   // revisions 模式下 write_revision 必须在宣告给模型的工具面里
+   assert.equal(body.tools.some(x=>x.function.name==='write_revision'),true);
+   return reply([{id:'p1',type:'function',function:{name:'read_brief',arguments:'{}'}}])}
+  if(phase===1){phase=2;
+   assert.equal(body.messages.at(-1).role,'tool');
+   return reply([{id:'p2',type:'function',function:{name:'write_revision',
+    arguments:JSON.stringify({markdown:draft,reason:'全流程初稿'})}}])}
+  if(phase===2){phase=3;
+   assert.equal(body.messages.at(-1).role,'tool');
+   return reply([{id:'p3',type:'function',function:{name:'write_suggestions',
+    arguments:JSON.stringify({reason:'自审：收紧主标题',edits:[
+     {from:0,to:9,original:'# 全流程标题骨架',replacement:'# 全流程标题骨架（修订）'}]})}}])}
+  assert.equal(body.messages.at(-1).role,'tool');
+  return new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{role:'assistant',
+   content:'产出：含标题骨架的初稿新修订与 1 处自审建议。人工下一步：逐项审阅建议 → 四项人工检查 → 配图 → 导出准备。'}}]}),{headers:{'content-type':'application/json'}})};
+ const run=await core.agent.startRun(id,'master',{skillId:'article-pipeline',instruction:'按简报产出完整初稿',
+  expectedRevision:saved.revision,allowExternalAI:true,fetchImpl});
+ await core.agent.runSettled(run.id);
+ const done=core.agent.run(id,run.id);
+ assert.equal(done.status,'completed');
+ // 步骤序：模型/工具严格交替，工具名依次 read_brief → write_revision → write_suggestions。
+ assert.deepEqual(done.steps.map(s=>s.kind==='tool'?'tool:'+s.payload.name:s.kind),
+  ['model','tool:read_brief','model','tool:write_revision','model','tool:write_suggestions','model']);
+ // 修订推进：write_revision 经 expectedRevision/onWritten 链落库为新修订（reason 作为 note）。
+ assert.equal(core.writing.document(id,'master').markdown,draft);
+ assert.equal(core.writing.document(id,'master').note,'全流程初稿');
+ // 自审建议基于新修订落库，待作者审阅——直写也不直接改稿。
+ assert.equal(core.writing.suggestions(id,'master').length,1);
+ // 无越权工具名：每个 tool_call 都落在技能声明的工具面内。
+ const allowed=['read_document','read_brief','read_context','search_assets','write_revision','write_suggestions'];
+ for(const step of done.steps)
+  for(const call of step.payload?.toolCalls||[])
+   assert.ok(allowed.includes(call.name),'越权工具：'+call.name);
+ // 收尾 content：列人工下一步、止于导出准备、无发布承诺。
+ const lastModel=done.steps.filter(s=>s.kind==='model').at(-1);
+ assert.ok(lastModel.payload.content.includes('人工'),'收尾列出人工下一步');
+ assert.ok(lastModel.payload.content.includes('导出准备'),'收尾止于导出准备');
+ assert.ok(!lastModel.payload.content.includes('已发布'),'无已发布措辞');
+ assert.ok(!lastModel.payload.content.includes('自动发布'),'无自动发布措辞');
+ assert.match(done.stopReason,/导出准备/);
 });

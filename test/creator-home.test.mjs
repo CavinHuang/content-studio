@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildCreatorHome, projectStage } from "../src/creator-home.mjs";
+import { buildCreatorHome, projectStage, projectProgress } from "../src/creator-home.mjs";
 import { SEED_PARAGRAPH_TEXT } from "../src/seed-paragraph.mjs";
 
 const project = (over = {}) => ({
@@ -216,4 +216,137 @@ test("pending list is capped but the decision count stays the real total", () =>
   assert.equal(home.pending.length, 4);
   assert.equal(home.counts.inProgress, 6);
   assert.equal(home.focusProjectId, "ep_0");
+});
+
+// ---- VA-03：首页作品行六槽进度点（projectProgress） ----
+
+const keys = (project) => projectProgress(project).map((slot) => slot.key);
+const tones = (project) => projectProgress(project).map((slot) => slot.tone);
+
+test("projectProgress keeps exactly six fixed slots grounded in overview facts", () => {
+  assert.deepEqual(keys(project()), [
+    "research",
+    "body",
+    "review",
+    "checks",
+    "delivery",
+    "publish",
+  ]);
+  for (const slot of projectProgress(project()))
+    assert.ok(["good", "warn", "info", "todo"].includes(slot.tone), slot.key + " tone enum");
+});
+
+test("empty draft project: research/body todo, checks 0/8 todo, delivery/publish todo", () => {
+  // 新建项目即有种子段落：无真实文本 → 正文槽仍是 todo（诚实：种子不算内容）。
+  const p = project({
+    channels: {
+      ...project().channels,
+      master: {
+        referenceId: "cr_m",
+        document: { revision: 1, paragraphs: [{ id: "p_seed", text: SEED_PARAGRAPH_TEXT }] },
+        openCorrections: 0,
+      },
+    },
+  });
+  assert.deepEqual(tones(p), ["todo", "todo", "todo", "todo", "todo", "todo"]);
+  const titles = projectProgress(p).map((slot) => slot.title).join("\n");
+  assert.ok(titles.includes("0/8"));
+  assert.ok(titles.includes("两渠道人工检查"));
+  assert.ok(titles.includes("独立记录"), "检查槽标签明示两渠道独立记录");
+});
+
+test("partially finished project: good research/body, warn pending checks, todo delivery", () => {
+  const p = project({
+    briefId: "br_" + "a".repeat(24),
+    channels: {
+      master: {
+        referenceId: "cr_m",
+        document: { revision: 3, paragraphs: [{ id: "p1", text: "主稿已有真实正文段落。" }] },
+        openCorrections: 0,
+      },
+      wechat: {
+        status: "draft",
+        checks: { factual: true, privacy: true, rights: false, layout: false },
+        masterOutdated: false,
+        openCorrections: 0,
+      },
+      zhihu: {
+        status: "draft",
+        checks: { factual: false, privacy: false, rights: false, layout: false },
+        masterOutdated: false,
+        openCorrections: 0,
+      },
+    },
+  });
+  assert.deepEqual(tones(p), ["good", "good", "good", "warn", "todo", "todo"]);
+  assert.ok(projectProgress(p)[3].title.includes("2/8"));
+});
+
+test("open master corrections turn the review slot warn while checks stay untouched", () => {
+  const p = project({
+    channels: {
+      ...project().channels,
+      master: {
+        referenceId: "cr_m",
+        document: { revision: 2, paragraphs: [{ id: "p1", text: "有待核对事实的正文。" }] },
+        openCorrections: 2,
+      },
+    },
+  });
+  const slots = Object.fromEntries(projectProgress(p).map((s) => [s.key, s]));
+  assert.equal(slots.review.tone, "warn");
+  assert.ok(slots.review.title.includes("2 处待核对事实"));
+  assert.equal(slots.checks.tone, "todo");
+});
+
+test("fully finished project: checks 8/8 good and exported delivery stays info 未发布", () => {
+  const p = project({
+    briefId: "br_" + "a".repeat(24),
+    channels: {
+      master: {
+        referenceId: "cr_m",
+        document: { revision: 4, paragraphs: [{ id: "p1", text: "完成核对的主稿。" }] },
+        openCorrections: 0,
+      },
+      wechat: {
+        status: "exported",
+        checks: { factual: true, privacy: true, rights: true, layout: true },
+        masterOutdated: false,
+        openCorrections: 0,
+      },
+      zhihu: {
+        status: "exported",
+        checks: { factual: true, privacy: true, rights: true, layout: true },
+        masterOutdated: false,
+        openCorrections: 0,
+      },
+    },
+  });
+  assert.deepEqual(tones(p), ["good", "good", "good", "good", "info", "todo"]);
+  const titles = projectProgress(p).map((slot) => slot.title).join("\n");
+  assert.ok(titles.includes("8/8"));
+  assert.ok(titles.includes("已导出（未发布）"));
+});
+
+test("author-reported publication tops out at the unverified caveat, never 已发布", () => {
+  const p = project({
+    channels: {
+      ...project().channels,
+      wechat: {
+        status: "reported_published",
+        checks: { factual: true, privacy: true, rights: true, layout: true },
+        masterOutdated: false,
+        openCorrections: 0,
+      },
+    },
+  });
+  const slots = projectProgress(p);
+  const publish = slots.find((s) => s.key === "publish");
+  assert.equal(publish.tone, "warn");
+  assert.ok(publish.title.includes("作者报告已发表（未核验）"));
+  // 诚实上限：六槽任何文案不出现「已发布」（导出槽是「未发布」，不含「已发布」子串）。
+  for (const slot of slots) {
+    assert.ok(!slot.title.includes("已发布"), slot.key + " never claims 已发布");
+    assert.ok(!slot.title.includes("自动发布"), slot.key + " never claims 自动发布");
+  }
 });

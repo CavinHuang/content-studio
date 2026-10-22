@@ -24,6 +24,17 @@
 //     a platform channel — nothing else is treated as "done";
 //   - clues exclude topics already turned into a project (status
 //     writing) or dismissed, so the home never resells finished work.
+//
+// Adapted from ZJU-REAL/Easel (Apache-2.0) for projectProgress (VA-03 六槽进度点):
+//   - skills/shared/scripts/manifest.py（steps[] 每层 status 行「一眼看到每个项目
+//     走到哪层」的展示契约思想，:26-33）
+//   - web/frontend/src/components/DashboardPage.tsx:238-243（最近产物行 = 名称 +
+//     单 badge 的原型，我们升级为进度点串）
+//   - docs/SKILL-SPEC.md:48,151（layer/status 枚举驱动前端分色）
+//   modified: manifest.py 是 Python CLI 落盘脚本（.easel.json + atomic_write +
+//   EASEL_ROOT env）——不执行 Python、零新存储：六槽全部请求时派生，不建表、
+//   不加列、不新增端点/响应字段；Easel 的 failed 步「断点续跑」语义由既有
+//   SA-02 resumeOf 与 resumeGeneration 承担，首页不呈现 failed 态。
 import { SEED_PARAGRAPH_TEXT } from "./seed-paragraph.mjs";
 
 const CHANNEL_NAMES = { wechat: "公众号稿", zhihu: "知乎稿" };
@@ -67,6 +78,70 @@ export function projectStage(project) {
   if (statuses.includes("exported"))
     return { status: "exported", label: "已导出（未发布）", tone: "warning" };
   return { status: "draft", label: "草稿中", tone: "info" };
+}
+
+// Fixed six progress slots for one recent-works row (VA-03). Pure derivation
+// over the editorial.get() payload rows the overview already returns
+// (src/editorial.mjs:47-49) — no slot is invented for facts the payload does
+// not carry (大纲标题数 / 待采纳建议数 / 配图状态 are NOT in the payload, so
+// there are no slots for them and none may be added here without a backend
+// fact). Honest ceiling stays "作者报告已发表（未核验）": the word 已发布 never
+// appears (asserted in test/creator-home.test.mjs). Checks are the sum of the
+// two independent per-channel 4-check records (wechat + zhihu, checkSummary
+// semantics from src/compose-view.mjs:99-103) — a display sum, never a merged
+// state; the label says 两渠道独立记录.
+export function projectProgress(project) {
+  const channels = project?.channels || {};
+  const master = channels.master;
+  const hasMasterContent = channelHasContent(master);
+  const openCorrections = Number(master?.openCorrections) || 0;
+  const platform = ["wechat", "zhihu"]
+    .map((c) => channels[c])
+    .filter(Boolean);
+  const checksDone = platform.reduce((sum, ch) => {
+    const values = ch?.checks && typeof ch.checks === "object" ? Object.values(ch.checks) : [];
+    return sum + values.filter(Boolean).length;
+  }, 0);
+  const exported = platform.some((ch) => ch?.status === "exported");
+  const reported = platform.some((ch) => ch?.status === "reported_published");
+  return [
+    {
+      key: "research",
+      tone: project?.briefId ? "good" : "todo",
+      title: project?.briefId ? "研究：写作任务书已建" : "研究：尚未建立写作任务书",
+    },
+    {
+      key: "body",
+      tone: hasMasterContent ? "good" : "todo",
+      title: hasMasterContent ? "正文：主稿已有内容" : "正文：主稿还是空稿",
+    },
+    {
+      key: "review",
+      tone: !hasMasterContent ? "todo" : openCorrections === 0 ? "good" : "warn",
+      title: !hasMasterContent
+        ? "核对：主稿暂无内容可核对"
+        : openCorrections === 0
+        ? "核对：无待核对事实"
+        : `核对：主稿还有 ${openCorrections} 处待核对事实`,
+    },
+    {
+      key: "checks",
+      tone: checksDone === 8 ? "good" : checksDone === 0 ? "todo" : "warn",
+      title: `检查：两渠道人工检查合计 ${checksDone}/8（公众号稿与知乎稿独立记录）`,
+    },
+    {
+      key: "delivery",
+      tone: exported ? "info" : "todo",
+      title: exported ? "交付：已导出（未发布）" : "交付：尚未导出",
+    },
+    {
+      key: "publish",
+      tone: reported ? "warn" : "todo",
+      title: reported
+        ? "发表：作者报告已发表（未核验）"
+        : "发表：暂无作者发表报告",
+    },
+  ];
 }
 
 export function buildCreatorHome({

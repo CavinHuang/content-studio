@@ -20,8 +20,12 @@ async function listen(server) {
 // 让运行停在 running 态以供 reload/重连；测试必须自行放行。
 const TARGET = "等待润色建议";
 const REPLACEMENT = "已经过审阅润色的表达";
-// holdModel：挂起闸门（pending promise）。测试用例置为未决 promise 并持有
-// resolve；provider 在工具结果后的模型调用上等待它（30s 安全网防悬挂）。
+// AG-02 article-pipeline 全流程用例：pipelineScript 非空时 provider 按脚本数组
+// 依次回放完整 OpenAI 响应（read_brief → write_revision → write_suggestions →
+// final），脚本耗尽即测试结束（用例 finally 复位）。测试契约映射自 SKILL-SPEC
+// 的 <n>.prompt + <n>.expected 关键字匹配（合成指令 + 页面关键字断言）。
+let pipelineScript = null;
+let pipelinePhase = 0;
 let holdModel = null;
 const test = base.extend({
   agentOrigin: [
@@ -32,6 +36,11 @@ const test = base.extend({
         const body = JSON.parse(raw),
           last = body.messages.at(-1);
         res.setHeader("content-type", "application/json");
+        if (pipelineScript) {
+          res.end(JSON.stringify(pipelineScript[pipelinePhase]));
+          pipelinePhase += 1;
+          return;
+        }
         if (last.role === "tool") {
           if (holdModel)
             await Promise.race([holdModel, sleep(30000)]);
@@ -207,7 +216,7 @@ test("agent run streams tool steps, files a reviewed suggestion and leaves the a
   await page.getByText("技能任务（多步 Agent）").click();
   const panel = page.locator('section[aria-label="agent 任务运行"]'),
     skills = page.getByLabel("agent 技能");
-  await expect(skills.locator("option")).toHaveCount(7);
+  await expect(skills.locator("option")).toHaveCount(8);
   await skills.selectOption("selection-rewriter");
   await expect(panel).toContainText(
     "将加载工具：read_document、read_brief、write_suggestions"
@@ -336,5 +345,119 @@ test("刷新接续：面板恢复本渠道 running 运行与步骤，重连推�
       releaseWechat();
       holdModel = null;
     }
+  }
+});
+
+// AG-02：article-pipeline 全流程用例。脚本化 provider 依次回
+// read_brief → write_revision（标题骨架 + 正文）→ write_suggestions（1 条）→
+// final content；「不过先改再交付」质量门（social-content 步骤 7 语义）由脚本里
+// 编排的自审建议轮验证。修订制零文件写入：直写落新修订，自审落待审建议。
+test("article-pipeline 全流程：读→直写初稿→自审建议→收尾，措辞止于导出准备", async ({
+  page,
+}) => {
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signup(page, "agent-pipeline@example.test");
+  const seeded = "只有一段没有标题的起点正文。\n";
+  const doc = await (
+    await page.request.post("/api/writing/projects", {
+      data: { title: "全流程流水线的合成文章" },
+    })
+  ).json();
+  await page.request.put(`/api/writing/projects/${doc.projectId}/master`, {
+    data: { expectedRevision: doc.revision, markdown: seeded },
+  });
+  const baseline = await stored(page, doc);
+  // 流水线直写初稿需要 revisions 写模式（ag_default 种子为建议制；finally 恢复）
+  await page.request.put("/api/creator/agent", {
+    data: { writeMode: "revisions" },
+  });
+  const DRAFT =
+    "# 流水线标题骨架\n\n## 第一节：问题\n\n合成模型按简报直写的完整初稿正文。\n";
+  const SENTENCE = "合成模型按简报直写的完整初稿正文";
+  const FINAL =
+    "产出：含标题骨架的初稿新修订与 1 处自审建议。人工下一步：逐项审阅建议 → 四项人工检查 → 需要时配图 → 导出准备。";
+  const call = (id, name, args) => ({
+    choices: [
+      {
+        finish_reason: "tool_calls",
+        message: {
+          role: "assistant",
+          content: "",
+          tool_calls: [
+            {
+              id,
+              type: "function",
+              function: { name, arguments: JSON.stringify(args) },
+            },
+          ],
+        },
+      },
+    ],
+    usage: { total_tokens: 100 },
+  });
+  const stop = (content) => ({
+    choices: [{ finish_reason: "stop", message: { role: "assistant", content } }],
+    usage: { total_tokens: 100 },
+  });
+  pipelineScript = [
+    call("pl_1", "read_brief", {}),
+    call("pl_2", "write_revision", { markdown: DRAFT, reason: "全流程初稿" }),
+    call("pl_3", "write_suggestions", {
+      reason: "自审：开头补「并自审」限定，让改写可追溯",
+      edits: [
+        {
+          from: DRAFT.indexOf(SENTENCE),
+          to: DRAFT.indexOf(SENTENCE) + SENTENCE.length,
+          original: SENTENCE,
+          replacement: "合成模型按简报直写并自审的完整初稿正文",
+        },
+      ],
+    }),
+    stop(FINAL),
+  ];
+  pipelinePhase = 0;
+  const panel = page.locator('section[aria-label="agent 任务运行"]'),
+    skills = page.getByLabel("agent 技能");
+  try {
+    await page.goto("/compose?project=" + doc.projectId);
+    await expect(cm(page)).toContainText("起点正文");
+    await page.getByText("技能任务（多步 Agent）").click();
+    await skills.selectOption("article-pipeline");
+    await page.getByLabel("agent 任务要求").fill("按简报产出完整初稿，先大纲再正文");
+    await page
+      .getByLabel(
+        "允许本次运行调用模型与图片服务，可能产生费用；v1 不设次数上限，逐次记账"
+      )
+      .check();
+    await page.getByRole("button", { name: "启动运行", exact: true }).click();
+    const steps = page.locator(".agent-run-steps");
+    // 模型/工具步骤序列：read_brief → write_revision → write_suggestions
+    await expect(steps).toContainText("read_brief");
+    await expect(steps).toContainText("write_revision");
+    await expect(steps).toContainText("write_suggestions");
+    await expect(panel.locator(".writing-source-note")).toContainText(
+      "运行完成"
+    );
+    // 收尾文案列出人工下一步、止于「导出准备」，无发布承诺
+    await expect(panel).toContainText("人工下一步");
+    await expect(panel).toContainText("导出准备");
+    const panelText = await panel.innerText();
+    expect(panelText).not.toContain("已发布");
+    expect(panelText).not.toContain("自动发布");
+    // 修订历史 +1：master 推进到含标题骨架的直写新修订
+    const after = await stored(page, doc);
+    expect(after.revision).toBe(baseline.revision + 1);
+    expect(after.markdown).toBe(DRAFT);
+    // 建议列表出现 1 条待审（自审轮；重载后建议区渲染）
+    await page.reload();
+    await expect(page.locator("article.writing-suggestion")).toHaveCount(1);
+    expect(errors).toEqual([]);
+  } finally {
+    pipelineScript = null;
+    pipelinePhase = 0;
+    await page.request.put("/api/creator/agent", {
+      data: { writeMode: "suggestions" },
+    });
   }
 });

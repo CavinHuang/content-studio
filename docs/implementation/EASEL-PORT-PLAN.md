@@ -1,6 +1,8 @@
 # Easel 体验移植落地方案（EASEL-PORT-PLAN）
 
-> 状态：设计定稿 r3（2026-10-22：Run B 开工前基线核对——记录 Run A 后行号漂移
+> 状态：设计定稿 r4（2026-10-22：vendor 导入后追加 §11「完整还原：vendor 适配期」——
+> Run A/Run B 已落地，AG-01/AG-02 转正为首期优先项，全部 spec 改以 vendor/easel
+> 真实源码为 adaptedFrom 依据；r3 2026-10-22：Run B 开工前基线核对——记录 Run A 后行号漂移
 > 与 e2e 计数 29、追加 §10 服务端 Agent 化章节；r2 2026-10-21 修订：P1-01 与
 > epoch effect 协同、setStage 多路径 URL 单点化、Phase 1 拆分为两个 run、
 > e2e 计数更正、§0 范围限定、P1-03 验收措辞、P1-02 去重决策）。
@@ -541,3 +543,273 @@ Run B 施工时在 QA 记录实际验证结果。
 - 不做 AgentRuns 卡片化等 UI 配套（Phase 7）；技能面板仅 option 数自然 +1；
 - Phase 2 三项维持既有不包含项：xhs 渠道布局（Phase 5）、版本 diff 与 confirm
   替换（Phase 4）、CreatorHome 改版（Phase 3）、检查快照绑定（Phase 6）。
+
+---
+
+## 11. 完整还原：vendor 适配期（2026-10-22 追加，Run C 定稿）
+
+> **状态（2026-10-22 施工完成）**：本节 AG-01/AG-02/VA-03/VA-04 四项已按 spec 落地；
+> 门禁数字、curl 全流程实跑记录、交互冒烟与缺陷登记见
+> `docs/implementation/CREATOR-V2-QA.md` §10。
+
+> 基线核对（本节锚点均在现 HEAD 逐一实测）：工作树 HEAD = `ec73910`（vendor 导入
+> 提交，`git status --porcelain` 为空）。Run A（P1-01 深链，8b32a42 + 3d48afe，
+> PR #51）与 Run B（P2-01/02/03 + SA-01/02/03，1c5004f，PR #52）已落地：SA-01
+> 重连（`components/AgentRuns.jsx:46-73`）、SA-02 重驱动（:77-82）、resumeOf
+> 服务端（`src/agent-runtime.mjs:146-189`）、`readinessFacts`（`src/compose-view.mjs:110-163`）
+> 均在 HEAD 复核存在。`vendor/easel/` 已按 `vendor/easel/PROVENANCE.md` 落盘
+> （来源 ZJU-REAL/Easel main `3f1d4fb8b99694f7231ee97163b637df89b50d3b`，842 文件
+> 约 13.75MB；AGPL `gzh-design` 81 文件零搬运，PROVENANCE.md:28）。本节所有
+> `adaptedFrom` 均指该目录内真实文件，行号于 2026-10-22 逐读复核；此前 §1-§10 的
+> Easel 侧结论来自外部勘察，自本节起以 vendor 内源码为准。
+
+### 11.1 vendor 阅读结论（Run C spec 的事实基础）
+
+| vendor 文件（已读） | 关键结论 | 供哪项用 |
+|---|---|---|
+| `skills/builtin/skill-article-outline/SKILL.md`（142 行，layer: plan） | 执行步骤五段：主题/意图确认（:27-33）→ 搜索分析（:35-48，WebSearch/WebFetch）→ 结构化大纲模板（H2/H3+段落字数+图表位+FAQ，:50-100）→ 差异化分析 → 保存 `outputs/<主题>/outline.md` | AG-01 步骤 2（确保大纲） |
+| `skills/builtin/social-content/SKILL.md`（125 行，layer: produce） | 产出主写作流程：收集需求 → 按平台规范撰写 → **强制质量门「不过先改再交付」**（步骤 7，:81-84：AI 味自检 + 综合质量两道门）→ 变体 → 输出 | AG-01 步骤 3（生成初稿）与「生成后必须自审」的编排次序 |
+| `skills/builtin/text-polisher/SKILL.md`（116 行，layer: produce） | 七轮聚焦扫描（清晰度/语气/价值感/证据/具体性/情感/风险，:54-64）+ 去 AI 感改写 + 两道门（AI 味 ≥45/50、综合 ≥35/50，:34-52） | AG-01 步骤 4（自审一轮）的审读维度（压缩为与既有 edit-review 同四维） |
+| `docs/SKILL-SPEC.md` | 技能接口契约：frontmatter 三字段 name/description/layer（:40-48，layer 枚举 discover/plan/produce/publish/attribute/general）；`tests/<n>.prompt` + `<n>.expected` **关键字匹配**测试契约；三层加载（Metadata/Instructions/Resources） | AG-01（契约映射）、AG-02（测试契约映射） |
+| `docs/prompt-stack.md` | Prompt 四层：SOUL/AGENTS/运行时/SKILL 按需；画像经 `persona.py:persona_prefix` 消息内联，无全局文件 | AG-01 弃用说明（我们单 systemPrompt 承载、无 references 层；画像走 read_context） |
+| `skills/shared/scripts/manifest.py`（396 行） | 层间产物契约：`outputs/<主题>/.easel.json` 的 `steps[]`（layer/skill/at/status done\|failed/outputs/upstream/summary，:26-33）+ `latest --layer` 下游直取（:218-229）；failed 步供「从哪层接着跑」（:32-33） | VA-03（每项目一行步骤态的展示契约思想） |
+| `web/frontend/src/components/DashboardPage.tsx`（374 行） | 首页六大快捷 + 四格统计 + 热点/选题/排期/产物四卡；「最近产物」行 = 名称 + 单 badge（:238-243） | VA-03（作品行从单标签升级为进度点串的改造原型） |
+| `web/frontend/src/components/MessageBubble.tsx`（132 行） | live panel 四层状态：活动脉冲行 + 「未卡住」提示**附着显示不顶掉真实状态**（:74-86，对应我们 SA-01 心跳语义）+ 执行过程 N 步折叠 `details`（:87-92）+ 思考折叠 | VA-04（时间线折叠 + 运行中展开语义） |
+| `web/frontend/src/lib/capabilityMenu.ts`（784 行） | 能力菜单：分组 tabs + 诚实状态图例 legend `done/ready/need/incoming`（:9-19）——「已验/可用/需配置」三分角标体系 | VA-04（技能诚实角标） |
+| `web/frontend/src/components/SkillPage.tsx`（164 行） | 技能库：按 layer 分区（:74-83）、搜索、`needsApi && !apiConfigured` 角标「需 API/已配置」+ 副标题待配置计数（:84-93,:136-145） | VA-04（optgroup 分组 + 工具禁用角标） |
+| `web/frontend/src/components/ManualPublishPage.tsx`（244 行） | 人工审核快照绑定：`snapshot(key)=JSON.stringify([title,body,tags,media])`、`approved = reviewed[key]===snapshot(key)`（:63-65）——**改任一字即作废需重审**；复制/导出/官方页跳转全部 gate 在 approved 后（:225-235）；「导出不代表已发布」边界文案 | §11.8 下期首位候选（Phase 6 检查快照绑定）——本期不做 |
+| `docs/artifact-checkpoints.md` | 本地产物检查点：文件锁 + 输入指纹 + 可重做步骤；**明确不适用于付费 API/发布等外部动作** | §11.8（不引入第二套检查点机制的理由） |
+
+### 11.2 Run C 名册与共通约束
+
+**名册（4 项）**：AG-01、AG-02（§10.3 设计转正——上期让位的三项远程可靠性
+SA-01/02/03 已全部落地，其「可靠流与重驱动」前提成立）、VA-03（Phase 3 vendor
+适配：首页作品行进度点）、VA-04（Phase 7 切片：AgentRuns 卡片化 + 技能分组/角标）。
+Phase 6（检查快照绑定）因需先独立评审 `editorial.setChecks` 行为扩展，继续下期
+（§11.8 第 1 条）。
+
+**共通约束（§1 六条全部继续有效，另加适配期三条）**：
+
+1. **来源注释强制**：每份改编文件头部新增
+   `// Adapted from ZJU-REAL/Easel <vendor 路径> (Apache-2.0)，modified: <改动概述>`
+   （多来源逐行列出）；QA 报告同步登记改编清单。
+2. **Python 零执行**：`easel/`（Python CLI 90 文件）、`web/app.py`（FastAPI）、
+   `skills/**/scripts/*.py`（manifest.py/wordcount.py 等）一律只读；需要的语义用
+   本仓库 TS/MJS 纯函数或既有 API 等价替代，替代不了的就弃用并记 QA。
+3. **vendor 只出不进**：本仓库代码不 import/require vendor 下任何文件；vendor
+   树保持原样（PROVENANCE.md:47-50），不修改、不参与构建/测试/运行时。
+
+### 11.3 AG-01 `article-pipeline` 全流程技能（技能本体 + 域级单测）
+
+- **files**: `src/agent-skills.mjs`、`test/agent-skills.test.mjs`、
+  `test/agent-runtime.test.mjs`
+- **adaptedFrom**: `vendor/easel/skills/builtin/skill-article-outline/SKILL.md`、
+  `vendor/easel/skills/builtin/social-content/SKILL.md`、
+  `vendor/easel/skills/builtin/text-polisher/SKILL.md`、
+  `vendor/easel/docs/SKILL-SPEC.md`、`vendor/easel/docs/prompt-stack.md`
+- **spec**（设计基线 = §10.3，现按 vendor 阅读+现 HEAD 锚点定稿）：
+  1. `src/agent-skills.mjs` 追加第 8 个技能：`id: "article-pipeline"`、
+     `version: 1`、`title: "全流程初稿流水线"`；
+     `tools: ["read_document","read_brief","read_context","search_assets",
+     "write_revision","write_suggestions"]`——全部 ⊆ `DEFAULT_AGENT_TOOLS`
+     （`src/agent-runtime.mjs:19-25`），结构性排除发布/导出/跨渠道工具
+     （`AGENT_TOOLS` 本身无此类工具，`src/agent-tools.mjs:15`）。
+  2. `description` 按 SKILL-SPEC.md:46 的触发边界写法：写清能力（读简报/上下文 →
+     确保大纲 → 生成完整初稿 → 自审一轮 → 汇总）、触发说法（「全流程」「从简报到
+     初稿一次跑完」「先大纲再正文」）与相邻边界（单改润色用 edit-review /
+     selection-rewriter、配图用 illustration-orchestrator；**不含任何发布动作**）。
+  3. `systemPrompt` 五步编排（对照上游次序：article-outline「意图确认→结构」+
+     social-content「撰写→强制质量门」+ text-polisher「聚焦扫描」）：
+     ① **读**：`read_brief`/`read_context`，需素材再 `search_assets`；
+     ② **确保大纲**：当前 markdown 无 `#` 标题时先在初稿开头产出标题骨架
+     （吸收 article-outline 的 H2 层级 + 段落字数目标思想，压缩为标题行，不单独
+     落盘）；③ **生成初稿**：`writeMode==="revisions"` 时 `write_revision` 写入
+     含大纲的完整初稿（走 `ctx.expectedRevision()`/`onWritten` 修订推进链，
+     `src/agent-tools.mjs:64-73`）；默认 `ag_default` 为建议制
+     （`src/agent-runtime.mjs:52-58` 种子 `"suggestions"`；`_loop` 在建议制下
+     结构性过滤 `write_revision`，:228-230），此时按 draft-writer 先例
+     （`src/agent-skills.mjs:12`）降级为 `write_suggestions` 结构化建议批；
+     空稿+建议制时不硬凑建议，如实说明需切换直写模式；④ **自审一轮**（上游
+     「质量门强制」语义）：一律 `write_suggestions` ≤12 处互不重叠、original
+     精确匹配，审读维度四条（论证链闭合/结构节奏/冗余/AI 腔，与 edit-review
+     同维，text-polisher 七轮压缩而来）；直写模式下对刚写入的新修订提建议，
+     经 revision 跟踪不产生 409；建议仍逐条由作者接受——直写也不直接改稿；
+     ⑤ **收尾汇总**：不再调用工具，以最终 content 列出产出与**人工**下一步
+     （审阅建议 → 四项人工检查 → 配图 → 导出准备），措辞止于「导出准备」。
+     GUARD 结尾（`src/agent-skills.mjs:1-2`）。
+  4. 24 步预算核算：五步编排 ≤8 次模型调用，远小于 `AGENT_MAX_STEPS=24`
+     （`src/agent-runtime.mjs:18`）；连续 3 次模型失败熔断（既有）兜底。
+  5. **弃用与替代（写进文件头来源注释的 modified 说明与 QA）**：
+     Easel 技能是 OpenClaw/Python harness 执行的 markdown（SKILL-SPEC 三层加载、
+     references/ 按需）→ 我们是 JS 声明对象 + 既有 24 步工具循环，**不引入
+     references/scripts 文件层**；article-outline 步骤 2 的 WebSearch/WebFetch
+     搜索分析 → `search_assets` 素材库检索（社区信号是假设、不引入外网采集）；
+     `outputs/<主题>/outline.md` 落盘与 manifest.py 登记 → `write_revision`/
+     `write_suggestions` 修订制，零文件系统写入；social-content 步骤 6 的
+     wordcount.py 字数门 + platform-specs → 不做（平台字数预算属渠道稿人工核对，
+     不进流水线）；prompt-stack 画像内联前缀 → `read_context`（WritingContext
+     按渠道作者设定既有链路）。
+  6. 单测：`test/agent-skills.test.mjs:8` 的 ids deepEqual 追加
+     `'article-pipeline'`（7→8）；新增声明断言——GUARD 在 prompt 内、tools 子集、
+     双模式契约（revisions 直写/suggestions 降级都有明确指令）、五步编排关键字、
+     **prompt 不含「自动发布/已发布」承诺**；`test/agent-runtime.test.mjs:150`
+     `skills.length` 7→8；新增 fetchImpl 脚本化全流程运行：profile 切 revisions
+     后按「读 → write_revision → write_suggestions → 收尾」编排合成模型回复，
+     断言步骤序、修订推进（tracked.revision 前进）、无越权工具名出现在任何
+     tool_call、终态 completed 且收尾 content 含「人工」下一步措辞。
+- **acceptance**: `npm run check`、`npm test` 通过；两处技能数断言更新后单测
+  全绿；来源注释落盘。
+- **risk**: low（纯声明 + 单测；编排完成率风险由脚本化全流程单测兜底）
+
+### 11.4 AG-02 article-pipeline e2e 全流程用例 + HTTP 冒烟记录
+
+- **files**: `e2e/agent-runtime.spec.mjs`、`docs/implementation/CREATOR-V2-QA.md`
+- **adaptedFrom**: `vendor/easel/docs/SKILL-SPEC.md`（tests 契约：`<n>.prompt`
+  输入 + `<n>.expected` 关键字匹配——映射为合成模型脚本化指令 + 页面关键字断言）、
+  `vendor/easel/skills/builtin/social-content/SKILL.md` 步骤 7（「不过先改再交付」
+  ——脚本里编排一次自审建议轮验证）
+- **spec**:
+  1. `e2e/agent-runtime.spec.mjs:210` `toHaveCount(7)` → 8（三处技能数断言的
+     最后一处，另两处在 AG-01）。
+  2. 新增一条 e2e：在既有合成回环模型夹具（`e2e/agent-runtime.spec.mjs:15-158`
+     形态：回环 OpenAI 兼容模型 + runtime-guard 生产服务器 + MULTIUSER 会话）上，
+     脚本化 provider 依次回 `read_brief` → `write_revision`（含标题骨架 + 正文）
+     → `write_suggestions`（1 条）→ final content；断言：运行 completed、
+     `.agent-run-steps` 出现 模型/工具 步骤序列、修订历史 +1、建议列表出现 1 条
+     待审、收尾文案止于「导出准备」且**无「已发布/自动发布」字样**。
+  3. QA：`CREATOR-V2-QA.md` 新增「完整还原 · vendor 适配期（Run C）」小节——
+     记录 §10.3 的 curl 全流程（列技能 → 创建运行 → NDJSON 流 → 轨迹 → 取消）
+     **实跑结果**（该 curl 形态在 §10.3 设计阶段未实跑，本期必须真跑并如实记录，
+     含 V58 边界说明与 MULTIUSER 差异）、AG-01 弃用清单、e2e 覆盖边界。
+- **acceptance**: `npm run check`、`npm test`、`npm run build`、
+  `npm run test:e2e` 通过；既有 agent-runtime 用例零回归。
+- **risk**: medium（e2e 合成模型脚本与既有门禁时序——consent/expectedRevision/
+  单飞全部沿用既有夹具形态）
+
+### 11.5 VA-03 首页作品行六槽进度点（Phase 3 vendor 适配）
+
+- **files**: `src/creator-home.mjs`、`components/CreatorHome.jsx`、
+  `app/creator-v2-home.css`、`test/creator-home.test.mjs`、
+  `docs/implementation/CREATOR-V2-QA.md`
+- **adaptedFrom**: `vendor/easel/skills/shared/scripts/manifest.py`
+  （`steps[]` 每层 status 行的「一眼看到每个项目走到哪层、哪层 failed」契约，
+  :26-33）、`vendor/easel/web/frontend/src/components/DashboardPage.tsx:238-243`
+  （最近产物行 = 名称 + 单 badge 的原型，我们升级为进度点串）、
+  `vendor/easel/docs/SKILL-SPEC.md:48,151`（layer/status 枚举驱动前端分色）
+- **spec**:
+  1. `src/creator-home.mjs` 新增纯函数 `projectProgress(project)`：固定六槽、
+     每槽 `{ key, tone: "good"|"warn"|"info"|"todo" }`，**只吃 overview 既有行**
+     （`editorial.get()` 载荷，`src/editorial.mjs:47-49`；诚实规则注释同
+     `src/creator-home.mjs:20-26`）：
+     - 研究：`briefId` 非空 → good，否则 todo；
+     - 正文：master 通道 document 有非种子内容（复用 `channelHasContent`
+       :50-55 同源判定逻辑扩展到 master）→ good，否则 todo；
+     - 核对：无内容 → todo；`openCorrections === 0` → good；>0 → warn；
+     - 检查：wechat+zhihu 两渠道四检查完成数合计 n/8（`checkSummary` 语义，
+       `src/compose-view.mjs:99-103`；渠道独立不变）——8/8 → good，0 → todo，
+       其余 warn；标签含「两渠道独立记录」；
+     - 交付：任一渠道 `status === "exported"` → info「已导出（未发布）」，否则
+       todo；
+     - 发表：任一渠道 `reported_published` → warning「作者报告已发表（未核验）」
+       （沿用 `projectStage` :65-66 原文案）。
+     **不发明事实**：大纲标题数、待采纳建议数、配图状态不在 overview 载荷内，
+     不设槽、不伪装。诚实上限 = 「作者报告已发表（未核验）」，无「已发布」。
+  2. `CreatorHome.jsx:323-338` 最近作品行：单 `projectStage` Tag 升级为
+     Tag + 六槽点串（`<span className="cv2-progress-dot …">` 串；Tag 保留——
+     交付/发表的终态语义仍需文字承载）。**只改首页**：`CalendarWorkspace.jsx:372`
+     的 projectStage 用法不动（日历行密度低，防回归面扩大，记 QA）。
+  3. `creator-v2-home.css`：点串样式沿用 tokens 语义色（对齐就绪度条
+     good/warn/info/detail 语义，P2-01 先例），窄屏折行（:127-128 既有
+     `white-space:normal` 先例）。
+  4. **弃用与替代**：manifest.py 是 Python CLI 落盘脚本（`.easel.json` 文件、
+     `atomic_write`、`EASEL_ROOT` env，:61-64,:107-117）——不执行 Python、
+     **零新存储**：六槽全部为请求时派生，不建表、不加列、不新增端点/响应字段；
+     Easel 的「failed 步断点续跑」语义由我们已有的 SA-02 resumeOf 与
+     `resumeGeneration` 承担，不在首页呈现 failed 态。
+  5. 单测 `test/creator-home.test.mjs`：`projectProgress` 空稿/部分完成/
+     全完成/报告已发表/待核对>0 五态断言 + 无「已发布」字样断言。
+- **acceptance**: 单测五态全绿；`npm run check`、`npm test`、`npm run build`
+  通过；现有首页 e2e 不回归（视觉上仅行内多一串点，选择器不冲突）。
+- **risk**: low（纯派生 + 渲染；唯一外部依赖是 overview 载荷字段名，已在
+  `src/editorial.mjs:47-49` 复核）
+
+### 11.6 VA-04 AgentRuns 轨迹卡片化 + 技能分组与诚实角标（Phase 7 切片）
+
+- **files**: `src/agent-skills.mjs`、`components/AgentRuns.jsx`、
+  `test/agent-skills.test.mjs`、`docs/implementation/CREATOR-V2-QA.md`
+- **adaptedFrom**: `vendor/easel/web/frontend/src/components/MessageBubble.tsx:74-100`
+  （live panel：执行过程 N 步 `details` 折叠、「未卡住」提示附着不顶掉真实状态
+  ——后者我们 SA-01 已实现，前者本期补）、
+  `vendor/easel/web/frontend/src/lib/capabilityMenu.ts:9-19`（诚实状态图例
+  done/ready/need/incoming 的角标体系）、
+  `vendor/easel/web/frontend/src/components/SkillPage.tsx:84-93,136-145`
+  （layer 分区 + 「需 API/已配置」角标与计数）
+- **spec**:
+  1. `src/agent-skills.mjs`：技能对象新增纯展示字段
+     `stage: "research"|"write"|"review"|"images"|"publish"`（复用
+     `parseStage` 白名单，`src/compose-view.mjs:15`；静态映射 task-brief→research、
+     article-pipeline/draft-writer→write、claim-evidence/edit-review/
+     selection-rewriter→review、illustration-orchestrator→images、
+     xhs-group→publish）。只进 UI，不进 systemPrompt/门禁/存储。
+  2. `AgentRuns.jsx` 三处呈现改造（**follow/redrive/取消逻辑零改动**——Run B
+     刚落地的重连/重驱动载体，只动渲染层）：
+     - 技能 `select`（:118）平铺 options → 按 `stage` 分组 `<optgroup>`（组名
+       用 compose 阶段文案 研究/写作/审稿/配图/发布；option 数不变，e2e :210
+       的 `toHaveCount` 语义不受 optgroup 影响，需实测确认后记 QA）；
+     - 诚实角标（capabilityMenu legend 语义，按我们事实裁剪）：技能说明行
+       （:120）当 `skill.tools ∩ profile.tools` 为空 → warn「工具全部被禁用，
+       启动将被拒绝」（对应服务端工具交集空 403 门禁）；当 tools 含
+       `generate_image` 且交集缺它 → warn「需先在偏好中启用图片工具」——
+       事后 403 变事前预告；模型出处仍由既有 modelLabel/工具预览承载，不新增；
+     - 时间线折叠（MessageBubble doneSteps 语义）：`.agent-run-steps`（:129）
+       外包一层 `details`——运行中 `open` 自动展开，终态默认收起为
+       「执行过程 N 步」摘要（N = steps 数，真实计数）；重连提示（:128）保持在
+       折叠层外，附着可见。
+  3. **弃用与替代**：capabilityMenu 的 113 技能手工菜单/SkillDrawer 就地配 key
+     → 不搬（我们仅 8 技能且连接配置在设置页既有工作区；壳层工作区冻结 §1.4）；
+     Easel layer 五色体系 → 不移植视觉，只用其「分组 + 诚实角标」信息架构。
+  4. 单测：`test/agent-skills.test.mjs` 断言每技能 `stage` ∈ 白名单且映射齐
+     8 个技能；e2e 既有 agent-runtime 用例全绿为回归底线。
+- **acceptance**: `npm run check`、`npm test`、`npm run build`、
+  `npm run test:e2e` 通过；AgentRuns 交互（启动/取消/重连提示/重驱动按钮）
+  手工冒烟记 QA。
+- **risk**: medium（AgentRuns 是 Run B 高频改动文件——施工时若 §10.1 式锚点
+  漂移，以现 HEAD 为准；渲染改造不得触碰 follow 闭包与 scope 守卫）
+
+### 11.7 Run C 护栏对照（增量）
+
+| 不变量 | Run C 如何保住 |
+|---|---|
+| 导出 ≠ 发布 / 不自动发布 | article-pipeline 收尾止于「导出准备」；单测+e2e 双断言无发布措辞；技能工具面结构性排除发布类 |
+| AI 输出是假设 / 逐条 consent | 自审建议仍走待采纳区；启动 consent/expectedRevision/单飞门禁零改动（`startRun` 不动，`src/agent-runtime.mjs:144-189`） |
+| 不可变修订 / expectedRevision | `write_revision` 走既有修订推进链；VA-03/04 纯呈现零写路径 |
+| 四项检查按渠道独立 | VA-03 检查槽标签明示「两渠道独立记录」，n/8 是两渠道合计呈现而非合并状态 |
+| 诚实呈现 | VA-03 六槽只陈述 overview 既有事实，缺事实的维度不设槽；点串最高态是「作者报告已发表（未核验）」 |
+| V58/V75 边界 | 零新端点；AG-02 curl 冒烟在本地回环、V58 边界说明照 §10.3 |
+| 不改 schema | 四项均零 DDL；技能 stage 是代码常量，`agent_runs` 行不动 |
+| vendor 隔离 | 不 import vendor；Python 零执行；改编文件头来源注释（§11.2） |
+
+### 11.8 Run C 不做（本适配期剩余未还原清单，按优先序）
+
+1. **Phase 6 检查快照绑定（下期首位）**：vendor 源已读定——
+   `vendor/easel/web/frontend/src/components/ManualPublishPage.tsx:63-65`
+   `snapshot()/approved()` 绑定 + :225-235 审核 gate（复制/富文本/ZIP/官方页
+   跳转全在 approved 后）。落点：`editorial.setChecks` 行为扩展（现 :84 拒
+   四布尔以外键、:85 存 `checklist_json` JSON 列）+ 勾选时记录当前 master
+   revision 指针，改字后显示「需重审」。**开工前必须完成独立评审**（§1.3/
+   §8.5 既有决定）；若评审结论需改 schema，就地终止并记录。
+2. Phase 4 版本 diff / 建议并排对比 / confirm 替换——Easel 无版本树
+   （§2 G6），非 vendor 适配项，维持自有设计。
+3. Phase 5 xhs 渠道 IA 并轨——自家图文工作区布局问题，非 vendor 适配。
+4. 技能全量菜单化 / 设置模型矩阵化（Phase 7 余下）——capabilityMenu 113 技能
+   形态对我们 8 技能过度设计；本期已做 optgroup+角标切片，剩余待技能数增长后
+   再评估。
+5. ArtifactGallery 对话内产物轮播 / sandbox iframe（§2 G8 低）——修订制文章
+   模型不同，形态差异非缺陷。
+6. 七平台账号中心 / 自动发布 / 归因看板（§8 第 1-2 条继续有效，不做）。
+7. `artifact_checkpoints.py` 文件锁检查点（docs/artifact-checkpoints.md）——
+   不引入第二套检查点机制：其文档自认不适用于付费 API/发布类外部动作；我们的
+   中断恢复由 SA-02 resumeOf（agent）与 resumeGeneration（写作生成）承担。
+8. Easel 视觉主题 / layer 五色 / Bodoni（§8 第 6 条继续有效，不移植）。
+9. gzh-design（AGPL）零搬运（PROVENANCE.md:28，永久有效）。
+10. Python CLI 与 FastAPI 后端的任何执行路径（永久只读适配源）。
