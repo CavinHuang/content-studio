@@ -222,7 +222,7 @@ async function stored(page, id, channel = "master") {
 
 const cm = (page) => page.getByLabel("文章 Markdown 正文");
 
-test("V2 版式：真实空稿的诚实空态、阶段条与 ribbon，正文输入真实自动保存", async ({ page }) => {
+test("V2 版式：真实空稿的诚实空态、阶段条与全阶段就绪度条，正文输入真实自动保存", async ({ page }) => {
   await signup(page, "compose-layout@example.test");
   const id = await createProject(page, "创作空间验证：城市步行观察笔记");
   await page.goto("/compose?project=" + id);
@@ -251,15 +251,19 @@ test("V2 版式：真实空稿的诚实空态、阶段条与 ribbon，正文输�
   await expect(steps.nth(1)).toHaveClass(/now/);
   await expect(steps.nth(0)).toHaveClass(/todo/);
 
-  // ribbon（检查计数 + 不变量声明）跟随审稿/发布阶段出现
+  // P2-01 就绪度条：全阶段可见（写作阶段即有检查进度 chip），事实来自真实空稿
+  const ribbon = page.locator(".cv2-compose-ribbon");
+  await expect(ribbon).toBeVisible();
+  await expect(ribbon).toContainText("研究简报暂无");
+  await expect(ribbon).toContainText("大纲尚无标题");
+  await expect(ribbon).toContainText("待完成人工检查 0/4");
+  await expect(ribbon).toContainText("未插图");
+  await expect(ribbon.getByText("主稿 / 平台稿独立")).toBeAttached();
+  // 诚实性上限：就绪度条最高只到「人工检查 4/4 完成」，不含已发布/可发布字样
+  const ribbonText = await ribbon.innerText();
+  expect(ribbonText).not.toMatch(/已发布|可发布/);
   await page.getByRole("button", { name: "切换到审稿阶段" }).click();
-  await expect(page.locator(".cv2-compose-ribbon")).toContainText(
-    "待完成人工检查"
-  );
-  await expect(page.locator(".cv2-compose-ribbon")).toContainText("4 项");
-  await expect(
-    page.locator(".cv2-compose-ribbon").getByText("主稿 / 平台稿独立")
-  ).toBeAttached();
+  await expect(page.locator(".cv2-compose-ribbon")).toBeVisible();
   await page.getByRole("button", { name: "切换到写作阶段" }).click();
 
   // 诚实空态：结构/配图定位都没有编造内容；稿纸标注 MASTER DRAFT
@@ -282,6 +286,10 @@ test("V2 版式：真实空稿的诚实空态、阶段条与 ribbon，正文输�
   await expect(
     page.locator(".cv2-compose-outline-link", { hasText: "城市步行观察" })
   ).toBeVisible();
+  // 就绪度条 chips 随真实事实更新：大纲标题计数来自当前 markdown
+  await expect(page.locator(".cv2-compose-ribbon")).toContainText(
+    "大纲 1 个标题"
+  );
   await expect(steps.nth(0)).toHaveClass(/todo/); // 无简报：研究不谎报完成
   await expect(steps.nth(1)).toHaveClass(/done/);
   await expect(steps.nth(2)).toHaveClass(/now/);
@@ -718,6 +726,11 @@ test("通知条「关闭消息」与冲突横幅「重试保存」「载入服�
   await expect(other.locator(".writing-notice")).toContainText(
     "Document revision conflict"
   );
+  // P2-03 通知分级：保存冲突是关键错误路径 → error 语义色 + role=alert
+  await expect(other.locator(".writing-notice")).toHaveClass(/has-error/);
+  await expect(
+    other.locator('.writing-notice[role="alert"]')
+  ).toContainText("Document revision conflict");
 
   // 通知条可关闭（WritingWorkspace.jsx:1281-1288）
   await other.getByRole("button", { name: "关闭消息" }).click();
@@ -738,6 +751,10 @@ test("通知条「关闭消息」与冲突横幅「重试保存」「载入服�
   await expect(other.locator(".writing-notice")).toContainText(
     "已载入最新版本。"
   );
+  // 非错误通知保持 role=status、无 error 语义色（P2-03 分级渲染）
+  await expect(
+    other.locator('.writing-notice[role="status"]:not(.has-error)')
+  ).toContainText("已载入最新版本。");
   await expect(cm(other)).toContainText(serverText);
   await cm(other).fill(serverText + "\n\n恢复后追加的新段落。");
   await expect
@@ -909,17 +926,50 @@ test("「从素材库插图」：空态诚实，点选素材插入正文并持�
   await expect(cm(page)).toContainText("asset://" + asset.id);
 });
 
-test("左栏大纲链接点击聚焦编辑器；空简报文案诚实", async ({ page }) => {
+test("左栏大纲链接点击真跳转且 active 跟随光标；空简报文案诚实", async ({ page }) => {
   await signup(page, "compose-outline@example.test");
   const id = await createProject(page, "大纲聚焦验证");
   await page.goto("/compose?project=" + id);
-  await cm(page).fill("# 大纲标题甲\n\n正文段落。");
-  const outlineLink = page
-    .locator(".cv2-compose-outline-link", { hasText: "大纲标题甲" });
-  await expect(outlineLink).toBeVisible();
-  // 点击大纲链接 → editor.focus()（WritingWorkspace.jsx:1369-1386）
-  await outlineLink.click();
+  // 长文（≥3 标题 + 充足正文）让滚动位置变化可感知
+  const filler = (n) =>
+    Array.from(
+      { length: n },
+      (_, i) => `第${i + 1}段填充正文，用于拉长文档产生可感知的滚动位移。`
+    ).join("\n\n");
+  const markdown = [
+    "# 大纲标题甲",
+    filler(8),
+    "## 第二节标题乙",
+    filler(8),
+    "## 第三节标题丙",
+    filler(8),
+  ].join("\n\n");
+  await cm(page).fill(markdown);
+  await expect
+    .poll(async () => (await stored(page, id)).markdown)
+    .toBe(markdown);
+  const links = page.locator(".cv2-compose-outline-link");
+  await expect(links).toHaveCount(3);
+  // 点击第三个大纲项 → 编辑器获得焦点、滚动跳转到该标题行、该项 active
+  const third = links.nth(2);
+  await third.click();
   await expect(cm(page)).toBeFocused();
+  await expect(third).toHaveClass(/active/);
+  // 仓库无 selection 调试通道，用 CodeMirror 的 .cm-activeLine 断言光标行
+  await expect(page.locator(".cm-activeLine")).toContainText("第三节标题丙");
+  // active 跟随光标：点击第一项后光标行与 active 同步回到第一标题
+  await links.nth(0).click();
+  await expect(cm(page)).toBeFocused();
+  await expect(links.nth(0)).toHaveClass(/active/);
+  await expect(third).not.toHaveClass(/active/);
+  await expect(page.locator(".cm-activeLine")).toContainText("大纲标题甲");
+  // 大纲派生自当前 markdown：新增标题（接受建议后 setMarkdown 的同源路径）
+  // 立即出现在大纲与就绪度条 chip
+  await cm(page).fill(markdown + "\n\n## 追加的新标题丁");
+  await expect(page.locator(".cv2-compose-outline-link")).toHaveCount(4);
+  await expect(page.locator(".cv2-compose-ribbon")).toContainText(
+    "大纲 4 个标题"
+  );
   // 无简报时的诚实空态（写作阶段左栏不再展开简报来源；来源在研究阶段）
   await expect(page.getByText("还没有选题简报。")).toBeVisible();
 });
@@ -1047,6 +1097,14 @@ test("发布准备阶段：复制排版进剪贴板、记录作者确认已发�
   await expect(dialog).toBeVisible();
   await expect(
     dialog.getByRole("heading", { name: "微信公众号 · 发布准备" })
+  ).toBeVisible();
+  // P2-01 去重决策：发布侧卡（发布边界）不再出现「人工检查 n/4」行——
+  // 检查进度由就绪度条单一承载；侧卡保留「导出 ≠ 实际发布」边界文案。
+  await expect(
+    page.locator('div[aria-label="发布边界"]').getByText(/人工检查 \d\/4/)
+  ).toHaveCount(0);
+  await expect(
+    page.getByText(/导出 ≠ 实际发布/)
   ).toBeVisible();
   // 对话框内 PublishingControls 草稿箱控件：无账号/封面时诚实地禁用
   await expect(
@@ -1214,6 +1272,34 @@ test("失败生成记录可「恢复请求到助手」，也可「取消恢复�
   ).toBeDisabled();
 });
 
+test("生成中全局 pill：流式期间出现、点击回到助手停止控件、结束即消失", async ({
+  page,
+}) => {
+  await signup(page, "compose-generating@example.test");
+  const id = await createProject(page, "生成中全局指示验证");
+  await page.goto("/compose?project=" + id);
+  await cm(page).fill("全局指示验证的正文。");
+  await expect
+    .poll(async () => (await stored(page, id)).markdown)
+    .toBe("全局指示验证的正文。");
+  const instruction = page.getByLabel("与助手讨论或提出写作要求");
+  await instruction.fill("请做一次会中断的流式生成");
+  await page
+    .getByLabel("允许本次向已配置模型发送文章、参考素材与写作要求")
+    .check();
+  await page.getByRole("button", { name: "生成写作建议", exact: true }).click();
+  // 生成期间（mock 流式）：头部 pill 出现（非阻塞，保存徽标原样保留）
+  const pill = page.locator(".cv2-generating-pill");
+  await expect(pill).toBeVisible();
+  await expect(page.locator(".cv2-compose-save")).toBeVisible();
+  // 点击 pill → 右栏助手可见且既有停止控件在（不新增第二套停止入口）
+  await pill.click();
+  await expect(page.getByRole("button", { name: "停止生成" })).toBeVisible();
+  // 生成结束/失败即消失
+  await expect(page.locator(".writing-notice")).toContainText(/中断|未完成/);
+  await expect(pill).toHaveCount(0);
+});
+
 test("加载态「正在载入稿件…」在稿件拉取期间出现", async ({ page }) => {
   await signup(page, "compose-loading@example.test");
   const id = await createProject(page, "加载态验证");
@@ -1247,6 +1333,35 @@ test("移动 390：阶段条与助手双面板真实动作，通知可关闭", a
   await page.reload();
   await expect(cm(page)).toBeVisible();
   await cm(page).fill("# 移动预览标题\n\n移动端预览的正文段落。");
+
+  // P2-03：生成中全局 pill 在 390 窄屏不产生横向溢出（生成期间测量）。
+  // 助手输入在助手面板内，先切到助手再发起。
+  const mobilePaneTabs = page.locator(".cv2-compose-mobiletabs");
+  await mobilePaneTabs.getByRole("button", { name: "AI 写作助手" }).click();
+  const instruction = page.getByLabel("与助手讨论或提出写作要求");
+  await instruction.fill("请做一次会中断的流式生成");
+  await page
+    .getByLabel("允许本次向已配置模型发送文章、参考素材与写作要求")
+    .check();
+  await page.getByRole("button", { name: "生成写作建议", exact: true }).click();
+  const pill = page.locator(".cv2-generating-pill");
+  await expect(pill).toBeVisible();
+  const overflowDuringPill = await page.evaluate(() => {
+    const viewport = window.innerWidth;
+    const scrollWidth = Math.max(
+      document.documentElement.scrollWidth,
+      document.body ? document.body.scrollWidth : 0
+    );
+    return { scrollWidth, viewport };
+  });
+  expect(
+    overflowDuringPill.scrollWidth - overflowDuringPill.viewport,
+    `pill 可见时横向溢出 ${overflowDuringPill.scrollWidth}>${overflowDuringPill.viewport}`
+  ).toBeLessThanOrEqual(0);
+  // 生成结束（合成流中断）→ pill 消失
+  await expect(page.locator(".writing-notice")).toContainText(/中断|未完成/);
+  await expect(pill).toHaveCount(0);
+  await mobilePaneTabs.getByRole("button", { name: "正文", exact: true }).click();
 
   // 阶段条切换：配图阶段助手面板为 AI 配图助手，正文可返回
   await page.getByRole("button", { name: "切换到配图阶段" }).click();

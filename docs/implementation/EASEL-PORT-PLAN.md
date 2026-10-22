@@ -1,8 +1,9 @@
 # Easel 体验移植落地方案（EASEL-PORT-PLAN）
 
-> 状态：设计定稿 r2（2026-10-21，按评审意见修订：P1-01 与 epoch effect 协同、
-> setStage 多路径 URL 单点化、Phase 1 拆分为两个 run、e2e 计数更正、
-> §0 范围限定、P1-03 验收措辞、P1-02 去重决策）。
+> 状态：设计定稿 r3（2026-10-22：Run B 开工前基线核对——记录 Run A 后行号漂移
+> 与 e2e 计数 29、追加 §10 服务端 Agent 化章节；r2 2026-10-21 修订：P1-01 与
+> epoch effect 协同、setStage 多路径 URL 单点化、Phase 1 拆分为两个 run、
+> e2e 计数更正、§0 范围限定、P1-03 验收措辞、P1-02 去重决策）。
 > 本文档是「把 Easel 的流程与设计改造到本仓库」的总方案：差距矩阵 + 分期路线 +
 > Phase 1 施工详单。Phase 1 为一个 run 内可施工完的切片。
 >
@@ -114,7 +115,7 @@ history 集成验证 + epoch effect 矛盾修复 + 新 e2e；其余三项各自�
 | Phase | 一句话方向 |
 |-------|-----------|
 | **Phase 1（Run A，本次施工）** | 阶段可导航：`?stage=` 深链 + 前进后退 + 三条 setStage 路径 URL 单点化 + epoch effect stage 协同（P1-01，唯一 workItem） |
-| **Phase 2（Run B）** | 就绪可读与写作导航：P2-01 发布就绪度全阶段可见（Easel 式就绪度条）、P2-02 大纲点击真跳转+active 跟随光标、P2-03 通知分级+生成中全局指示——三项规格已定稿（§5），Run A 验收通过后即可施工 |
+| **Phase 2（Run B）** | 就绪可读与写作导航：P2-01 发布就绪度全阶段可见（Easel 式就绪度条）、P2-02 大纲点击真跳转+active 跟随光标、P2-03 通知分级+生成中全局指示——三项规格已定稿（§5，行号按 §10.1 现位执行）；服务端 Agent 切片为 SA-01/02/03，规格唯一来源 `EASEL-AGENT-SERVER-PLAN.md`（2026-10-22 定稿：**AG-01/AG-02 移出本期**，见该方案 §3/§7 与本节 §10.2/§10.3 状态注）。Run B 名册 = P2-01/02/03 + SA-01/02/03 共 6 项 |
 | **Phase 3** | 工作台总览 Easel 化：`CreatorHome` 最近作品行升级为六阶段进度点（复用 compose-view 派生，吃 overview 既有 per-channel facts），作品库行内同样指示 |
 | **Phase 4** | 审稿体验升级：版本历史两版对比 diff（前端纯计算，数据来自既有 `GET /history`）、建议卡就地并排对比（审稿阶段内不再跳阶段）、三处原生 confirm 换应用内对话框 |
 | **Phase 5** | 小红书渠道 IA 并轨：xhs 纳入五阶段呈现（等效 research/review 工作面 + 阶段条），数据面仍走既有 `src/xiaohongshu.mjs` 与图文工作区，不改 API |
@@ -259,11 +260,14 @@ history 集成验证 + epoch effect 矛盾修复 + 新 e2e；其余三项各自�
   `src/compose-view.mjs`、`test/compose-view.test.mjs`、
   `e2e/creator-v2-compose.spec.mjs`
 - **spec**:
-  1. `src/compose-view.mjs`：`outlineItems`（:39-52）每行增加 `line`（1-based
+  1. `src/compose-view.mjs`：`outlineItems`（现位 :48-61）每行增加 `line`（1-based
      行号，正则已在逐行扫描，零成本）；新增纯函数
-     `activeOutlineIndex(items, cursorFrom, 行偏移表)`——给定光标
-     `from` 与各标题行起始偏移，返回光标所在/之前的最后一个标题下标；单测覆盖
-     （标题前/标题行上/两标题之间/空文档）。
+     `markdownLineOffsets(markdown)`（逐行累计每个 1-based 行在全文的起始 UTF-16
+     偏移，产出「行偏移表」）与 `activeOutlineIndex(items, cursorFrom, lineOffsets)`——
+     给定光标 `from` 与行偏移表，返回光标所在/之前的最后一个标题下标。
+     **行偏移表的生产者归属 compose-view 纯函数**（不在组件里手写偏移累加），
+     `markdownLineOffsets` 单测须含多字节（中文）字符行与末行无换行两例，
+     `activeOutlineIndex` 单测覆盖标题前/标题行上/两标题之间/空文档。
   2. `DoocsEditor.jsx`：ref 新增 `revealLine(line)`：
      `const target = view.state.doc.line(line).from; view.dispatch({selection:
      {anchor: target}, scrollIntoView: true}); view.focus()`——CodeMirror 6 原生
@@ -274,7 +278,9 @@ history 集成验证 + epoch effect 矛盾修复 + 新 e2e；其余三项各自�
        `editor.current?.revealLine(o.line)`；
      - active class 从固定 `i === 0`（:1794）改为
        `i === activeIdx`，`activeIdx` 由既有 `onSelection={setSelection}`（:2000）
-       回传的 `selection.from` 派生（配合 markdown 行偏移表，`useMemo` 计算）；
+       回传的 `selection.from` 派生（`useMemo` 内调用上述 compose-view 纯函数：
+       `markdownLineOffsets(markdown)` 产出偏移表 + `activeOutlineIndex(outline,
+       selection.from, offsets)`，组件不自带偏移计算逻辑）；
   4. 源码视图（view === "source"，编辑器隐藏）下大纲点击先切回分栏再跳转
      （施工时定交互细节，记入 QA）。
   5. e2e :910（「左栏大纲链接点击聚焦编辑器」）更新为：点击第三个大纲项 →
@@ -316,7 +322,8 @@ history 集成验证 + epoch effect 矛盾修复 + 新 e2e；其余三项各自�
   - e2e 更新：:695 通知条用例保持通过（关闭按钮不变）；冲突场景 notice 带
     error 样式类；生成期间（mock 流式）头部 pill 出现、点击后右栏可见且停止
     控件在；生成完成后 pill 消失；
-  - 移动 390 用例（:402, :1230）不出现横向溢出（pill 在窄屏折行或缩为图标+文字）；
+  - 移动 390 用例（:402, :1230；现位 :404, :1232，见 §10.1）不出现横向溢出
+    （pill 在窄屏折行或缩为图标+文字）；
   - `npm run check`、`npm test`、`npm run build` 通过。
 - **risk**: low（别名迁移零破坏；pill 只做导航不做状态源）
 
@@ -343,7 +350,7 @@ history 集成验证 + epoch effect 矛盾修复 + 新 e2e；其余三项各自�
 npm run check          # 语法门禁（含 src/compose-view.mjs）
 npm test               # node --test test/*.test.mjs（含 compose-view 单测）
 npm run build          # build-guard 包裹的生产构建
-npm run test:e2e       # playwright（/compose 相关 spec 必须全绿，现 26 条）
+npm run test:e2e       # playwright（/compose 相关 spec 必须全绿，Run A 后现 29 条；另 e2e/agent-runtime.spec.mjs 全绿）
 ```
 
 定向调试：`npx playwright test e2e/creator-v2-compose.spec.mjs`。
@@ -398,3 +405,139 @@ epoch :327 一行改动的护栏说明、源码视图跳转交互细节（P2-02 
   写入该期 QA。
 - Run A/B 的体量按评审意见拆分；若 Run A 一次通过且余量充足，Run B 可提前，
   但两 run 不合并（P1-01 的降级/返工概率是拆分动因）。
+
+---
+
+## 10. Run B 定稿基线与服务端 Agent 化（2026-10-22 追加）
+
+> 基线核对结论（本节锚点均在现 HEAD 逐一复核）：工作树 HEAD =
+> `3d48afe83a03a42262d1564f5e3dc4d925bf4e09`（分支 `feat/easel-port-phase1`，
+> `git status --porcelain` 为空），即 Run A 的 docs(qa) 提交；PR #51 状态 OPEN
+> （`gh pr view 51 --json state,headRefName` → `{"headRefName":"feat/easel-port-phase1",
+> "state":"OPEN"}`），**Run A 已验收提交但未进 main（main = `0096429`）**。
+> Run B 基于该分支施工（叠加同分支或待合入后开工属工作流决策，不改变本节规格）。
+> `grep -cE "^test\(" e2e/creator-v2-compose.spec.mjs` = **29**（Run A 新增深链
+> 用例所致），§4/§7 中「26 条」为 Run A 前的历史口径；既有用例迁移位置见 §10.1。
+
+### 10.1 §5 锚点漂移表（施工以现位为准，不按 §5 旧行号改）
+
+| 锚点 | §5 写定（0096429） | 现 HEAD（3d48afe，本次复核） |
+|---|---|---|
+| `src/compose-view.mjs` | parseStage :12-…、composeSteps :12-35、outlineItems :39-52、checkSummary :56-60 | parseStage :17-19、composeSteps :21-44、outlineItems :48-61、checkSummary :65-69 |
+| `WritingWorkspace.jsx` 阶段/URL（Run A 产物） | —— | stage 初值 :158、epoch 协同 :341-343、popstate effect :399-404、openPlanner :448、syncStageUrl :472 |
+| P2-01 ribbon | :1413-1433 | 检查行现 :1460-1466 |
+| P2-01 publish 侧卡检查行 | :1756-1758 | :1798-1804 |
+| P2-01 导出 disabled | :1684,:1703,:1710 共 3 处 | **共 4 处**：:1728/:1747/:1754/:1787（`allChecksDone` 定义 :188）——「零改动」约束须四处逐一核对 |
+| P2-01 stale 判定 | :1826-1852 | :1889-1895 |
+| P2-02 大纲 onClick `focus()` | :1798 | :1842（active `i===0` :1838；`onSelection={setSelection}` :2044） |
+| P2-03 notice | state :117、渲染 :1486-1493 | state :117、渲染 :1529-1535 |
+| P2-03 头部 actions / 助手 busy 区 | :1234-1306 / :2231-2258 | ~:1296-1335 / ~:2259-2307 |
+| e2e/creator-v2-compose.spec.mjs | 26 条；:223/:402/:695/:910/:1230 | **29 条**；:225/:404/:697/:912/:1232（与旧锚逐一对应，:404=移动 390×844 用例；用例内注释 :920 还引旧行号） |
+
+### 10.2 Run B 施工项定稿
+
+Run B 共 **6 个 workItem**：**P2-01/02/03 规格以 §5 为准**（行号按 §10.1 现位执行），
+其中 §5 P2-01 第 3 点的「侧卡去重决策（r2）」仍由 P2-01 一并承载（不拆独立条目），
+P2-02 的验收以 CodeMirror 光标行 DOM 断言（`.cm-activeLine`）为最终形态；
+服务端 Agent 切片为 **SA-01/02/03**（2026-10-22 评审后定稿，规格唯一来源
+`EASEL-AGENT-SERVER-PLAN.md`）。**原起草的 AG-01/AG-02（§10.3 `article-pipeline`
+技能）移出本期**——本期总项数上限（≤6）让位远程可靠性修复，其设计保留为下期首位
+候选，施工名册不得再引用本节 §10.3。§6 不变量护栏对照对六项全部适用，
+另加：Agent 化不得触碰发布阶段（见 §10.4；`EASEL-AGENT-SERVER-PLAN.md` §5 同守）。
+
+### 10.3 服务端 Agent 化：内置技能 `article-pipeline`（全流程初稿流水线）
+
+> **状态（2026-10-22 修订）**：AG-01/AG-02 **已移出本期 Run B**（名册见 §10.2 与
+> `EASEL-AGENT-SERVER-PLAN.md` §3/§7——本期预算让位流式可靠性/重驱动/拓扑冒烟三项）。
+> 本节设计原样保留，作为该技能下期施工的首选方案；其「零新增端点、零 schema 变更、
+> 不新增事件 kind」约束继续有效，届时以 `EASEL-AGENT-SERVER-PLAN.md` SA-01/02 落地后的
+> 可靠流与重驱动为运行前提。
+
+**目标**：把 Easel 式「阶段流水线」做成**服务端可用**的 Agent——不依赖 UI，
+纯 HTTP（创建运行 + 读 NDJSON 流）即完成「读简报/上下文 → 确保大纲 → 生成初稿 →
+自审一轮 → 收尾汇总」一次全流程。全部复用既有 AgentRuntime（`src/agent-runtime.mjs`）
+与 agent-runs 路由（`lib/creator-api.mjs:20-75`），**零新增端点、零 schema 变更**
+（`agent_runs`/`agent_run_steps` 表已存在，`src/agent-runtime.mjs:33-48`）。
+
+**编排即技能（不写编排引擎）**：五步编排编码进技能 `systemPrompt`，由既有 24 步
+工具循环执行（`AGENT_MAX_STEPS=24` :18；连续 3 次模型失败即 failed :210-217；
+每步以既有 `model`/`tool` step 落 `agent_run_steps` 并经 NDJSON 流出
+:213/:220/:230、`lib/creator-api.mjs:36-75`；**不新增事件 kind**）：
+
+1. **读**：`read_brief`/`read_context`（需要素材再 `search_assets`）；
+2. **确保大纲**：当前 markdown 无标题时先产出标题骨架；
+3. **生成初稿**：`writeMode==="revisions"` 时 `write_revision` 写入含大纲的完整
+   初稿（新修订；走 `ctx.expectedRevision()`→`onWritten` 修订推进链，
+   `src/agent-tools.mjs:64-73`）。默认 ag_default 为建议制（`src/agent-runtime.mjs:52-57`），
+   运行时本就不把 `write_revision` 发给模型（:205）——技能按 draft-writer 先例
+   （`src/agent-skills.mjs:12`）降级为 `write_suggestions` 结构化建议批；
+   空稿+建议制时不硬凑建议，如实说明需切换直写模式；
+4. **自审一轮**：**一律** `write_suggestions`（≤12 处互不重叠、original 精确匹配；
+   直写模式下对刚写入的新修订提建议，经 :165-167 的 revision 跟踪不产生 409），
+   建议仍逐条由作者接受——即使直写模式也不直接改稿；
+5. **收尾汇总**：不再调用工具，以最终 content 列出产出与**人工**下一步
+   （审阅建议 → 四项人工检查 → 配图 → 导出准备），措辞止于「导出准备」。
+
+**铁律（写进 systemPrompt，GUARD 结尾，`src/agent-skills.mjs:1-2`）**：
+发布阶段绝不自动化——技能工具面 `["read_document","read_brief","read_context",
+"search_assets","write_revision","write_suggestions"]` 全部 ⊆ `DEFAULT_AGENT_TOOLS`
+（:19-24），**不含任何导出/发布/跨渠道/xhs 渲染工具**（`AGENT_TOOLS` 本身即无
+publish/export 工具，结构性排除，`src/agent-tools.mjs:15-111`）；每个写操作走既有
+`expectedRevision` 路径（409 即 `interrupted` 待核对，:257-260）；AI 输出是假设、
+先入待采纳区（startRun 门禁复用：技能 404 :147、渠道 403 :148、工具交集为空 403
+:149-150、显式 consent 403 :151、非 markdown 409 :153、`expectedRevision` 409 :154、
+同稿件 running 409 :155——全部零改动）。
+
+**服务端可用（curl 全流程示例，进 QA/README；默认本地模式 127.0.0.1:4312，
+`package.json:11`、`scripts/runtime-guard.mjs:17,35`；V58 边界内：
+`src/local-api-boundary.mjs:39-79` 要求回环 URL、有 body 的写请求必须 JSON
+content-type，curl 不带 Origin/sec-fetch-\* 头则相应检查跳过）**：
+
+```bash
+# 0)（可选）切直写模式：默认 ag_default 为建议制，流水线直写初稿需 revisions
+curl -s -X PUT http://127.0.0.1:4312/api/creator/agent \
+  -H 'content-type: application/json' -d '{"writeMode":"revisions"}'
+# 1) 列技能（GET，只读；应含 article-pipeline）
+curl -s http://127.0.0.1:4312/api/creator/agent-skills
+# 2) 创建一次全流程运行（channel 缺省 master；consent 与 expectedRevision 必填，
+#    expectedRevision 取自 GET /api/writing/projects/<id>/master 的 revision 字段）
+curl -s -X POST http://127.0.0.1:4312/api/creator/projects/ep_<id>/agent-runs \
+  -H 'content-type: application/json' \
+  -d '{"skillId":"article-pipeline","instruction":"按简报产出完整初稿","expectedRevision":<当前revision>,"allowExternalAI":true}'
+# 3) 读 NDJSON 进度流（每行一个 step {seq,kind,payload,createdAt}；终态附
+#    {"kind":"run_done",status,stopReason} 后关流；600s deadline）
+curl -sN http://127.0.0.1:4312/api/creator/projects/ep_<id>/agent-runs/ar_<id>/events
+# 4) 取完整轨迹 / 取消
+curl -s http://127.0.0.1:4312/api/creator/projects/ep_<id>/agent-runs/ar_<id>
+curl -s -X POST http://127.0.0.1:4312/api/creator/projects/ep_<id>/agent-runs/ar_<id>/cancel
+```
+
+边界注：本地默认模式（非 dokploy、非 MULTIUSER）无会话要求；
+`CONTENT_STUDIO_MULTIUSER=1` 下需持登录会话 cookie（同 `e2e/agent-runtime.spec.mjs:174-179`
+的 page.request 形态）。以上 curl 形态从路由与边界代码推导，**本设计阶段未实跑**；
+Run B 施工时在 QA 记录实际验证结果。
+
+**测试面**：
+- 三处技能数断言 7→8：`test/agent-skills.test.mjs:8`（精确 id 列表 deepEqual）、
+  `test/agent-runtime.test.mjs:150`（`assert.equal(skills.skills.length,7)`）、
+  `e2e/agent-runtime.spec.mjs:203`（`toHaveCount(7)`）。UI 技能面板无第四处硬编码
+  （`components/AgentRuns.jsx:15` 动态拉取 `/api/creator/agent-skills`，:66 工具
+  预览按技能动态拼接）。
+- 单测：`test/agent-skills.test.mjs` 新增 article-pipeline 声明断言（含 GUARD、
+  tools 子集、双模式契约）；`test/agent-runtime.test.mjs` 新增 fetchImpl 脚本化
+  全流程运行（profile 切 revisions 后跑通「读→write_revision→write_suggestions→
+  收尾」，断言步骤序、修订推进、无越权工具）。
+- e2e：在现有合成回环模型夹具（`e2e/agent-runtime.spec.mjs:15-158`：回环
+  OpenAI 兼容模型服务器 + runtime-guard 生产服务器 + MULTIUSER 会话）上新增一条
+  article-pipeline 运行用例（AG-02）。
+
+### 10.4 Run B 追加不做（§8 全部继续有效）
+
+- 不新增任何 HTTP 端点/路由/NDJSON 事件 kind/SQLite schema；
+- 不写第二套编排引擎/状态机/任务队列——编排=技能提示词+既有工具循环；
+- 不自动化发布、导出、跨渠道同步与建议批量接受；article-pipeline 收尾只列
+  人工下一步，绝不出现「已发布/自动发布/可发布」措辞；
+- 不动 `expectedRevision`/保存/decide/master-sync 语义与导出 gate（4 处）；
+- 不做 AgentRuns 卡片化等 UI 配套（Phase 7）；技能面板仅 option 数自然 +1；
+- Phase 2 三项维持既有不包含项：xhs 渠道布局（Phase 5）、版本 diff 与 confirm
+  替换（Phase 4）、CreatorHome 改版（Phase 3）、检查快照绑定（Phase 6）。

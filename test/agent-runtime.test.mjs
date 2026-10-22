@@ -377,3 +377,250 @@ test('runSince 增量返回游标之后的步骤并保留终态运行字段',asy
  assert.deepEqual(stitched.map(s=>s.seq),Array.from({length:total},(_,i)=>i+1));
  assert.throws(()=>core.agent.runSince(id,'ar_missing'),e=>e.status===404);
 });
+
+// ---- SA-01：事件流心跳与 ?since= 续读游标 ----
+
+function openEvents(core,projectId,runId,query=''){
+ return dispatchApi(new Request('http://127.0.0.1:4312'+`/api/creator/projects/${projectId}/agent-runs/${runId}/events${query}`),core);
+}
+const parseFrames=text=>text.split('\n').filter(l=>l.trim()).map(l=>JSON.parse(l));
+
+test('events ?since= 只投递增量步骤，run_done 不携带 seq（游标不推进）',async t=>{
+ provider(t);const env=setup(t),core=env.core;
+ const doc=core.writing.create({title:'游标事件'}),id=doc.projectId;
+ const saved=core.writing.save(id,'master',{expectedRevision:doc.revision,markdown:'游标事件正文。'});
+ let phase=0;
+ const call=name=>args=>new Response(JSON.stringify({choices:[{finish_reason:'tool_calls',message:{role:'assistant',content:null,tool_calls:[{id:'e'+ ++phase,type:'function',function:{name,arguments:JSON.stringify(args)}}]}}]}),{headers:{'content-type':'application/json'}});
+ const fetchImpl=async()=>{
+  if(phase===0)return call('read_document')({});
+  if(phase===1)return call('write_suggestions')({reason:'游标事件建议',edits:[{from:0,to:6,original:'游标事件正文',replacement:'游标事件改写'}]});
+  return final()};
+ const run=await core.agent.startRun(id,'master',{skillId:'selection-rewriter',instruction:'游标',expectedRevision:saved.revision,allowExternalAI:true,fetchImpl});
+ await core.agent.runSettled(run.id);
+ const total=core.agent.run(id,run.id).steps.length;
+ assert.ok(total>=3);
+ // 全量：步骤帧 + 收尾 run_done（无 seq 字段——客户端不得用 undefined 推进游标）
+ const all=parseFrames(await (await openEvents(core,id,run.id)).text());
+ assert.equal(all.filter(f=>f.kind!=='run_done').length,total);
+ assert.deepEqual(all.filter(f=>f.kind!=='run_done').map(s=>s.seq),Array.from({length:total},(_,i)=>i+1));
+ const done=all.at(-1);
+ assert.equal(done.kind,'run_done');
+ assert.equal(done.status,'completed');
+ assert.equal('seq' in done,false);
+ // 对照 runSince 游标分区：since=total 只收 run_done，不重放任何步骤
+ const tail=parseFrames(await (await openEvents(core,id,run.id,'?since='+total)).text());
+ assert.equal(tail.length,1);
+ assert.equal(tail[0].kind,'run_done');
+ // since=1 → seq 2..total + run_done
+ const mid=parseFrames(await (await openEvents(core,id,run.id,'?since=1')).text());
+ assert.deepEqual(mid.filter(f=>f.kind!=='run_done').map(s=>s.seq),Array.from({length:total-1},(_,i)=>i+2));
+ // 非法/负数 since 不生效：回退全量重放
+ for(const bad of ['?since=abc','?since=-1']){
+  const frames=parseFrames(await (await openEvents(core,id,run.id,bad)).text());
+  assert.equal(frames.filter(f=>f.kind!=='run_done').length,total);
+ }
+});
+
+test('心跳：CONTENT_STUDIO_AGENT_STREAM_HEARTBEAT_MS=3000 下 9s 读窗口 ≥2 个空行帧',async t=>{
+ provider(t);const env=setup(t),core=env.core;
+ const doc=core.writing.create({title:'心跳下限'}),id=doc.projectId;
+ const saved=core.writing.save(id,'master',{expectedRevision:doc.revision,markdown:'心跳正文。'});
+ process.env.CONTENT_STUDIO_AGENT_STREAM_HEARTBEAT_MS='3000';
+ t.after(()=>{delete process.env.CONTENT_STUDIO_AGENT_STREAM_HEARTBEAT_MS});
+ let release;const gate=new Promise(r=>{release=r});
+ const run=await core.agent.startRun(id,'master',{skillId:'selection-rewriter',instruction:'x',
+  expectedRevision:saved.revision,allowExternalAI:true,
+  fetchImpl:async()=>{await gate;return final()}});
+ const events=await openEvents(core,id,run.id);
+ const reader=events.body.getReader(),dec=new TextDecoder();
+ // 后台泵持续 read（不可对同一 reader 反复 race 超时——被放弃的 read 仍在
+ // 队列里，会吞掉到达的帧），主窗口等待 9s 后统计。
+ let buf='',empty=0,frames=0,streamDone=false;
+ const pump=(async()=>{
+  try{
+   for(;;){
+    const {done,value}=await reader.read();
+    if(done){streamDone=true;return}
+    buf+=dec.decode(value,{stream:true});
+    const lines=buf.split('\n');buf=lines.pop();
+    for(const line of lines)line.trim()===''?empty++:frames++;
+   }
+  }catch{streamDone=true}
+ })();
+ await new Promise(r=>setTimeout(r,9000));
+ const emptyDuringHang=empty,framesDuringHang=frames;
+ release(final());
+ await core.agent.runSettled(run.id);
+ await Promise.race([pump,new Promise(r=>setTimeout(r,2000))]);
+ assert.ok(emptyDuringHang>=2,'9s 读窗口应至少 2 个空行心跳，实际 '+emptyDuringHang);
+ // 挂起期间零事件帧：空行心跳不是事件 kind
+ assert.equal(framesDuringHang,0,'挂起期间不应有事件帧，实际 '+framesDuringHang);
+});
+
+test('更小的心跳值被 Math.max 抬到下限：CONTENT_STUDIO_AGENT_STREAM_HEARTBEAT_MS=100 不会密集发射',async t=>{
+ provider(t);const env=setup(t),core=env.core;
+ const doc=core.writing.create({title:'心跳钳制'}),id=doc.projectId;
+ const saved=core.writing.save(id,'master',{expectedRevision:doc.revision,markdown:'钳制正文。'});
+ process.env.CONTENT_STUDIO_AGENT_STREAM_HEARTBEAT_MS='100';
+ t.after(()=>{delete process.env.CONTENT_STUDIO_AGENT_STREAM_HEARTBEAT_MS});
+ let release;const gate=new Promise(r=>{release=r});
+ const run=await core.agent.startRun(id,'master',{skillId:'selection-rewriter',instruction:'x',
+  expectedRevision:saved.revision,allowExternalAI:true,
+  fetchImpl:async()=>{await gate;return final()}});
+ const events=await openEvents(core,id,run.id);
+ const reader=events.body.getReader(),dec=new TextDecoder();
+ let buf='',empty=0;
+ const pump=(async()=>{
+  try{
+   for(;;){
+    const {done,value}=await reader.read();
+    if(done)return;
+    buf+=dec.decode(value,{stream:true});
+    const lines=buf.split('\n');buf=lines.pop();
+    for(const line of lines)if(!line.trim())empty++;
+   }
+  }catch{}
+ })();
+ await new Promise(r=>setTimeout(r,9000));
+ release(final());
+ await core.agent.runSettled(run.id);
+ await Promise.race([pump,new Promise(r=>setTimeout(r,2000))]);
+ assert.ok(empty>=2,'钳制后仍应有正常心跳，实际 '+empty);
+ assert.ok(empty<=4,'未钳制时 9s 窗口会出现约 10 个空行；实际 '+empty+' 说明 Math.max 下限未生效');
+});
+
+// ---- SA-02：中断/失败运行的 resumeOf 重驱动 ----
+
+const toolResponse=name=>args=>new Response(JSON.stringify({choices:[{finish_reason:'tool_calls',
+ message:{role:'assistant',content:null,tool_calls:[{id:'t_'+Math.random().toString(16).slice(2),type:'function',
+ function:{name,arguments:JSON.stringify(args)}}]}}]}),{headers:{'content-type':'application/json'}});
+
+test('interrupted 运行可用 resumeOf 重驱动：续跑 completed、首步骤 resume、两次建议共存',async t=>{
+ provider(t);const env=setup(t),core=env.core;
+ const doc=core.writing.create({title:'重驱动'}),id=doc.projectId;
+ const saved=core.writing.save(id,'master',{expectedRevision:doc.revision,markdown:'需要重试的原始句子。'});
+ const suggest=toolResponse('write_suggestions');
+ let phase=0;
+ const fetchA=async()=>{
+  if(phase===0){phase=1;return suggest({reason:'中断前建议',edits:[{from:0,to:4,original:'需要重试',replacement:'第一次修改'}]})}
+  // 放行后：tracked.revision 已被作者保存甩开 → 写工具 409 → interrupted
+  return suggest({reason:'漂移建议',edits:[{from:0,to:2,original:'需要',replacement:'漂'}]})};
+ let release;const gate=new Promise(r=>{release=r});
+ phase=0;
+ const gatedFetch=async(u,o)=>{if(phase===1){await gate}return fetchA(u,o)};
+ const run1=await core.agent.startRun(id,'master',{skillId:'selection-rewriter',instruction:'首轮',
+  expectedRevision:saved.revision,allowExternalAI:true,fetchImpl:gatedFetch});
+ while(core.writing.suggestions(id,'master').length<1)await new Promise(r=>setTimeout(r,20));
+ const authorSaved=core.writing.save(id,'master',{expectedRevision:core.writing.document(id,'master').revision,
+  markdown:'作者在运行中改了正文。'});
+ release();
+ await core.agent.runSettled(run1.id);
+ assert.equal(core.agent.run(id,run1.id).status,'interrupted');
+ assert.equal(core.writing.suggestions(id,'master').length,1);
+ // 续跑：以当前正文为基准开新运行（不是断点续传），首步骤 resume
+ let observed=null;
+ const fetchB=async(url,options)=>{
+  observed=JSON.parse(options.body);
+  // 工具结果后的收尾调用返回终稿，结束运行
+  if(observed.messages.at(-1).role==='tool')return final();
+  return suggest({reason:'续跑建议',edits:[{from:0,to:5,original:'作者在运行',replacement:'续跑后的表达'}]})};
+ const run2=await core.agent.startRun(id,'master',{skillId:'selection-rewriter',instruction:'首轮',
+  expectedRevision:authorSaved.revision,allowExternalAI:true,fetchImpl:fetchB,resumeOf:run1.id});
+ assert.equal(run2.status,'running');
+ await core.agent.runSettled(run2.id);
+ const done=core.agent.run(id,run2.id);
+ assert.equal(done.status,'completed');
+ assert.equal(done.steps[0].kind,'resume');
+ assert.equal(done.steps[0].seq,1,'resume 首步骤占用 seq=1，_loop 从其后继续');
+ assert.equal(done.steps[0].payload.resumeOf,run1.id);
+ assert.equal(done.steps[0].payload.baseRevision,authorSaved.revision);
+ assert.equal(done.steps.some(s=>s.kind==='tool'&&s.payload?.name==='write_suggestions'),true);
+ assert.equal(core.writing.suggestions(id,'master').length,2,'中断前与续跑的建议应共存');
+ assert.equal(JSON.parse(observed.messages[1].content).revision,authorSaved.revision,'续跑以当前正文为基准');
+});
+
+test('resumeOf 409 矩阵、404 与 403 门禁，空绑定行不建跑',async t=>{
+ provider(t);const env=setup(t),core=env.core;
+ const doc=core.writing.create({title:'续跑门禁'}),id=doc.projectId;
+ const saved=core.writing.save(id,'master',{expectedRevision:doc.revision,markdown:'续跑门禁正文。'});
+ const base=over=>({skillId:'selection-rewriter',instruction:'x',expectedRevision:saved.revision,allowExternalAI:true,...over});
+ // 403：consent 仍必填
+ await assert.rejects(()=>core.agent.startRun(id,'master',{...base({resumeOf:'ar_'+'0'.repeat(36)}),allowExternalAI:false}),e=>e.status===403);
+ // 404：不存在的 resumeOf
+ await assert.rejects(()=>core.agent.startRun(id,'master',base({resumeOf:'ar_'+'0'.repeat(36)})),e=>e.status===404);
+ // completed / cancelled 均不可续跑
+ const done=await core.agent.startRun(id,'master',{...base(),fetchImpl:async()=>final()});
+ await core.agent.runSettled(done.id);
+ assert.equal(core.agent.run(id,done.id).status,'completed');
+ await assert.rejects(()=>core.agent.startRun(id,'master',base({resumeOf:done.id})),e=>e.status===409);
+ let releaseC;const gateC=new Promise(r=>{releaseC=r});
+ const cancelledRun=await core.agent.startRun(id,'master',{...base(),fetchImpl:async()=>{await gateC;return final()}});
+ core.agent.cancelRun(id,cancelledRun.id);
+ releaseC(final());
+ await core.agent.runSettled(cancelledRun.id);
+ await assert.rejects(()=>core.agent.startRun(id,'master',base({resumeOf:cancelledRun.id})),e=>e.status===409);
+ // 公众号渠道 completed 运行：渠道不符 → 409
+ const wechatSaved=core.writing.save(id,'wechat',{expectedRevision:core.writing.document(id,'wechat').revision,
+  markdown:'公众号续跑门禁。',sourceMasterRevision:saved.revision});
+ const wechatRun=await core.agent.startRun(id,'wechat',{...base({expectedRevision:wechatSaved.revision}),fetchImpl:async()=>final()});
+ await core.agent.runSettled(wechatRun.id);
+ await assert.rejects(()=>core.agent.startRun(id,'master',base({resumeOf:wechatRun.id})),e=>e.status===409);
+ // interrupted 运行：技能不符 / 当前正文 expectedRevision 不符 → 409
+ const suggest=toolResponse('write_suggestions');
+ const slow=()=>new Promise(r=>setTimeout(r,80));
+ const inter=await core.agent.startRun(id,'master',{...base(),fetchImpl:async(u,o)=>{await slow();return suggest({reason:'r',edits:[{from:0,to:2,original:'续跑',replacement:'x'}]})}});
+ const authorRev=core.writing.save(id,'master',{expectedRevision:saved.revision,markdown:'作者中断后的正文。'}).revision;
+ await core.agent.runSettled(inter.id);
+ assert.equal(core.agent.run(id,inter.id).status,'interrupted');
+ await assert.rejects(()=>core.agent.startRun(id,'master',base({skillId:'draft-writer',expectedRevision:authorRev,resumeOf:inter.id})),e=>e.status===409);
+ await assert.rejects(()=>core.agent.startRun(id,'master',base({expectedRevision:saved.revision,resumeOf:inter.id})),e=>e.status===409);
+ // 缺省 skillId：续跑直接取原运行的技能（计划 §SA-02）
+ const defaultSkill=await core.agent.startRun(id,'master',{instruction:'x',expectedRevision:authorRev,allowExternalAI:true,resumeOf:inter.id,fetchImpl:async()=>final()});
+ assert.equal(defaultSkill.skillId,'selection-rewriter');
+ await core.agent.runSettled(defaultSkill.id);
+ assert.equal(core.agent.run(id,defaultSkill.id).status,'completed');
+ // binding_json 为 DDL 默认 '{}' 的陈旧行：409 且不新建运行行
+ core.db.prepare("INSERT INTO agent_runs VALUES('ar_emptybind',?,'master',?,'selection-rewriter',1,'ag_default','interrupted','','测试','{}','dead-owner','2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z')").run(id,authorRev);
+ const runsBefore=core.agent.runs(id).length;
+ await assert.rejects(()=>core.agent.startRun(id,'master',base({expectedRevision:authorRev,resumeOf:'ar_emptybind'})),
+  e=>e.status===409&&/无可用模型绑定/.test(e.message));
+ assert.equal(core.agent.runs(id).length,runsBefore,'空绑定续跑不得留下必然失败的新运行行');
+ // 运行中 → 409（单飞与状态门禁双重拦截；单飞先触发）
+ let releaseR;const gateR=new Promise(r=>{releaseR=r});
+ const running=await core.agent.startRun(id,'master',{...base({expectedRevision:authorRev}),fetchImpl:async()=>{await gateR;return final()}});
+ await assert.rejects(()=>core.agent.startRun(id,'master',base({expectedRevision:authorRev,resumeOf:running.id})),e=>e.status===409);
+ core.agent.cancelRun(id,running.id);
+ releaseR(final());
+ await core.agent.runSettled(running.id);
+});
+
+test('resumeOf 复用原运行绑定：切换选中连接后，续跑调用仍走原连接',async t=>{
+ provider(t);const env=setup(t),core=env.core;
+ const doc=core.writing.create({title:'绑定复用'}),id=doc.projectId;
+ const saved=core.writing.save(id,'master',{expectedRevision:doc.revision,markdown:'绑定复用正文。'});
+ // 连接甲先保存（selected）；失败的运行绑定甲
+ await core.services.save({kind:'text',name:'连接甲',baseUrl:'https://binding-a.example/v1/',model:'model-a',apiKey:'key-aaaa',models:['model-a']});
+ const suggest=toolResponse('write_suggestions');
+ const seen=[];
+ const probe=fetch=>async(url,options)=>{seen.push(String(url));return fetch(url,options)};
+ // failed 运行：移除写工具授权 → 工具未获代理授权 failed（绑定甲，当时被选中）
+ core.agent.saveProfile({tools:['read_document']});
+ const failRun=await core.agent.startRun(id,'master',{skillId:'selection-rewriter',instruction:'x',
+  expectedRevision:saved.revision,allowExternalAI:true,
+  fetchImpl:probe(async()=>suggest({reason:'x',edits:[]}))});
+ await core.agent.runSettled(failRun.id);
+ assert.equal(core.agent.run(id,failRun.id).status,'failed');
+ assert.ok(seen.some(u=>u.startsWith('https://binding-a.example/v1/')),'失败运行应已用连接甲发出模型调用');
+ // 连接乙后保存并成为 selected——此后 captureBinding 会取乙
+ await core.services.save({kind:'text',name:'连接乙',baseUrl:'https://binding-b.example/v1/',model:'model-b',apiKey:'key-bbbb',models:['model-b']});
+ core.agent.saveProfile({tools:['read_document','write_suggestions']});
+ // 续跑 failed：调用必须仍走原绑定的连接甲，而不是当前选中的连接乙
+ seen.length=0;
+ const resumed=await core.agent.startRun(id,'master',{skillId:'selection-rewriter',instruction:'x',
+  expectedRevision:core.writing.document(id,'master').revision,allowExternalAI:true,
+  fetchImpl:probe(async()=>final()),resumeOf:failRun.id});
+ await core.agent.runSettled(resumed.id);
+ assert.equal(core.agent.run(id,resumed.id).status,'completed');
+ assert.ok(seen.some(u=>u.startsWith('https://binding-a.example/v1/')),'续跑应复用原连接甲，实际：'+seen.join(' , '));
+ assert.ok(!seen.some(u=>u.startsWith('https://binding-b.example/v1/')),'续跑不得静默换到当前选中的连接乙');
+});

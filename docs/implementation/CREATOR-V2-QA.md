@@ -192,3 +192,56 @@
 - 本期为呈现层改动：`src/writing.mjs`、`lib/api.mjs` 零 diff，零新增请求；修订树、`expectedRevision` 冲突检测、主稿/平台稿独立、四项人工检查、导出 ≠ 实际发布、AI 建议待采纳区语义全部不变。
 - Windows 宿主上的 `npm test` 因凭据存储权限等 POSIX 环境门禁存在 122 项与本次改动无关的既有失败（与基线逐项 diff 确认零新增）；权威验证以容器内上述结果为准。
 - P2-01/02/03（就绪度条、大纲跳转、通知分级）按方案留待 Run B；未验证真实平台发布与生产部署（与此前边界一致）。
+
+## 9. Easel 移植 Run B：P2-01/02/03 + 服务端 Agent 切片 SA-01/02/03（2026-10-22，feat/easel-agent-server）
+
+### 9.1 改动内容（对应 EASEL-PORT-PLAN.md §5/§10 与 EASEL-AGENT-SERVER-PLAN.md §SA-01/02/03）
+
+**P2-01 发布就绪度全阶段可见**
+- `src/compose-view.mjs` 新增纯函数 `readinessFacts({brief,outlineCount,pendingSuggestions,decidedSuggestions,checks,checkTotal,staleImagePlan,insertedImages})`：返回有序事实 chips（key/label/tone good|warn|info|detail），逐条对齐 composeSteps 现用布尔与原 ribbon 检查事实；人工检查复用 `checkSummary`；诚实上限是「人工检查 4/4 完成（该渠道独立记录）」，全部 label 不含「已发布/可发布」。
+- `WritingWorkspace.jsx`：仅 review/publish 可见的 ribbon 升级为全阶段就绪度条（容器沿用 `.cv2-compose-ribbon` 类 + `cv2-readiness` 修饰，非 xhs 渠道；xhs 渠道维持现状），保留「AI 建议先进入待采纳区」「主稿 / 平台稿独立」两行语义；staleImagePlan 取左栏同源 `illustrationPlan?.stale` 判定。发布侧卡「人工检查 n/4」行删除（就绪度条单一承载），侧卡保留「导出 ≠ 实际发布」边界文案与返回按钮；四处导出 disabled 条件（`resolving||dirty||!allChecksDone`，含 `allChecksDone` 定义）与 PublishingControls 的 disabled 零改动，发布用例回归通过。
+- 样式进 `app/compose/compose-v2.css`（ribbon 同文件；新增 `.cv2-pill.detail` 仅降强调、不引入新语义色，移动端 chips 单行横向滚动）。
+
+**P2-02 大纲点击真跳转 + active 跟随光标**
+- `src/compose-view.mjs`：`outlineItems` 每项新增 1-based `line`；新增 `markdownLineOffsets(markdown)`（行偏移表唯一生产者，逐行累计 UTF-16 起始偏移，多字节/末行无换行入单测）与 `activeOutlineIndex(items,cursorFrom,lineOffsets)`（光标所在/之前的最后一个标题，无匹配返回 -1）。
+- `DoocsEditor.jsx`：ref 新增 `revealLine(line)`——折叠 selection 锚定 `doc.line(line).from` + `scrollIntoView:true` + focus，不产生选中文本，行号超界收敛到首/末行；另在 extensions 加 `highlightActiveLine()`（来自既有依赖 @codemirror/view，无新包），使 `.cm-activeLine` 存在以支撑 e2e 光标行断言与视觉跟随。
+- `WritingWorkspace.jsx`：大纲按钮 onClick 改 `revealOutline(o)`（源码视图下先 setView("split")，`requestAnimationFrame` 后再跳转——隐藏节点上 scrollIntoView 无效，该交互细节记入本节）；active class 从固定 `i===0` 改 `i===activeOutline`，`useMemo` 内调用 compose-view 纯函数（`markdownLineOffsets(markdown)` + `activeOutlineIndex(outline, selection?.from ?? 0, offsets)`），`selection.from` 来自既有 `onSelection={setSelection}`。
+
+**P2-03 通知分级 + 生成中全局指示**
+- 内部 state 改 `{text,tone: info|error|success}`；`notify(text,tone="info")` 唯一入口，`setNotice` 保留为 `notify(text)` 别名——既有调用点零改动（现 `setNotice(` 出现 31 处，含别名定义）；仅关键路径显式升级：persist 保存冲突/retrySave/recoverDraft（blocked）→ error，导出复制/下载成功、恢复为新版本、发布回填、图片插入成功 → success。
+- 渲染：error 用 `role="alert"` + 语义色（`.writing-notice.has-error`，compose-v2.css 用 --cv2-error token），其余 `role="status"`；单条槽位语义保持（不做队列），关闭按钮不变。
+- 头部 actions 在 `busy||compareProgress` 非空时渲染非阻塞 pill「助手生成中…」（`.cv2-generating-pill`），点击 = `setRightOpen(true)+setAssistantTab("writing")` 回到既有助手与停止控件，不新增第二套停止入口；生成结束/失败即消失；保存徽标原样。移动端点击额外 `setMobilePane("assistant")`——否则正文面板遮挡右栏（见 9.3 偏差）。
+
+**SA-01 事件流心跳 + seq 游标自动重连 + 本渠道运行刷新接续**
+- 服务端（`lib/creator-api.mjs` events 分支）：①空行心跳——`lastEmit` 时间戳，每轮 800ms 轮询后无新步骤且距上次发射 ≥ 间隔即 `enqueue("\n")`，零新事件 kind；间隔 `Math.max(3000, Number(process.env.CONTENT_STUDIO_AGENT_STREAM_HEARTBEAT_MS)||15000)`（非 secret 非 NEXT_PUBLIC）。②续读游标——`?since=` 整数 ≥0 才生效，底层 `runSince(afterSeq)`；600s 单连接截止保持。
+- 客户端（`components/AgentRuns.jsx`）：`follow(id,since=0,attempt=0)`；只有步骤帧携带 seq（run_done/error 帧与空行无 seq——跳过游标更新，防 undefined 写入），`seq<=lastSeq` 帧不追加（防御性去重）；流结束/出错先 GET `…/agent-runs/:id` 整体刷新，回填 `lastSeq=max(刷新结果 steps 的 seq, lastSeq)` 后按退避 [1s,2s,4s,8s,15s] 重连（status==='running' 且 attempt<5 且仍挂载且 scope 未变）；耗尽后 onNotice 如实提示「实时进度连接已断开，运行仍在服务端继续；请刷新页面查看轨迹。」；events 裸 fetch 补 401→/signin。挂载 effect 追加 GET `…/agent-runs`，**仅过滤 channel===props.channel 且 status==='running' 的最新一条** setRun 并以 `max(steps.seq,0)` 游标 follow；不回落展示其它渠道或终态运行。重连期间时间线上方 `writing-source-note`「进度连接重连中（第 N 次）…」；不新增停止入口。
+
+**SA-02 中断/失败运行的重驱动（resumeOf，binding_json 首个消费方）**
+- `src/agent-runtime.mjs startRun`：新增可选 `resumeOf`。`old=this.run(projectId,resumeOf)` 不存在自然 404；渠道不符 409「续跑须沿用原渠道」；status ∈ {interrupted,failed} 否则 409（cancelled 是作者显式意图，口径同 writing.mjs）；技能缺省取 `old.skill_id`（客户端传入不符则 409「续跑须沿用原技能」）；`binding_json` 解析无 id 字段即 409「原运行无可用模型绑定，请直接重新发起」——不建跑、不留必然失败的轨迹；有效绑定则复用（原连接事后停用时 V76 指纹调用时 fail-closed 如实 failed，不静默换模型）。首次运行仍走 `captureBinding("text")`。既有门禁全部照旧（consent 403、markdown 409、expectedRevision 409、单飞 409）。
+- 溯源零 schema 变更：新 run 行插入后记首步骤 `{kind:"resume",payload:{resumeOf,baseRevision,fromStatus}}`（fromStatus 为规格 payload 的超集，用于 UI「（原状态）」文案，见 9.3）；`_loop` 加起始 seq 参数避免 `PRIMARY KEY(run_id,seq)` 冲突。
+- UI：renderStep 加 resume 分支「从运行 ar_…（原状态：…）继续，基准修订 vN」；终态提示区在 interrupted/failed 渲染「按原技能与模型绑定重新驱动」按钮 + 说明（以当前正文为基准开启新运行、原轨迹保留、已入库建议/修订不受影响、consent 需重新勾选），点击复用 start 语义强制 `skillId=run.skillId` 并带 resumeOf。
+
+**SA-03 dokploy+MULTIUSER 拓扑冒烟**
+- 新增 `smoke/dokploy-agent-multiuser-v76.test.mjs` + `package.json` 脚本 `test:dokploy:agent`。模式照抄 smoke/dokploy-auth-v75.test.mjs（真实 Next 经 runtime-guard start 拉起 + 模拟 HTTPS 头 + Set-Cookie 手工回填），叠加合成回环模型 provider。链路断言：匿名 health 200 且 runtimeBuild===null、agent-skills 401；注册/登录并断言 `__Host-studio_author` Secure/HttpOnly/SameSite=Strict；登录态技能 7 个、经 /api/writing 建稿存稿（精确 Origin+JSON）；POST agent-runs+consent→201 running；GET events → application/x-ndjson+nosniff 逐步读到 run_done；gated provider 下 cancel→cancelled 且流以 run_done(cancelled) 收尾；负例：跨站 Origin 403、text/plain 400、伪造 x-forwarded-host 403；workspace 隔离双断言——第二名作者 GET …/agent-runs → 200 且 `runs: []`，具名 GET 编造 ar_ id → 404。文件头声明：模拟 HTTPS 头、无真实公网 TLS/Traefik；Traefik 对 NDJSON 的缓冲行为留操作者 curl -N 实测。
+
+### 9.2 门禁与验证（容器内 node22-studio 与 node22-studio:pw；仓库 bind 挂载、node_modules/pw-browsers 为独立卷）
+
+| 命令 | 结果 |
+|---|---|
+| `npm run check` | **PASS**（exit 0） |
+| `npm test` | **667 tests = 662 pass / 2 fail / 3 skipped**——2 失败（V74 no-retention ×2）与 3 跳过（V69 sudo）与 §3/§8.3 基线完全一致（root 容器既有环境豁免），零新增失败；净增 10 项单测全部通过（readinessFacts 三态、markdownLineOffsets 多字节/末行、activeOutlineIndex 四位置、events ?since= 游标分区、心跳下限与钳制、resumeOf 续跑/409 矩阵/空绑定/绑定复用） |
+| `npm run build`（build-guard 封存） | **PASS**：✓ Compiled successfully，V64 回执 candidateCommit=3d48afe…、buildId=See0jqiKVZldct__mCBxi、709 文件、V65 依赖锁绑定。如实注明：构建发生在工作树（HEAD=3d48afe + Run B 未提交改动），回执键为 HEAD 提交；客户端最终修订后重建一次并复跑 compose+agent e2e 与本 smoke |
+| `npx playwright test`（全量 e2e，node22-studio:pw + agent_pw_browsers 卷） | **276 passed / 0 failed / 16 skipped（既有 fixme），11.1m**（较 Run A 基线 274 净增 2 条新用例）；客户端最终修订后复跑 `e2e/creator-v2-compose.spec.mjs + e2e/agent-runtime.spec.mjs`：**32 passed / 2 skipped** |
+| `npm run test:dokploy:agent` | **1/1 PASS**（非 CI 单测：容器内真实 guarded Next 进程 + 模拟 HTTPS 头 + 合成回环 provider；无真实公网 TLS/Traefik，无真实平台发布） |
+| Windows 宿主 `npm test` | 未作为权威口径（§8.4 已登记的 122 项 POSIX 环境既有失败，与本次改动无关，未重新逐项清点） |
+
+e2e 同步更新：creator-v2-compose（就绪度条全阶段断言 + 诚实性上限断言、大纲真跳转/active 跟随/.cm-activeLine、发布侧卡无检查行、通知分级 role/语义色、生成中 pill 桌面与移动 390 溢出用例）、agent-runtime（completed 无重驱动按钮回归守卫 + 刷新接续/他渠道不附着新用例）。
+
+### 9.3 边界与已知偏差（如实登记）
+
+- **P2-01**：ribbon 容器类名保留 `.cv2-compose-ribbon`（新增 `cv2-readiness` 修饰）以便既有 e2e 断言最小迁移；样式落在 compose-v2.css（§5 spec 文本指定），workItem files 列表写的 writing.css 未动（两文件同路由均加载）。
+- **P2-02**：为使 e2e 能断言光标行，给编辑器加了 `highlightActiveLine()`（既有依赖，非新安装）；源码视图跳转交互=先切回分栏、下一帧再 revealLine。验收中的「手工冒烟：接受建议产生的新标题也出现在大纲」以 e2e 等价断言承载（追加标题 → 大纲 4 项 + chip「大纲 4 个标题」；接受建议与手输同走 `setMarkdown` 派生路径，未单独构造接受建议场景）。
+- **P2-03**：pill 点击在 spec 公式（setRightOpen+setAssistantTab）之外补了 `setMobilePane("assistant")`——移动端正文面板会遮挡右栏，不加则点击后仍看不到停止控件；桌面无副作用（mobiletabs 仅窄屏渲染）。
+- **SA-02**：resume 步骤 payload 含 `fromStatus`（规格写 `{resumeOf,baseRevision}` 的超集），因 UI 文案要求显示「（原状态）」；interrupted 态需进程重启，难以在 e2e 真实构造——语义由 node 测试承载（含 :30-36 reopen 形态之外的 gated/漂移构造与 '{}' 空绑定行），QA 如实记录该覆盖边界，不虚报 e2e 已覆盖。
+- **SA-03**：模拟 HTTPS 头（无真实 TLS）；冒烟中发现 provider 收到过非 chat-completions 形状的请求，已对合成 provider 做防御性解析（非攻击面变更）。每作者隔离是**进程内两套独立 SQLite 经真实 HTTP 首次自动化验证**，不等价于多租户生产部署认证。
+- 边界保持：修订树/expectedRevision 冲突检测、四项人工检查按渠道独立、导出 ≠ 实际发布、AI 建议待采纳区语义全部不变；`src/writing.mjs`、SQLite schema、`lib/api.mjs` 门禁零 diff；真实平台发布、真实付费模型、生产部署仍未执行/未验证。

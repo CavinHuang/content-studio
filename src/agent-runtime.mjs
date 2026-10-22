@@ -141,7 +141,12 @@ export class AgentRuntime {
     return AGENT_SKILLS.map(({ id, version, title, description, tools, outputContract }) =>
       ({ id, version, title, description, tools, outputContract }));
   }
-  async startRun(projectId, channel, { skillId, instruction, expectedRevision, allowExternalAI, fetchImpl } = {}) {
+  async startRun(projectId, channel, { skillId, instruction, expectedRevision, allowExternalAI, fetchImpl, resumeOf } = {}) {
+    // 续跑缺省技能：未传 skillId 时直接用原运行的技能（计划 §SA-02）。
+    if (resumeOf && !String(skillId || "")) {
+      const target = this.run(projectId, resumeOf); // 不存在自然 404
+      skillId = target.skillId;
+    }
     const profile = this.profile(),
       skill = skillById(String(skillId || ""));
     if (!skill) fail("技能不存在", 404);
@@ -154,19 +159,43 @@ export class AgentRuntime {
     if (doc.revision !== expectedRevision) fail("文章已变化，请刷新后启动运行", 409);
     if (this.db.prepare("SELECT 1 FROM agent_runs WHERE project_id=? AND channel=? AND status='running'").get(projectId, channel))
       fail("该稿件已有运行中的任务，请先等待完成或取消", 409);
-    const binding = this.core.services.captureBinding("text"),
+    // SA-02 重驱动（resumeOf）：续跑以当前正文为基准开新运行，不是断点续传。
+    // 既有门禁（consent/markdown/expectedRevision/单飞）全部照旧在上面的检查里。
+    let resumeSource = null;
+    if (resumeOf) {
+      const old = this.run(projectId, resumeOf); // 不存在自然 404
+      if (old.channel !== channel) fail("续跑须沿用原渠道", 409);
+      // cancelled 是作者显式意图（口径同 src/writing.mjs 的恢复请求）
+      if (!["interrupted", "failed"].includes(old.status))
+        fail(old.status === "cancelled" ? "原运行已被作者取消，请直接重新发起" : "原运行仍在进行中，不能续跑", 409);
+      if (old.skillId !== skill.id) fail("续跑须沿用原技能", 409);
+      // binding_json 列 DDL 默认 '{}'：解析结果无 id 即 409——不建跑、不留
+      // 必然失败的轨迹（captureBinding 产物必含 id，手工/陈旧行可能为 '{}'）。
+      let savedBinding = null;
+      try { savedBinding = JSON.parse(this._runRow(old.id).binding_json); } catch { savedBinding = null; }
+      if (!savedBinding || typeof savedBinding !== "object" || !savedBinding.id)
+        fail("原运行无可用模型绑定，请直接重新发起", 409);
+      resumeSource = { id: old.id, fromStatus: old.status, binding: savedBinding };
+    }
+    const binding = resumeSource ? resumeSource.binding : this.core.services.captureBinding("text"),
       id = "ar_" + randomUUID();
     this.db.prepare("INSERT INTO agent_runs VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run(
       id, projectId, channel, doc.revision, skill.id, skill.version, profile.id,
       "running", "", String(instruction || "").slice(0, 4000),
       JSON.stringify(binding), this.owner, stamp(), stamp());
+    // 溯源零 schema 变更：重驱动的首步骤记 resume 事实，随既有投影与流透出。
+    let seqStart = 0;
+    if (resumeSource) {
+      this._step(id, 1, "resume", { resumeOf: resumeSource.id, baseRevision: doc.revision, fromStatus: resumeSource.fromStatus });
+      seqStart = 1;
+    }
     const controller = new AbortController();
     this.controllers.set(id, controller);
     const tracked = { revision: doc.revision },
       ctx = { projectId, channel, runId: id, skillTitle: skill.title, writeMode: profile.writeMode,
         expectedRevision: () => tracked.revision, onWritten: rev => { tracked.revision = rev; },
         binding, skill, tools, signal: controller.signal, fetchImpl };
-    const loop = this._loop(id, ctx).catch(() => {});
+    const loop = this._loop(id, ctx, seqStart).catch(() => {});
     this.loopPromises.set(id, loop);
     loop.finally(() => {
       this.controllers.delete(id);
@@ -185,9 +214,10 @@ export class AgentRuntime {
     this.controllers.get(runId)?.abort();
     return this.run(projectId, runId);
   }
-  async _loop(runId, ctx) {
+  async _loop(runId, ctx, seqStart = 0) {
     const { projectId, channel, skill, tools, writeMode, binding, signal, fetchImpl } = ctx;
-    let seq = 0;
+    // 起始 seq 支持重驱动（resumeOf）已占用的首步骤，避免 PRIMARY KEY(run_id,seq) 冲突。
+    let seq = seqStart;
     const record = (kind, payload) => this._step(runId, ++seq, kind, payload);
     try {
       const doc = this.core.writing.document(projectId, channel);

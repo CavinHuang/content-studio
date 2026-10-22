@@ -1,7 +1,7 @@
 'use client';
 import {forwardRef,useEffect,useImperativeHandle,useRef} from 'react';
 import {Compartment,EditorState} from '@codemirror/state';
-import {Decoration,EditorView,WidgetType} from '@codemirror/view';
+import {Decoration,EditorView,WidgetType,highlightActiveLine} from '@codemirror/view';
 import {markdownSetup} from '../vendor/doocs/shared/src/editor/markdown';
 import {applyHeading,formatBold,formatItalic,formatLink,undoAction,redoAction} from '../vendor/doocs/shared/src/editor/format';
 
@@ -29,10 +29,14 @@ const DoocsEditor=forwardRef(function DoocsEditor({value,onChange,onSelection,su
   selection(){const v=view.current,s=v?.state.selection.main;return s?{from:s.from,to:s.to,text:v.state.doc.sliceString(s.from,s.to)}:null},
   insert(text){const v=view.current;if(v&&!callbacks.current.readOnly){const position=v.state.selection.main.to;v.dispatch({changes:{from:position,insert:text},selection:{anchor:position+text.length}});v.focus()}},
   focus(){view.current?.focus()},
+  // P2-02 大纲真跳转：把折叠 selection 锚到目标行行首（不产生选中文本）、
+  // 滚动到可见并聚焦；行号超界时收敛到首/末行，不影响既有回调。
+  revealLine(line){const v=view.current;if(!v)return;const total=v.state.doc.lines;const target=v.state.doc.line(Math.min(Math.max(1,line),total)).from;v.dispatch({selection:{anchor:target},scrollIntoView:true});v.focus()},
  }),[]);
  useEffect(()=>{
   const instance=new EditorView({parent:host.current,state:EditorState.create({doc:value,extensions:[
    markdownSetup({placeholder:'从一个想法开始写，或与右侧助手一起生成初稿…'}),
+   highlightActiveLine(), // P2-02：.cm-activeLine 供大纲 active 断言/视觉跟随
    EditorView.contentAttributes.of({'aria-label':'文章 Markdown 正文',spellcheck:'false'}),
    EditorView.theme({'&':{height:'100%'},'.cm-scroller':{overflow:'auto',fontFamily:'ui-monospace, SFMono-Regular, monospace',fontSize:'15px',lineHeight:'1.9'},'.cm-content':{padding:'28px'},'&.cm-focused':{outline:'none'}}),
    decorations.current.of(EditorView.decorations.of(Decoration.none)),

@@ -58,6 +58,22 @@
 .cv2-pill{display:inline-flex;align-items:center;gap:5px;font-weight:660;padding:6px 9px;border-radius:7px;font-size:10px;color:#62718d;background:#eff2f8;white-space:nowrap}
 .cv2-pill.warn{color:#aa7339;background:#fff2e4}
 .cv2-pill.good{color:#28764d;background:#eaf5ee}
+/* P2-01 就绪度条 detail 级事实：只降强调，不引入新语义色（沿用 pill 底色） */
+.cv2-pill.detail{color:var(--cv2-text-muted)}
+
+/* ---- P2-01 全阶段就绪度条：移动端单行横向滚动（chips 不折行挤压） ---- */
+@media(max-width:760px){
+  .cv2-readiness .row{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  .cv2-readiness .row::-webkit-scrollbar{display:none}
+  .cv2-readiness>span{font-size:10px}
+}
+
+/* ---- P2-03 生成中全局指示 pill（头部 actions 内的非阻塞入口） ---- */
+.cv2-generating-pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--cv2-primary);background:var(--cv2-surface-soft);color:var(--cv2-primary);border-radius:999px;padding:6px 12px;font-size:11px;font-weight:700;white-space:nowrap;cursor:pointer}
+.cv2-generating-pill::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--cv2-primary);animation:cv2-generating-pulse 1.1s ease-in-out infinite}
+@keyframes cv2-generating-pulse{0%,100%{opacity:.25}50%{opacity:1}}
+/* P2-03 通知分级：error 通知用语义色（其余 tone 保持既有通知条外观） */
+.cv2-compose .writing-notice.has-error{background:var(--cv2-error-soft);border-color:var(--cv2-error);color:var(--cv2-error)}
 
 /* ---- three-column grid (creator-v2.2.html :9 .editor-layout)；
        编辑阶段（写作/配图）专用，其余阶段用 .cv2-stage-* 焦点布局 ---- */
