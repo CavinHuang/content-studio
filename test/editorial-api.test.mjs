@@ -10,6 +10,9 @@ test('V27 HTTP: unified master → separate channel → checks → local export 
  let stale=await call('/api/editor/projects/'+id+'/wechat/document','PUT',{expectedRevision:1,paragraphs:[{id:'p_ready01',text:'覆盖错误'}]});assert.equal(stale.status,409);
  let exportBlocked=await call('/api/editor/projects/'+id+'/wechat/export','POST',{expectedRevision:2});assert.equal(exportBlocked.status,409);
  let checks=await call('/api/editor/projects/'+id+'/wechat/checks','POST',{expectedRevision:2,checks:{factual:true,privacy:true,rights:true,layout:true}});assert.equal(checks.status,200);
+ // RD-01：HTTP 载荷 checks 保持四布尔形态，指针以同层独立字段 checkedRevision 透出
+ let checksGet=await call('/api/editor/projects/'+id);assert.equal(checksGet.status,200);assert.deepEqual(checksGet.body.channels.wechat.checks,{factual:true,privacy:true,rights:true,layout:true});assert.equal(checksGet.body.channels.wechat.checkedRevision,2);
+ let badChecks=await call('/api/editor/projects/'+id+'/wechat/checks','POST',{expectedRevision:2,checks:{factual:true,privacy:true,rights:true,layout:true,extra:true}});assert.equal(badChecks.status,400);
  let expo=await call('/api/editor/projects/'+id+'/wechat/export','POST',{expectedRevision:2});assert.equal(expo.status,200);assert.equal(expo.body.publicationVerified,false);assert.match(expo.body.html,/公众号稿经过独立编辑/);
  let z=(await call('/api/editor/projects/'+id)).body.channels.zhihu;assert.equal(z.status,'draft');
  let report=await call('/api/editor/projects/'+id+'/wechat/reported','POST',{url:'https://mp.weixin.qq.com/s/local-author-report',expectedRevision:2});assert.equal(report.status,200);assert.equal(report.body.channels.wechat.status,'reported_published');

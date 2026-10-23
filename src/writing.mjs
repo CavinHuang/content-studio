@@ -423,6 +423,11 @@ export class WritingService {
           })
           .filter(Boolean)
       : [];
+    // RD-01：checklist_json 存储含 checkedRevision 指针（setChecks 盖章，旧行无）。
+    // payload 的 checks 保持四布尔形态（剥离指针键），指针以同层独立字段透出
+    // （int|null，旧行 null）；消费方按四个具名键读取。
+    const checklist = JSON.parse(ref.checklist_json),
+      { checkedRevision: checkedRev, ...fourChecks } = checklist;
     return {
       projectId: id,
       channel,
@@ -445,7 +450,8 @@ export class WritingService {
               sourceRevision: layout.source_document_revision,
             }
           : null,
-      checks: JSON.parse(ref.checklist_json),
+      checks: fourChecks,
+      checkedRevision: Number.isInteger(checkedRev) ? checkedRev : null,
       sourceMasterRevision: ref.source_master_revision,
       masterRevision: this.precision.document(this._ref(id, "master").id)
         .revision,

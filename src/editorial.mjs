@@ -46,7 +46,10 @@ export class EditorialService{
  list(){return this.db.prepare('SELECT id FROM editorial_projects ORDER BY updated_at DESC').all().map(p=>this.get(p.id))}
  get(id){const p=this._project(id);const rows=this.db.prepare('SELECT * FROM editorial_channel_refs WHERE project_id=? ORDER BY CASE channel WHEN \'master\' THEN 0 WHEN \'wechat\' THEN 1 ELSE 2 END').all(id);const master=rows.find(r=>r.channel==='master'),masterDoc=this.precision.document(master.id);return{id:p.id,title:p.title,briefId:p.brief_id,cardId:p.card_id||'',createdAt:p.created_at,updatedAt:p.updated_at,channels:Object.fromEntries(rows.map(r=>{
   const doc=this.precision.document(r.id),claims=this.precision.claims(r.id),tasks=this.precision.tasks().filter(t=>t.referenceId===r.id);
-  return[r.channel,{referenceId:r.id,document:doc,checks:parse(r.checklist_json),status:r.status,statusLabel:r.status==='reported_published'&&(this.db.prepare('SELECT exported_revision FROM editorial_publication_reports WHERE reference_id=? ORDER BY rowid DESC LIMIT 1').get(r.id)?.exported_revision??r.exported_revision)!==doc?.revision?'旧版作者报告已发表；当前稿未交付':statusName[r.status],reportedUrl:r.reported_url,sourceMasterRevision:r.source_master_revision,ackMasterRevision:r.ack_master_revision,masterRevision:masterDoc?.revision||0,masterOutdated:r.channel!=='master'&&(r.ack_master_revision<(masterDoc?.revision||0)),exportedRevision:r.exported_revision,publicationReports:this.db.prepare('SELECT exported_revision,reported_url,created_at FROM editorial_publication_reports WHERE reference_id=? ORDER BY rowid DESC').all(r.id),claims,tasks,openCorrections:tasks.filter(t=>['pending','proposed','planned'].includes(t.status)).length}];
+  // RD-01：payload checks 保持四布尔形态（剥离 checkedRevision 指针键），指针以同层
+  // 独立字段 checkedRevision 透出（int|null，旧行无指针 → null）。消费方按四个具名键读取。
+  const checklist=parse(r.checklist_json),fourChecks={...checklist};delete fourChecks.checkedRevision;
+  return[r.channel,{referenceId:r.id,document:doc,checks:fourChecks,checkedRevision:Number.isInteger(checklist.checkedRevision)?checklist.checkedRevision:null,status:r.status,statusLabel:r.status==='reported_published'&&(this.db.prepare('SELECT exported_revision FROM editorial_publication_reports WHERE reference_id=? ORDER BY rowid DESC LIMIT 1').get(r.id)?.exported_revision??r.exported_revision)!==doc?.revision?'旧版作者报告已发表；当前稿未交付':statusName[r.status],reportedUrl:r.reported_url,sourceMasterRevision:r.source_master_revision,ackMasterRevision:r.ack_master_revision,masterRevision:masterDoc?.revision||0,masterOutdated:r.channel!=='master'&&(r.ack_master_revision<(masterDoc?.revision||0)),exportedRevision:r.exported_revision,publicationReports:this.db.prepare('SELECT exported_revision,reported_url,created_at FROM editorial_publication_reports WHERE reference_id=? ORDER BY rowid DESC').all(r.id),claims,tasks,openCorrections:tasks.filter(t=>['pending','proposed','planned'].includes(t.status)).length}];
  }))};}
  create({title,briefId='',paragraphs,idempotencyKey}={}){
  const titleText=titleField(title),blocks=validateBlocks(paragraphs||[{text:SEED_PARAGRAPH_TEXT}]);
@@ -82,7 +85,11 @@ export class EditorialService{
  }
  setChecks(id,channel,{expectedRevision,checks:values}={}){if(channel==='master')fail('Checks belong to each publishing channel');const r=this._channel(id,channel),doc=this.precision.document(r.id);if(doc.revision!==expectedRevision)fail('Channel changed; reload before confirming',409);
  if(!values||typeof values!=='object'||Array.isArray(values)||checks.some(k=>typeof values[k]!=='boolean')||Object.keys(values).some(k=>!checks.includes(k)))fail('All four channel checks must be explicit booleans');
- this.db.prepare('UPDATE editorial_channel_refs SET checklist_json=?,ack_master_revision=?,updated_at=? WHERE id=?').run(JSON.stringify(Object.fromEntries(checks.map(k=>[k,values[k]]))),this.precision.document(this._channel(id,'master').id).revision,now(),r.id);
+ // RD-01（Run D 独立评审 Branch A）：校验行零改动；写入时盖章 checkedRevision=检查
+ // 生效时的文档修订——防御未来绕过 reset-on-save 的新写入路径 + 「核对于 vN」溯源。
+ // 落既有 checklist_json JSON 列（零 DDL）；payload 读取点（editorial.get 与
+ // writing.document）剥离该键，checks 对消费方保持四布尔形态。
+ this.db.prepare('UPDATE editorial_channel_refs SET checklist_json=?,ack_master_revision=?,updated_at=? WHERE id=?').run(JSON.stringify({...Object.fromEntries(checks.map(k=>[k,values[k]])),checkedRevision:doc.revision}),this.precision.document(this._channel(id,'master').id).revision,now(),r.id);
  return this.get(id);
  }
  attachKnowledge(id,{cardId}={}){const project=this._project(id);if(project.card_id)fail('A knowledge card is already linked; create a new project for a different study',409);const card=this.knowledge.get(cardId);if(project.brief_id){const brief=this.store.brief(project.brief_id);if(brief?.verification?.caseId!==card.caseId)fail('Knowledge card does not belong to this Brief research case',409)}

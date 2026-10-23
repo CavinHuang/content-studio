@@ -15,6 +15,7 @@ import XiaohongshuWorkspace from "./XiaohongshuWorkspace";
 import PublishingControls from "./PublishingControls";
 import WritingGenerations from "./WritingGenerations";
 import { consumeGeneration } from "../lib/writing-stream-client";
+import { diffLines, diffSummary } from "../src/version-diff.mjs";
 import WritingContext from "./WritingContext";
 import WritingMasterReview from "./WritingMasterReview";
 import WritingModelContext from "./WritingModelContext";
@@ -99,6 +100,46 @@ function download(text, name, type = "text/markdown;charset=utf-8") {
   a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// RD-03（Run D，Phase 4 首切片；自有设计，非 vendor 适配）：版本历史
+// 「与上一版对比」。两版 markdown 全在既有 GET /history 载荷
+// （src/writing.mjs:625-657），展开时客户端按需计算（src/version-diff.mjs
+// diffLines），零新增请求；只读渲染，不影响不可变修订与「恢复此版」路径。
+function VersionDiffDetails({ row, prev }) {
+  const [result, setResult] = useState(null);
+  const summary =
+    result && !result.tooLarge ? diffSummary(result.ops) : null;
+  return (
+    <details
+      className="writing-version-diff"
+      onToggle={(e) => {
+        if (e.target.open && result === null)
+          setResult(diffLines(prev.markdown, row.markdown));
+      }}
+    >
+      <summary>与上一版对比</summary>
+      {result === null ? null : result.tooLarge ? (
+        <p>版本内容超过 2000 行，页内对比暂不可用；可用「查看内容」核对原文。</p>
+      ) : (
+        <>
+          <p>
+            {summary.added} 行新增 / {summary.removed} 行删除
+          </p>
+          <div className="writing-version-diff-lines">
+            {result.ops.map((op, i) => (
+              <div key={i} className={`writing-version-line is-${op.type}`}>
+                <span className="writing-version-line-mark" aria-hidden="true">
+                  {op.type === "add" ? "＋" : op.type === "del" ? "−" : ""}
+                </span>
+                <span className="writing-version-line-text">{op.text}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </details>
+  );
 }
 
 export default function WritingWorkspace() {
@@ -2565,13 +2606,15 @@ export default function WritingWorkspace() {
           >
             <h2>版本历史</h2>
             <button onClick={() => setHistory(null)}>关闭</button>
-            {history.map((row) => (
+            {history.map((row, i) => (
               <article key={row.revision}>
                 <strong>
                   v{row.revision} ·{" "}
                   {row.mode === "markdown" ? "Markdown" : "原有正文"}
                 </strong>
                 <small>{new Date(row.createdAt).toLocaleString()}</small>
+                {/* RD-03：修订备注随行显示（payload 已有，writing.mjs:625-657） */}
+                {row.note ? <p>备注：{row.note}</p> : null}
                 {row.masterReview && (
                   <p>
                     已审阅主稿 v{row.masterReview.sourceRevision} → v
@@ -2590,6 +2633,11 @@ export default function WritingWorkspace() {
                     处。
                   </p>
                 )}
+                {/* RD-03：除最早一版外每行可展开与上一版的行级对比（history 为
+                    revision DESC，上一版即下一项）；展开时按需计算，零新请求 */}
+                {i < history.length - 1 ? (
+                  <VersionDiffDetails row={row} prev={history[i + 1]} />
+                ) : null}
                 <details>
                   <summary>查看内容</summary>
                   <pre>{row.markdown}</pre>

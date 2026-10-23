@@ -348,6 +348,72 @@ test("刷新接续：面板恢复本渠道 running 运行与步骤，重连推�
   }
 });
 
+// DF-01（QA §10.4.1 回归）：「取消运行」必须走真实用户点击（不能只调 API）。
+// 修复前根因：cancel 函数体在同一 try 块内 `const {run}` 解构声明与组件态同名
+// 变量，URL 模板串 ${run.id} 求值命中 const TDZ → ReferenceError 在 fetch 发起
+// 前抛出、被 catch 吞进 onNotice——表现为点击无请求、无 pageerror。本用例断言
+// 点击后按钮消失、终态文案（运行未完成/作者取消运行）、服务端轨迹 cancelled、
+// pageerror 为空；holdModel 闸门构造 running 态（形态同「刷新接续」用例）。
+test("取消运行：真实点击后按钮消失、轨迹 cancelled（QA §10.4.1 回归）", async ({
+  page,
+}) => {
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signup(page, "agent-cancel@example.test");
+  const doc = await (
+    await page.request.post("/api/writing/projects", {
+      data: { title: "取消运行的合成文章" },
+    })
+  ).json();
+  await page.request.put(`/api/writing/projects/${doc.projectId}/master`, {
+    data: {
+      expectedRevision: doc.revision,
+      markdown: "# 待取消文章\n\n" + TARGET + "的句子。\n",
+    },
+  });
+  const panel = page.locator('section[aria-label="agent 任务运行"]');
+  await page.goto("/compose?project=" + doc.projectId);
+  await expect(cm(page)).toContainText("待取消文章");
+  await page.getByText("技能任务（多步 Agent）").click();
+  await page.getByLabel("agent 任务要求").fill("请挂起润色正文中待推敲的句子");
+  await page
+    .getByLabel(
+      "允许本次运行调用模型与图片服务，可能产生费用；v1 不设次数上限，逐次记账"
+    )
+    .check();
+  let release;
+  holdModel = new Promise((r) => {
+    release = r;
+  });
+  try {
+    await page.getByRole("button", { name: "启动运行", exact: true }).click();
+    await expect(page.locator(".agent-run-steps")).toContainText("模型");
+    const cancelBtn = panel.getByRole("button", { name: "取消运行" });
+    await expect(cancelBtn).toBeVisible();
+    // 真实用户点击（修复前：TDZ 异常被吞，按钮不消失、轨迹停在 running）
+    await cancelBtn.click();
+    await expect(cancelBtn).toHaveCount(0);
+    await expect(panel.locator(".writing-source-note")).toContainText(
+      "运行未完成"
+    );
+    await expect(panel.locator(".writing-source-note")).toContainText(
+      "作者取消运行"
+    );
+    // 领域真值双确认：page.request（共享登录 cookie）复核服务端轨迹终态
+    const { runs } = await page.request
+      .get(`/api/creator/projects/${doc.projectId}/agent-runs`)
+      .then((r) => r.json());
+    expect(runs[0].status).toBe("cancelled");
+    expect(runs[0].stopReason).toBe("作者取消运行");
+    expect(errors).toEqual([]);
+  } finally {
+    if (holdModel) {
+      release();
+      holdModel = null;
+    }
+  }
+});
+
 // AG-02：article-pipeline 全流程用例。脚本化 provider 依次回
 // read_brief → write_revision（标题骨架 + 正文）→ write_suggestions（1 条）→
 // final content；「不过先改再交付」质量门（social-content 步骤 7 语义）由脚本里

@@ -1,6 +1,8 @@
 # Easel 体验移植落地方案（EASEL-PORT-PLAN）
 
-> 状态：设计定稿 r4（2026-10-22：vendor 导入后追加 §11「完整还原：vendor 适配期」——
+> 状态：设计定稿 r5（2026-10-23：追加 §12「还原第二批 + 缺陷修复」Run D 定稿——
+> DF-01「取消运行」根因定位 + RD-01/02/03；r4 2026-10-22：vendor 导入后追加
+> §11「完整还原：vendor 适配期」——
 > Run A/Run B 已落地，AG-01/AG-02 转正为首期优先项，全部 spec 改以 vendor/easel
 > 真实源码为 adaptedFrom 依据；r3 2026-10-22：Run B 开工前基线核对——记录 Run A 后行号漂移
 > 与 e2e 计数 29、追加 §10 服务端 Agent 化章节；r2 2026-10-21 修订：P1-01 与
@@ -813,3 +815,219 @@ Phase 6（检查快照绑定）因需先独立评审 `editorial.setChecks` 行�
 8. Easel 视觉主题 / layer 五色 / Bodoni（§8 第 6 条继续有效，不移植）。
 9. gzh-design（AGPL）零搬运（PROVENANCE.md:28，永久有效）。
 10. Python CLI 与 FastAPI 后端的任何执行路径（永久只读适配源）。
+
+---
+
+## 12. 还原第二批 + 缺陷修复（Run D 定稿，2026-10-23 追加）
+
+> 基线核对（本节锚点均在现 HEAD 逐一实测）：工作树 HEAD = `d0b7570`（Run C 提交，
+> `git status --porcelain` 为空）。两点设计期新证据改变了本节规格的前提，均已实测：
+> ① **§10.4.1「取消运行」缺陷根因已定位并最小复现证实**（§12.1——同形代码
+> `node /tmp/tdz-cancel-repro.mjs` → `{"fetchCalled":false,"noticeType":"ReferenceError",
+> "notice":"Cannot access 'run' before initialization"}`，与 QA 登记的「无请求、无
+> pageerror、按钮可命中」完全吻合）；② **G7 的服务端前提已不成立**：内容变更即重置
+> 检查的 reset-on-save 已存在于全部三条写入路径（`src/writing.mjs:576-589` markdown
+> save、`src/editorial.mjs:70` 段落 save、`:132-133` layout save；decide/syncMaster
+> 均经 `writing.save()` 漏斗，`src/writing.mjs:703-748`/:1157 起）——「勾完检查再改正文，
+> 检查仍显示已完成」在当前服务端为假。因此 Phase 6 快照绑定的独立评审（§8.5/§11.8.1
+> 既有决定）输入就此更新：**评审起点不再是「要不要重置」，而是「reset-on-save 已存在时，
+> 版本指针还有多少防御与溯源价值」**（§12.2 Branch 分支据此设计）。
+> 本节施工期验证均未跑 npm 门禁（设计阶段零代码改动）；各 item 验收含门禁全跑。
+
+### 12.0 名册与共通约束
+
+**名册（4 项）**：DF-01（强制首项，QA §10.4.1 缺陷修复）、RD-01（检查快照绑定评审 +
+服务端版本指针）、RD-02（发布中心对齐：ManualPublishPage 审核闸门适配 · UI 面）、
+RD-03（版本历史两版对比 diff，Phase 4 首切片）。
+
+**共通约束**：§1 六条 + §11.2 适配期三条全部继续有效，另加本批四条红线：
+1. **Next.js 单前端**：不动 App Router 结构、不新增顶层路由（§1.4 十一工作区冻结）；
+2. **复用既有 API、零新端点**：四项零新增 HTTP 路由；RD-01 只扩展 `setChecks`
+   既有行为（独立评审通过为前提）；
+3. **零 schema 变更**：RD-01 的版本指针落在 `editorial_channel_refs.checklist_json`
+   既有 JSON 列（`src/editorial.mjs:31,:85`），不加列、不改表；评审若结论需改 schema，
+   RD-01 就地终止只留评审记录（§8.5 既有决定）；
+4. **V75 边界不动 / --cv2-* 令牌 / 不搬 AGPL**：不新增服务端外呼；样式一律用
+   `--cv2-*` 既有语义 token 与组件库既有变量（不内联新 hex）；gzh-design 一行不搬。
+
+### 12.1 DF-01 修复「取消运行」按钮 UI 点击不生效（强制首项，QA §10.4.1）
+
+- **files**: `components/AgentRuns.jsx`、`e2e/agent-runtime.spec.mjs`、
+  `docs/implementation/CREATOR-V2-QA.md`
+- **adaptedFrom**: n/a（缺陷修复，非 vendor 适配）
+- **根因定位（spec 第一步——四个假设逐一排除，证据如下，施工时按此复核后直接修复）**：
+  1. 事件绑定：按钮 `onClick={cancel}` 已绑定（`components/AgentRuns.jsx:145`），
+     键盘 Enter 走同一 handler——非绑定缺失；
+  2. 条件渲染：`run?.status==='running'` 时渲染（:145）——既有 e2e 已断言该按钮
+     running 时可见（`e2e/agent-runtime.spec.mjs:284,:289`）——非条件渲染问题；
+  3. 父级拦截/遮挡：QA §10.4.1 probe 实测 elementFromPoint 命中按钮本身、无遮挡、
+     无 pageerror——非父级拦截；
+  4. **真因（设计期已证实）**：`cancel` 函数体（`AgentRuns.jsx:84`）
+     `async function cancel(){try{const {run}=await api(\`…${run.id}…\`,'POST',{});setRun(run)}…}`
+     在同一 try 块内解构声明了与组件态同名的 `run`，模板串 `${run.id}` 求值时命中
+     const 暂时性死区 → `ReferenceError: Cannot access 'run' before initialization`，
+     **在 fetch 发起之前**抛出、被 catch 吞进 `onNotice`——表现为「点击无任何请求、
+     无 pageerror」（错误进了通知条，肉眼易忽略）。设计期最小复现（同形代码）：
+     `node /tmp/tdz-cancel-repro.mjs` → `{"fetchCalled":false,"noticeType":
+     "ReferenceError","notice":"Cannot access 'run' before initialization"}`。
+- **spec**:
+  1. 修复：解构改名——`const {run:updated}=await api(…);setRun(updated)`，并在函数
+     首行加 `if(!run)return;`（闭包空档防御）；函数旁加一行注释注明 QA §10.4.1 根因。
+     follow/redrive/启动路径零改动；API 形态零改动（仍是既有
+     `POST /api/creator/projects/:id/agent-runs/:id/cancel`）。
+  2. **真实点击 e2e 回归**（`e2e/agent-runtime.spec.mjs` 新增独立用例，不能只调 API）：
+     复用既有 `holdModel` 闸门形态（:277-292）构造 running 态（signup → 建稿 →
+     打开 /compose → 「技能任务（多步 Agent）」→ 填任务要求 → 勾授权 → 启动 →
+     「取消运行」可见）→ **`page.getByRole("button",{name:"取消运行"}).click()`
+     真实用户点击** → 断言：①「取消运行」按钮消失（run 不再 running）；
+     ② 面板出现终态文案「运行未完成」且含「作者取消运行」（stopReason，
+     API cancel 语义已在 QA §10.2 ⑧ curl 实跑证实）；③ `page.request` GET 运行轨迹
+     复核 `status==='cancelled'`（领域真值双确认）；④ pageerror 为空；
+     finally 释放 holdModel。服务端取消语义本身已有单测与 curl 记录，本用例只补
+     UI 点击链路。
+  3. **修复验证顺序（记 QA）**：先在未修复代码上跑新用例确认失败（点击后按钮仍在、
+     轨迹仍 running，直至超时），再应用修复跑通——与 §10.4.1 A/B 对拍口径一致；
+     QA 记录根因、复现脚本输出、A/B 两轮结果。
+- **acceptance**:
+  - 新 e2e **单独通过**（`npx playwright test e2e/agent-runtime.spec.mjs`）**且全量
+    通过**（`npx playwright test`）；既有 3 条 agent-runtime 用例零回归；
+  - `npm run check`、`npm test`、`npm run build` 通过；
+  - QA 文档（CREATOR-V2-QA.md）新开「Run D」小节，关闭 §10.4.1 登记（注明根因与
+    修复提交）。
+- **risk**: low（一行级修复 + 既有夹具内新增用例；无 API/数据面改动）
+
+### 12.2 RD-01 检查快照绑定：独立评审 + 服务端版本指针（评审通过才施工）
+
+- **files**: `src/editorial.mjs`、`src/writing.mjs`、`test/editorial.test.mjs`、
+  `test/editorial-api.test.mjs`、`docs/implementation/CREATOR-V2-QA.md`
+- **adaptedFrom**: `vendor/easel/web/frontend/src/components/ManualPublishPage.tsx:63-67`
+  （`snapshot(key)/approved(key)`——审核绑定内容版本、改字即作废的思想）
+- **spec**:
+  1. **第 0 步：独立评审（阻塞施工，结论记 QA）**。评审输入 = §12 前言两点实测：
+     reset-on-save 已覆盖全部三条写入路径（`src/writing.mjs:576-589`、
+     `src/editorial.mjs:70`、`:132-133`），decide/syncMaster 均经 save 漏斗——
+     当前已知路径下「检查 valid 但内容已变」不可达。评审裁定：版本指针是否仍值得
+     落（防御未来绕过 reset 的新路径 + 溯源价值「核对于哪一版」）。
+     **Branch A（通过）**：按本条 2-5 施工；**Branch B（否决）**：本条只落评审记录，
+     RD-02 不受影响（其闸门不依赖指针）。
+  2. `setChecks`（`src/editorial.mjs:83-87`）：四布尔校验行（:84）**零改动**；校验后
+     在写入 `checklist_json` 时附带 `checkedRevision: doc.revision`（检查生效时指向的
+     文档修订；:85 的 `ack_master_revision` 更新语义保持）。
+  3. **payload 剥离（两处读取点）**：`editorial.get()`（:49）与 `writing.document()`
+     （`src/writing.mjs:448`）的 `checks` 字段**保持四布尔形态**（读取时剥离
+     `checkedRevision` 键），指针以同层独立字段 `checkedRevision`（int|null，旧行
+     无指针 → null）透出。消费方核查：`compose-view.checkSummary`（:99-103）与
+     `publish-center.boolChecks`（:63-66）均按四个具名键读取，已核实不受五键存储影响。
+  4. **派生**：`src/publish-center.mjs` 新增纯函数 `checksStale(entry)`：
+     `checkedRevision != null && checkedRevision !== entry.document?.revision` →
+     true（防御性：当前已知路径不可达，不可达时恒 false）；null（旧行）恒 false
+     ——旧行为兼容，不批量翻旧账。
+  5. 单测（`test/editorial.test.mjs` / `test/editorial-api.test.mjs`）：setChecks 盖章
+     （check 后 get().checkedRevision === doc.revision）；payload checks 四布尔剥离；
+     校验行 :84 仍拒绝多余键/非布尔（回归）；旧行（手工写四键 checklist_json）→
+     checkedRevision null 且 checksStale false；checksStale 指针不匹配 → true。
+     **不写**「改字后需重审」的 e2e（当前路径不可达，伪造路径反而失真）——UI 呈现
+     由 RD-02 用合成 payload 单测承载。
+- **acceptance**: 评审结论先行落 QA（通过/否决 + 理由）；Branch A 时上述单测全绿、
+  `npm run check`、`npm test`、`npm run build` 通过、零 DDL（对照 `git diff` 无
+  CREATE/ALTER）；Branch B 时 QA 有评审记录、域代码零 diff。
+- **risk**: medium（评审分支不确定 + setChecks 是发布链路门禁的输入；:84 校验行
+  零改动与 payload 剥离是硬约束）
+
+### 12.3 RD-02 发布中心对齐：ManualPublishPage 审核闸门适配（UI 面）
+
+- **files**: `src/publish-center.mjs`、`components/PublishCenter.jsx`、
+  `app/creator-v2-publish.css`、`test/publish-center.test.mjs`、
+  `e2e/creator-v2-publish.spec.mjs`、`docs/implementation/CREATOR-V2-QA.md`
+- **adaptedFrom**: `vendor/easel/web/frontend/src/components/ManualPublishPage.tsx:211-235`
+  （「已人工审核/待人工审核」badge + 复制/富文本/ZIP/官方页跳转全部 gate 在审核后）、
+  `:230`（`审核后打开官方发布页` 禁用态 → ready 后才出现真链接）、`:224`（审核确认
+  文案语义「我已核对当前版本…」）
+- **spec**:
+  1. `channelState`（`src/publish-center.mjs:71-90`）新增 `reviewReady =
+     allChecked && blockers.length === 0`；`statusTag` 改三分：`reviewReady` →
+     「检查完成」（success）、`allChecked && !reviewReady` → 「需复核」（warning，
+     blockers 里有主稿更新/待处理更正）、否则「待确认」（warning 现状）。`publishState`
+     （:94-108）顶条 pill 同步按 reviewReady 口径（有渠道需复核 → 「有渠道稿需复核」）。
+  2. `PublishCenter.jsx` 交付面板闸门（:136-138 `state.allChecked ? onPanelToggle :
+     onPrimary`）改为 `state.reviewReady` 才展开面板；`allChecked` 但有 blockers 时
+     主按钮点击走 `onPrimary`，提示文案改为**逐条列出 blockers**（复用既有
+     `state.blockers` 数组，:99-105 渲染保持）——服务端仍是唯一真值（`_canExport`
+     `src/editorial.mjs:141-147` 既有拦截不依赖本改动）。
+  3. **官方发布页跳转引导卡**（vendor :230 语义，落进交付面板内、即 reviewReady 后
+     才可见）：每渠道一张终步卡——wechat → `https://mp.weixin.qq.com/`（hint「在官方
+     后台新建草稿，上传图片并检查手机版预览」）、zhihu →
+     `https://zhuanlan.zhihu.com/write`（hint「打开官方文章编辑器，粘贴正文后检查
+     排版」）；`<a target="_blank" rel="noopener noreferrer">` 纯作者手动跳转，无
+     自动打开、无服务端外呼（V75 边界不动）；卡内保留「导出不代表已发布；由你在
+     官方页面亲自点击发布」边界文案（面板既有 ：148-150 语义延伸）。
+  4. 时间线「人工核查完成」行（`buildDeliveryTimeline` :177-188）：RD-01 Branch A
+     落地时 detail 追加「核对于 v{checkedRevision}」；Branch B 则该行零改动。
+  5. 样式进 `app/creator-v2-publish.css`，全部沿用 `--cv2-*` 既有 token（:23-27
+     success/warning 系已核）。
+  6. 单测（`test/publish-center.test.mjs`）：channelState 三分 statusTag 矩阵
+     （全勾+无 blockers / 全勾+masterOutdated / 部分勾）；reviewReady 派生；
+     checksStale 合成 payload 下 statusTag 联动（RD-01 Branch A 时）；断言任何新文案
+     无「已发布」字样。e2e（`e2e/creator-v2-publish.spec.mjs` 新增一条）：API 造
+     「四检查全勾 → master 再改一版」状态（masterOutdated 真实可达）→ 打开 /publish →
+     面板不可展开、需复核 Tag 与 blocker 文案可见；全勾且无 blockers 的对照态 →
+     面板可展开、官方页链接 href 正确。
+- **acceptance**: 单测 + 新 e2e 通过、既有 creator-v2-publish 用例零回归；
+  `npm run check`、`npm test`、`npm run build`、`npx playwright test` 通过；
+  文件头来源注释（§11.2 条款 1）落盘并登记 QA。
+- **risk**: medium（改 /publish 主交互闸门；服务端真值兜底 + 既有 e2e 回归兜底）
+
+### 12.4 RD-03 版本历史两版对比 diff（Phase 4 首切片）
+
+- **files**: `src/version-diff.mjs`（新建纯函数模块）、
+  `components/WritingWorkspace.jsx`、`app/compose/writing.css`、
+  `test/version-diff.test.mjs`（新建）、`e2e/creator-v2-compose.spec.mjs`、
+  `docs/implementation/CREATOR-V2-QA.md`
+- **adaptedFrom**: n/a（Easel 无版本树，§2 G6 自有设计；§11.8.2 明示非 vendor 适配项）
+- **spec**:
+  1. 新建 `src/version-diff.mjs`：`diffLines(oldText,newText)` 按行 LCS 输出
+     `[{type:'same'|'add'|'del',text,oldLine?,newLine?}]`（零新依赖——package.json 无
+     diff 库，自实现 O(ND) LCS，行级粒度）；任一侧 >2000 行时返回
+     `{tooLarge:true}`（诚实降级，不假装对比）；`diffSummary(ops)` →
+     `{added,removed}` 计数。
+  2. 版本历史对话框（现位 `WritingWorkspace.jsx:2558-2600`，每版当前只有
+     「查看内容」`<pre>{row.markdown}</pre>` :2595）：除最早一版外每行新增
+     「与上一版对比」`<details>`——展开时渲染 diffLines 结果（del/add 行按语义色
+     区分，样式进 `app/compose/writing.css`，沿用既有语义变量与 `--cv2-*` token，
+     不内联新 hex），顶部一行 `{added} 行新增 / {removed} 行删除`
+     （diffSummary 真实计数）；`row.note` 有值时随行显示（payload 已有该字段，
+     `src/writing.mjs:625-643`）。数据零新增请求：对比所需两版 markdown 全在既有
+     `GET /history` 载荷（:640），客户端按需计算；「查看内容」与「恢复此版」按钮
+     （:1023 restore）零改动——不可变修订语义不受影响。
+  3. 单测（`test/version-diff.test.mjs`）：相同文本/空文本/纯增/纯删/改写/多字节
+     （中文）六态 + tooLarge 降级 + summary 计数；断言输出不含「已发布」类措辞
+     （诚实性惯例）。
+  4. e2e（`e2e/creator-v2-compose.spec.mjs` 新增一条）：API 连续保存两版（PUT master
+     两次）→ 打开版本历史 → 展开新版「与上一版对比」→ 断言被改行以 add/del 呈现、
+     summary 计数正确；恢复按钮不受影响（终态断言沿用既有用例口径）。
+- **acceptance**: 单测六态全绿；新 e2e 通过且既有 compose 套件（现 29 条+）零回归；
+  `npm run check`、`npm test`、`npm run build`、`npx playwright test` 通过。
+- **risk**: low（纯前端派生 + 只读渲染；唯一性能点 LCS 已给 tooLarge 降级）
+
+### 12.5 Run D 护栏对照（增量）
+
+| 不变量 | Run D 如何保住 |
+|---|---|
+| 四项检查按渠道独立 | RD-01 只给每渠道行加指针字段，渠道隔离与 :84 校验零改动；RD-02 statusTag 按渠道独立派生 |
+| 导出 ≠ 发布 | RD-02 官方页卡只做作者手动跳转引导 + 「导出不代表已发布」文案；无自动打开/无服务端外呼 |
+| 不可变修订 / expectedRevision | RD-01 域行为扩展经独立评审门；RD-03 只读渲染，restore 路径零改动 |
+| 诚实呈现 | 需复核/需重审只陈述真实 blockers 与指针事实；RD-03 对比计数真实；全部文案无「已发布」承诺（单测断言） |
+| V58/V75 边界 | 零新端点；RD-02 官方页链接是纯客户端 `<a>`，无 fetch |
+| 不改 schema | RD-01 落 `checklist_json` 既有 JSON 列；四项零 DDL |
+| 单前端 / 壳层冻结 | 不新增路由与工作区；全部改动在既有工作区内部 |
+
+### 12.6 Run D 不做（§8/§10.4/§11.8 全部继续有效，另加）
+
+- Phase 4 其余切片（建议卡并排对比、三处原生 confirm 替换）——留给下批；
+- Phase 5 xhs 渠道 IA 并轨、Phase 7 余下（助手快捷指令菜单化、设置模型矩阵化）——
+  §11.8.3/§11.8.4 既有决定不变；
+- 「改字后检查需重审」的端到端用例——当前服务端 reset-on-save 已使该状态不可达，
+  不伪造路径（RD-01 评审若推翻此结论再补）；
+- AgentRuns 除 :84 cancel 一行外的任何改动（Run B/VA-04 刚落地的 follow/redrive
+  渲染层不在本批回触范围）。
+

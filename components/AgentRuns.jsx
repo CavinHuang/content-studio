@@ -81,7 +81,9 @@ export default function AgentRuns({projectId,channel,revision,onNotice}){
   setReconnect(0);
   if(attempt>=RECONNECT_BACKOFF.length)onNotice('实时进度连接已断开，运行仍在服务端继续；请刷新页面查看轨迹。');
  }
- async function cancel(){try{const {run}=await api(`/api/creator/projects/${projectId}/agent-runs/${run.id}/cancel`,'POST',{});setRun(run)}catch(e){onNotice(e.message)}}
+ // DF-01（QA §10.4.1）：解构名不可与组件态 run 同名——同名 const 会让 URL 模板串
+ // ${run.id} 求值命中暂时性死区，ReferenceError 在 fetch 前抛出、被 catch 吞掉。
+ async function cancel(){if(!run)return;try{const {run:updated}=await api(`/api/creator/projects/${projectId}/agent-runs/${run.id}/cancel`,'POST',{});setRun(updated)}catch(e){onNotice(e.message)}}
  // SA-02 重驱动：按原技能与模型绑定重新驱动 interrupted/failed 运行；原轨迹
  // 保留、已入库建议/修订不受影响；consent 仍必填，以当前正文为基准开新运行。
  async function redrive(source){
