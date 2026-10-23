@@ -974,7 +974,7 @@ test("左栏大纲链接点击真跳转且 active 跟随光标；空简报文案
   await expect(page.getByText("还没有选题简报。")).toBeVisible();
 });
 
-test("建议卡「在正文中查看」「查看替换内容」「拒绝」三控件", async ({
+test("建议卡「在正文中查看」、就地对比替换内容（AW-01 常显对比块）、「拒绝」三控件", async ({
   page,
 }) => {
   await signup(page, "compose-suggestion@example.test");
@@ -1004,11 +1004,16 @@ test("建议卡「在正文中查看」「查看替换内容」「拒绝」三�
   await expect(page.getByLabel("文章排版预览")).toBeVisible();
   await expect(card).toHaveClass(/selected/);
 
-  // 「查看替换内容」展开替换文本（<pre>{s.replacement}</pre>）。
-  // 未显式传 from/to 时服务端把 selection 填充为整篇文章（writing.mjs:887-890,972），
-  // 合成模型因此恒走选区分支返回「经过审阅的新表达。」——断言真实的替换文本。
-  await card.getByText("查看替换内容").click();
-  await expect(card.locator("pre")).toContainText("经过审阅的新表达。");
+  // AW-01：original（选区原文，服务端把 selection 填充为整篇文章，
+  // writing.mjs:887-890,972）非空且 !== replacement → suggestionCompareView
+  // both 模式，卡内常显「原文片段 → 替换内容」对比块，无需点击展开——
+  // 断言真实的替换文本与原文片段（原「查看替换内容」details 仅剩
+  // replacement-only 降级态，见 components/WritingWorkspace.jsx 建议卡渲染）。
+  const compare = card.locator('[aria-label="建议对比"]');
+  await expect(compare).toBeVisible();
+  await expect(compare).toContainText("原文片段 → 替换内容");
+  await expect(compare).toContainText("需要打磨的原始表达。");
+  await expect(compare).toContainText("经过审阅的新表达。");
 
   // 「拒绝」：建议标记已拒绝，正文保持原样（1980-1985）
   await card.getByRole("button", { name: "拒绝", exact: true }).click();

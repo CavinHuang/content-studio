@@ -606,3 +606,30 @@ editorial-api.test.mjs HTTP 级断言（载荷四布尔 + checkedRevision===2、
    npm install（容器内 playwright install 仅测试浏览器，不触碰 package.json/
    lockfile）。真实付费模型、真实平台发布、生产部署仍未执行/未验证（与此前
    边界一致）。
+
+### 12.7 全量 e2e 第 1 轮失败修复（Run E 追记，同日）
+
+- 第 1 轮全量 `npx playwright test`（容器内）：**282 passed / 1 failed / 16
+  skipped（11.8m）**，唯一失败
+  `creator-v2-compose.spec.mjs:977 建议卡三控件`——等待
+  `getByText('查看替换内容')` 超时。
+- **定性：真实交互迁移，非抖动**。单跑复现（`-g '三控件'` 同样失败）；与 AW-01
+  改动直接相关：该用例的合成建议带非空 original（服务端把 selection 填充为整篇
+  原文，writing.mjs:887-890,972），`suggestionCompareView` 判 both 模式后
+  `<details>查看替换内容</details>` 被「常显对比块」按方案取代（§12.3）——
+  按「真实回归必须修」处理，不按抖动跳过。
+- **修复**：该用例改写为断言新交互（原控件仅剩 replacement-only 降级态，
+  WritingWorkspace.jsx:1344 仍在）：`[aria-label="建议对比"]` 常显可见，
+  同时含「原文片段 → 替换内容」说明、原文片段（需要打磨的原始表达。）与替换
+  内容（经过审阅的新表达。）——用例意图（作者无需展开即可核对真实替换文本 +
+  拒绝后正文保持原样）完整保留；「在正文中查看」「拒绝」两控件断言零改动。
+  用例名同步改为「建议卡「在正文中查看」、就地对比替换内容（AW-01 常显对比
+  块）、「拒绝」三控件」。
+- 第 2 轮全量 `npx playwright test`（容器内）：**283 passed / 0 failed / 16
+  skipped（11.0m，exit 0）**——较第 1 轮 282→283 为改写用例计数口径（标题变更
+  不改条数；第 1 轮该用例计 failed，本轮计入 passed），16 skipped 全部为既有
+  fixme/skip（含 creator-v2-compose:1545「缺真实 API 种子路径」）。creator-v2
+  -compose 套件单跑复核 30 passed / 2 skipped / 0 failed，既有用例零回归。
+- 覆盖面说明（如实）：「查看替换内容」details（replacement-only 降级态）自此
+  无 e2e 点击覆盖；其渲染分支由 suggestionCompareView 四态单测（§12.3）门控，
+  风险为纯静态 details>pre 渲染。
