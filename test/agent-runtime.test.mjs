@@ -364,6 +364,7 @@ test('SC-01 重启矩阵：queued 行清扫为 interrupted（专属文案）且�
 });
 
 // SC-01：drain 认领后复核不静默换基准——排队期间正文变化 → interrupted /正文已变化/。
+// FIX-05①（EASEL-PORT-PLAN §13 定稿）：文案附「入队基准 v{X}，当前 v{Y}」诊断。
 test('SC-01 drain 复核：排队期间正文变化 → interrupted /正文已变化/ 且零模型调用',async t=>{
  provider(t);const env=setup(t),core=env.core;
  const doc=core.writing.create({title:'排队复核'}),id=doc.projectId;
@@ -379,13 +380,15 @@ test('SC-01 drain 复核：排队期间正文变化 → interrupted /正文已�
  const realFetch=globalThis.fetch;t.after(()=>{globalThis.fetch=realFetch});
  let bCalls=0;
  globalThis.fetch=async()=>{bCalls++;return final()};
- core.writing.save(id,'master',{expectedRevision:saved.revision,markdown:'作者在排队期间改了正文。'});
+ const authorSaved=core.writing.save(id,'master',{expectedRevision:saved.revision,markdown:'作者在排队期间改了正文。'});
  release(final());
  await core.agent.runSettled(runA.id);
  assert.equal(core.agent.run(id,runA.id).status,'completed');
  const row=core.agent.run(id,runB.id);
  assert.equal(row.status,'interrupted');
  assert.match(row.stopReason,/正文已变化/);
+ assert.match(row.stopReason,new RegExp('入队基准 v'+saved.revision+'，当前 v'+authorSaved.revision),'入队基准与当前修订的诊断必须可见');
+ assert.match(row.stopReason,/未按旧基准开跑/);
  assert.equal(bCalls,0,'复核失败的排队行零模型调用（不用旧基准发付费调用）');
 });
 
@@ -510,6 +513,78 @@ test('SC-01 认领同渠道守卫：drain 跳过忙渠道 queued，空闲渠道�
  await core.agent.runSettled(runB.id);
  assert.equal(core.agent.run(id,runB.id).status,'completed');
  assert.equal(prodCalls,2);
+});
+
+// FIX-01：认领后复核段抛出不得留幽灵 running 行——认领 COMMIT 后 profile()
+// 404（行被删）时，drainQueued 本身不抛、该行收敛为 interrupted 终态、渠道
+// 单飞/排队槽被释放、零模型调用（修复前异常被 void…catch(()=>{}) 吞掉，
+// B 永久停在无 controller 的 running）。
+test('FIX-01 认领后复核异常：profile 抛错 → interrupted 收敛、渠道槽释放、drainQueued 不抛',async t=>{
+ provider(t);const env=setup(t),core=env.core;
+ const doc=core.writing.create({title:'复核异常收敛'}),id=doc.projectId;
+ const saved=core.writing.save(id,'master',{expectedRevision:doc.revision,markdown:'复核异常正文。'});
+ let release;const gate=new Promise(r=>{release=r});
+ const runA=await core.agent.startRun(id,'master',{skillId:'selection-rewriter',instruction:'A',
+  expectedRevision:saved.revision,allowExternalAI:true,fetchImpl:async()=>{await gate;return final()}});
+ assert.equal(runA.status,'running');
+ // 同渠道第二条：入队（201 queued，无 controller/loopPromises）
+ const runB=await core.agent.startRun(id,'master',{skillId:'selection-rewriter',instruction:'B',
+  expectedRevision:saved.revision,allowExternalAI:true});
+ assert.equal(runB.status,'queued');
+ assert.equal(core.agent.controllers.has(runB.id),false);
+ // 复核异常源：删除 profile 行 → 认领复核 this.profile() 抛 ValidationError 404
+ core.db.prepare("DELETE FROM agent_profiles WHERE id='ag_default'").run();
+ const realFetch=globalThis.fetch;t.after(()=>{globalThis.fetch=realFetch});
+ let bCalls=0;
+ globalThis.fetch=async()=>{bCalls++;return final()};
+ release(final());
+ await core.agent.runSettled(runA.id);
+ assert.equal(core.agent.run(id,runA.id).status,'completed');
+ await new Promise(r=>setTimeout(r,50)); // A 的 finally 链 drain 已执行
+ const row=core.agent.run(id,runB.id);
+ assert.equal(row.status,'interrupted','复核抛出必须收敛为非 running 终态，不留幽灵行');
+ assert.match(row.stopReason,/复核异常/);
+ assert.equal(bCalls,0,'复核异常的排队行零模型调用');
+ assert.equal(core.agent.loopPromises.has(runB.id),false);
+ assert.equal(core.agent.controllers.has(runB.id),false);
+ // 渠道槽被释放：master 上不再有任何 running/queued 活跃行占用单飞/排队槽
+ assert.equal(core.db.prepare(
+  "SELECT COUNT(*) AS n FROM agent_runs WHERE project_id=? AND channel='master' AND status IN ('running','queued')").get(id).n,0);
+ // drainQueued 不抛（修复前 _startClaimed 的异常沿 drainQueued reject 被吞）
+ await assert.doesNotReject(()=>core.agent.drainQueued());
+ assert.equal(core.agent.run(id,runB.id).status,'interrupted','再次 drain 不得改变已收敛的终态');
+});
+
+// FIX-04：writeMode 入队定格——入队后翻转 profile 的写模式（面板 select 已
+// disabled，第二会话/直接 PUT 形态），drain 认领后运行的仍是入队快照值：
+// 模型消息 writeMode 字段与宣告工具面都以快照为准，不现读 profile。
+test('FIX-04 排队期间 writeMode 翻转：认领运行使用入队快照的 writeMode',async t=>{
+ provider(t);const env=setup(t),core=env.core;
+ const doc=core.writing.create({title:'写模式快照'}),id=doc.projectId;
+ const saved=core.writing.save(id,'master',{expectedRevision:doc.revision,markdown:'写模式快照正文。'});
+ let release;const gate=new Promise(r=>{release=r});
+ try{
+  const runA=await core.agent.startRun(id,'master',{skillId:'selection-rewriter',instruction:'A',
+   expectedRevision:saved.revision,allowExternalAI:true,fetchImpl:async()=>{await gate;return final()}});
+  // 同渠道入队，快照为建议制（ag_default 种子）
+  const runB=await core.agent.startRun(id,'master',{skillId:'draft-writer',instruction:'B',
+   expectedRevision:saved.revision,allowExternalAI:true});
+  assert.equal(runB.status,'queued');
+  // 排队期间翻转写模式（建议制 → 直写）
+  core.agent.saveProfile({writeMode:'revisions'});
+  // 生产路径打桩：B 认领后经 globalThis.fetch 发模型调用，捕获消息与工具面
+  const realFetch=globalThis.fetch;t.after(()=>{globalThis.fetch=realFetch});
+  let observed=null;
+  globalThis.fetch=async(url,options)=>{observed=JSON.parse(options.body);return final()};
+  release(final());
+  await core.agent.runSettled(runA.id);
+  assert.equal(core.agent.run(id,runA.id).status,'completed');
+  await core.agent.runSettled(runB.id);
+  assert.equal(core.agent.run(id,runB.id).status,'completed');
+  assert.ok(observed,'补位运行应经生产路径发出模型调用');
+  assert.equal(JSON.parse(observed.messages[1].content).writeMode,'suggestions','运行 writeMode 是入队快照值，不是认领时的现读 profile');
+  assert.equal(observed.tools.some(x=>x.function.name==='write_revision'),false,'工具面按快照建议制过滤，不宣告 write_revision');
+ }finally{core.agent.saveProfile({writeMode:'suggestions'})}
 });
 
 test('recorded step payloads stay bounded even when tool arguments and results are huge',async t=>{
@@ -952,7 +1027,10 @@ test('SC-02 额度快速失败：textLimit=0 时首个请求即 429 → failed�
  await core.agent.runSettled(run.id);
  const done=core.agent.run(id,run.id);
  assert.equal(done.status,'failed');
+ // FIX-05②（EASEL-PORT-PLAN §13 定稿）：stopReason 恢复「模型请求额度已用完：」
+ // + 占用侧 message（不丢 provider/占用信息）；textLimit=0 命中日额度分支。
  assert.match(done.stopReason,/额度/);
+ assert.match(done.stopReason,/^模型请求额度已用完：今日请求额度已用完/);
  assert.equal(fetchCalls,0,'429 快速失败不应触发任何真实请求（无 3 连重试）');
  assert.equal(done.steps.filter(s=>s.kind==='model_error').length,1,'恰记一帧 model_error');
 });
@@ -973,6 +1051,8 @@ test('SC-02 run 级预算：cap=2 时第 3 次请求 429 快速 failed，恰 2 �
  const done=core.agent.run(id,run.id);
  assert.equal(done.status,'failed');
  assert.match(done.stopReason,/额度/);
+ // FIX-05②：任务预算分支的 429，占用侧 message 必须保留在 stopReason 里
+ assert.match(done.stopReason,/该任务请求上限已用完/);
  assert.equal(calls,2,'第 3 次 reserve 在 fetch 前被任务上限拦下');
  assert.equal(core.db.prepare("SELECT COUNT(*) AS n FROM service_usage_tasks WHERE task_id=?").get(run.id).n,2,
   '429 尝试不落占用行（ROLLBACK），恰 2 行');

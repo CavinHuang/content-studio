@@ -223,10 +223,13 @@ export class AgentRuntime {
     const binding = resumeSource ? resumeSource.binding : this.core.services.captureBinding("text"),
       id = "ar_" + randomUUID();
     // SC-01：绑定在入队时定格，drain 不重新 capture（入队时的授权即运行授权）。
+    // FIX-04：writeMode 一并入队定格——合并快照进既有 binding_json JSON 列
+    // （零 DDL，与 resume 复用 binding 同一复用模式）：排队期间建议制↔直写
+    // 可被第二会话/直接 PUT 翻转，认领时按入队快照运行，不现读 profile。
     this.db.prepare("INSERT INTO agent_runs VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run(
       id, projectId, channel, doc.revision, skill.id, skill.version, profile.id,
       enqueue ? "queued" : "running", "", String(instruction || "").slice(0, 4000),
-      JSON.stringify(binding), this.owner, stamp(), stamp());
+      JSON.stringify({ ...binding, writeMode: profile.writeMode }), this.owner, stamp(), stamp());
     // 溯源零 schema 变更：重驱动的首步骤记 resume 事实，随既有投影与流透出。
     // 排队行同样照常落 resume 首步骤（drain 时 _loop 从其后继续）。
     let seqStart = 0;
@@ -304,26 +307,44 @@ export class AgentRuntime {
   _startClaimed(runId) {
     const row = this._runRow(runId);
     const interrupted = reason => this._finish(runId, "interrupted", reason);
-    const doc = this.core.writing.document(row.project_id, row.channel);
-    if (!doc || doc.mode !== "markdown") return interrupted("排队期间稿件已退出 Markdown 模式，请核对后重新发起");
-    if (doc.revision !== row.base_revision) return interrupted("排队期间正文已变化，请核对后重新发起或重驱动");
-    const skill = skillById(row.skill_id);
-    if (!skill) return interrupted("排队期间技能已不可用，请重新发起");
-    const profile = this.profile(row.agent_id);
-    const tools = skill.tools.filter(t => profile.tools.includes(t));
-    if (!tools.length) return interrupted("排队期间工具授权已变化，该技能所需工具均未获代理授权，请重新发起");
-    let binding = null;
-    try { binding = JSON.parse(row.binding_json); } catch { binding = null; }
-    if (!binding || typeof binding !== "object" || !binding.id)
-      return interrupted("排队运行无可用模型绑定，请直接重新发起");
-    if (this._runRow(runId).status !== "running") return; // 认领后已被取消
-    let seqStart = 0;
-    try { seqStart = this.db.prepare("SELECT COALESCE(MAX(seq),0) AS n FROM agent_run_steps WHERE run_id=?").get(runId).n; } catch { seqStart = 0; }
-    this._attachLoop(runId, {
-      projectId: row.project_id, channel: row.channel, skillTitle: skill.title,
-      writeMode: profile.writeMode, expectedRevision: () => doc.revision, onWritten: () => {},
-      binding, skill, tools,
-    }, seqStart);
+    // FIX-01：认领 COMMIT 之后复核段（writing.document()/profile() 等）任何抛出
+    // 都不得沿 drainQueued 裸传播——调用方 void…catch(()=>{}) 会把它吞掉，留下
+    // status='running' 却无 controller/loopPromises 的幽灵行，永久占用该渠道
+    // 单飞/排队槽直到进程重启。任何异常统一按中断语义收敛落行（_finish 仅命中
+    // status='running'，与上方显式 interrupted 返回路径幂等），异常不外泄。
+    try {
+      const doc = this.core.writing.document(row.project_id, row.channel);
+      if (!doc || doc.mode !== "markdown") return interrupted("排队期间稿件已退出 Markdown 模式，请核对后重新发起");
+      // EASEL-PORT-PLAN §13 定稿：附「入队基准 v{X}，当前 v{Y}」诊断，两个
+      // revision 在复核处均可得，作者不必反查即可决定重驱动时机（FIX-05①）。
+      if (doc.revision !== row.base_revision)
+        return interrupted(`排队期间正文已变化（入队基准 v${row.base_revision}，当前 v${doc.revision}），未按旧基准开跑；可按原绑定重驱动`);
+      const skill = skillById(row.skill_id);
+      if (!skill) return interrupted("排队期间技能已不可用，请重新发起");
+      const profile = this.profile(row.agent_id);
+      const tools = skill.tools.filter(t => profile.tools.includes(t));
+      if (!tools.length) return interrupted("排队期间工具授权已变化，该技能所需工具均未获代理授权，请重新发起");
+      let binding = null;
+      try { binding = JSON.parse(row.binding_json); } catch { binding = null; }
+      if (!binding || typeof binding !== "object" || !binding.id)
+        return interrupted("排队运行无可用模型绑定，请直接重新发起");
+      // FIX-04：writeMode 以入队快照为准（与绑定同一 binding_json JSON 列，
+      // 零 DDL）——排队期间建议制↔直写可被第二会话/直接 PUT 翻转，认领运行
+      // 不现读 profile。陈旧行无快照键时回退现读 profile（行为同修复前）。
+      const writeMode = ["suggestions", "revisions"].includes(binding.writeMode)
+        ? binding.writeMode
+        : profile.writeMode;
+      if (this._runRow(runId).status !== "running") return; // 认领后已被取消
+      let seqStart = 0;
+      try { seqStart = this.db.prepare("SELECT COALESCE(MAX(seq),0) AS n FROM agent_run_steps WHERE run_id=?").get(runId).n; } catch { seqStart = 0; }
+      this._attachLoop(runId, {
+        projectId: row.project_id, channel: row.channel, skillTitle: skill.title,
+        writeMode, expectedRevision: () => doc.revision, onWritten: () => {},
+        binding, skill, tools,
+      }, seqStart);
+    } catch (e) {
+      interrupted("排队运行认领后复核异常终止：" + String(e?.message || e).slice(0, 200));
+    }
   }
   runSettled(runId) {
     const p = this.loopPromises.get(runId);
@@ -378,7 +399,10 @@ export class AgentRuntime {
           // 不消耗额度（_reserve 在 BEGIN IMMEDIATE 内 fail 即 ROLLBACK）。
           if (e?.status === 429) {
             record("model_error", { message: String(e.message || e).slice(0, 300) });
-            return this._finish(runId, "failed", "模型请求额度已用完，本次运行快速失败；请核对每日额度或重驱动接续新预算");
+            // FIX-05②（EASEL-PORT-PLAN §13 定稿）：恢复「模型请求额度已用完：」
+            // + 占用侧/provider message——不丢 provider 信息，便于作者定位是
+            // 日额度还是任务预算耗尽。
+            return this._finish(runId, "failed", "模型请求额度已用完：" + String(e.message || e).slice(0, 300));
           }
           failures++;
           record("model_error", { message: String(e.message || e).slice(0, 300) });
@@ -415,7 +439,9 @@ export class AgentRuntime {
       this._finish(runId, "failed", "工具未获代理授权：" + name);
       return { halted: true };
     }
-    if (tool.mode === "revisions" && profile.writeMode !== "revisions") {
+    // FIX-04：写模式门禁按本运行的 writeMode（入队快照，与 _loop 工具面过滤
+    // 同源）判定，不再现读 profile——排队期间翻转不应改变已开跑运行的语义。
+    if (tool.mode === "revisions" && ctx.writeMode !== "revisions") {
       this._finish(runId, "failed", "当前代理为建议制写模式，不能直接写入修订");
       return { halted: true };
     }

@@ -1590,10 +1590,17 @@ export default function WritingWorkspace() {
             </div>
             {/* P2-01 就绪度条（升级自仅审稿/发布可见的 ribbon）：全阶段可见，
                 chips 由 readinessFacts 从真实事实派生；诚实上限是「人工检查
-                4/4 完成（该渠道独立记录）」，不含任何「已发布/可发布」字样。 */}
+                4/4 完成（该渠道独立记录）」，不含任何「已发布/可发布」字样。
+                FIX-03：服务端显式拒绝 master 的 checks（src/editorial.mjs:87
+                「Checks belong to each publishing channel」）——主稿不渲染
+                永不消解的「待完成人工检查 0/4」chip，右侧改以一句诚实说明
+                （平台稿入口在审稿侧卡与发布阶段的「主稿不直接发布」卡）。 */}
             <div className="cv2-compose-ribbon cv2-readiness" aria-label="发布就绪度">
               <div className="row">
-                {readiness.map((f) => (
+                {(channel === "master"
+                  ? readiness.filter((f) => f.key !== "checks")
+                  : readiness
+                ).map((f) => (
                   <span
                     key={f.key}
                     className={
@@ -1606,7 +1613,11 @@ export default function WritingWorkspace() {
                 ))}
                 <span className="cv2-pill">主稿 / 平台稿独立</span>
               </div>
-              <span>AI 建议先进入待采纳区，不直接写入文章</span>
+              <span>
+                {channel === "master"
+                  ? "人工发布检查按各平台渠道独立记录；主稿不直接发布。"
+                  : "AI 建议先进入待采纳区，不直接写入文章"}
+              </span>
             </div>
             {/* V2.3 移动端双面板切换（creator-v2.3-visual.html :43）；
                 仅在编辑阶段的窄屏渲染，桌面隐藏 */}
@@ -2526,28 +2537,53 @@ export default function WritingWorkspace() {
             </div>
             <aside className="cv2-stage-side">
               <div className="cv2-stage-card" aria-label="人工检查状态">
-                <h2>四项人工检查</h2>
-                <ul className="cv2-check-list">
-                  {Object.entries(checkLabels).map(([key, label]) => (
-                    <li key={key} className={checks[key] ? "done" : ""}>
-                      <i>{checks[key] ? "✓" : "·"}</i>
-                      {label}
-                    </li>
-                  ))}
-                </ul>
-                <p className="cv2-micro">
-                  人工检查按渠道独立记录（{labels[channel]}）；逐项勾选在发布准备里完成。
-                </p>
-                {channel !== "master" ? (
-                  <div className="cv2-stage-actions">
-                    <button
-                      className="cv2-btn primary"
-                      onClick={() => goStage("publish")}
-                    >
-                      去发布准备
-                    </button>
-                  </div>
-                ) : null}
+                {/* FIX-03：master 上不渲染四检查列表与「逐项勾选在发布准备里
+                    完成」指引（服务端显式拒绝 master 的 checks，src/editorial.mjs:87
+                    ——该指引在主稿不可达成），改以诚实说明 + 创建平台稿入口。 */}
+                {channel === "master" ? (
+                  <>
+                    <h2>主稿不直接发布</h2>
+                    <p className="cv2-micro">
+                      人工发布检查按各平台渠道独立记录；主稿不直接发布，没有可勾选的检查项。
+                      选择目标渠道创建独立平台稿后，在对应渠道的发布准备里逐项完成四项检查。
+                    </p>
+                    <div className="cv2-stage-actions">
+                      {["wechat", "zhihu", "xiaohongshu"].map((key) => (
+                        <button
+                          key={key}
+                          className="cv2-btn"
+                          disabled={busy || resolving || saving}
+                          onClick={() => switchTo(projectId, key)}
+                        >
+                          创建{labels[key]}平台稿
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <h2>四项人工检查</h2>
+                    <ul className="cv2-check-list">
+                      {Object.entries(checkLabels).map(([key, label]) => (
+                        <li key={key} className={checks[key] ? "done" : ""}>
+                          <i>{checks[key] ? "✓" : "·"}</i>
+                          {label}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="cv2-micro">
+                      人工检查按渠道独立记录（{labels[channel]}）；逐项勾选在发布准备里完成。
+                    </p>
+                    <div className="cv2-stage-actions">
+                      <button
+                        className="cv2-btn primary"
+                        onClick={() => goStage("publish")}
+                      >
+                        去发布准备
+                      </button>
+                    </div>
+                  </>
+                )}
                 <p className="cv2-rail-actions">
                   <Link
                     className="cv2-btn tiny"

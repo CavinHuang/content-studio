@@ -283,6 +283,29 @@ test("刷新接续：面板恢复本渠道 running 运行与步骤，重连推�
     await page.getByText("技能任务（多步 Agent）").click();
     await expect(panel.getByRole("button", { name: "取消运行" })).toBeVisible();
     await expect(steps).toContainText("模型");
+    // FIX-02：不刷新的渠道切换——切到无运行的公众号渠道后，上一渠道的运行
+    // 卡片（含取消按钮）必须消失（不回落展示其它渠道、也不残留本面板旧态）；
+    // 切回主稿后刷新接续重新附着本渠道 running 运行。开折叠层用 toPass 原子
+    // 重试：cm 可见也可能落在渠道已翻转、文档尚未卸载的过渡渲染上，一次性
+    // evaluate 绑定的 details 会被随后的 setDoc(null) 卸载——重试循环在最终
+    // 挂载上重开 details 再断言，对装载时序稳健（全量套件负载下实测必要）。
+    await page.getByRole("tab", { name: "微信公众号" }).click();
+    const agentDetails = page.locator("details.cv2-assistant-advanced");
+    await agentDetails.evaluate((el) => {
+      el.open = true;
+    });
+    await expect(panel.getByRole("button", { name: "取消运行" })).toHaveCount(0);
+    await expect(panel.locator(".agent-run-steps")).toHaveCount(0);
+    await page.getByRole("tab", { name: "主稿" }).click();
+    await expect(async () => {
+      await agentDetails.evaluate((el) => {
+        el.open = true;
+      });
+      await expect(
+        panel.getByRole("button", { name: "取消运行" })
+      ).toBeVisible();
+      await expect(steps).toContainText("模型");
+    }).toPass({ timeout: 20_000 });
     // 放行 → 重连流按 seq 游标推进到完成（无需再次刷新）
     release();
     holdModel = null;

@@ -45,11 +45,15 @@ export default function AgentRuns({projectId,channel,revision,onNotice}){
  // （running 或 queued）」的最新一条——不回落展示其它渠道（跨渠道附着会渲染
  // 错误上下文的「取消运行」按钮，单飞按 project+channel 划分）或终态运行
  // （终态重现会改变面板初始为空语义）。
+ // FIX-02：过滤后无本渠道活跃运行时清空 run state（含取消按钮）——与本段
+ // 「不回落展示其它渠道」自述一致；当前 WritingWorkspace 切渠道会整体卸载
+ // 重挂本组件（残留被重挂掩蔽），此处保证组件在任何挂载形态下不残留旧渠道卡片。
  useEffect(()=>{const myScope=++scope.current;let alive=true;
   (async()=>{try{
    const {runs}=await api(`/api/creator/projects/${projectId}/agent-runs`);
    const latest=(runs||[]).find(r=>r.channel===channel&&(r.status==='running'||r.status==='queued'));
-   if(!alive||myScope!==scope.current||!latest)return;
+   if(!alive||myScope!==scope.current)return;
+   if(!latest){setRun(null);return;} // 本渠道无活跃运行：清空上一渠道残留卡片
    setRun(latest);follow(latest.id,maxSeq(latest.steps))
   }catch{}/* 运行列表失败不阻塞面板常规使用 */})();
   return()=>{alive=false};

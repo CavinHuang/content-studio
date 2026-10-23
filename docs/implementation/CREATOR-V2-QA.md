@@ -655,3 +655,115 @@ editorial-api.test.mjs HTTP 级断言（载荷四布尔 + checkedRevision===2、
 - 流程追记：自此每次新提交后如需再跑 e2e，须先在当次 HEAD 上
   `npm run build` 重封回执——这是 V64「build 封存、start 校验」的既定代价，
   登记为操作须知而非缺陷。
+
+## 13. 登记缺陷批量修复（FIX-01…FIX-05，2026-10-23，feat/defect-fixes-agent）
+
+- **范围**：五项登记缺陷一次修复，分支 `feat/defect-fixes-agent`（基于 main
+  `00fb1a1`，开工时工作树干净）。权威验证环境：Linux 容器
+  `node22-studio:pw`（§1 既有口径；Windows 宿主 `npm test` 因凭据存储权限
+  POSIX 门禁无法启动测试，本轮实测复核依旧，§8.4 登记继续有效）。
+- **FIX-01 幽灵 running 行（认领后复核收敛）**：`src/agent-runtime.mjs`
+  `_startClaimed` 认领后复核段（writing.document()/profile()/skillById/
+  binding 解析）整体包入 try/catch——认领 COMMIT 之后任何复核抛出统一以
+  `_finish(runId,'interrupted','排队运行认领后复核异常终止：…')` 收敛落行
+  （`_finish` 仅命中 status='running'，与既有显式 interrupted 返回路径幂等），
+  不再沿 drainQueued 裸传播、被调用方 `void…catch(()=>{})` 吞掉后留下无
+  controller/loopPromises 的幽灵 running 行占用渠道单飞/排队槽。新增单测
+  「FIX-01 认领后复核异常」（删 agent_profiles 行触发 profile() 404）：断言
+  B 行收敛 interrupted 终态、stopReason /复核异常/、零模型调用、
+  controller/loopPromises 双空、该渠道 running/queued 活跃行归零、
+  `drainQueued()` doesNotReject 且二次 drain 不改变已收敛终态。
+- **FIX-02 切渠道后残留上一渠道运行卡片**：`components/AgentRuns.jsx` 刷新
+  接续 effect 在按 props.channel 过滤后无本渠道活跃运行时 `setRun(null)`
+  （原 early return 不清 run state），使组件自身行为与 :43-47「不回落展示
+  其它渠道」自述一致。e2e「刷新接续」用例扩展：master running（holdModel
+  保持）→ 切公众号 tab → 取消按钮与运行时间线消失 → 切回主稿 → 刷新接续
+  重新附着本渠道 running 运行（取消按钮与「模型」帧回归）。
+  **判别力披露（实证，如实登记）**：将本修复 stash 后重建再跑同用例仍然
+  通过——WritingWorkspace 切渠道装载 effect `setDoc(null)`
+  （components/WritingWorkspace.jsx:399，依赖 `[projectId, channel]`
+  :477）会整体卸载包含 AgentRuns 的 `cv2-compose-grid`（:1962），组件随
+  重挂复位，登记缺陷所述「组件又不重挂载」的前提在当前 WritingWorkspace
+  结构下不成立，组件级残留当前被工作区重挂掩蔽。本修复保留为组件自洽性
+  修正（防未来任何持久挂载形态复现该残留），e2e 扩展钉住用户可见契约。
+- **FIX-03 主稿渠道检查类呈现（永不消解的 0/4）**：服务端显式拒绝 master
+  的 checks（src/editorial.mjs:87「Checks belong to each publishing
+  channel」）不变；呈现侧 `components/WritingWorkspace.jsx`：①就绪度条
+  master 不渲染 checks chip（readiness 过滤 `key==='checks'`），右侧说明
+  改为「人工发布检查按各平台渠道独立记录；主稿不直接发布。」；②审稿阶段
+  侧卡 master 分支不再渲染四检查列表与「逐项勾选在发布准备里完成」指引
+  （主稿上不可达成），改「主稿不直接发布」说明 + 创建公众号/知乎/小红书
+  平台稿入口（与发布阶段既有「主稿不直接发布」卡同形态），非 master 渠道
+  呈现逐字不变。e2e 同步三处 master 断言（V2 版式、阶段切换写 URL、前进
+  后退）：负断言 `/待完成人工检查 \d\/\d/` 计 0 + 诚实文案可见；阶段切换
+  用例另断言侧卡无 `cv2-check-list`、含 3 个「创建…平台稿」入口。
+  compose 套件更新后 30 passed / 2 skipped / 0 failed。
+- **FIX-04 排队期间 writeMode 翻转边（入队快照）**：`startRun` 入队时把
+  writeMode 合并快照进该行既有 `binding_json` JSON 列（`{...binding,
+  writeMode: profile.writeMode}`，零 DDL，与 resume 复用 binding 同一复用
+  模式；resume 行快照取当前 profile，覆写旧行可能残留的同名键）；
+  `_startClaimed` 认领时以快照 writeMode 附着 loop（陈旧行无快照键回退
+  现读 profile，行为同修复前）；`_executeTool` 写模式门禁改按本运行
+  `ctx.writeMode` 判定（与 `_loop` 工具面过滤同源，运行内不再现读
+  profile）。语义决定（记 QA）：排队运行整体以入队快照 writeMode 运行，
+  排队期间的建议制↔直写翻转只影响之后新开的运行。新增单测「FIX-04 排队
+  期间 writeMode 翻转」：入队（建议制）→ 排队期间 `saveProfile({writeMode:
+  'revisions'})`（面板 select 已 disabled，第二会话/直接 PUT 形态）→ drain
+  认领后模型消息 `writeMode==='suggestions'` 且宣告工具面无 write_revision。
+- **FIX-05 两处文案回改（EASEL-PORT-PLAN §13 定稿）**：①interrupted
+  「排队期间正文已变化」补诊断——定稿全句「排队期间正文已变化（入队基准
+  v{X}，当前 v{Y}），未按旧基准开跑；可按原绑定重驱动」（两个 revision 在
+  认领复核处均可得）；②429 额度耗尽 stopReason 恢复「模型请求额度已用
+  完：」+ 占用侧/provider message（不再丢 provider 信息，作者可定位是日
+  额度还是任务预算耗尽）。单测增强：drain 复核用例断言诊断字段与
+  /未按旧基准开跑/；额度快速失败用例断言 `^模型请求额度已用完：今日请求
+  额度已用完`（日额度分支）、run 级预算用例断言 /该任务请求上限已用完/
+  （任务预算分支）。
+- **验证（容器内实跑）**：
+  - `npm test`：**706 tests = 701 pass / 2 fail / 3 skipped**。2 失败为 V74
+    root 容器既有环境豁免（test/container-recovery-v74.test.mjs:81,:100，
+    错误逐字 `V74 maintenance requires an unprivileged Linux container`）、
+    3 跳过为 V69（`requires non-root current UID` ×2 + `sudo -u nobody
+    unavailable` ×1），与 §3 基线完全一致，零新增失败；净增 2 测
+    （FIX-01、FIX-04）与全部增强断言通过。
+  - `npm run build`（HEAD=`00fb1a1`，工作树含本批修复）：✓ Compiled
+    successfully，V64 回执按当次 HEAD 封存。
+  - `npx playwright test e2e/agent-runtime.spec.mjs
+    e2e/creator-v2-compose.spec.mjs`：**36 passed / 2 skipped / 0 failed**
+    （2 skipped 为既有 compose fixme/缺种子路径项）；agent-runtime 6/6
+    （含 FIX-02 扩展断言），compose 更新断言全过。
+  - 全量 e2e 本轮未重跑（§12.7/§12.8 第 3 轮 283/0 为最近一次全量账目；
+    本批仅涉 compose/agent-runtime 两套件与 agent-runtime 服务端，定向
+    套件已覆盖受影响面；如需全量，须先在提交后 HEAD 重建重封回执）。
+- **边界**：零 DDL（binding_json/checklist_json 均既有 JSON 列复用）、零新
+  端点、V75 远程边界与 --cv2-* 令牌未触碰、export≠实际发布语义未变。
+
+### 13.1 全量 e2e 两轮追记：第 1 轮 3 失败定性 + 本批测试竞态修复（同日）
+
+- **第 1 轮全量 `npx playwright test`**（容器内，HEAD=`1c9e657`，V64 回执
+  同 commit）：**280 passed / 3 failed / 16 skipped（12.6m）**。逐条定性：
+  1. `e2e/agent-runtime.spec.mjs:252`（刷新接续，**本批 FIX-02 扩展步骤，
+     有交集→必须修**）：trace 取证（test-results trace 解包留档）——运行全程
+     held running；最终挂载已附着运行（runs GET 08.817Z 响应 status=running、
+     follow SSE 08.834Z 打开、失败 DOM 中技能 select 带 disabled=activeRun）；
+     无重载、无重挂、无 effect 重跑（network log 穷尽）。唯一不满足项是
+     `details.cv2-assistant-advanced` 的 open 属性。**根因（测试步骤竞态，
+     非产品回归）**：`expect(cm).toBeVisible()` 可在「渠道已翻转、旧文档尚未
+     卸载」的过渡渲染通过，其后一次性 `evaluate(el=>{el.open=true})` 绑定的
+     details 会被装载 effect 的 `setDoc(null)` 整体卸载，最终挂载的 details
+     恢复默认闭合——目标「取消运行」按钮在闭合 details 内，getByRole（可及
+     性树）不可见 → 15s 超时。轻载定向复跑时序落在另一侧故此前 3 次（含
+     stash 判别力探针）通过。**修复**：切回主稿后改为
+     `expect(async()=>{evaluate 重开 details; toBeVisible; toContainText})
+     .toPass({timeout:20_000})` 原子重试，对装载时序稳健。验证：单独复跑
+     **3/3 通过**；第 2 轮全量通过。
+  2. `e2e/creator-v2-home.spec.mjs:399`（通知待办，与本批无交集）：单独复跑
+     **4.8s 通过**——后台系列准备 worker tick 的套内负载时序抖动（§9 曾登记
+     同一用例同型抖动），按 §7.2 既有抖动定性规则归为抖动，不修。
+  3. `e2e/creator-v2-publish.spec.mjs:1041`（键盘可达，与本批无交集）：单独
+     复跑 **2.0s 通过**——/publish 页键盘焦点断言的套内负载时序抖动（§7 曾
+     登记同型抖动），按 §7.2 归为抖动，不修。
+- **第 2 轮全量 `npx playwright test`**（修复后；HEAD 仍 `1c9e657`，本批仅改
+  e2e 用例不进 Next 构建，回执继续匹配）：**283 passed / 0 failed / 16
+  skipped（15.2m，exit 0）**，与 §12.8 账目一致（16 skipped 全部为既有
+  fixme/skip）。上节「全量 e2e 本轮未重跑」一句由此追记取代。

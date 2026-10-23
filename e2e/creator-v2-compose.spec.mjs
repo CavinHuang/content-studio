@@ -251,12 +251,17 @@ test("V2 版式：真实空稿的诚实空态、阶段条与全阶段就绪度�
   await expect(steps.nth(1)).toHaveClass(/now/);
   await expect(steps.nth(0)).toHaveClass(/todo/);
 
-  // P2-01 就绪度条：全阶段可见（写作阶段即有检查进度 chip），事实来自真实空稿
+  // P2-01 就绪度条：全阶段可见，事实来自真实空稿
   const ribbon = page.locator(".cv2-compose-ribbon");
   await expect(ribbon).toBeVisible();
   await expect(ribbon).toContainText("研究简报暂无");
   await expect(ribbon).toContainText("大纲尚无标题");
-  await expect(ribbon).toContainText("待完成人工检查 0/4");
+  // FIX-03：服务端显式拒绝 master 的 checks（src/editorial.mjs:87）——主稿
+  // 就绪度条不再渲染永不消解的「待完成人工检查 0/4」chip，改以一句诚实说明
+  await expect(ribbon.getByText(/待完成人工检查 \d\/\d/)).toHaveCount(0);
+  await expect(
+    ribbon.getByText("人工发布检查按各平台渠道独立记录；主稿不直接发布。")
+  ).toBeVisible();
   await expect(ribbon).toContainText("未插图");
   await expect(ribbon.getByText("主稿 / 平台稿独立")).toBeAttached();
   // 诚实性上限：就绪度条最高只到「人工检查 4/4 完成」，不含已发布/可发布字样
@@ -1475,9 +1480,26 @@ test("阶段切换写 URL 且不重取文档，未保存修改保留，后退前
   await cm(page).fill("切阶段前输入、尚未自动保存的句子。");
   await page.getByRole("button", { name: "切换到审稿阶段" }).click();
   await expect(page).toHaveURL(/stage=review/);
+  // FIX-03：master 审稿阶段的诚实呈现——就绪度条无检查 chip，右侧是诚实说明；
+  // 侧卡不再渲染四检查列表与不可达成的「逐项勾选在发布准备里完成」指引，
+  // 改为「主稿不直接发布」说明 + 创建平台稿入口
+  await expect(
+    page.locator(".cv2-compose-ribbon").getByText(/待完成人工检查 \d\/\d/)
+  ).toHaveCount(0);
   await expect(page.locator(".cv2-compose-ribbon")).toContainText(
-    "待完成人工检查"
+    "人工发布检查按各平台渠道独立记录；主稿不直接发布。"
   );
+  const checkCard = page.locator('div[aria-label="人工检查状态"]');
+  await expect(
+    checkCard.getByRole("heading", { name: "主稿不直接发布" })
+  ).toBeVisible();
+  await expect(checkCard.locator(".cv2-check-list")).toHaveCount(0);
+  await expect(checkCard).toContainText(
+    "人工发布检查按各平台渠道独立记录"
+  );
+  await expect(
+    checkCard.getByRole("button", { name: /创建.*平台稿/ })
+  ).toHaveCount(3);
   await sleep(1200);
   expect(docGets, "切阶段不得重新 GET 文档").toBe(0);
   expect(projectListGets, "切阶段不得重跑 refreshProjects").toBe(0);
@@ -1489,8 +1511,12 @@ test("阶段切换写 URL 且不重取文档，未保存修改保留，后退前
   await expect(cm(page)).toContainText("切阶段前输入、尚未自动保存的句子。");
   await page.goForward();
   await expect(page).toHaveURL(/stage=review/);
+  // FIX-03：前进回审稿后同样呈现 master 的诚实检查说明（无检查 chip）
+  await expect(
+    page.locator(".cv2-compose-ribbon").getByText(/待完成人工检查 \d\/\d/)
+  ).toHaveCount(0);
   await expect(page.locator(".cv2-compose-ribbon")).toContainText(
-    "待完成人工检查"
+    "人工发布检查按各平台渠道独立记录；主稿不直接发布。"
   );
   // 全程没有新文档 GET：后退前进也只改呈现层焦点
   expect(docGets, "前进后退不得重新 GET 文档").toBe(0);
