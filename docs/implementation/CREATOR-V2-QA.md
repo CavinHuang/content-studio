@@ -633,3 +633,25 @@ editorial-api.test.mjs HTTP 级断言（载荷四布尔 + checkedRevision===2、
 - 覆盖面说明（如实）：「查看替换内容」details（replacement-only 降级态）自此
   无 e2e 点击覆盖；其渲染分支由 suggestionCompareView 四态单测（§12.3）门控，
   风险为纯静态 details>pre 渲染。
+
+### 12.8 全量 e2e 第 2 轮「webServer 启动失败」修复（Run E 追记，同日）
+
+- 第 2 轮全量 `npx playwright test`：failed=0，但 harness 报
+  `Process from config.webServer was not able to start. Exit code: 78`——无任何
+  用例执行，属启动闸门拒绝而非用例回归。
+- **根因（实证）**：V64 守卫按设计工作——`.next/content-studio-v64-build-receipt.json`
+  封存的 `candidateCommit=1126119…`，而工作树 HEAD 已前进到 `feff130…`，
+  `verifyBuildReceipt` 的 `candidateCommit!==expectedSha` 抛「Build receipt does
+  not match pinned Git commit」→ `scripts/runtime-guard.mjs:73` status 78。
+  上一轮（§12.7 第 2 轮 283/0）的 webServer 是在 HEAD 仍为 1126119 时启动的
+  （feff130 提交落在该轮运行中途），故未触发。
+- **修复（V64 设计内工作流，无任何守卫绕过）**：在当前干净 HEAD（feff130）重新
+  `npm run build`（✓ Compiled successfully in 23.4s，exit 0），回执重封
+  `candidateCommit=feff130…`；随后 `npm run test:production`（走受守卫
+  start 路径）1/1 通过，证实 `npm start` 启动恢复。
+- 第 3 轮全量 `npx playwright test`（容器内，HEAD=feff130）：**283 passed /
+  0 failed / 16 skipped（11.1m，exit 0）**，与 §12.7 第 2 轮账目一致，16
+  skipped 全部为既有 fixme/skip。
+- 流程追记：自此每次新提交后如需再跑 e2e，须先在当次 HEAD 上
+  `npm run build` 重封回执——这是 V64「build 封存、start 校验」的既定代价，
+  登记为操作须知而非缺陷。
