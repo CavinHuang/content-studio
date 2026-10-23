@@ -67,6 +67,14 @@
 .cv2-delivery-report{border-top:1px dashed #dfe4f2;margin-top:14px;padding-top:4px}
 .cv2-delivery-report .cv2-btn{margin-top:10px}
 
+/* RD-02 官方发布页跳转引导卡（vendor ManualPublishPage.tsx:230 语义）：只在
+   reviewReady 后的交付面板内可见；纯作者手动 <a target="_blank">，无自动打开、
+   无服务端外呼。样式全部沿用 --cv2-* 既有语义 token（Run D 红线：不内联新 hex）。 */
+.cv2-official-card{margin-top:16px;padding:14px;border:1px solid var(--cv2-border);background:var(--cv2-success-soft);border-radius:12px}
+.cv2-official-card h5{margin:0 0 4px;font-size:12px;color:var(--cv2-text)}
+.cv2-official-card .cv2-delivery-hint{color:var(--cv2-text-muted)}
+.cv2-app .cv2-official-link{margin-top:10px;display:inline-flex;align-items:center;gap:6px}
+
 /* preview rail — .channel-tabs/.preview-phone (creator-v2.2.html:9,160) */
 .cv2-publish-preview{position:sticky;top:23px}
 .cv2-channel-tabs{display:flex;gap:5px;background:#e9eaee;padding:4px;border-radius:10px;width:max-content;margin:0 auto}

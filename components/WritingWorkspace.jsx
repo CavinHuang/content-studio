@@ -1,5 +1,5 @@
 "use client";
-import { useDeferredValue, useEffect, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Message, MessageContent, MessageResponse } from "./ai-elements/message";
@@ -15,6 +15,7 @@ import XiaohongshuWorkspace from "./XiaohongshuWorkspace";
 import PublishingControls from "./PublishingControls";
 import WritingGenerations from "./WritingGenerations";
 import { consumeGeneration } from "../lib/writing-stream-client";
+import { diffLines, diffSummary } from "../src/version-diff.mjs";
 import WritingContext from "./WritingContext";
 import WritingMasterReview from "./WritingMasterReview";
 import WritingModelContext from "./WritingModelContext";
@@ -22,7 +23,17 @@ import AgentRuns from "./AgentRuns";
 import CreatorShell from "./CreatorShell";
 import Icon from "./creator/Icon";
 import ComposeVisualBoard from "./ComposeVisualBoard";
-import { checkSummary, composeSteps, outlineItems, parseStage, shotTitle, slotView } from "../src/compose-view.mjs";
+import {
+  activeOutlineIndex,
+  composeSteps,
+  markdownLineOffsets,
+  outlineItems,
+  parseStage,
+  readinessFacts,
+  shotTitle,
+  slotView,
+  suggestionCompareView,
+} from "../src/compose-view.mjs";
 
 // 今天 14:32 / 昨天 20:16 / 10 月 16 日 — client-side only (the document
 // arrives after mount), so locale/timezone can never cause a hydration
@@ -92,6 +103,46 @@ function download(text, name, type = "text/markdown;charset=utf-8") {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// RD-03（Run D，Phase 4 首切片；自有设计，非 vendor 适配）：版本历史
+// 「与上一版对比」。两版 markdown 全在既有 GET /history 载荷
+// （src/writing.mjs:625-657），展开时客户端按需计算（src/version-diff.mjs
+// diffLines），零新增请求；只读渲染，不影响不可变修订与「恢复此版」路径。
+function VersionDiffDetails({ row, prev }) {
+  const [result, setResult] = useState(null);
+  const summary =
+    result && !result.tooLarge ? diffSummary(result.ops) : null;
+  return (
+    <details
+      className="writing-version-diff"
+      onToggle={(e) => {
+        if (e.target.open && result === null)
+          setResult(diffLines(prev.markdown, row.markdown));
+      }}
+    >
+      <summary>与上一版对比</summary>
+      {result === null ? null : result.tooLarge ? (
+        <p>版本内容超过 2000 行，页内对比暂不可用；可用「查看内容」核对原文。</p>
+      ) : (
+        <>
+          <p>
+            {summary.added} 行新增 / {summary.removed} 行删除
+          </p>
+          <div className="writing-version-diff-lines">
+            {result.ops.map((op, i) => (
+              <div key={i} className={`writing-version-line is-${op.type}`}>
+                <span className="writing-version-line-mark" aria-hidden="true">
+                  {op.type === "add" ? "＋" : op.type === "del" ? "−" : ""}
+                </span>
+                <span className="writing-version-line-text">{op.text}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </details>
+  );
+}
+
 export default function WritingWorkspace() {
   const [streamEnabled, setStreamEnabled] = useState(true);
   const generationAbort = useRef(null),
@@ -114,7 +165,11 @@ export default function WritingWorkspace() {
     [markdown, setMarkdown] = useState(""),
     [theme, setTheme] = useState("forest"),
     [legacyChoice, setLegacyChoice] = useState("");
-  const [notice, setNotice] = useState(""),
+  // P2-03 通知分级：单条槽位语义保持（不做队列），内部携带 tone。notify 是
+  // 唯一入口；setNotice 保留为 notify(text) 别名——既有约 40 处调用点零改动，
+  // 仅关键路径显式升级 tone（保存冲突/blocked → error，导出/恢复/发布回填/
+  // 图片插入成功 → success）。error 用 role="alert" + 语义色，其余 role="status"。
+  const [notice, setNoticeSlot] = useState(null),
     [blocked, setBlocked] = useState(false),
     [saving, setSaving] = useState(false),
     [busy, setBusy] = useState(false),
@@ -159,6 +214,10 @@ export default function WritingWorkspace() {
   const urlStage = query.get("stage");
   const dirty = !!doc && (markdown !== doc.markdown || theme !== doc.theme),
     canMigrate = (!doc?.legacyLayout || !!legacyChoice) && !recovery;
+  function notify(text, tone = "info") {
+    setNoticeSlot(text ? { text: String(text), tone } : null);
+  }
+  const setNotice = notify; // 既有调用点零改动的别名（默认 info）
   current.current = {
     doc,
     markdown,
@@ -174,7 +233,6 @@ export default function WritingWorkspace() {
   // V2 view facts — derived only from real document state (see
   // src/compose-view.mjs for the honesty rules).
   const outline = outlineItems(markdown);
-  const checkInfo = checkSummary(checks);
   const steps = composeSteps({
     hasBrief: !!doc?.brief,
     hasOutline: outline.length > 0,
@@ -183,6 +241,27 @@ export default function WritingWorkspace() {
     ),
     hasInsertedImages: markdown.includes("](asset://"),
   });
+  // P2-01 全阶段就绪度条：与 composeSteps 同源的事实 chips（发布侧卡的
+  // 「人工检查 n/4」行由此单一承载）。
+  const readiness = readinessFacts({
+    brief: doc?.brief,
+    outlineCount: outline.length,
+    pendingSuggestions: suggestions.filter((s) => s.status === "pending")
+      .length,
+    decidedSuggestions: suggestions.filter((s) =>
+      ["accepted", "rejected"].includes(s.status)
+    ).length,
+    checks,
+    staleImagePlan: !!illustrationPlan?.stale,
+    insertedImages: markdown.includes("](asset://"),
+  });
+  // P2-02 行偏移表由 compose-view 纯函数生产，组件不做偏移累加；
+  // active 大纲项随光标 selection.from 跟随。
+  const outlineOffsets = useMemo(() => markdownLineOffsets(markdown), [markdown]);
+  const activeOutline = useMemo(
+    () => activeOutlineIndex(outline, selection?.from ?? 0, outlineOffsets),
+    [outline, selection?.from, outlineOffsets]
+  );
   const planShots = illustrationPlan?.shots || [];
   const editorStage = stage === "write" || stage === "images";
   const allChecksDone = Object.keys(checkLabels).every((key) => checks[key]);
@@ -487,6 +566,15 @@ export default function WritingWorkspace() {
     if (next === "write") setAssistantTab("writing");
     syncStageUrl(next, "push");
   }
+  // P2-02 大纲真跳转：revealLine 锚定标题行行首（折叠 selection，不产生
+  // 选中文本）并滚动聚焦。源码视图下编辑器隐藏（display:none），先切回
+  // 分栏，等一帧布局恢复后再跳转，否则 scrollIntoView 落在隐藏节点上无效。
+  function revealOutline(item) {
+    if (view === "source") {
+      setView("split");
+      requestAnimationFrame(() => editor.current?.revealLine(item.line));
+    } else editor.current?.revealLine(item.line);
+  }
 
   async function persist() {
     if (savePromise.current) {
@@ -528,7 +616,7 @@ export default function WritingWorkspace() {
         if (s.epoch === epoch.current) {
           current.current.blocked = true;
           setBlocked(true);
-          setNotice(e.message);
+          notify(e.message, "error"); // P2-03：保存冲突是关键错误路径
         }
         throw e;
       })
@@ -985,7 +1073,7 @@ export default function WritingWorkspace() {
       setTheme(next.theme);
       setChecks(next.checks);
       setHistory(null);
-      setNotice("历史内容已恢复为新版本。");
+      notify("历史内容已恢复为新版本。", "success");
     } catch (e) {
       setNotice(e.message);
     } finally {
@@ -1027,7 +1115,7 @@ export default function WritingWorkspace() {
       editor.current?.insert(
         `\n\n![${file.name.replace(/[\[\]\\]/g, "")}](asset://${asset.id})\n\n`
       );
-      setNotice("图片已保存到素材库并插入正文。");
+      notify("图片已保存到素材库并插入正文。", "success");
     } catch (e) {
       setNotice(e.message);
     }
@@ -1055,15 +1143,16 @@ export default function WritingWorkspace() {
             "text/plain": new Blob([result.markdown], { type: "text/plain" }),
           }),
         ]);
-        setNotice(
-          "已复制排版内容，请到目标平台粘贴并检查。该操作不代表已发布。"
+        notify(
+          "已复制排版内容，请到目标平台粘贴并检查。该操作不代表已发布。",
+          "success"
         );
       } else {
         download(
           result.markdown,
           `content-studio-${channel}-v${result.revision}.md`
         );
-        setNotice("已生成 Markdown 下载文件，尚未发布到平台。");
+        notify("已生成 Markdown 下载文件，尚未发布到平台。", "success");
       }
     } catch (e) {
       setNotice(e.message || "复制未完成，请使用 Markdown 下载。");
@@ -1100,7 +1189,7 @@ export default function WritingWorkspace() {
           url: publishedUrl,
         }
       );
-      setNotice("已保存作者确认的发布链接，状态来源为人工记录。");
+      notify("已保存作者确认的发布链接，状态来源为人工记录。", "success");
     } catch (e) {
       setNotice(e.message);
     }
@@ -1116,7 +1205,7 @@ export default function WritingWorkspace() {
   function retrySave() {
     current.current.blocked = false;
     setBlocked(false);
-    persist().catch((e) => setNotice(e.message));
+    persist().catch((e) => notify(e.message, "error"));
   }
   function recoverDraft() {
     if (!recovery) return;
@@ -1132,8 +1221,9 @@ export default function WritingWorkspace() {
       setDoc(baseline);
       current.current.blocked = true;
       setBlocked(true);
-      setNotice(
-        "已恢复本地草稿。服务器已有新版本，自动保存暂停；请下载本地内容并与最新版本合并。"
+      notify(
+        "已恢复本地草稿。服务器已有新版本，自动保存暂停；请下载本地内容并与最新版本合并。",
+        "error"
       );
     }
     current.current.markdown = recovery.markdown;
@@ -1223,10 +1313,38 @@ export default function WritingWorkspace() {
               >
                 在正文中查看
               </button>
-              <details>
-                <summary>查看替换内容</summary>
-                <pre>{s.replacement}</pre>
-              </details>
+              {/* AW-01：就地对比为主（src/compose-view.mjs suggestionCompareView
+                  纯派生，original/replacement 是载荷既有字段，零新增请求）；
+                  「在正文中查看」保留为上下文定位次级入口。revoked/退化数据
+                  （original 为空或与 replacement 相同）诚实降级为单行替换内容。 */}
+              {suggestionCompareView(s).mode === "both" ? (
+                <div className="writing-suggestion-compare" aria-label="建议对比">
+                  <small className="writing-suggestion-compare-hint">
+                    原文片段 → 替换内容
+                  </small>
+                  <div className="writing-version-line is-del">
+                    <span className="writing-version-line-mark" aria-hidden="true">
+                      −
+                    </span>
+                    <span className="writing-version-line-text">
+                      {s.original}
+                    </span>
+                  </div>
+                  <div className="writing-version-line is-add">
+                    <span className="writing-version-line-mark" aria-hidden="true">
+                      ＋
+                    </span>
+                    <span className="writing-version-line-text">
+                      {s.replacement}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <details>
+                  <summary>查看替换内容</summary>
+                  <pre>{s.replacement}</pre>
+                </details>
+              )}
               <div>
                 <button
                   disabled={
@@ -1276,6 +1394,22 @@ export default function WritingWorkspace() {
             </h1>
           </div>
           <div className="cv2-compose-actions">
+            {/* P2-03 生成中全局指示：非阻塞 pill，点击回到既有助手与停止
+                控件（不新增第二套停止入口）；生成结束/失败即消失。移动端
+                一并切到助手面板，否则正文面板会挡住右栏。 */}
+            {(busy || !!compareProgress) && (
+              <button
+                type="button"
+                className="cv2-generating-pill"
+                onClick={() => {
+                  setRightOpen(true);
+                  setAssistantTab("writing");
+                  setMobilePane("assistant");
+                }}
+              >
+                助手生成中…
+              </button>
+            )}
             <span
               className={"cv2-compose-save" + (blocked ? " has-error" : "")}
               role="status"
@@ -1454,27 +1588,26 @@ export default function WritingWorkspace() {
                 </div>
               ) : null}
             </div>
-            {(stage === "review" || stage === "publish") && (
-              <div className="cv2-compose-ribbon">
-                <div className="row">
-                  {checkInfo.complete ? (
-                    <span className="cv2-pill good">
-                      人工检查 {checkInfo.done}/{checkInfo.total} 完成
-                    </span>
-                  ) : (
-                    <>
-                      <span className="cv2-pill warn">待完成人工检查</span>
-                      <span>
-                        <strong>{checkInfo.total - checkInfo.done} 项</strong>{" "}
-                        逐项核对后才可导出（{labels[channel]}独立记录）
-                      </span>
-                    </>
-                  )}
-                  <span className="cv2-pill">主稿 / 平台稿独立</span>
-                </div>
-                <span>AI 建议先进入待采纳区，不直接写入文章</span>
+            {/* P2-01 就绪度条（升级自仅审稿/发布可见的 ribbon）：全阶段可见，
+                chips 由 readinessFacts 从真实事实派生；诚实上限是「人工检查
+                4/4 完成（该渠道独立记录）」，不含任何「已发布/可发布」字样。 */}
+            <div className="cv2-compose-ribbon cv2-readiness" aria-label="发布就绪度">
+              <div className="row">
+                {readiness.map((f) => (
+                  <span
+                    key={f.key}
+                    className={
+                      "cv2-pill" +
+                      (f.tone === "good" ? " good" : f.tone === "warn" ? " warn" : f.tone === "detail" ? " detail" : "")
+                    }
+                  >
+                    {f.label}
+                  </span>
+                ))}
+                <span className="cv2-pill">主稿 / 平台稿独立</span>
               </div>
-            )}
+              <span>AI 建议先进入待采纳区，不直接写入文章</span>
+            </div>
             {/* V2.3 移动端双面板切换（creator-v2.3-visual.html :43）；
                 仅在编辑阶段的窄屏渲染，桌面隐藏 */}
             {editorStage ? (
@@ -1528,9 +1661,14 @@ export default function WritingWorkspace() {
           </form>
         )}
         {notice && (
-          <div className="writing-notice" role="status">
-            {notice}
-            <button aria-label="关闭消息" onClick={() => setNotice("")}>
+          <div
+            className={
+              "writing-notice" + (notice.tone === "error" ? " has-error" : "")
+            }
+            role={notice.tone === "error" ? "alert" : "status"}
+          >
+            {notice.text}
+            <button aria-label="关闭消息" onClick={() => notify("")}>
               ×
             </button>
           </div>
@@ -1796,10 +1934,8 @@ export default function WritingWorkspace() {
                       导出 ≠ 实际发布：复制排版与下载
                       Markdown 只生成本地交付物，发送到草稿箱也只是草稿。真正的发布状态以你在平台上核对后的记录为准。
                     </p>
-                    <p className="cv2-micro">
-                      人工检查 {checkInfo.done}/{checkInfo.total}
-                      完成（{labels[channel]}独立记录）。
-                    </p>
+                    {/* P2-01：侧卡的「人工检查 n/4」行已删除——检查进度由上方
+                        就绪度条单一承载；侧卡只保留发布边界文案与返回入口。 */}
                     <div className="cv2-stage-actions">
                       {channel === "xiaohongshu" ? (
                         <button
@@ -1835,11 +1971,12 @@ export default function WritingWorkspace() {
                         key={i + o.text}
                         type="button"
                         className={
-                          "cv2-compose-outline-link" + (i === 0 ? " active" : "")
+                          "cv2-compose-outline-link" +
+                          (i === activeOutline ? " active" : "")
                         }
                         style={{ paddingLeft: 10 + (o.level - 1) * 9 }}
                         title={o.text}
-                        onClick={() => editor.current?.focus()}
+                        onClick={() => revealOutline(o)}
                       >
                         {o.text}
                       </button>
@@ -2498,13 +2635,15 @@ export default function WritingWorkspace() {
           >
             <h2>版本历史</h2>
             <button onClick={() => setHistory(null)}>关闭</button>
-            {history.map((row) => (
+            {history.map((row, i) => (
               <article key={row.revision}>
                 <strong>
                   v{row.revision} ·{" "}
                   {row.mode === "markdown" ? "Markdown" : "原有正文"}
                 </strong>
                 <small>{new Date(row.createdAt).toLocaleString()}</small>
+                {/* RD-03：修订备注随行显示（payload 已有，writing.mjs:625-657） */}
+                {row.note ? <p>备注：{row.note}</p> : null}
                 {row.masterReview && (
                   <p>
                     已审阅主稿 v{row.masterReview.sourceRevision} → v
@@ -2523,6 +2662,11 @@ export default function WritingWorkspace() {
                     处。
                   </p>
                 )}
+                {/* RD-03：除最早一版外每行可展开与上一版的行级对比（history 为
+                    revision DESC，上一版即下一项）；展开时按需计算，零新请求 */}
+                {i < history.length - 1 ? (
+                  <VersionDiffDetails row={row} prev={history[i + 1]} />
+                ) : null}
                 <details>
                   <summary>查看内容</summary>
                   <pre>{row.markdown}</pre>

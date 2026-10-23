@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {Store} from '../src/store.mjs';import {VerificationService} from '../src/verification.mjs';import {KnowledgeService} from '../src/knowledge.mjs';import {PrecisionService} from '../src/precision.mjs';import {EditorialService} from '../src/editorial.mjs';import {item} from '../src/normalize.mjs';
-function setup(){let store=new Store(),verification=new VerificationService(store),knowledge=new KnowledgeService(store,verification),precision=new PrecisionService(store,verification,knowledge),editor=new EditorialService(store,knowledge,precision);editor.attachPrecision();return{store,verification,knowledge,precision,editor}}
+import {Store} from '../src/store.mjs';import {VerificationService} from '../src/verification.mjs';import {KnowledgeService} from '../src/knowledge.mjs';import {PrecisionService} from '../src/precision.mjs';import {EditorialService} from '../src/editorial.mjs';import {WritingService} from '../src/writing.mjs';import {checksStale} from '../src/publish-center.mjs';import {item} from '../src/normalize.mjs';
+function setup(){let store=new Store(),verification=new VerificationService(store),knowledge=new KnowledgeService(store,verification),precision=new PrecisionService(store,verification,knowledge),editor=new EditorialService(store,knowledge,precision);editor.attachPrecision();const writing=new WritingService(store,editor,precision,null);return{store,verification,knowledge,precision,editor,writing}}
 function make(m){return m.editor.create({title:'原创 Agent 调试实践',paragraphs:[{id:'p_original_a',text:'原始段落：一次本地工具执行失败，且缺少部分诊断信息。'},{id:'p_original_b',text:'我正在复核相关证据，不能据此断定所有用户都遇到问题。'}]})}
 function checkAll(m,id,ch){let c=m.editor.get(id).channels[ch];return m.editor.setChecks(id,ch,{expectedRevision:c.document.revision,checks:{factual:true,privacy:true,rights:true,layout:true}})}
 function caseAndCard(m){const i=item({sourceId:'hn',title:'Agent runtime error and tracing',summary:'One observation',url:'https://example.org/debug',role:'discussion_signal'});m.store.upsert([i]);const ev=m.store.events()[0];let c=m.verification.create(ev,{hypothesis:'Local agent execution can occasionally miss trace context'});c=m.verification.addEvidence(c.id,{version:c.version,kind:'reproduction',result:'supports',observation:'A sandbox reproduction omitted some diagnostic fields in one specific tool error.'});c=m.verification.decide(c.id,{version:c.version,status:'confirmed',conclusion:'A single controlled experiment supports the narrow observation.',nextAction:'Retest on new build'});const k=m.knowledge.publish(c.id,{synthesis:'A local reproduction supports a narrow trace issue but cannot establish broad demand.',limitations:'One sandbox sample only, no independent user study.'});return{ev,c,k};}
@@ -18,3 +18,41 @@ test('V27 revision after author-reported publication becomes local draft without
  checkAll(m,p.id,'wechat');m.editor.exportChannel(p.id,'wechat',{expectedRevision:2});let next=m.editor.reported(p.id,'wechat',{url:'https://mp.weixin.qq.com/s/example-two',expectedRevision:2});assert.equal(next.channels.wechat.publicationReports.length,2);assert.equal(next.channels.wechat.status,'reported_published');
  }finally{m.store.close()}});
 test('V27 attaching a research card invalidates channel publication checklists',()=>{const m=setup();try{const {k}=caseAndCard(m),p=make(m);checkAll(m,p.id,'wechat');assert.equal(m.editor.get(p.id).channels.wechat.checks.factual,true);const linked=m.editor.attachKnowledge(p.id,{cardId:k.id});assert.equal(linked.cardId,k.id);assert.equal(linked.channels.wechat.checks.factual,false);assert.throws(()=>m.editor.exportChannel(p.id,'wechat',{expectedRevision:1}),e=>e.status===409)}finally{m.store.close()}});
+// RD-01（Run D，独立评审 Branch A）：setChecks 在既有 checklist_json JSON 列内盖章
+// checkedRevision（零 DDL）；两个 payload 读取点（editorial.get / writing.document）
+// 剥离指针键，checks 对消费方保持四布尔形态，指针以同层独立字段透出。
+test('RD-01 setChecks stamps checkedRevision and both payload read points keep four-boolean checks',()=>{const m=setup();try{const p=make(m),ch='wechat';const rev=m.editor.get(p.id).channels[ch].document.revision;checkAll(m,p.id,ch);
+ const viaEditor=m.editor.get(p.id).channels[ch];
+ assert.equal(viaEditor.checkedRevision,rev);
+ assert.deepEqual(Object.keys(viaEditor.checks),['factual','privacy','rights','layout']);
+ assert.deepEqual(viaEditor.checks,{factual:true,privacy:true,rights:true,layout:true});
+ const viaWriting=m.writing.document(p.id,ch);
+ assert.equal(viaWriting.checkedRevision,rev);
+ assert.deepEqual(Object.keys(viaWriting.checks),['factual','privacy','rights','layout']);
+ assert.deepEqual(viaWriting.checks,{factual:true,privacy:true,rights:true,layout:true});
+ assert.equal(checksStale(viaEditor),false)}finally{m.store.close()}});
+test('RD-01 setChecks validation still rejects extra keys, non-boolean values and missing keys',()=>{const m=setup();try{const p=make(m),ch='wechat';const rev=m.editor.get(p.id).channels[ch].document.revision;
+ assert.throws(()=>m.editor.setChecks(p.id,ch,{expectedRevision:rev,checks:{factual:true,privacy:true,rights:true,layout:true,checkedRevision:99}}),e=>e.status===400);
+ assert.throws(()=>m.editor.setChecks(p.id,ch,{expectedRevision:rev,checks:{factual:'yes',privacy:true,rights:true,layout:true}}),e=>e.status===400);
+ assert.throws(()=>m.editor.setChecks(p.id,ch,{expectedRevision:rev,checks:{factual:true,privacy:true,rights:true}}),e=>e.status===400);
+ const c=m.editor.get(p.id).channels[ch];assert.equal(c.checkedRevision,null)}finally{m.store.close()}});
+test('RD-01 legacy four-key row reads checkedRevision null and checksStale false; pointer mismatch reads stale',()=>{const m=setup();try{const p=make(m),ch='wechat';const ref=m.editor.get(p.id).channels[ch].referenceId;
+ // 旧行（手工四键 checklist_json，无指针）：checkedRevision null、checksStale false——旧行为兼容
+ m.store.db.prepare('UPDATE editorial_channel_refs SET checklist_json=? WHERE id=?').run(JSON.stringify({factual:true,privacy:true,rights:true,layout:true}),ref);
+ const legacy=m.editor.get(p.id).channels[ch];
+ assert.equal(legacy.checkedRevision,null);
+ assert.deepEqual(legacy.checks,{factual:true,privacy:true,rights:true,layout:true});
+ assert.equal(checksStale(legacy),false);
+ // 指针不匹配（合成场景：当前路径 reset-on-save 已使该状态不可达）→ true。
+ // 构造：先经域路径 save 把文档推进到 v2（reset-on-save 会重置 checklist），再手工
+ // 写入指针 1（模拟「检查后内容又变了」的防御目标态），修订 2 ≠ 指针 1。
+ const blocks=m.editor.get(p.id).channels[ch].document.paragraphs;
+ m.editor.save(p.id,ch,{expectedRevision:1,paragraphs:[{...blocks[0],text:'域路径推进后的新版本正文，人工核查需要重做。'},...blocks.slice(1)]});
+ assert.equal(m.editor.get(p.id).channels[ch].document.revision,2);
+ m.store.db.prepare('UPDATE editorial_channel_refs SET checklist_json=? WHERE id=?').run(JSON.stringify({factual:true,privacy:true,rights:true,layout:true,checkedRevision:1}),ref);
+ const stale=m.editor.get(p.id).channels[ch];
+ assert.equal(stale.checkedRevision,1);
+ assert.equal(checksStale(stale),true);
+ // 盖章后的当前路径常态：指针 == document.revision → false
+ checkAll(m,p.id,ch);
+ assert.equal(checksStale(m.editor.get(p.id).channels[ch]),false)}finally{m.store.close()}});

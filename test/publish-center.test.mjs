@@ -4,6 +4,7 @@ import {
   CHECK_ORDER,
   PUBLISH_CHANNELS,
   channelState,
+  checksStale,
   publishState,
   buildDeliveryTimeline,
   previewBlocks,
@@ -217,4 +218,102 @@ test("check labels stay channel-specific over the same four domain keys", () => 
   }
   assert.equal(PUBLISH_CHANNELS[0].checkLabels.factual, "事实、数据与引用来源");
   assert.equal(PUBLISH_CHANNELS[1].checkLabels.factual, "关键观点与资料出处");
+});
+
+// ---- RD-02（Run D，ManualPublishPage 审核闸门适配）-----------------------
+
+const ALL_TRUE = { factual: true, privacy: true, rights: true, layout: true };
+
+test("RD-02 statusTag three-way matrix follows reviewReady = allChecked && no blockers", () => {
+  const ready = channelState(channel({ checks: ALL_TRUE }));
+  assert.equal(ready.reviewReady, true);
+  assert.deepEqual(ready.statusTag, { label: "检查完成", tone: "success" });
+
+  const recheck = channelState(channel({ checks: ALL_TRUE, masterOutdated: true }));
+  assert.equal(recheck.allChecked, true);
+  assert.equal(recheck.reviewReady, false);
+  assert.deepEqual(recheck.statusTag, { label: "需复核", tone: "warning" });
+  assert.ok(recheck.blockers.includes("主稿更新后尚未复核渠道稿"));
+
+  const partial = channelState(
+    channel({ checks: { factual: true, privacy: false, rights: false, layout: false } })
+  );
+  assert.equal(partial.reviewReady, false);
+  assert.deepEqual(partial.statusTag, { label: "待确认", tone: "warning" });
+});
+
+test("RD-02 checksStale synthetic payload feeds blockers and statusTag (RD-01 Branch A)", () => {
+  // 指针与当前修订错位（当前已知路径 reset-on-save 不可达，合成构造）→ 需复核
+  const stale = channelState(
+    channel({ checks: ALL_TRUE, checkedRevision: 1, document: { revision: 2, paragraphs: [{ id: "p1", text: "改过的正文段落。" }] } })
+  );
+  assert.equal(checksStale({ checkedRevision: 1, document: { revision: 2 } }), true);
+  assert.ok(stale.blockers.includes("检查记录对应的稿件版本已变化，请重新逐项检查"));
+  assert.deepEqual(stale.statusTag, { label: "需复核", tone: "warning" });
+  // 指针匹配 / 旧行无指针 → 不新增 blocker（现状兼容）
+  const fresh = channelState(channel({ checks: ALL_TRUE, checkedRevision: 1 }));
+  assert.ok(!fresh.blockers.includes("检查记录对应的稿件版本已变化，请重新逐项检查"));
+  assert.deepEqual(fresh.statusTag, { label: "检查完成", tone: "success" });
+});
+
+test("RD-02 publishState pill surfaces a channel that needs re-check", () => {
+  const recheck = project({
+    channels: {
+      master: { document: { revision: 2 } },
+      wechat: channel({ checks: ALL_TRUE, masterOutdated: true }),
+      zhihu: channel({ checks: ALL_TRUE }),
+    },
+  });
+  assert.deepEqual(publishState(recheck).pill, { label: "有渠道稿需复核", tone: "warning" });
+  assert.deepEqual(publishState(project()).pill, { label: "有检查项未完成", tone: "warning" });
+});
+
+test("RD-02 人工核查完成 row records 核对于 vN provenance; legacy rows say 未记录", () => {
+  const stamped = project({
+    channels: {
+      master: { document: { revision: 4 } },
+      wechat: channel({ checks: ALL_TRUE, checkedRevision: 2 }),
+      zhihu: channel({ checks: ALL_TRUE, checkedRevision: 3 }),
+    },
+  });
+  const rows = buildDeliveryTimeline({ project: stamped, history: { operations: [], facts: [] } });
+  const row = rows.find((r) => r.title.startsWith("人工核查完成"));
+  assert.ok(row.detail.includes("公众号核对于 v2"));
+  assert.ok(row.detail.includes("知乎核对于 v3"));
+  assert.ok(row.detail.includes("勾选不代表已导出或已发布"));
+
+  const legacy = project({
+    channels: {
+      master: { document: { revision: 4 } },
+      wechat: channel({ checks: ALL_TRUE }),
+      zhihu: channel(),
+    },
+  });
+  const legacyRows = buildDeliveryTimeline({ project: legacy, history: { operations: [], facts: [] } });
+  const legacyRow = legacyRows.find((r) => r.title.startsWith("人工核查完成"));
+  assert.ok(legacyRow.detail.includes("公众号核对版本未记录"));
+});
+
+test("RD-02 official page guidance is a per-channel manual jump with honest boundary copy", () => {
+  assert.equal(PUBLISH_CHANNELS[0].officialUrl, "https://mp.weixin.qq.com/");
+  assert.equal(PUBLISH_CHANNELS[1].officialUrl, "https://zhuanlan.zhihu.com/write");
+  for (const meta of PUBLISH_CHANNELS) {
+    assert.ok(meta.officialHint && meta.officialHint.length >= 8);
+  }
+  // 诚实性：新增状态/派生文案不出现「已发布」成功承诺（「导出不代表已发布」边界
+  // 文案是显式否定式，由 UI e2e 单独断言其存在）。
+  const labels = [
+    channelState(channel({ checks: ALL_TRUE })).statusTag.label,
+    channelState(channel({ checks: ALL_TRUE, masterOutdated: true })).statusTag.label,
+    channelState(channel()).statusTag.label,
+    publishState(project()).pill.label,
+    publishState({
+      channels: {
+        master: { document: { revision: 2 } },
+        wechat: channel({ checks: ALL_TRUE, masterOutdated: true }),
+        zhihu: channel({ checks: ALL_TRUE }),
+      },
+    }).pill.label,
+  ];
+  for (const label of labels) assert.ok(!label.includes("已发布"), label);
 });

@@ -77,6 +77,7 @@
     "dokploy:credentials:v75": "node scripts/generate-dokploy-credentials-v75.mjs",
     "test:dokploy:v75": "node --test test/dokploy-auth-v75.test.mjs",
     "test:dokploy:real:v75": "node --test smoke/dokploy-auth-v75.test.mjs",
+    "test:dokploy:agent": "node --test smoke/dokploy-agent-multiuser-v76.test.mjs",
     "test:creator": "node --test test/creator-v1.test.mjs test/publishing-xiaohongshu-v1.test.mjs",
     "author:import": "node scripts/import-author-workspace.mjs",
     "test:creator:production": "node --test smoke/creator-production-v1.test.mjs"

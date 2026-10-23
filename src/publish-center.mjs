@@ -19,6 +19,14 @@
 //     operations; "真实发布状态尚未确认" stays pending until the author
 //     records a publication, and even then the row keeps
 //     "未经平台核验" (publishing.mjs report → platformVerified:false).
+//
+// Adapted from ZJU-REAL/Easel (Apache-2.0)：
+// web/frontend/src/components/ManualPublishPage.tsx:63-67（snapshot/approved
+// ——审核绑定内容版本、改字即作废的思想 → RD-01 服务端 checkedRevision 指针与
+// checksStale 派生，不在前端存快照）、:211-235（审核后 gate 全部交付动作 →
+// channelState.reviewReady 三分 statusTag）。modified：审核对象是本工作区的
+// 四项按渠道人工检查（editorial checklist），不是 Easel 的标题/正文/素材
+// 本地快照；blockers 仍只来自 _canExport 同源真实事实。
 import { channelHasContent } from "./works-library.mjs";
 import { SEED_PARAGRAPH_TEXT } from "./seed-paragraph.mjs";
 
@@ -35,6 +43,10 @@ export const PUBLISH_CHANNELS = [
     logo: "微",
     editLabel: "编辑公众号稿",
     draftReady: "准备微信草稿交付",
+    // RD-02（Run D，ManualPublishPage.tsx:230 语义）：官方发布页为作者手动跳转
+    // 引导（纯客户端 <a target="_blank">，无自动打开、无服务端外呼）。
+    officialUrl: "https://mp.weixin.qq.com/",
+    officialHint: "在官方后台新建草稿，上传图片并检查手机版预览",
     checkLabels: {
       factual: "事实、数据与引用来源",
       privacy: "隐私信息与敏感内容",
@@ -49,6 +61,8 @@ export const PUBLISH_CHANNELS = [
     logo: "知",
     editLabel: "编辑知乎稿",
     draftReady: "准备知乎交付",
+    officialUrl: "https://zhuanlan.zhihu.com/write",
+    officialHint: "打开官方文章编辑器，粘贴正文后检查排版",
     checkLabels: {
       factual: "关键观点与资料出处",
       privacy: "平台版本独立审阅",
@@ -65,32 +79,56 @@ function boolChecks(channel) {
   return CHECK_ORDER.map((k) => raw[k] === true);
 }
 
+// RD-01（Run D，Branch A）：checklist 版本指针与当前文档修订不一致 → 检查已过期。
+// 防御性派生：当前已知路径 reset-on-save 已使「检查 valid 但内容已变」不可达，
+// 恒 false；旧行无指针（null）恒 false——不批量翻旧账，旧行为兼容。
+export function checksStale(entry) {
+  const pointer = entry?.checkedRevision;
+  if (pointer == null) return false;
+  return pointer !== entry?.document?.revision;
+}
+
 // One channel's real check state + the export blockers the domain
 // service would enforce (src/editorial.mjs:141-147 _canExport, surfaced
 // here only as hints; the server stays the single source of truth).
+// RD-02（Run D，ManualPublishPage.tsx:211-215 语义）：reviewReady = 全勾且无
+// 「复核类」blockers；statusTag 三分——reviewReady「检查完成」success、全勾但有
+// 复核类 blockers「需复核」warning、否则「待确认」（现状）。「复核类」按规格
+// 所指为主稿更新/待处理更正（+RD-01 checksStale 防御项）；「渠道稿还没有正文」
+// 是提示性 blocker：保持现行列表渲染，但不把种子渠道的全勾状态翻成需复核
+// （既有 creator-v2-publish 用例编码了该对照态，见 QA Run D 偏差登记）。
 export function channelState(channel) {
   const values = boolChecks(channel);
   const done = values.filter(Boolean).length;
   const allChecked = done === CHECK_TOTAL;
-  const blockers = [];
-  if (channel?.masterOutdated) blockers.push("主稿更新后尚未复核渠道稿");
+  const recheck = [];
+  if (checksStale(channel))
+    recheck.push("检查记录对应的稿件版本已变化，请重新逐项检查");
+  if (channel?.masterOutdated) recheck.push("主稿更新后尚未复核渠道稿");
   const open = Number(channel?.openCorrections) || 0;
-  if (open > 0) blockers.push(`存在 ${open} 项待处理的更正任务`);
-  if (!channelHasContent(channel)) blockers.push("渠道稿还没有正文（仍是初始段落）");
+  if (open > 0) recheck.push(`存在 ${open} 项待处理的更正任务`);
+  const blockers = [...recheck];
+  if (!channelHasContent(channel))
+    blockers.push("渠道稿还没有正文（仍是初始段落）");
+  const reviewReady = allChecked && recheck.length === 0;
   return {
     values,
     done,
     total: CHECK_TOTAL,
     allChecked,
-    statusTag: allChecked
+    reviewReady,
+    statusTag: reviewReady
       ? { label: "检查完成", tone: "success" }
-      : { label: "待确认", tone: "warning" },
+      : allChecked
+        ? { label: "需复核", tone: "warning" }
+        : { label: "待确认", tone: "warning" },
     blockers,
   };
 }
 
 // Top strip state — the design pill (creator-v2.2.html:179) driven by the
-// real checkboxes of both channels, never by delivery success.
+// real checkboxes of both channels, never by delivery success. RD-02：pill
+// 同步 reviewReady 口径——有渠道全勾但存在 blockers → 「有渠道稿需复核」。
 export function publishState(project) {
   const channels = project?.channels || {};
   const per = PUBLISH_CHANNELS.map((meta) => ({
@@ -98,12 +136,15 @@ export function publishState(project) {
     state: channelState(channels[meta.key]),
   }));
   const pending = per.filter((x) => !x.state.allChecked);
+  const recheck = per.filter((x) => x.state.allChecked && !x.state.reviewReady);
   return {
     per,
     pendingCount: pending.length,
-    pill: pending.length
-      ? { label: "有检查项未完成", tone: "warning" }
-      : { label: "两渠道检查已完成", tone: "success" },
+    pill: recheck.length
+      ? { label: "有渠道稿需复核", tone: "warning" }
+      : pending.length
+        ? { label: "有检查项未完成", tone: "warning" }
+        : { label: "两渠道检查已完成", tone: "success" },
   };
 }
 
@@ -180,10 +221,20 @@ export function buildDeliveryTimeline({ project, history } = {}) {
   }));
   const finished = checks.filter((x) => x.state.allChecked);
   if (finished.length) {
+    // RD-01 Branch A：勾选时盖章 checkedRevision（setChecks），此处随行透出
+    // 「核对于 vN」溯源；旧行无指针 → 「核对版本未记录」，不伪造版本号。
+    const provenance = finished
+      .map((x) => {
+        const rev = channels[x.meta.key]?.checkedRevision;
+        return rev != null
+          ? `${x.meta.short}核对于 v${rev}`
+          : `${x.meta.short}核对版本未记录`;
+      })
+      .join("，");
     rows.push({
       tone: "done",
       title: `人工核查完成：${finished.map((x) => x.meta.name).join("、")}`,
-      detail: "四项检查按渠道独立记录；勾选不代表已导出或已发布。",
+      detail: `四项检查按渠道独立记录（${provenance}）；勾选不代表已导出或已发布。`,
     });
   }
   if (checks.some((x) => !x.state.allChecked)) {

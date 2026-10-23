@@ -838,3 +838,118 @@ test("stopping a live generation retains an interrupted record without saving a 
     page.getByRole("button", { name: "生成写作建议", exact: true })
   ).toBeEnabled();
 });
+
+// RD-03（Run D，Phase 4 首切片）：版本历史两版对比——API 连续 PUT master 两版后
+// 打开版本历史，展开最新版「与上一版对比」：被改行以 del/add 语义色呈现、摘要为
+// diffSummary 真实计数（空行也是真实一行）；最早一版无对比入口；「查看内容」与
+// 「恢复为新版本」（不可变修订语义）不受影响；修订备注随行显示。
+// 落在本 spec（非 creator-v2-compose）：版本历史对话框同属 WritingWorkspace，且本
+// spec 的独立 worker 服务自带隔离 SQLite——compose 套件的注册限流预算
+// （author-accounts.mjs:29 registration=30）已恰好打满，不再扩容（QA Run D 偏差登记）。
+test("版本历史两版对比：行级 add/del 与真实计数，恢复路径零改动", async ({
+  page,
+  request,
+}) => {
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const doc = await create(request, "版本对比验证：两版行级差异");
+  const v1 = "# 版本对比验证\n\n第一版的第一段，等待后续润色。";
+  expect(
+    (
+      await request.put(`/api/writing/projects/${doc.projectId}/master`, {
+        data: { expectedRevision: doc.revision, markdown: v1 },
+      })
+    ).ok()
+  ).toBe(true);
+  const first = await stored(request, doc);
+  const v2 =
+    "# 版本对比验证\n\n第一版的第一段，已经完成润色。\n第二版新增的收尾段。";
+  expect(
+    (
+      await request.put(`/api/writing/projects/${doc.projectId}/master`, {
+        data: { expectedRevision: first.revision, markdown: v2, note: "第二版备注" },
+      })
+    ).ok()
+  ).toBe(true);
+
+  await page.goto("/compose?project=" + doc.projectId);
+  await expect(cm(page)).toContainText("已经完成润色");
+  await page.getByRole("button", { name: "版本", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "文章版本历史" });
+  await expect(dialog).toBeVisible();
+  // 历史为 revision DESC：第一篇即最新版，备注随行显示
+  const newest = dialog.locator("article").first();
+  await expect(newest.getByText("备注：第二版备注")).toBeVisible();
+  await newest.getByText("与上一版对比").click();
+  await expect(newest.getByText("2 行新增 / 1 行删除")).toBeVisible();
+  await expect(newest.locator(".writing-version-line.is-del")).toHaveCount(1);
+  await expect(newest.locator(".writing-version-line.is-del")).toContainText(
+    "第一版的第一段，等待后续润色。"
+  );
+  const added = newest.locator(".writing-version-line.is-add");
+  await expect(added).toHaveCount(2);
+  await expect(added.first()).toContainText("第一版的第一段，已经完成润色。");
+  await expect(added.last()).toContainText("第二版新增的收尾段。");
+  // 最早一版没有「与上一版对比」；「查看内容」「恢复为新版本」保持原样
+  const oldest = dialog.locator("article").last();
+  await expect(oldest.getByText("与上一版对比")).toHaveCount(0);
+  await expect(oldest.getByText("查看内容")).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "恢复为新版本" })).toHaveCount(4);
+  await expect(oldest.getByRole("button", { name: "恢复为新版本" })).toBeEnabled();
+  expect(errors).toEqual([]);
+});
+
+// AW-01：待审建议卡就地对比（Phase 4 切片二）——original/replacement 是载荷既有
+// 字段（src/compose-view.mjs suggestionCompareView 纯派生，零新增请求），卡片内
+// 常显「原文片段 → 替换内容」两行，无需点击「在正文中查看」即可对比；接受修改后
+// 正文变化断言沿用套件既有口径（多处独立调整 → 逐条接受）。
+test("待审建议卡就地对比：原文片段与替换内容同时可见，接受后正文变化", async ({
+  page,
+  request,
+}) => {
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const doc = await create(request, "就地对比的文章");
+  await page.goto("/compose?project=" + doc.projectId);
+  // 合成模型「多处独立调整」分支以「修改第一处。/修改第二处。」双哨兵定位，
+  // 正文需同时包含两处（形态同「multiple suggestions」既有用例）。
+  await cm(page).fill(
+    "保留开头。\n\n修改第一处。\n\n保留过渡。\n\n修改第二处。\n\n保留结尾。"
+  );
+  await expect
+    .poll(async () => (await stored(request, doc)).markdown)
+    .toContain("修改第一处。");
+  await page
+    .getByLabel("与助手讨论或提出写作要求")
+    .fill("请做多处独立调整，其他段落保持不变");
+  await page
+    .getByLabel("允许本次向已配置模型发送文章、参考素材与写作要求")
+    .check();
+  await page.getByRole("button", { name: "生成写作建议", exact: true }).click();
+  const suggestions = page.locator(".writing-suggestions");
+  await expect(
+    suggestions.getByRole("button", { name: "接受修改", exact: true })
+  ).toHaveCount(2);
+  const card = suggestions.locator("article.writing-suggestion").first();
+  const compare = card.locator('[aria-label="建议对比"]');
+  await expect(compare).toBeVisible();
+  await expect(compare).toContainText("原文片段 → 替换内容");
+  await expect(compare.locator(".writing-version-line.is-del")).toContainText(
+    "修改第一处。"
+  );
+  await expect(compare.locator(".writing-version-line.is-add")).toContainText(
+    "第一处经过审阅的新表达。"
+  );
+  // 就地对比为主：无需点击「在正文中查看」即已可见（该按钮保留为定位次级入口）
+  await expect(
+    card.getByRole("button", { name: "在正文中查看" })
+  ).toBeVisible();
+  await suggestions
+    .getByRole("button", { name: "接受修改", exact: true })
+    .first()
+    .click();
+  const final = await stored(request, doc);
+  expect(final.markdown).toContain("第一处经过审阅的新表达。");
+  expect(final.markdown).toContain("保留过渡。");
+  expect(errors).toEqual([]);
+});

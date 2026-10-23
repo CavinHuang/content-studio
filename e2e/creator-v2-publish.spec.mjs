@@ -1080,3 +1080,66 @@ test("键盘可达：skip link 跳主内容、Tab 至渠道检查复选框空格
       .getByText("已检查", { exact: true })
   ).toBeVisible();
 });
+
+// RD-02（Run D，ManualPublishPage 审核闸门适配）：交付面板只在 reviewReady
+// （全勾且无 blockers）后展开；全勾但主稿更新 → 「需复核」+ 逐条 blocker，
+// 面板不可展开（服务端 _canExport 仍是唯一真值，:141-147 既有拦截不动）；
+// 对照态验证官方发布页引导卡 href（纯作者手动跳转，V75 边界不动）。
+test("审核闸门：全勾后主稿再改一版 → 需复核、面板不可展开；对照态面板展开且官方页链接正确", async ({
+  page,
+}) => {
+  await signup(page, "publish-reviewgate@example.test");
+  const id = await createProject(page, "审核闸门验证：主稿更新后需复核");
+  await openPublish(page, id);
+  const wechat = card(page, "微信公众号");
+
+  // 对照态：四项全勾（setChecks 同时复核当前主稿）→ reviewReady → 面板可展开
+  await checkAll(page, "微信公众号");
+  await expect(wechat.getByText("检查完成", { exact: true })).toBeVisible();
+  await wechat.getByRole("button", { name: /准备微信草稿交付/ }).click();
+  const panel = wechat.locator(".cv2-delivery-panel");
+  await expect(panel).toBeVisible();
+  // 官方发布页跳转引导卡：纯 <a target="_blank"> 手动跳转，href 正确
+  const official = panel.getByRole("link", { name: "打开微信公众号官方发布页" });
+  await expect(official).toBeVisible();
+  await expect(official).toHaveAttribute("href", "https://mp.weixin.qq.com/");
+  await expect(official).toHaveAttribute("target", "_blank");
+  await expect(official).toHaveAttribute("rel", "noopener noreferrer");
+  await expect(
+    panel.getByText("导出不代表已发布；由你在官方页面亲自点击发布。")
+  ).toBeVisible();
+  // RD-01 Branch A：时间线人工核查行透出「核对于 vN」
+  await expect(page.getByText(/公众号核对于 v\d+/)).toBeVisible();
+  // 收起面板，为闸门态做准备
+  await wechat.getByRole("button", { name: /收起交付操作/ }).click();
+  await expect(panel).toHaveCount(0);
+
+  // 页面外（真实写作 API）把主稿推进一版：公众号 checks 保持全勾，
+  // 但 ack_master_revision 落后 → masterOutdated → 需复核
+  const master = await (
+    await page.request.get(`/api/writing/projects/${id}/master`)
+  ).json();
+  expect(
+    (
+      await page.request.put(`/api/writing/projects/${id}/master`, {
+        data: {
+          expectedRevision: master.revision,
+          markdown: "# 审核闸门验证：主稿更新后需复核\n\n主稿在页面外推进的新版本段落。\n",
+        },
+      })
+    ).ok()
+  ).toBeTruthy();
+
+  await page.reload();
+  await expect(wechat.getByText("需复核", { exact: true })).toBeVisible();
+  await expect(wechat.getByText("主稿更新后尚未复核渠道稿")).toBeVisible();
+  // 顶条 pill 同步：有渠道稿需复核
+  await expect(page.getByText("有渠道稿需复核", { exact: true }).first()).toBeVisible();
+  // 闸门：主按钮不再展开面板，点击逐条列出 blockers
+  await expect(wechat.getByText("待检查", { exact: true })).toHaveCount(0); // 检查仍全勾
+  await wechat.getByRole("button", { name: /继续完成发布检查/ }).click();
+  await expect(page.getByRole("status").last()).toContainText(
+    "「微信公众号」检查已全部勾选，但需先复核：主稿更新后尚未复核渠道稿"
+  );
+  await expect(wechat.locator(".cv2-delivery-panel")).toHaveCount(0);
+});

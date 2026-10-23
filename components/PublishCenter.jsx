@@ -24,6 +24,16 @@
 //     a platform render; external image URLs are not loaded).
 // No mock success states: send failures, outcome_unknown reconciliation
 // and blocked exports all surface the server's honest message.
+//
+// Adapted from ZJU-REAL/Easel (Apache-2.0)：
+// web/frontend/src/components/ManualPublishPage.tsx:211-235（「已人工审核/
+// 待人工审核」badge + 复制/ZIP/官方页跳转全部 gate 在审核后 → 本页交付面板
+// 只在 reviewReady 后展开）、:230（「审核后打开官方发布页」禁用态 → ready 后
+// 才出现真链接 → 本页官方发布页引导卡落进交付面板内）、:224（审核确认文案
+// 「我已核对当前版本…准备到官方页面发布」→ 检查/复核语义）。modified：不搬
+// Easel 的本地快照审核（reviewed[key]===snapshot(key)）与 AI 排版/检查/日历
+// 回填——审核绑定由服务端 checkedRevision 指针承载（RD-01），草稿发送走既有
+// publishing.mjs 真实链路，发布记录走 publishing/report。
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -133,9 +143,13 @@ function ChannelCard({
           type="button"
           className="cv2-btn primary"
           disabled={busy !== null}
-          onClick={() => (state.allChecked ? onPanelToggle(meta.key) : onPrimary(meta.key, pending))}
+          onClick={() =>
+            state.reviewReady
+              ? onPanelToggle(meta.key)
+              : onPrimary(meta.key, state.allChecked ? null : pending, state.blockers)
+          }
         >
-          {state.allChecked ? (panelOpen ? '收起交付操作' : meta.draftReady) : '继续完成发布检查'}
+          {state.reviewReady ? (panelOpen ? '收起交付操作' : meta.draftReady) : '继续完成发布检查'}
           <Icon name="arrow" size={14} />
         </button>
       </div>
@@ -249,6 +263,25 @@ function ChannelCard({
             </button>
             <p className="cv2-delivery-hint">
               仅在你已在平台后台真实发布后填写；记录会标注“作者报告 · 未经平台核验”。
+            </p>
+          </div>
+          {/* RD-02（ManualPublishPage.tsx:230 语义）：官方发布页跳转引导卡——
+              交付面板只在 reviewReady 后展开，故本卡天然 gate 在审核后；纯作者
+              手动 <a target="_blank"> 跳转，无自动打开、无服务端外呼（V75 边界不动）。 */}
+          <div className="cv2-official-card">
+            <h5>最后一步：到官方页面发布</h5>
+            <p className="cv2-delivery-hint">{meta.officialHint}。</p>
+            <a
+              className="cv2-btn primary cv2-official-link"
+              href={meta.officialUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              打开{meta.name}官方发布页
+              <Icon name="arrow" size={14} />
+            </a>
+            <p className="cv2-delivery-hint">
+              导出不代表已发布；由你在官方页面亲自点击发布。
             </p>
           </div>
         </div>
@@ -500,10 +533,16 @@ export default function PublishCenter() {
     }
   }
 
-  function onPrimary(channelKey, pending) {
+  // RD-02：主按钮两段语义——未全勾提示剩余检查数；全勾但有复核类 blockers（主稿
+  // 更新/待处理更正/版本指针过期）时逐条列出复核事项（服务端 _canExport 仍是唯一真值）。
+  function onPrimary(channelKey, pending, blockers) {
+    const name = PUBLISH_CHANNELS.find((c) => c.key === channelKey)?.name || '';
     setNotice({
       tone: 'warning',
-      text: `还有 ${pending} 项${PUBLISH_CHANNELS.find((c) => c.key === channelKey)?.name || ''}发布前检查未完成；请在当前卡片内逐项确认。`,
+      text:
+        pending == null && blockers?.length
+          ? `「${name}」检查已全部勾选，但需先复核：${blockers.join('；')}。复核完成后才能展开交付操作。`
+          : `还有 ${pending} 项${name}发布前检查未完成；请在当前卡片内逐项确认。`,
     });
   }
 
