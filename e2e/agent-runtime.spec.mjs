@@ -222,11 +222,10 @@ test("agent run streams tool steps, files a reviewed suggestion and leaves the a
     "将加载工具：read_document、read_brief、write_suggestions"
   );
   await page.getByLabel("agent 任务要求").fill("请润色正文中待推敲的句子");
-  await page
-    .getByLabel(
-      "允许本次运行调用模型与图片服务，可能产生费用；v1 不设次数上限，逐次记账"
-    )
-    .check();
+  // SC-02：面板额度预判可见（GET /api/creator/usage 派生，逐次记账口径）
+  await expect(panel).toContainText("今日模型请求剩余");
+  await expect(panel).toContainText("次（逐次记账）");
+  await page.getByLabel("允许本次运行调用模型与图片服务").check();
   await page.getByRole("button", { name: "启动运行", exact: true }).click();
   const steps = page.locator(".agent-run-steps");
   await expect(steps).toContainText("工具");
@@ -267,11 +266,7 @@ test("刷新接续：面板恢复本渠道 running 运行与步骤，重连推�
   await expect(cm(page)).toContainText("接续文章");
   await page.getByText("技能任务（多步 Agent）").click();
   await page.getByLabel("agent 任务要求").fill("请挂起润色正文中待推敲的句子");
-  await page
-    .getByLabel(
-      "允许本次运行调用模型与图片服务，可能产生费用；v1 不设次数上限，逐次记账"
-    )
-    .check();
+  await page.getByLabel("允许本次运行调用模型与图片服务").check();
   // 开启闸门后启动：首个模型帧立即落库，工具结果后的调用被保持（running 态）
   let release;
   holdModel = new Promise((r) => {
@@ -376,11 +371,7 @@ test("取消运行：真实点击后按钮消失、轨迹 cancelled（QA §10.4.
   await expect(cm(page)).toContainText("待取消文章");
   await page.getByText("技能任务（多步 Agent）").click();
   await page.getByLabel("agent 任务要求").fill("请挂起润色正文中待推敲的句子");
-  await page
-    .getByLabel(
-      "允许本次运行调用模型与图片服务，可能产生费用；v1 不设次数上限，逐次记账"
-    )
-    .check();
+  await page.getByLabel("允许本次运行调用模型与图片服务").check();
   let release;
   holdModel = new Promise((r) => {
     release = r;
@@ -491,11 +482,7 @@ test("article-pipeline 全流程：读→直写初稿→自审建议→收尾，
     await page.getByText("技能任务（多步 Agent）").click();
     await skills.selectOption("article-pipeline");
     await page.getByLabel("agent 任务要求").fill("按简报产出完整初稿，先大纲再正文");
-    await page
-      .getByLabel(
-        "允许本次运行调用模型与图片服务，可能产生费用；v1 不设次数上限，逐次记账"
-      )
-      .check();
+    await page.getByLabel("允许本次运行调用模型与图片服务").check();
     await page.getByRole("button", { name: "启动运行", exact: true }).click();
     const steps = page.locator(".agent-run-steps");
     // 模型/工具步骤序列：read_brief → write_revision → write_suggestions
@@ -526,4 +513,123 @@ test("article-pipeline 全流程：读→直写初稿→自审建议→收尾，
       data: { writeMode: "suggestions" },
     });
   }
+});
+
+// SC-01：同渠道第二条运行入队（queued 不再 409 死胡同）。r6.1 中间态守卫断言：
+// 放行 A 前运行列表必须恰「一条 running + 一条 queued」——否则该用例对认领守卫
+// 缺陷（同渠道双 loop）不可判。reload 后面板附着最新活跃行 B（排队中文案+取消），
+// 放行 A 后 drain 自动补位，B 自动开始并完成。
+test("排队：同渠道第二条运行入队，守卫保持单 running，前序完成后自动补位完成", async ({
+  page,
+}) => {
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signup(page, "agent-queue@example.test");
+  const doc = await (
+    await page.request.post("/api/writing/projects", {
+      data: { title: "排队合流的合成文章" },
+    })
+  ).json();
+  await page.request.put(`/api/writing/projects/${doc.projectId}/master`, {
+    data: {
+      expectedRevision: doc.revision,
+      markdown: "# 排队文章\n\n" + TARGET + "的句子。\n",
+    },
+  });
+  const panel = page.locator('section[aria-label="agent 任务运行"]');
+  await page.goto("/compose?project=" + doc.projectId);
+  await expect(cm(page)).toContainText("排队文章");
+  await page.getByText("技能任务（多步 Agent）").click();
+  await page.getByLabel("agent 任务要求").fill("请挂起润色正文中待推敲的句子");
+  await page.getByLabel("允许本次运行调用模型与图片服务").check();
+  let release;
+  holdModel = new Promise((r) => {
+    release = r;
+  });
+  try {
+    await page.getByRole("button", { name: "启动运行", exact: true }).click();
+    await expect(page.locator(".agent-run-steps")).toContainText("模型");
+    // 同渠道第二条：201 queued（单飞命中 running 改入队，不再 409）
+    const current = await stored(page, doc);
+    const post = await page.request.post(
+      `/api/creator/projects/${doc.projectId}/agent-runs`,
+      {
+        data: {
+          skillId: "selection-rewriter",
+          instruction: "排队第二轮",
+          expectedRevision: current.revision,
+          allowExternalAI: true,
+        },
+      }
+    );
+    expect(post.status()).toBe(201);
+    const { run: queuedRun } = await post.json();
+    expect(queuedRun.status).toBe("queued");
+    // r6.1 中间态守卫断言：恰一条 running（A）+ 一条 queued（B）
+    const { runs } = await page.request
+      .get(`/api/creator/projects/${doc.projectId}/agent-runs`)
+      .then((r) => r.json());
+    expect(runs.filter((r) => r.status === "running")).toHaveLength(1);
+    expect(runs.filter((r) => r.status === "queued")).toHaveLength(1);
+    // reload → 面板附着最新活跃行 B：排队中文案 + 取消可见
+    await page.reload();
+    await expect(cm(page)).toContainText("排队文章");
+    await page.getByText("技能任务（多步 Agent）").click();
+    await expect(panel).toContainText("排队中（第");
+    await expect(panel).toContainText("进程重启后不会自动执行");
+    await expect(panel.getByRole("button", { name: "取消运行" })).toBeVisible();
+    // 放行 A → loop.finally 链 drain 补位 → B 自动开始并完成
+    release();
+    holdModel = null;
+    await expect(panel.locator(".writing-source-note")).toContainText(
+      "运行完成"
+    );
+    expect(errors).toEqual([]);
+  } finally {
+    if (holdModel) {
+      release();
+      holdModel = null;
+    }
+  }
+});
+
+// AW-02：快捷指令菜单（BrushEntry 适配）——搜索收窄、选中仅预填（技能 select
+// 与任务要求 textarea），consent 未勾选、启动按钮仍 disabled，证明不自动发送。
+test("快捷指令菜单：搜索收窄、选中仅预填，consent 未勾选、启动仍禁用", async ({
+  page,
+}) => {
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signup(page, "agent-quick@example.test");
+  const doc = await (
+    await page.request.post("/api/writing/projects", {
+      data: { title: "快捷指令的合成文章" },
+    })
+  ).json();
+  await page.request.put(`/api/writing/projects/${doc.projectId}/master`, {
+    data: {
+      expectedRevision: doc.revision,
+      markdown: "# 快捷指令文章\n\n正文。\n",
+    },
+  });
+  const panel = page.locator('section[aria-label="agent 任务运行"]');
+  await page.goto("/compose?project=" + doc.projectId);
+  await page.getByText("技能任务（多步 Agent）").click();
+  const quickMenu = panel.locator('details[aria-label="快捷指令"]');
+  await quickMenu.locator("summary").click();
+  await page.getByLabel("搜索快捷指令").fill("大纲");
+  // 列表收窄：8 条 preset 中唯一含「大纲」的是 article-pipeline
+  await expect(quickMenu.getByRole("button")).toHaveCount(1);
+  await quickMenu.getByRole("button", { name: /全流程初稿流水线/ }).click();
+  await expect(page.getByLabel("agent 技能")).toHaveValue("article-pipeline");
+  await expect(page.getByLabel("agent 任务要求")).toHaveValue(
+    "从简报到初稿一次跑完：先确保大纲，再生成初稿并自审一轮"
+  );
+  await expect(
+    page.getByLabel("允许本次运行调用模型与图片服务")
+  ).not.toBeChecked();
+  await expect(
+    page.getByRole("button", { name: "启动运行", exact: true })
+  ).toBeDisabled();
+  expect(errors).toEqual([]);
 });

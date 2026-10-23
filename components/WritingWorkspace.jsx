@@ -32,6 +32,7 @@ import {
   readinessFacts,
   shotTitle,
   slotView,
+  suggestionCompareView,
 } from "../src/compose-view.mjs";
 
 // 今天 14:32 / 昨天 20:16 / 10 月 16 日 — client-side only (the document
@@ -1312,10 +1313,38 @@ export default function WritingWorkspace() {
               >
                 在正文中查看
               </button>
-              <details>
-                <summary>查看替换内容</summary>
-                <pre>{s.replacement}</pre>
-              </details>
+              {/* AW-01：就地对比为主（src/compose-view.mjs suggestionCompareView
+                  纯派生，original/replacement 是载荷既有字段，零新增请求）；
+                  「在正文中查看」保留为上下文定位次级入口。revoked/退化数据
+                  （original 为空或与 replacement 相同）诚实降级为单行替换内容。 */}
+              {suggestionCompareView(s).mode === "both" ? (
+                <div className="writing-suggestion-compare" aria-label="建议对比">
+                  <small className="writing-suggestion-compare-hint">
+                    原文片段 → 替换内容
+                  </small>
+                  <div className="writing-version-line is-del">
+                    <span className="writing-version-line-mark" aria-hidden="true">
+                      −
+                    </span>
+                    <span className="writing-version-line-text">
+                      {s.original}
+                    </span>
+                  </div>
+                  <div className="writing-version-line is-add">
+                    <span className="writing-version-line-mark" aria-hidden="true">
+                      ＋
+                    </span>
+                    <span className="writing-version-line-text">
+                      {s.replacement}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <details>
+                  <summary>查看替换内容</summary>
+                  <pre>{s.replacement}</pre>
+                </details>
+              )}
               <div>
                 <button
                   disabled={

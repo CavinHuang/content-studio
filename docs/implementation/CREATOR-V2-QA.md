@@ -457,3 +457,152 @@ editorial-api.test.mjs HTTP 级断言（载荷四布尔 + checkedRevision===2、
    RD-03 对比纯客户端只读派生，restore 路径零改动。真实付费模型、真实平台发布、
    生产部署仍未执行/未验证（与此前边界一致）；`npm run test:production`（V49）
    继续保持 §2 既有欠账，合并前须补。
+
+## 12. 服务端续批 + 快赢二则（Run E：SC-01/SC-02 + AW-01/AW-02，2026-10-23，feat/easel-server-continue）
+
+### 12.1 SC-01：agent_runs 进程内排队（零 DDL）
+
+- `status` 扩 `'queued'`（TEXT 无 CHECK，构造函数 CREATE TABLE 逐字未动，git diff
+  核对无新表无新列）。`runs()/run()/runSince()` 新增只读派生 `queuePosition`
+  （非 queued 为 null）。**口径说明（偏差 1）**：= 全库（按 core）活跃行
+  （running+queued）中 rowid 更早者计数 + 1——方案字面「COUNT queued rows」与
+  验收用例①「A running、B queued → queuePosition=2」相互矛盾，按验收取活跃行
+  口径（对「等待并发空位」最诚实：认领本就按 rowid 全局推进）。
+- `startRun` 入队语义：既有门禁（技能 404/渠道 403/工具交集空 403/consent 403/
+  markdown 409/expectedRevision 409/resumeOf 矩阵/binding 捕获）全部先行零改动；
+  单飞检查扩为 `status IN ('running','queued')`——命中 running 改入队（201 queued，
+  消除 409 死胡同），命中 queued 仍 409（队列槽每 project+channel 至多 1）；无同
+  渠道活跃行但全局 running ≥ `agentMaxConcurrent()`（读时求值
+  `Math.max(1, Number(env CONTENT_STUDIO_AGENT_MAX_CONCURRENT)||2)`，形态同心跳
+  间隔先例）→ 入队。入队行照常落 binding_json（绑定入队时定格，drain 不重新
+  capture）与 resume 溯源首步骤，不建 controller/loopPromises，HTTP 仍 201。
+- `drainQueued()` 认领（r6.1 评审 high 项）：单条 BEGIN IMMEDIATE 事务内「数
+  running → 认领 SELECT 带相关子查询 `NOT EXISTS (…r2.project_id=… AND
+  r2.channel=… AND r2.status='running')` 按项目+渠道配对（评审建议的裸 channel
+  NOT IN 会误伤其它项目同渠道，不采纳）取最旧可认领行 → CAS UPDATE 校验
+  .changes（仿 creator.mjs creator_jobs 先例）」，守卫与 CAS 同事务无 TOCTOU；
+  忙渠道 queued 自动跳过、不阻塞其它渠道补位。认领后复核不静默换基准：markdown
+  模式、`doc.revision===base_revision`（不符 → interrupted「排队期间正文已变化…」）、
+  skillById 存在、工具交集非空、binding_json 含 id；复核过且重读行仍 running
+  （防认领后 controllers.set 前 cancelRun 空档）才起 _loop（seq 起点
+  COALESCE(MAX(seq),0) 兼容 resume 首步骤）。
+- 触发点两处：`src/creator-worker.mjs` runCreatorTick 两分支 runDue 旁
+  `void core.agent.drainQueued().catch(()=>{})` + startRun loop.finally 追加补位
+  （drain 链式传递）；runs() 不加惰性清扫。
+- 启动清扫 WHERE 扩 `IN('running','queued')`，queued 专属 stop_reason「进程重启，
+  排队任务未保留，请重新发起或重驱动」。cancelRun 放开 queued：纯 UPDATE CAS
+  （无 controller），CAS 失败落既有 running abort 分支，终态仍 409。
+- events 流：running/queued 都不算终态；queued 相位（含位次）变化发非游标帧
+  `{kind:"run_status",status:"queued",queuePosition}`（无 seq），仅 queued→running
+  过渡发 running 帧——从未排队的运行不产生任何 run_status 帧（旧流形状不变，
+  既有游标/心跳用例零回归）。600s deadline 与心跳不变。
+- 客户端 AgentRuns.jsx：附着过滤纳入 queued（单运行附着、附最新活跃行）；
+  run_status 帧分流（更新状态/位次，不追加 steps、不推进游标）；重连条件、取消
+  按钮、启动面 disabled 统一 `activeRun=running||queued`；新增 queued 文案
+  「排队中（第 n 位）：等待并发空位后自动开始；进程重启后不会自动执行，可取消」。
+- **五项语义决定（acceptance 追记）**：①排队不跨重启（consent 未落库，跨重启
+  自动开跑等于用旧 consent 发新付费调用，排队不承诺跨重启存活）；②并发上限按
+  core 计（每作者独立 SQLite 即独立上限）；③认领守卫与入队单飞是同一不变量
+  （每 project+channel 至多 1 running+1 queued）的执行半边——同渠道 queued 仅在
+  前序终态后认领；④面板单运行附着限制（只附本渠道最新活跃行，避免渲染错误
+  上下文的取消按钮）；⑤revisions 排队被诚实转 interrupted（前序直写推进
+  revision 后 drain 复核必然失败，不静默换基准，redrive 一步接手；建议制不推进
+  revision 正常补位）。
+
+### 12.2 SC-02：run 级模型请求预算 + 429 快速失败 + 面板额度
+
+- `_loop` 的 chatWithTools 单次调用包进既有
+  `usingTask(runId, binding, agentRunRequestCap(), …)`；只包单调用点、绝不包整个
+  _loop——await 返回后 AsyncLocalStorage 上下文即退出，`_executeTool` 内图片工具
+  预留天然在任务上下文外，不撞「任务未授权该用途」403（既有图片路径套件全绿
+  由包裹位置结构性保证，npm test 含图片套件验证）。
+- cap：`agentRunRequestCap()` 读时求值 `Math.min(20, Math.max(1, Number(env
+  CONTENT_STUDIO_AGENT_RUN_REQUEST_CAP)||20))`。**诚实边界（QA 追记）**：缺省
+  20、钳制 [1,20]；20 为 usingTask 既有校验上限，AGENT_MAX_STEPS=24 的极端运行
+  第 21 次请求 429 快速 failed，resumeOf 重驱动获得新 run 新预算，不放宽共享
+  上界。既有「步数上限」用例（原 :213-228）据此改写：预算先于步数上限生效
+  （20<24，24 次 fetch 断言不可达），改断言恰 20 次 fetch + stopReason /额度/。
+- 429 快速失败：_loop catch 在 failures++ 前判 `e?.status===429` → 记一帧
+  model_error 后 `_finish('failed','模型请求额度已用完…')`，不再 3 次必然失败
+  重试；429 尝试不消耗额度（_reserve 在 BEGIN IMMEDIATE 内 fail 即 ROLLBACK，
+  单测断言 service_usage_tasks 中 task_id=runId 恰 2 行）。
+- 面板额度：挂载第三路并行拉既有 GET /api/creator/usage（零新端点），渲染
+  「今日模型请求剩余 n/m 次（逐次记账）」；**剩余口径**=limits.textLimit −
+  Σ today[kind='text' 且 state∈(reserved,completed,unknown)].requests，与
+  _reserve 占用逐字对齐（failed 退额不计）；展示为启动前预判，不做启动前硬闸
+  （真值在服务端逐次占用）。consent 文案改「单次运行最多 {cap} 次模型请求，
+  逐次计入每日额度」，cap 来自 GET /api/creator/agent 响应增列 runRequestCap
+  （同一钳制 helper）；consent checkbox 加 aria-label="允许本次运行调用模型与
+  图片服务"，e2e 4 处定位换该稳定锚点。额度行用独立类 `writing-usage-note`
+  （偏差 3：初版复用 writing-source-note 与终态/排队文案串联，playwright strict
+  mode 下既有 `.writing-source-note` 定位命中双元素，已拆分）。
+- 既有计费回路用例（生产路径 dispatchApi 计费）零改动通过——wrap 后计费不变
+  （最重要回归底线）。
+
+### 12.3 AW-01：建议卡就地 original→replacement 对比
+
+- `src/compose-view.mjs` 新增纯函数 `suggestionCompareView(s)` 四态（both /
+  replacement-only / original===replacement 退化 / revoked 空原文降级，异常数据
+  不伪装对比）；WritingWorkspace 待审建议卡（写作助手与审稿阶段共用渲染）升级
+  常显对比块（`.writing-version-line is-del/is-add` 复用版本对比既有结构与
+  --cv2-error/success token，块顶「原文片段 → 替换内容」说明行 +
+  aria-label="建议对比"）；零新增请求。**交互决定（QA 追记）**：就地对比为主，
+  「在正文中查看」保留为上下文定位次级入口；接受/拒绝与 decide/expectedRevision
+  路径零改动。
+
+### 12.4 AW-02：助手快捷指令菜单（Brush 适配）
+
+- 8 技能各加纯展示字段 `preset`（与 stage 同待遇：只进 skills() UI 投影，不进
+  systemPrompt/门禁/存储），措辞止于产出/审阅（无发布承诺，单测逐条断言）。
+- AgentRuns.jsx 新增 `<details aria-label="快捷指令">`：顶部
+  aria-label="搜索快捷指令" 输入（substring 匹配 title+preset，对齐 BrushEntry
+  q/ql/hit 语义）+ 按既有 STAGE_GROUPS 分组列表项；点击=setSkillId+
+  setInstruction(preset)+收起。**边界（QA 追记）**：预填不自动发送——consent 与
+  「启动运行」disabled 门禁零改动，e2e 断言选中后 consent 未勾选、启动仍禁用。
+- adaptedFrom 登记（见 src/agent-skills.mjs 与 components/AgentRuns.jsx 头注）：
+  BrushEntry.tsx:7（选中即预填不自动发送）、:11,:31-32,:70-71（q/ql/hit 搜索）、
+  :34-37（pick→onPick 仅预填）——**r6.1 行段更正**：原引 :5,48-57 是 DOT 表与
+  画笔 SVG，不对应所引内容；capabilityMenu.ts:25 起 tabs 分组数据（:9-19
+  meta/legend/counts 不引入）。弃用：BrushEntry 画笔动效、113 技能手工菜单、
+  四态 legend、SkillDrawer 就地配 key。
+
+### 12.5 门禁与验证（容器 node22-studio:pw，Node v22.23.3）
+
+| 命令 | 结果 |
+|---|---|
+| `npm run check` | **PASS**（exit 0） |
+| `npm test` | **704 tests = 699 pass / 2 fail / 3 skipped**。2 失败=V74 root 容器基线豁免（test/container-recovery-v74.test.mjs:81,:100「V74 maintenance requires an unprivileged Linux container」，与 §11.5 逐字同因同位置）；3 跳过=V69 sudo（基线一致）；**零新增失败**，净增 12 测全部通过（agent-runtime 25→35、agent-skills 4→5、compose-view 10→11） |
+| `npm run build`（build-guard 封存） | **PASS**（✓ Compiled successfully in 23.8s；本轮内共 3 次全绿，最终一次为全量源码定稿后）。回执键仍为含未提交改动工作树的 HEAD——沿用 §9.2/§10.3/§11.5 既有披露口径 |
+| `npm run test:production`（V49） | **PASS 1/1**——既有 §2/§11.6 欠账本轮补上（真实构建产物 + 进程重启持久化） |
+| `npx playwright test e2e/agent-runtime.spec.mjs` | **6/6 通过**（既有 4 条零回归 + SC-01 排队新用例（含 r6.1 中间态守卫断言：放行前运行列表恰一条 running+一条 queued）+ AW-02 快捷指令新用例） |
+| `npx playwright test e2e/writing-workspace.spec.mjs` | **15/15 通过**（既有 14 条零回归 + AW-01 就地对比新用例） |
+
+- **e2e 环境披露**：Windows 宿主（Node v24.1.0）跑不了本仓库测试——
+  `credentialKey` 的 POSIX 权限检查在 NTFS（mkdtemp 文件 mode 0666）下必然 503
+  「凭据存储权限不安全」，宿主实测既有基线用例同样全挂（probe：file mode
+  100666 & 0o077=54），与本轮改动无关；故全部门禁按 QA §1/§11.5 既有口径在
+  容器内执行。node22-studio:pw 镜像仅含浏览器依赖库、无浏览器本体，本轮在临时
+  容器内 `npx playwright install chromium`（Chrome Headless Shell 156.0.8078.4，
+  仅写容器可写层，不进镜像/仓库）；webServer 以 PLAYWRIGHT_PORT=4391/4392 起独
+  立实例。
+- e2e 范围披露：本轮只全量重跑两个被触碰套件（agent-runtime、writing-workspace
+  ——恰好覆盖全部触碰的 e2e 文件），其余套件与本轮改动无交集，未在本轮重跑。
+
+### 12.6 已知偏差（如实登记）
+
+1. **queuePosition 口径**（§12.1）：方案字面「COUNT queued rows」与验收①
+   queuePosition=2 冲突，按「活跃行（running+queued）rowid 计数 +1」实现并通过
+   全部验收断言；「第 n 位」= 你之前还有几条活跃运行（按 core 全局）。
+2. **步数上限用例改写**（§12.2）：SC-02 使 24 次 fetch 的步数上限路径在 cap=20
+   下结构性不可达；原用例改写为预算边界用例（恰 20 次 fetch + /额度/），步数
+   上限收尾分支自此仅在预算未启用时可达，如实记录不虚留断言。
+3. **writing-usage-note 独立类**（§12.2）：额度行不复用 writing-source-note，
+   避免面板 `.writing-source-note` 定位在 strict mode 下串联。
+4. **测试基建披露**：`npm test`/e2e 在 Windows 宿主不可用为既有环境限制（本轮
+   以容器执行并实测记录）；既有 V74×2 失败与 V69×3 跳过为基线豁免，未做任何
+   放宽或绕过。
+5. **边界保持**：零 DDL、零新增公开端点、V75 边界不动、--cv2-*/既有 token 零新
+   hex（writing.css 仅复用既有色值与 var(--writing-line)）、不搬 AGPL、未
+   npm install（容器内 playwright install 仅测试浏览器，不触碰 package.json/
+   lockfile）。真实付费模型、真实平台发布、生产部署仍未执行/未验证（与此前
+   边界一致）。

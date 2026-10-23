@@ -210,7 +210,7 @@ test('initial payload exposes writeMode and tool announcements match the write m
  }finally{core.agent.saveProfile({writeMode:'suggestions'})}
 });
 
-test('a model that never stops calling tools hits the step cap and fails with 步数上限',async t=>{
+test('a tool-looping model burns the 20-request run budget and fails fast with 额度',async t=>{
  provider(t);const env=setup(t),core=env.core;
  const doc=core.writing.create({title:'步数上限'}),id=doc.projectId;
  const saved=core.writing.save(id,'master',{expectedRevision:doc.revision,markdown:'循环正文。'});
@@ -222,9 +222,12 @@ test('a model that never stops calling tools hits the step cap and fails with �
     tool_calls:[{id:'c'+calls,type:'function',function:{name:'read_document',arguments:'{}'}}]}}]}),{headers:{'content-type':'application/json'}})}});
  await core.agent.runSettled(run.id);
  const finished=core.agent.run(id,run.id);
+ // SC-02 诚实边界：run 级预算（缺省 cap=20）先于 24 步上限耗尽——永不收尾的
+ // 模型在第 21 次请求被 usingTask 任务上限 429 快速失败，redrive 接续新预算。
  assert.equal(finished.status,'failed');
- assert.match(finished.stopReason,/步数上限/);
- assert.equal(calls,AGENT_MAX_STEPS);
+ assert.match(finished.stopReason,/额度/);
+ assert.equal(calls,20);
+ assert.ok(calls<AGENT_MAX_STEPS,'预算上限 20 先于步数上限 24 生效');
 });
 
 test('startRun refuses a project that has not been saved as markdown with 409',async t=>{
@@ -237,21 +240,276 @@ test('startRun refuses a project that has not been saved as markdown with 409',a
   expectedRevision:legacy.revision,allowExternalAI:true}),e=>e.status===409);
 });
 
-test('a second startRun on the same project and channel is refused while one runs',async t=>{
+// SC-01：单飞改写入队语义——同渠道命中 running 改为入队（201 queued），队列槽
+// 每 project+channel 至多 1（第三条仍 409）；queued 行无 controller/loopPromises。
+test('SC-01 排队：同渠道第二条运行入队（201/queuePosition=2/无 controller），第三条仍 409',async t=>{
  provider(t);const env=setup(t),core=env.core;
  const doc=core.writing.create({title:'唯一运行'}),id=doc.projectId;
  const saved=core.writing.save(id,'master',{expectedRevision:doc.revision,markdown:'唯一运行正文。'});
  let release;const gate=new Promise(r=>{release=r});
  const run=await core.agent.startRun(id,'master',{skillId:'selection-rewriter',instruction:'x',
   expectedRevision:saved.revision,allowExternalAI:true,fetchImpl:async()=>{await gate;return final()}});
+ assert.equal(run.status,'running');
+ const req=(path,method='GET',input)=>dispatchApi(new Request('http://127.0.0.1:4312'+path,{method,headers:input?{'content-type':'application/json'}:{},body:input?JSON.stringify(input):undefined}),core);
+ const second=await req('/api/creator/projects/'+id+'/agent-runs','POST',{skillId:'selection-rewriter',instruction:'x',expectedRevision:saved.revision,allowExternalAI:true});
+ assert.equal(second.status,201);
+ const {run:queued}=await second.json();
+ assert.equal(queued.status,'queued');
+ assert.equal(queued.queuePosition,2,'A（running）占第 1 位，B 排第 2 位');
+ assert.equal(core.agent.controllers.has(queued.id),false);
+ assert.equal(core.agent.loopPromises.has(queued.id),false);
  await assert.rejects(()=>core.agent.startRun(id,'master',{skillId:'selection-rewriter',instruction:'x',
   expectedRevision:saved.revision,allowExternalAI:true}),e=>e.status===409);
+ // 收尾：queued 取消（纯 UPDATE CAS）+ running 取消（abort）；A 的 finally 链
+ // drain 无 queued 可认领，不产生任何额外运行。
+ const cancelledQueued=core.agent.cancelRun(id,queued.id);
+ assert.equal(cancelledQueued.status,'cancelled');
  core.agent.cancelRun(id,run.id);
  release(final());
  await core.agent.runSettled(run.id);
  assert.equal(core.agent.run(id,run.id).status,'cancelled');
  assert.equal(core.agent.controllers.has(run.id),false);
  assert.equal(core.agent.loopPromises.has(run.id),false);
+});
+
+// SC-01：全局并发上限（缺省 2；此处 CONTENT_STUDIO_AGENT_MAX_CONCURRENT='1'）——
+// 跨渠道无同渠道活跃行但全局 running 已满 → 入队；前序完成后 loop.finally 链补位。
+test('SC-01 全局并发上限：跨渠道排队，前序完成后 finally 链补位跑完',async t=>{
+ provider(t);const env=setup(t),core=env.core;
+ process.env.CONTENT_STUDIO_AGENT_MAX_CONCURRENT='1';
+ t.after(()=>{delete process.env.CONTENT_STUDIO_AGENT_MAX_CONCURRENT});
+ const doc=core.writing.create({title:'全局并发'}),id=doc.projectId;
+ const master=core.writing.save(id,'master',{expectedRevision:doc.revision,markdown:'主稿正文。'});
+ const draft=core.writing.document(id,'wechat');
+ const wechat=core.writing.save(id,'wechat',{expectedRevision:draft.revision,markdown:'公众号平台稿正文。',sourceMasterRevision:master.revision});
+ let release;const gate=new Promise(r=>{release=r});
+ const runA=await core.agent.startRun(id,'master',{skillId:'selection-rewriter',instruction:'A',
+  expectedRevision:master.revision,allowExternalAI:true,fetchImpl:async()=>{await gate;return final()}});
+ const req=(path,method='GET',input)=>dispatchApi(new Request('http://127.0.0.1:4312'+path,{method,headers:input?{'content-type':'application/json'}:{},body:input?JSON.stringify(input):undefined}),core);
+ const post=await req('/api/creator/projects/'+id+'/agent-runs','POST',{skillId:'selection-rewriter',instruction:'B',expectedRevision:wechat.revision,allowExternalAI:true,channel:'wechat'});
+ assert.equal(post.status,201);
+ const {run:runB}=await post.json();
+ assert.equal(runB.status,'queued');
+ // 生产路径 fetch 打桩：B 被认领后走 globalThis.fetch（排队行不携带测试 fetchImpl）
+ const realFetch=globalThis.fetch;t.after(()=>{globalThis.fetch=realFetch});
+ let bCalls=0;
+ globalThis.fetch=async()=>{bCalls++;return final()};
+ release(final());
+ await core.agent.runSettled(runA.id);
+ assert.equal(core.agent.run(id,runA.id).status,'completed');
+ // A 的 finally 链 drain 认领 B 并跑完（runSettled 时 B 已在 loopPromises）
+ await core.agent.runSettled(runB.id);
+ assert.equal(core.agent.run(id,runB.id).status,'completed');
+ assert.ok(bCalls>=1,'补位运行应经生产路径发出模型调用');
+});
+
+// SC-01：queued 取消即时生效，前序完成后 drain 不得复活取消行（守卫 SELECT 只取 queued）。
+test('SC-01 取消 queued：即时 cancelled、零模型调用、前序完成后保持 cancelled',async t=>{
+ provider(t);const env=setup(t),core=env.core;
+ process.env.CONTENT_STUDIO_AGENT_MAX_CONCURRENT='1';
+ t.after(()=>{delete process.env.CONTENT_STUDIO_AGENT_MAX_CONCURRENT});
+ const doc=core.writing.create({title:'取消排队'}),id=doc.projectId;
+ const master=core.writing.save(id,'master',{expectedRevision:doc.revision,markdown:'取消排队正文。'});
+ const draft=core.writing.document(id,'wechat');
+ const wechat=core.writing.save(id,'wechat',{expectedRevision:draft.revision,markdown:'取消排队公众号正文。',sourceMasterRevision:master.revision});
+ let release;const gate=new Promise(r=>{release=r});
+ const runA=await core.agent.startRun(id,'master',{skillId:'selection-rewriter',instruction:'A',
+  expectedRevision:master.revision,allowExternalAI:true,fetchImpl:async()=>{await gate;return final()}});
+ const req=(path,method='GET',input)=>dispatchApi(new Request('http://127.0.0.1:4312'+path,{method,headers:input?{'content-type':'application/json'}:{},body:input?JSON.stringify(input):undefined}),core);
+ const post=await req('/api/creator/projects/'+id+'/agent-runs','POST',{skillId:'selection-rewriter',instruction:'B',expectedRevision:wechat.revision,allowExternalAI:true,channel:'wechat'});
+ const {run:runB}=await post.json();
+ assert.equal(runB.status,'queued');
+ const realFetch=globalThis.fetch;t.after(()=>{globalThis.fetch=realFetch});
+ let bCalls=0;
+ globalThis.fetch=async()=>{bCalls++;return final()};
+ const cancelled=core.agent.cancelRun(id,runB.id);
+ assert.equal(cancelled.status,'cancelled');
+ release(final());
+ await core.agent.runSettled(runA.id);
+ assert.equal(core.agent.run(id,runA.id).status,'completed');
+ await new Promise(r=>setTimeout(r,50)); // A 的 finally 链 drain 已执行
+ assert.equal(core.agent.run(id,runB.id).status,'cancelled','drain 不得认领已取消的行');
+ assert.equal(bCalls,0,'取消的排队行零模型调用');
+});
+
+// SC-01：启动清扫扩到 queued——跨重启排队不存活（consent 未落库，不自动重跑），
+// 专属 stop_reason；随后 resumeOf 重驱动一步接手（链通既有形态）。
+test('SC-01 重启矩阵：queued 行清扫为 interrupted（专属文案）且可 resumeOf 重驱动 completed',async t=>{
+ provider(t);const env=setup(t),core=env.core;
+ const doc=core.writing.create({title:'重启矩阵'}),id=doc.projectId;
+ const saved=core.writing.save(id,'master',{expectedRevision:doc.revision,markdown:'需要重试的原始句子。'});
+ const binding=core.services.captureBinding('text');
+ core.db.prepare("INSERT INTO agent_runs VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run(
+  'ar_staleq',id,'master',saved.revision,'selection-rewriter',1,'ag_default','queued','','排队中断',
+  JSON.stringify(binding),'dead-owner','2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z');
+ const fresh=env.reopen();
+ const swept=fresh.agent.run(id,'ar_staleq');
+ assert.equal(swept.status,'interrupted');
+ assert.match(swept.stopReason,/进程重启/);
+ assert.match(swept.stopReason,/排队任务未保留/);
+ const suggest=toolResponse('write_suggestions');
+ let observed=null;
+ const run2=await fresh.agent.startRun(id,'master',{skillId:'selection-rewriter',instruction:'排队中断',
+  expectedRevision:saved.revision,allowExternalAI:true,resumeOf:'ar_staleq',
+  fetchImpl:async(url,options)=>{observed=JSON.parse(options.body);
+   if(observed.messages.at(-1).role==='tool')return final();
+   return suggest({reason:'续跑建议',edits:[{from:0,to:4,original:'需要重试',replacement:'重驱动后的表达'}]})}});
+ assert.equal(run2.status,'running');
+ await fresh.agent.runSettled(run2.id);
+ const done=fresh.agent.run(id,run2.id);
+ assert.equal(done.status,'completed');
+ assert.equal(done.steps[0].kind,'resume');
+ assert.equal(done.steps[0].payload.resumeOf,'ar_staleq');
+ assert.equal(fresh.writing.suggestions(id,'master').length,1);
+});
+
+// SC-01：drain 认领后复核不静默换基准——排队期间正文变化 → interrupted /正文已变化/。
+test('SC-01 drain 复核：排队期间正文变化 → interrupted /正文已变化/ 且零模型调用',async t=>{
+ provider(t);const env=setup(t),core=env.core;
+ const doc=core.writing.create({title:'排队复核'}),id=doc.projectId;
+ const saved=core.writing.save(id,'master',{expectedRevision:doc.revision,markdown:'排队复核正文。'});
+ let release;const gate=new Promise(r=>{release=r});
+ const runA=await core.agent.startRun(id,'master',{skillId:'selection-rewriter',instruction:'A',
+  expectedRevision:saved.revision,allowExternalAI:true,fetchImpl:async()=>{await gate;return final()}});
+ const req=(path,method='GET',input)=>dispatchApi(new Request('http://127.0.0.1:4312'+path,{method,headers:input?{'content-type':'application/json'}:{},body:input?JSON.stringify(input):undefined}),core);
+ const post=await req('/api/creator/projects/'+id+'/agent-runs','POST',{skillId:'selection-rewriter',instruction:'B',expectedRevision:saved.revision,allowExternalAI:true});
+ assert.equal(post.status,201);
+ const {run:runB}=await post.json();
+ assert.equal(runB.status,'queued');
+ const realFetch=globalThis.fetch;t.after(()=>{globalThis.fetch=realFetch});
+ let bCalls=0;
+ globalThis.fetch=async()=>{bCalls++;return final()};
+ core.writing.save(id,'master',{expectedRevision:saved.revision,markdown:'作者在排队期间改了正文。'});
+ release(final());
+ await core.agent.runSettled(runA.id);
+ assert.equal(core.agent.run(id,runA.id).status,'completed');
+ const row=core.agent.run(id,runB.id);
+ assert.equal(row.status,'interrupted');
+ assert.match(row.stopReason,/正文已变化/);
+ assert.equal(bCalls,0,'复核失败的排队行零模型调用（不用旧基准发付费调用）');
+});
+
+// SC-01：CAS 半边——行已被他人认领（running、本进程无 controller）时
+// drainQueued 不得重复起 loop、不得发出任何模型调用。
+test('SC-01 CAS：预认领（已 running）的行 drainQueued 不重复起 loop',async t=>{
+ provider(t);const env=setup(t),core=env.core;
+ const doc=core.writing.create({title:'CAS 防重'}),id=doc.projectId;
+ const saved=core.writing.save(id,'master',{expectedRevision:doc.revision,markdown:'CAS 正文。'});
+ const binding=core.services.captureBinding('text');
+ core.db.prepare("INSERT INTO agent_runs VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run(
+  'ar_cas',id,'master',saved.revision,'selection-rewriter',1,'ag_default','queued','','x',
+  JSON.stringify(binding),'dead-owner','2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z');
+ core.db.prepare("UPDATE agent_runs SET status='running' WHERE id='ar_cas'").run();
+ const realFetch=globalThis.fetch;t.after(()=>{globalThis.fetch=realFetch});
+ let calls=0;
+ globalThis.fetch=async()=>{calls++;return final()};
+ await core.agent.drainQueued();
+ assert.equal(core.agent.loopPromises.has('ar_cas'),false,'已被认领的行不得再次起 loop');
+ assert.equal(core.agent.run(id,'ar_cas').status,'running');
+ assert.equal(calls,0);
+ core.db.prepare("UPDATE agent_runs SET status='cancelled',stop_reason='测试清理' WHERE id='ar_cas'").run();
+});
+
+// SC-01：events 流 queued 阶段帧——run_status 无 seq（非游标帧），认领后 running 帧，收流 run_done。
+test('SC-01 events：queued 流出 run_status 帧（无 seq）→认领→run_done 收流',async t=>{
+ provider(t);const env=setup(t),core=env.core;
+ process.env.CONTENT_STUDIO_AGENT_MAX_CONCURRENT='1';
+ t.after(()=>{delete process.env.CONTENT_STUDIO_AGENT_MAX_CONCURRENT});
+ const doc=core.writing.create({title:'排队事件'}),id=doc.projectId;
+ const master=core.writing.save(id,'master',{expectedRevision:doc.revision,markdown:'排队事件正文。'});
+ const draft=core.writing.document(id,'wechat');
+ const wechat=core.writing.save(id,'wechat',{expectedRevision:draft.revision,markdown:'排队事件公众号正文。',sourceMasterRevision:master.revision});
+ let release;const gate=new Promise(r=>{release=r});
+ const runA=await core.agent.startRun(id,'master',{skillId:'selection-rewriter',instruction:'A',
+  expectedRevision:master.revision,allowExternalAI:true,fetchImpl:async()=>{await gate;return final()}});
+ const req=(path,method='GET',input)=>dispatchApi(new Request('http://127.0.0.1:4312'+path,{method,headers:input?{'content-type':'application/json'}:{},body:input?JSON.stringify(input):undefined}),core);
+ const post=await req('/api/creator/projects/'+id+'/agent-runs','POST',{skillId:'selection-rewriter',instruction:'B',expectedRevision:wechat.revision,allowExternalAI:true,channel:'wechat'});
+ const {run:runB}=await post.json();
+ assert.equal(runB.status,'queued');
+ const realFetch=globalThis.fetch;t.after(()=>{globalThis.fetch=realFetch});
+ // B 的首个模型调用被 gateB 挂住：认领后 B 停在 running 相位，事件流（800ms
+ // 轮询）必然观察到 queued→running 过渡，不被「认领即完成」竞态吞帧。
+ let releaseB;const gateB=new Promise(r=>{releaseB=r});
+ globalThis.fetch=async()=>{await gateB;return final()};
+ const events=await openEvents(core,id,runB.id);
+ const reader=events.body.getReader(),dec=new TextDecoder();
+ let buf='';const frames=[];
+ const pump=(async()=>{try{for(;;){const {done,value}=await reader.read();if(done)return;
+  buf+=dec.decode(value,{stream:true});const lines=buf.split('\n');buf=lines.pop();
+  for(const line of lines)if(line.trim())frames.push(JSON.parse(line))}}catch{}})();
+ release(final());
+ await core.agent.runSettled(runA.id);
+ assert.equal(core.agent.run(id,runA.id).status,'completed');
+ // 等 B 被认领进入 running，再给流最多 5s 送达 running 帧
+ for(let i=0;i<250&&core.agent.run(id,runB.id).status==='queued';i++)await new Promise(r=>setTimeout(r,20));
+ assert.equal(core.agent.run(id,runB.id).status,'running');
+ for(let i=0;i<250&&!frames.some(f=>f.kind==='run_status'&&f.status==='running');i++)await new Promise(r=>setTimeout(r,20));
+ releaseB(final());
+ await core.agent.runSettled(runB.id);
+ await Promise.race([pump,new Promise(r=>setTimeout(r,8000))]);
+ const statuses=frames.filter(f=>f.kind==='run_status');
+ assert.ok(statuses.length>=2,'应至少有 queued 与 running 两帧：'+JSON.stringify(frames));
+ assert.equal(statuses[0].status,'queued');
+ assert.equal('seq' in statuses[0],false,'run_status 是非游标帧，不携带 seq');
+ assert.equal(statuses[0].queuePosition,2);
+ assert.equal(statuses.some(f=>f.status==='running'),true);
+ const done=frames.at(-1);
+ assert.equal(done.kind,'run_done');
+ assert.equal(done.status,'completed');
+ assert.equal('seq' in done,false);
+});
+
+// SC-01 认领同渠道守卫（r6.1 评审 high 项判别性回归，唯一防复发单测）：
+// A running（holdModel）时同渠道 B queued，全局 running=1<2 恰是旧缺陷触发条件——
+// 无守卫时 drain 即认领 B → 同渠道双 loop。守卫必须跳过忙渠道 B、认领空闲渠道。
+test('SC-01 认领同渠道守卫：drain 跳过忙渠道 queued，空闲渠道补位，前序终态后才认领',async t=>{
+ provider(t);const env=setup(t),core=env.core;
+ const doc=core.writing.create({title:'认领守卫'}),id=doc.projectId;
+ const master=core.writing.save(id,'master',{expectedRevision:doc.revision,markdown:'守卫主稿正文。'});
+ const draftW=core.writing.document(id,'wechat');
+ const wechat=core.writing.save(id,'wechat',{expectedRevision:draftW.revision,markdown:'守卫公众号正文。',sourceMasterRevision:master.revision});
+ const draftZ=core.writing.document(id,'zhihu');
+ const zhihu=core.writing.save(id,'zhihu',{expectedRevision:draftZ.revision,markdown:'守卫知乎正文。',sourceMasterRevision:master.revision});
+ let releaseA,releaseE;const gateA=new Promise(r=>{releaseA=r}),gateE=new Promise(r=>{releaseE=r});
+ const runA=await core.agent.startRun(id,'master',{skillId:'selection-rewriter',instruction:'A',
+  expectedRevision:master.revision,allowExternalAI:true,fetchImpl:async()=>{await gateA;return final()}});
+ const runE=await core.agent.startRun(id,'zhihu',{skillId:'selection-rewriter',instruction:'E',
+  expectedRevision:zhihu.revision,allowExternalAI:true,fetchImpl:async()=>{await gateE;return final()}});
+ const req=(path,method='GET',input)=>dispatchApi(new Request('http://127.0.0.1:4312'+path,{method,headers:input?{'content-type':'application/json'}:{},body:input?JSON.stringify(input):undefined}),core);
+ const postB=await req('/api/creator/projects/'+id+'/agent-runs','POST',{skillId:'selection-rewriter',instruction:'B',expectedRevision:master.revision,allowExternalAI:true});
+ const runB=(await postB.json()).run;
+ const postC=await req('/api/creator/projects/'+id+'/agent-runs','POST',{skillId:'selection-rewriter',instruction:'C',expectedRevision:wechat.revision,allowExternalAI:true,channel:'wechat'});
+ const runC=(await postC.json()).run;
+ assert.equal(runB.status,'queued'); // 同渠道命中 running → 入队
+ assert.equal(runC.status,'queued'); // 全局 running=2 已满 → 入队
+ const realFetch=globalThis.fetch;t.after(()=>{globalThis.fetch=realFetch});
+ let prodCalls=0;
+ globalThis.fetch=async()=>{prodCalls++;return final()};
+ await core.agent.drainQueued(); // running 已满 → 不认领
+ assert.equal(core.agent.run(id,runB.id).status,'queued');
+ assert.equal(core.agent.run(id,runC.id).status,'queued');
+ assert.equal(prodCalls,0);
+ releaseE(final());
+ await core.agent.runSettled(runE.id);
+ assert.equal(core.agent.run(id,runE.id).status,'completed');
+ // E 的 finally 链 drain：守卫跳过忙渠道（master 上 A 仍 running）的 B，认领空闲渠道 C
+ await core.agent.runSettled(runC.id);
+ assert.equal(core.agent.run(id,runC.id).status,'completed');
+ assert.equal(core.agent.run(id,runB.id).status,'queued','忙渠道 queued 不得被认领');
+ assert.equal(core.agent.loopPromises.has(runB.id),false);
+ assert.equal(prodCalls,1,'B 全程零模型调用，仅 C 发出');
+ // 直接调 drainQueued()：全局 running=1<2（默认 cap=2）——旧缺陷正在此认领 B → 同渠道双 loop
+ await core.agent.drainQueued();
+ assert.equal(core.agent.run(id,runB.id).status,'queued');
+ assert.equal(core.agent.loopPromises.has(runB.id),false);
+ assert.equal(prodCalls,1);
+ // 放行 A → finally 链补位认领 B → completed（守卫保证发生在前序终态之后）
+ releaseA(final());
+ await core.agent.runSettled(runA.id);
+ assert.equal(core.agent.run(id,runA.id).status,'completed');
+ await core.agent.runSettled(runB.id);
+ assert.equal(core.agent.run(id,runB.id).status,'completed');
+ assert.equal(prodCalls,2);
 });
 
 test('recorded step payloads stay bounded even when tool arguments and results are huge',async t=>{
@@ -679,4 +937,58 @@ test('article-pipeline 全流程：读 → write_revision → write_suggestions 
  assert.ok(!lastModel.payload.content.includes('已发布'),'无已发布措辞');
  assert.ok(!lastModel.payload.content.includes('自动发布'),'无自动发布措辞');
  assert.match(done.stopReason,/导出准备/);
+});
+
+// ---- SC-02：run 级模型请求预算（usingTask 单调用包裹）+ 429 快速失败 ----
+
+test('SC-02 额度快速失败：textLimit=0 时首个请求即 429 → failed、恰 1 帧 model_error、零 fetch',async t=>{
+ provider(t);const env=setup(t),core=env.core;
+ const doc=core.writing.create({title:'额度快速失败'}),id=doc.projectId;
+ const saved=core.writing.save(id,'master',{expectedRevision:doc.revision,markdown:'额度正文。'});
+ core.services.setLimits({textLimit:0,imageLimit:30});
+ let fetchCalls=0;
+ const run=await core.agent.startRun(id,'master',{skillId:'selection-rewriter',instruction:'x',
+  expectedRevision:saved.revision,allowExternalAI:true,fetchImpl:async()=>{fetchCalls++;return final()}});
+ await core.agent.runSettled(run.id);
+ const done=core.agent.run(id,run.id);
+ assert.equal(done.status,'failed');
+ assert.match(done.stopReason,/额度/);
+ assert.equal(fetchCalls,0,'429 快速失败不应触发任何真实请求（无 3 连重试）');
+ assert.equal(done.steps.filter(s=>s.kind==='model_error').length,1,'恰记一帧 model_error');
+});
+
+test('SC-02 run 级预算：cap=2 时第 3 次请求 429 快速 failed，恰 2 次 fetch 与 2 行任务占用',async t=>{
+ provider(t);const env=setup(t),core=env.core;
+ process.env.CONTENT_STUDIO_AGENT_RUN_REQUEST_CAP='2';
+ t.after(()=>{delete process.env.CONTENT_STUDIO_AGENT_RUN_REQUEST_CAP});
+ const doc=core.writing.create({title:'run 预算'}),id=doc.projectId;
+ const saved=core.writing.save(id,'master',{expectedRevision:doc.revision,markdown:'预算正文。'});
+ let calls=0;
+ const run=await core.agent.startRun(id,'master',{skillId:'selection-rewriter',instruction:'x',
+  expectedRevision:saved.revision,allowExternalAI:true,
+  fetchImpl:async()=>{calls++;
+   return new Response(JSON.stringify({choices:[{finish_reason:'tool_calls',message:{role:'assistant',content:null,
+    tool_calls:[{id:'b'+calls,type:'function',function:{name:'read_document',arguments:'{}'}}]}}]}),{headers:{'content-type':'application/json'}})}});
+ await core.agent.runSettled(run.id);
+ const done=core.agent.run(id,run.id);
+ assert.equal(done.status,'failed');
+ assert.match(done.stopReason,/额度/);
+ assert.equal(calls,2,'第 3 次 reserve 在 fetch 前被任务上限拦下');
+ assert.equal(core.db.prepare("SELECT COUNT(*) AS n FROM service_usage_tasks WHERE task_id=?").get(run.id).n,2,
+  '429 尝试不落占用行（ROLLBACK），恰 2 行');
+ const req=(path,method='GET',input)=>dispatchApi(new Request('http://127.0.0.1:4312'+path,{method,headers:input?{'content-type':'application/json'}:{},body:input?JSON.stringify(input):undefined}),core);
+ assert.equal((await (await req('/api/creator/agent')).json()).runRequestCap,2,'环境变量读时生效');
+});
+
+test('SC-02 runRequestCap：缺省 20、上界钳制在 usingTask 既有校验上限',async t=>{
+ provider(t);const env=setup(t),core=env.core;
+ const req=(path,method='GET',input)=>dispatchApi(new Request('http://127.0.0.1:4312'+path,{method,headers:input?{'content-type':'application/json'}:{},body:input?JSON.stringify(input):undefined}),core);
+ assert.equal((await (await req('/api/creator/agent')).json()).runRequestCap,20,'缺省 20');
+ process.env.CONTENT_STUDIO_AGENT_RUN_REQUEST_CAP='99';
+ t.after(()=>{delete process.env.CONTENT_STUDIO_AGENT_RUN_REQUEST_CAP});
+ assert.equal((await (await req('/api/creator/agent')).json()).runRequestCap,20,'上界 20 是 usingTask 校验上限，钳制不报错');
+ process.env.CONTENT_STUDIO_AGENT_RUN_REQUEST_CAP='abc';
+ assert.equal((await (await req('/api/creator/agent')).json()).runRequestCap,20,'非法值回缺省');
+ process.env.CONTENT_STUDIO_AGENT_RUN_REQUEST_CAP='0';
+ assert.equal((await (await req('/api/creator/agent')).json()).runRequestCap,20,'下界抬到 1 以上（0 视为未设置回缺省）');
 });

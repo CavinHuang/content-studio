@@ -898,3 +898,58 @@ test("版本历史两版对比：行级 add/del 与真实计数，恢复路径�
   await expect(oldest.getByRole("button", { name: "恢复为新版本" })).toBeEnabled();
   expect(errors).toEqual([]);
 });
+
+// AW-01：待审建议卡就地对比（Phase 4 切片二）——original/replacement 是载荷既有
+// 字段（src/compose-view.mjs suggestionCompareView 纯派生，零新增请求），卡片内
+// 常显「原文片段 → 替换内容」两行，无需点击「在正文中查看」即可对比；接受修改后
+// 正文变化断言沿用套件既有口径（多处独立调整 → 逐条接受）。
+test("待审建议卡就地对比：原文片段与替换内容同时可见，接受后正文变化", async ({
+  page,
+  request,
+}) => {
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const doc = await create(request, "就地对比的文章");
+  await page.goto("/compose?project=" + doc.projectId);
+  // 合成模型「多处独立调整」分支以「修改第一处。/修改第二处。」双哨兵定位，
+  // 正文需同时包含两处（形态同「multiple suggestions」既有用例）。
+  await cm(page).fill(
+    "保留开头。\n\n修改第一处。\n\n保留过渡。\n\n修改第二处。\n\n保留结尾。"
+  );
+  await expect
+    .poll(async () => (await stored(request, doc)).markdown)
+    .toContain("修改第一处。");
+  await page
+    .getByLabel("与助手讨论或提出写作要求")
+    .fill("请做多处独立调整，其他段落保持不变");
+  await page
+    .getByLabel("允许本次向已配置模型发送文章、参考素材与写作要求")
+    .check();
+  await page.getByRole("button", { name: "生成写作建议", exact: true }).click();
+  const suggestions = page.locator(".writing-suggestions");
+  await expect(
+    suggestions.getByRole("button", { name: "接受修改", exact: true })
+  ).toHaveCount(2);
+  const card = suggestions.locator("article.writing-suggestion").first();
+  const compare = card.locator('[aria-label="建议对比"]');
+  await expect(compare).toBeVisible();
+  await expect(compare).toContainText("原文片段 → 替换内容");
+  await expect(compare.locator(".writing-version-line.is-del")).toContainText(
+    "修改第一处。"
+  );
+  await expect(compare.locator(".writing-version-line.is-add")).toContainText(
+    "第一处经过审阅的新表达。"
+  );
+  // 就地对比为主：无需点击「在正文中查看」即已可见（该按钮保留为定位次级入口）
+  await expect(
+    card.getByRole("button", { name: "在正文中查看" })
+  ).toBeVisible();
+  await suggestions
+    .getByRole("button", { name: "接受修改", exact: true })
+    .first()
+    .click();
+  const final = await stored(request, doc);
+  expect(final.markdown).toContain("第一处经过审阅的新表达。");
+  expect(final.markdown).toContain("保留过渡。");
+  expect(errors).toEqual([]);
+});
