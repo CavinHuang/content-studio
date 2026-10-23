@@ -28,7 +28,9 @@ import { join } from "node:path";
 //      banners / asset panel / outline focus / suggestion-card controls /
 //      history restore / publish dialog copy+report+draft controls /
 //      V76 model multi-select / stream toggle / Enter submit / resume
-//      cancel / loading state / mobile workflow bar / shell navigation.
+//      cancel / loading state / mobile workflow bar / shell navigation;
+//   6. P1-01 阶段深链与前进后退：?stage= 直达（epoch 装载协同不重置）、
+//      阶段条切换写 URL 且不重取文档、openPlanner 路径 URL 保持 stage=images。
 const PNG_1X1 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/gHcAAAAASUVORK5CYII=";
 
@@ -1304,6 +1306,106 @@ test("从 /compose 出发：桌面侧栏与移动全局底栏（含「更多」�
   await expect(
     page.getByRole("heading", { name: "选题发现", exact: true })
   ).toBeVisible();
+});
+
+// ---- P1-01 阶段深链与前进后退（阶段只是呈现层焦点；文档装载/保存路径不变）----
+
+test("阶段深链：?stage=publish 文档装载完成后仍停发布阶段，不回写作", async ({
+  page,
+}) => {
+  await signup(page, "compose-deeplink@example.test");
+  const id = await createProject(page, "发布阶段深链验证");
+  await page.goto("/compose?project=" + id + "&stage=publish");
+  // 发布阶段没有编辑器工作面（editorStage=false），文档装载完成以保存徽标
+  // 出现真实修订为准；此后发布卡片必须仍在——epoch effect 的装载协同
+  // （?stage= 白名单解析 + replaceState）不得把深链重置回写作阶段。
+  await expect(page.locator(".cv2-compose-save")).toHaveText(/已保存 · v\d+/);
+  await expect(page).toHaveURL(/stage=publish/);
+  await expect(
+    page.getByRole("heading", { name: "主稿不直接发布" })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "创建微信公众号平台稿" })
+  ).toBeVisible();
+  const steps = page.locator(".cv2-compose-steps .cv2-compose-step");
+  await expect(steps.nth(5)).toHaveAttribute("aria-current", "step");
+});
+
+test("阶段切换写 URL 且不重取文档，未保存修改保留，后退前进跨阶段同步", async ({
+  page,
+}) => {
+  await signup(page, "compose-stageurl@example.test");
+  const id = await createProject(page, "阶段前进后退验证");
+  await page.goto("/compose?project=" + id);
+  await expect(cm(page)).toBeVisible();
+
+  // 网络断言基线：初始装载完成后再挂监听，切阶段不得产生新的
+  // 文档 GET（/api/writing/projects/…）或 refreshProjects 重跑
+  // （/api/editor/projects，验证 effect 依赖收窄）。
+  let docGets = 0;
+  let projectListGets = 0;
+  page.on("request", (r) => {
+    if (r.method() !== "GET") return;
+    if (r.url().includes("/api/writing/projects/")) docGets++;
+    if (r.url().includes("/api/editor/projects")) projectListGets++;
+  });
+
+  // 切审稿：URL 写入 stage=review；自动保存窗口（900ms）内允许 PUT，
+  // 不允许任何文档 GET；未保存修改在切回写作后仍在（编辑器不重挂载）。
+  await cm(page).fill("切阶段前输入、尚未自动保存的句子。");
+  await page.getByRole("button", { name: "切换到审稿阶段" }).click();
+  await expect(page).toHaveURL(/stage=review/);
+  await expect(page.locator(".cv2-compose-ribbon")).toContainText(
+    "待完成人工检查"
+  );
+  await sleep(1200);
+  expect(docGets, "切阶段不得重新 GET 文档").toBe(0);
+  expect(projectListGets, "切阶段不得重跑 refreshProjects").toBe(0);
+
+  // 后退回写作阶段（上一历史条目），前进再回审稿——popstate 对齐 effect 承接
+  await page.goBack();
+  await expect(page.locator(".cv2-compose-grid")).toBeVisible();
+  await expect(page).not.toHaveURL(/stage=review/);
+  await expect(cm(page)).toContainText("切阶段前输入、尚未自动保存的句子。");
+  await page.goForward();
+  await expect(page).toHaveURL(/stage=review/);
+  await expect(page.locator(".cv2-compose-ribbon")).toContainText(
+    "待完成人工检查"
+  );
+  // 全程没有新文档 GET：后退前进也只改呈现层焦点
+  expect(docGets, "前进后退不得重新 GET 文档").toBe(0);
+});
+
+test("openPlanner 路径（图位进助手）后 URL 保持 stage=images", async ({
+  page,
+}) => {
+  await signup(page, "compose-planner-url@example.test");
+  const id = await createProject(page, "配图助手路径 URL 验证");
+  const markdown =
+    "# 配图路径验证文章\n\n第一节需要解释一个结构概念，用一段足够长的文字描述任务的执行顺序与边界，方便读者理解流程。\n\n## 第二节\n\n第二节给出对照说明，同样写足长度：通过对照两种做法的差异，说明为什么可靠性比单次演示更加重要。\n\n## 第三节\n\n第三节补充边界情况，继续使用足够长的段落描述失败恢复与人工确认的位置，避免正文过短无法规划。";
+  await page.goto("/compose?project=" + id);
+  await cm(page).fill(markdown);
+  await expect
+    .poll(async () => (await stored(page, id)).markdown)
+    .toBe(markdown);
+  const master = await stored(page, id);
+  const planned = await page.request.post(
+    `/api/illustrations/projects/${id}/plan`,
+    { data: { expectedMasterRevision: master.revision } }
+  );
+  expect(planned.ok()).toBeTruthy();
+  expect((await planned.json()).shots.length).toBeGreaterThan(0);
+
+  await page.getByRole("button", { name: "切换到配图阶段" }).click();
+  await expect(page).toHaveURL(/stage=images/);
+  await page.getByRole("button", { name: "切换到配图", exact: true }).click();
+  const board = page.getByLabel("配图工作台视图");
+  await expect(board.getByText("文章封面 · 待生成")).toBeVisible();
+  // openPlanner：板内图位 → 配图助手（mobilePane 语义与 goStage 不同），
+  // URL 阶段保持 stage=images
+  await board.getByRole("button", { name: /文章封面 · 待生成/ }).click();
+  await expect(page.getByLabel("文章配图助手")).toBeVisible();
+  await expect(page).toHaveURL(/stage=images/);
 });
 
 test.fixme(

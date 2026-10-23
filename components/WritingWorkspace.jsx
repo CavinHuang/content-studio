@@ -22,7 +22,7 @@ import AgentRuns from "./AgentRuns";
 import CreatorShell from "./CreatorShell";
 import Icon from "./creator/Icon";
 import ComposeVisualBoard from "./ComposeVisualBoard";
-import { checkSummary, composeSteps, outlineItems, shotTitle, slotView } from "../src/compose-view.mjs";
+import { checkSummary, composeSteps, outlineItems, parseStage, shotTitle, slotView } from "../src/compose-view.mjs";
 
 // 今天 14:32 / 昨天 20:16 / 10 月 16 日 — client-side only (the document
 // arrives after mount), so locale/timezone can never cause a hydration
@@ -153,7 +153,10 @@ export default function WritingWorkspace() {
   // Easel 式阶段焦点视图（研究/写作/审稿/配图/发布）：一次只呈现一个阶段
   // 的工作面。阶段只是呈现层状态——修订树、expectedRevision、保存与建议
   // 流程完全不变；done 标记仍只来自 src/compose-view.mjs 的真实事实。
-  const [stage, setStage] = useState("write");
+  // P1-01：初值取深链 ?stage=（白名单解析，非法/缺失落回写作）；浏览器
+  // 前进后退由下方以 urlStage 为唯一依赖的对齐 effect 承接。
+  const [stage, setStage] = useState(parseStage(query.get("stage")));
+  const urlStage = query.get("stage");
   const dirty = !!doc && (markdown !== doc.markdown || theme !== doc.theme),
     canMigrate = (!doc?.legacyLayout || !!legacyChoice) && !recovery;
   current.current = {
@@ -283,22 +286,28 @@ export default function WritingWorkspace() {
     setProjects(data.projects || []);
     return data.projects || [];
   }
+  // P1-01：依赖收窄为 project/channel 两个字符串——切阶段只改 ?stage=，
+  // 不得重跑 refreshProjects；文档重载防线不受影响（epoch effect 由
+  // setProjectId 同值不触发）。
+  const projectParam = query.get("project");
+  const channelParam = query.get("channel");
   useEffect(() => {
     let live = true;
     refreshProjects()
       .then((rows) => {
         if (!live) return;
-        const wanted = query.get("project");
         setProjectId(
-          rows.some((p) => p.id === wanted) ? wanted : rows[0]?.id || ""
+          rows.some((p) => p.id === projectParam)
+            ? projectParam
+            : rows[0]?.id || ""
         );
-        if (labels[query.get("channel")]) setChannel(query.get("channel"));
+        if (labels[channelParam]) setChannel(channelParam);
       })
       .catch((e) => setNotice(e.message));
     return () => {
       live = false;
     };
-  }, [query]);
+  }, [projectParam, channelParam]);
   useEffect(() => {
     const serial = ++epoch.current,
       controller = new AbortController();
@@ -324,7 +333,14 @@ export default function WritingWorkspace() {
     setNotice("");
     setComposeMode("write");
     setMobilePane("article");
-    setStage("write");
+    // P1-01 装载协同：阶段焦点取深链 ?stage=（白名单解析，非法/缺失落回
+    // 写作），并用 replaceState 写回 URL——mount 与 project/channel 切换
+    // 都不制造历史条目。这里只重置呈现层焦点视图：expectedRevision、
+    // 保存与建议 decide 路径零改动；effect 依赖 [projectId, channel] 不变，
+    // 用户切阶段（只变 stage）不触发本 effect 重跑。
+    const queryStage = parseStage(query.get("stage"));
+    setStage(queryStage);
+    syncStageUrl(queryStage, "replace");
     if (!projectId) return () => controller.abort();
     const ready =
       channel === "xiaohongshu"
@@ -380,6 +396,14 @@ export default function WritingWorkspace() {
       generationAbort.current?.abort();
     };
   }, [projectId, channel]);
+  // P1-01 popstate 对齐：浏览器后退/前进只改 URL（popstate → useSearchParams
+  // 同步更新），本 effect 以 ?stage= 字符串为唯一依赖把焦点视图对齐回 URL。
+  // 等值守卫防循环——goStage 先 setStage 再 pushState，query 异步到齐后
+  // 命中守卫 no-op；点 4 依赖收窄后它是 popstate 对齐的唯一落点。
+  useEffect(() => {
+    const s = parseStage(urlStage);
+    setStage((prev) => (prev === s ? prev : s));
+  }, [urlStage]);
   useEffect(() => {
     const handler = (e) => {
       const s = current.current;
@@ -419,6 +443,9 @@ export default function WritingWorkspace() {
     setMobilePane("assistant");
     setRightOpen(true);
     setAssistantTab("images");
+    // P1-01：openPlanner 的 mobilePane 语义与 goStage 不同（助手面板而非
+    // 正文），保持不走 goStage；仅把阶段同步进 URL。
+    syncStageUrl("images", "push");
   }
   // 六步阶段条 → 五个焦点视图：大纲与写作共用写作工作面（同一个编辑器
   // 实例，切换不重挂载、不丢光标与未保存内容）。
@@ -437,11 +464,28 @@ export default function WritingWorkspace() {
     images: "配图",
     publish: "发布",
   };
+  // P1-01 ?stage= 的唯一写入点：合并地址栏既有参数（project/channel 等）
+  // 后写回。push 用于用户点击切换（可前进后退）；replace 用于装载协同
+  // （不制造历史条目）。Next 16 对原生 history.* 打了补丁：useSearchParams
+  // 随之更新且不触发服务端请求（node_modules/next/dist/client/components/
+  // app-router.js 的 pushState/replaceState patch → ACTION_RESTORE）。
+  function syncStageUrl(next, mode) {
+    const params = new URLSearchParams(window.location.search);
+    // 缺省即 write（parseStage 白名单缺省值），默认阶段不写冗余参数，
+    // 保持 /compose?project=…&channel=… 的既有深链形态。
+    if (next === "write") params.delete("stage");
+    else params.set("stage", next);
+    const qs = params.toString();
+    const url = window.location.pathname + (qs ? "?" + qs : "");
+    if (mode === "push") window.history.pushState(null, "", url);
+    else window.history.replaceState(null, "", url);
+  }
   function goStage(next) {
     setStage(next);
     setMobilePane("article");
     if (next === "images") setAssistantTab("images");
     if (next === "write") setAssistantTab("writing");
+    syncStageUrl(next, "push");
   }
 
   async function persist() {

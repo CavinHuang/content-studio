@@ -150,3 +150,45 @@
 - 阶段条 done/now 事实语义与 `src/compose-view.mjs` 完全一致；active 高亮为呈现状态（写作视图按「有真实标题→写作，否则→大纲」单高亮）。
 - 发布准备不再是对话框（Esc 关闭 fixme 用例文本已同步修正）；版本历史与主稿审阅仍为对话框。
 - 真实付费生图、真实平台发布、生产部署仍未执行/未验证（与此前边界一致）。
+
+## 8. Easel 移植 Run A / Phase 1：阶段状态进 URL（P1-01，2026-10-21，feat/easel-port-phase1）
+
+### 8.1 改动内容（EASEL-PORT-PLAN.md §4 P1-01）
+
+`/compose` 的五阶段焦点视图（研究/写作/审稿/配图/发布）状态进入 URL，支持 `?stage=` 深链与浏览器前进后退。三条 `setStage` 路径（goStage / openPlanner / epoch effect）全部纳入 URL 协同，`?stage=` 写入单点化为 `syncStageUrl(next, mode)`（`WritingWorkspace.jsx`，push=点击切换、replace=装载协同）：
+
+1. `src/compose-view.mjs` 新增纯函数 `parseStage(value)`：白名单 `research|write|review|images|publish`，非法/缺失一律返回 `"write"`；不产生任何新领域事实。
+2. `stage` 初值改 `parseStage(query.get("stage"))`；默认阶段不写 URL 参数（缺省即 write），既有 `/compose?project=…&channel=…` 深链形态不变。
+3. `goStage` 点击后 `syncStageUrl(next,"push")`（可前进后退）；`openPlanner` 保持自身 mobilePane 语义（助手面板）不改走 goStage，仅补 `syncStageUrl("images","push")`。
+4. projects 加载 effect 依赖从整个 `query` 收窄为 `query.get("project")`/`query.get("channel")` 两个字符串——切阶段不再重跑 refreshProjects。
+5. 新增 popstate 对齐 effect：以 `query.get("stage")` 字符串为唯一依赖，等值守卫（函数式 setState，同值 bail）防循环；依赖收窄后它是浏览器后退/前进的唯一落点。
+
+**epoch effect :327 一行改动的护栏说明**：`setStage("write")` 改为 `setStage(parseStage(query.get("stage")))` 并紧随 `syncStageUrl(该值,"replace")`——mount 与 project/channel 切换都用 replaceState，不制造历史条目。该行只重置呈现层焦点视图，**不触碰 expectedRevision、保存（persist/flush）、建议 decide、master-sync、导出任何一行逻辑**；effect 依赖 `[projectId, channel]` 不变，文档重载防线（setProjectId 同值不触发）不受影响。深链 `stage=publish` + 主稿落既有「主稿不直接发布」引导卡、+ 小红书落既有 xhs 发布卡，均为既有可达状态，无特判。
+
+### 8.2 pushState 集成验证与降级决定
+
+- **未触发降级**。方案 §4 点 6 的施工首日最小验证（切阶段 → query 更新、:286 effect 不重跑、文档不重取）通过：静态核对 Next 16.4.0 对原生 `window.history.pushState/replaceState` 打补丁（`node_modules/next/dist/client/components/app-router.js` 的 patch → `navigator.restore` → `ACTION_RESTORE` → 纯客户端路由状态更新，无服务端请求；`useSearchParams` 由 `canonicalUrl` 派生）；运行时由下述 e2e 用例 28 的网络断言证实（切阶段与前进步后退全程 0 次文档 GET、0 次 refreshProjects GET）。
+- 前进后退保住了，未走「全 replaceState」降级分支。
+
+### 8.3 门禁与验证（容器内 node22-studio:pw，Node v22.23.3 / Playwright 1.64.1；仓库挂载、独立临时容器、干净树）
+
+| 命令 | 提交 | 结果 |
+|---|---|---|
+| `npm run check` | 8b32a42 | **PASS**（exit 0） |
+| `npm test` | 8b32a42 | **658 tests = 653 pass / 2 fail / 3 skipped**——2 失败与 3 跳过与 §3/§7.2 基线完全一致（V74 root 容器环境豁免 ×2、V69 sudo 跳过 ×3）；较 §7.2 净增 1 测（`parseStage` 白名单/非法/缺省单测）且全过 |
+| `npm run build`（build-guard 封存） | 8b32a42 | **PASS**：✓ Compiled successfully，26/26 static pages，V64 回执 candidateCommit=8b32a42…、buildId=vHCINYpcth3Ecfs9WZNyl、709 文件、V65 依赖锁绑定 |
+| `npx playwright test e2e/creator-v2-compose.spec.mjs` | 8b32a42 | **29 passed / 2 skipped（既有 fixme），1.6m**——既有 26 条全数保留全绿（含阶段条与通知条用例） |
+| `npx playwright test`（全量） | 8b32a42 | **274 passed / 0 failed / 16 skipped（既有 fixme），9.3m** |
+
+新增 e2e（`e2e/creator-v2-compose.spec.mjs`，验收条款逐条对应）：
+
+1. **深链防二次重置**：`?project=<id>&stage=publish` 打开 → 保存徽标出现真实修订（文档装载完成）后仍停发布阶段、URL 保持 `stage=publish`、「主稿不直接发布」卡片与渠道创建按钮可见、发布步骤 `aria-current="step"`（防 epoch :327 二次重置回写作）；
+2. **切阶段写 URL 且不重取**：切审稿 → URL 含 `stage=review`、ribbon 可见；网络断言全程 0 次文档 GET（`/api/writing/projects/`）与 0 次 refreshProjects GET（`/api/editor/projects`，证实依赖收窄）；未保存修改切回写作后仍在（编辑器不重挂载）；
+3. **后退前进**：后退回写作（grid 可见、URL 丢失 stage=review、正文仍在），前进再回审稿，全程 0 次文档 GET；
+4. **openPlanner 路径**：板内图位 → 配图助手（mobilePane=assistant 语义）后 URL 保持 `stage=images`。
+
+### 8.4 边界与遗留
+
+- 本期为呈现层改动：`src/writing.mjs`、`lib/api.mjs` 零 diff，零新增请求；修订树、`expectedRevision` 冲突检测、主稿/平台稿独立、四项人工检查、导出 ≠ 实际发布、AI 建议待采纳区语义全部不变。
+- Windows 宿主上的 `npm test` 因凭据存储权限等 POSIX 环境门禁存在 122 项与本次改动无关的既有失败（与基线逐项 diff 确认零新增）；权威验证以容器内上述结果为准。
+- P2-01/02/03（就绪度条、大纲跳转、通知分级）按方案留待 Run B；未验证真实平台发布与生产部署（与此前边界一致）。

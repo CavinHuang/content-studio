@@ -9,6 +9,15 @@
 
 const STEP_LABELS = ["研究", "大纲", "写作", "审稿", "配图", "发布"];
 
+// Easel 式阶段焦点视图的 URL 阶段参数解析（?stage=）：白名单五个焦点视图，
+// 非法/伪造/过期的值与缺失一律安全落回写作阶段。stage 只是呈现层焦点
+// 状态——解析结果不携带也不产生任何领域事实（诚实呈现规则见文件头注释）。
+const STAGE_WHITELIST = ["research", "write", "review", "images", "publish"];
+
+export function parseStage(value) {
+  return STAGE_WHITELIST.includes(value) ? value : "write";
+}
+
 export function composeSteps({
   hasBrief = false,
   hasOutline = false,
