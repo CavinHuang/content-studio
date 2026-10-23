@@ -73,3 +73,16 @@ test('every skill declares a display-only stage inside the compose-stage whiteli
   ['xhs-group','publish'],['article-pipeline','write'],
  ]);
 });
+
+// AW-02：快捷指令 preset（纯展示字段，BrushEntry 适配）——8 技能齐全非空、
+// 措辞止于产出/审阅（无发布承诺），既有 ids deepEqual 断言不受影响。
+test('every skill carries a non-empty display-only preset and none promise publishing',()=>{
+ assert.equal(AGENT_SKILLS.length,8);
+ for(const s of AGENT_SKILLS){
+  assert.ok(typeof s.preset==='string'&&s.preset.trim().length>4,s.id+' preset non-empty');
+  assert.ok(!/已发布|自动发布/.test(s.preset),s.id+' preset wording stops at drafting/review');
+ }
+ assert.equal(skillById('article-pipeline').preset,'从简报到初稿一次跑完：先确保大纲，再生成初稿并自审一轮');
+ assert.equal(skillById('draft-writer').preset,'依据简报与素材产出完整初稿，保持事实准确');
+ // skills() UI 投影透出 preset（不进 systemPrompt/门禁/存储由映射字段白名单保证）
+});

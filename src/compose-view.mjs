@@ -183,3 +183,15 @@ export function shotTitle(shot) {
   if (shot.role === "cover") return "文章封面";
   return "正文配图 " + String(shot.ordinal || "").padStart(2, "0");
 }
+
+// AW-01（Phase 4 切片二）：待审建议卡的就地对比视图。original 为非空字符串且
+// 不等于 replacement 时给 both（卡内常显 原文片段→替换内容 两行）；revoked 行
+// 的 original 被撤销置空为 ''（src/writing.mjs suggestion 投影已证实）、
+// original===replacement 的退化数据一律降级 replacement-only——异常数据不伪装
+// 成对比。纯派生：original/replacement 都是建议载荷既有字段，零新增请求。
+export function suggestionCompareView(s) {
+  const original = s?.original, replacement = s?.replacement;
+  if (typeof original === "string" && original.length > 0 && original !== replacement)
+    return { mode: "both", original, replacement };
+  return { mode: "replacement-only", replacement };
+}

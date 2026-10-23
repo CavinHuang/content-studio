@@ -10,6 +10,7 @@ import {
   readinessFacts,
   shotTitle,
   slotView,
+  suggestionCompareView,
 } from "../src/compose-view.mjs";
 
 test("composeSteps derives done/now only from real backend facts", () => {
@@ -243,4 +244,39 @@ test("shotTitle keeps cover and numbered section figures apart", () => {
   assert.equal(shotTitle({ role: "cover", ordinal: 1 }), "文章封面");
   assert.equal(shotTitle({ role: "section", ordinal: 2 }), "正文配图 02");
   assert.equal(shotTitle(null), "配图");
+});
+
+// AW-01（Phase 4 切片二）：待审建议卡就地对比的纯派生——四态矩阵。
+test("suggestionCompareView 四态：both/replacement-only/original===replacement/revoked 空原文", () => {
+  // both：original 为非空字符串且 !== replacement
+  assert.deepEqual(suggestionCompareView({ original: "旧句", replacement: "新句" }), {
+    mode: "both",
+    original: "旧句",
+    replacement: "新句",
+  });
+  // replacement-only：original 缺失（revoked 行撤销置空 ''，src/writing.mjs 投影）
+  assert.deepEqual(suggestionCompareView({ original: "", replacement: "新句" }), {
+    mode: "replacement-only",
+    replacement: "新句",
+  });
+  // 退化：original === replacement 不伪装对比
+  assert.deepEqual(suggestionCompareView({ original: "同句", replacement: "同句" }), {
+    mode: "replacement-only",
+    replacement: "同句",
+  });
+  // 双空（异常数据）不伪装对比
+  assert.deepEqual(suggestionCompareView({ original: "", replacement: "" }), {
+    mode: "replacement-only",
+    replacement: "",
+  });
+  assert.deepEqual(suggestionCompareView(undefined), {
+    mode: "replacement-only",
+    replacement: undefined,
+  });
+  // 诚实边界：输出不含「已发布」措辞
+  for (const view of [
+    suggestionCompareView({ original: "旧句", replacement: "新句" }),
+    suggestionCompareView({ original: "", replacement: "新句" }),
+  ])
+    assert.ok(!JSON.stringify(view).includes("已发布"), "无已发布措辞");
 });
