@@ -46,6 +46,11 @@ export type ModelConfigView = {
 /** setModelConfig 的 apiKey 占位值：渲染端拿不到已存 key，用户留空保存时传此值，主进程沿用旧 key。 */
 export const KEEP_API_KEY = '__KEEP_SAVED_KEY__';
 
+/** 渲染端可见的公众号配置视图：secret 不出主进程，只有「是否已存/尾四位/是否加密」。 */
+export type WechatMpConfigView = { appid: string; hasSecret: boolean; secretTail: string; encrypted: boolean };
+/** setWechatCredentials 的 secret 占位值：用户未改密钥保存时传此值，主进程沿用旧 secret。 */
+export const KEEP_WECHAT_SECRET = '__KEEP_SAVED_SECRET__';
+
 /** 主进程→渲染进程的 agent 事件（webContents.send('studio:agent:event', ev)）。 */
 export type AgentEventOut =
   | { kind: 'run_start'; contentId: string; runId: string }
