@@ -1,4 +1,4 @@
-import { readdir, readFile, writeFile, rename, mkdir, access } from 'node:fs/promises';
+import { readdir, readFile, writeFile, rename, unlink, mkdir, access } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import matter from 'gray-matter';
@@ -35,11 +35,17 @@ export async function listContents(root: string): Promise<LibraryScan> {
 }
 
 function today(): string {
-  return new Date().toISOString().slice(0, 10);
+  // 本地时区日期（'sv-SE' 恰为 YYYY-MM-DD）。UTC 会让东八区 0–8 点取到昨天。
+  return new Date().toLocaleDateString('sv-SE');
 }
 function sanitize(title: string): string {
-  const s = title.replace(/[\\/:*?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '');
-  return (s || '未命名').slice(0, 50);
+  const s = title
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // 控制字符（C0/DEL/C1）整体剥离
+    .replace(/[\\/:*?"<>|\s]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/[.\s]+$/, ''); // Windows 目录名不允许结尾句点/空格
+  // 截断到 50 后可能再次切出结尾句点，需二次剥离
+  return (s || '未命名').slice(0, 50).replace(/[.\s]+$/, '');
 }
 async function exists(p: string): Promise<boolean> {
   try { await access(p); return true; } catch { return false; }
@@ -63,9 +69,23 @@ function frontScalar(value: string): string {
   return JSON.stringify(value);
 }
 
+/**
+ * 生成当日唯一 id：4 位 hex 空间小（65536），创建前用 listContents 校验，
+ * 撞号则重生成。16 连撞视为异常环境直接报错，不做无界循环。
+ */
+async function uniqueId(root: string, d: string): Promise<string> {
+  const prefix = `c_${d.replaceAll('-', '')}`;
+  const used = new Set((await listContents(root)).items.map((m) => m.id));
+  for (let i = 0; i < 16; i++) {
+    const id = `${prefix}_${randomBytes(2).toString('hex')}`;
+    if (!used.has(id)) return id;
+  }
+  throw new Error('无法生成唯一内容 id（连续 16 次撞号）');
+}
+
 export async function createContent(root: string, input: { title: string; tags?: string[] }): Promise<ContentMeta> {
   const d = today();
-  const id = `c_${d.replaceAll('-', '')}_${randomBytes(2).toString('hex')}`;
+  const id = await uniqueId(root, d);
   const folder = await uniqueFolder(root, `${d}-${sanitize(input.title)}`);
   const dir = path.join(root, folder);
   await mkdir(path.join(dir, 'assets'), { recursive: true });
@@ -85,14 +105,28 @@ export async function readContent(root: string, id: string): Promise<Content> {
   return { ...meta, body: parsed.content.trimStart() };
 }
 
+/**
+ * 原子替换写：每次写入用唯一临时名（pid+随机 hex），避免并发
+ * writeBody/updateMeta 共用固定 .tmp 互相覆盖；rename 失败时
+ * best-effort unlink 清理残骸（清理失败不掩盖原始错误）后重抛。
+ */
+async function atomicWrite(file: string, contents: string): Promise<void> {
+  const tmp = `${file}.${process.pid.toString(36)}${randomBytes(6).toString('hex')}.tmp`;
+  try {
+    await writeFile(tmp, contents, 'utf8');
+    await rename(tmp, file);
+  } catch (err) {
+    await unlink(tmp).catch(() => {});
+    throw err;
+  }
+}
+
 export async function writeBody(root: string, id: string, body: string): Promise<{ savedAt: string }> {
   const meta = await mustFind(root, id);
   const file = path.join(root, meta.folder, 'content.md');
   const raw = await readFile(file, 'utf8');
   const { data } = matter(raw);
-  const tmp = `${file}.tmp`;
-  await writeFile(tmp, stringifyDoc(body, data), 'utf8');
-  await rename(tmp, file);
+  await atomicWrite(file, stringifyDoc(body, data));
   return { savedAt: new Date().toISOString() };
 }
 
@@ -106,9 +140,7 @@ export async function updateMeta(
   const { data, content } = matter(raw);
   const next = { ...data, ...(patch.stage ? { stage: patch.stage } : {}),
     ...(patch.tags ? { tags: patch.tags } : {}), ...(patch.title ? { title: patch.title } : {}) };
-  const tmp = `${file}.tmp`;
-  await writeFile(tmp, stringifyDoc(content, next), 'utf8');
-  await rename(tmp, file);
+  await atomicWrite(file, stringifyDoc(content, next));
   return { ...meta, ...patch };
 }
 

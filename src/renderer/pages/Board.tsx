@@ -28,10 +28,21 @@ function MoveMenu({ id, title, onMove }: { id: string; title: string; onMove: (i
 export function Board({ onOpen }: { onOpen: (id: string) => void }) {
   const [scan, setScan] = useState<LibraryScan>({ items: [], warnings: [] });
   const [showNew, setShowNew] = useState(false);
+  const [moveError, setMoveError] = useState<{ id: string; stage: Stage } | null>(null);
   const refresh = useCallback(async () => setScan(await bridge.listContents()), []);
   useEffect(() => { void refresh(); }, [refresh]);
   const move = async (id: string, stage: Stage) => {
-    await bridge.updateMeta(id, { stage }); await refresh();
+    setMoveError(null);
+    try {
+      await bridge.updateMeta(id, { stage }); await refresh();
+    } catch {
+      // 失败不静默（spec §8）：看板内呈现中文错误并允许重试
+      setMoveError({ id, stage });
+    }
+  };
+  const retryMove = () => {
+    if (!moveError) return;
+    void move(moveError.id, moveError.stage);
   };
   return (
     <div className="board">
@@ -53,6 +64,12 @@ export function Board({ onOpen }: { onOpen: (id: string) => void }) {
           </section>
         ))}
       </div>
+      {moveError && (
+        <div role="alert" className="board-error">
+          移动失败，未改动任何内容
+          <button onClick={retryMove}>重试</button>
+        </div>
+      )}
       {scan.warnings.length > 0 && <footer className="board-warnings">{scan.warnings.join('；')}</footer>}
       {showNew && <NewContentModal onDone={refresh} onClose={() => setShowNew(false)} />}
     </div>

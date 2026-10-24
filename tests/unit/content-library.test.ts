@@ -56,6 +56,24 @@ describe('createContent / readContent', () => {
     const b = await createContent(root, { title: '重复' });
     expect(a.folder).not.toBe(b.folder);
   });
+  it('sanitize 剥离控制字符与结尾句点（含 50 截断后的二次剥离）', async () => {
+    const root = makeLibrary();
+    const a = await createContent(root, { title: '控\u0007制\u001F字\u007F符..' });
+    expect(a.folder).toMatch(/控制字符$/); // 控制字符剥离、结尾句点不进目录名
+    // 50 字符截断恰好切在句点上：截断后需再次剥离结尾句点
+    const b = await createContent(root, { title: 'x'.repeat(49) + '.尾巴' });
+    expect(b.folder).toMatch(/x{49}$/);
+    expect(b.folder.endsWith('.')).toBe(false);
+    const c = await createContent(root, { title: '...' }); // 全句点 → 兜底名
+    expect(c.folder).toMatch(/未命名$/);
+  });
+  it('created/folder 日期取本地时区日期（sv-SE 的 YYYY-MM-DD）', async () => {
+    const root = makeLibrary();
+    const meta = await createContent(root, { title: '日期' });
+    const local = new Date().toLocaleDateString('sv-SE');
+    expect(meta.created).toBe(local);
+    expect(meta.folder.startsWith(`${local}-`)).toBe(true);
+  });
   it('readContent 返回 meta+body；不存在时 code=CONTENT_NOT_FOUND', async () => {
     const root = makeLibrary();
     const meta = await createContent(root, { title: 'x' });

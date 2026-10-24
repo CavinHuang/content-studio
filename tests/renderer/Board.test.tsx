@@ -43,4 +43,32 @@ describe('Board', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: '移动到 draft' }));
     await waitFor(() => expect(mocks.update).toHaveBeenCalledWith('c_20261024_aaaa', { stage: 'draft' }));
   });
+  it('创建失败时弹窗呈现中文错误、不关弹窗，可重试成功', async () => {
+    mocks.create.mockReset();
+    mocks.create.mockRejectedValueOnce(new Error('boom')).mockResolvedValue(items[0]!);
+    render(<Board onOpen={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: '新建内容' }));
+    fireEvent.change(screen.getByLabelText('标题'), { target: { value: '新文章' } });
+    fireEvent.click(screen.getByRole('button', { name: '创建' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('创建失败');
+    expect(screen.getByRole('dialog', { name: '新建内容' })).toBeInTheDocument(); // 弹窗仍在
+    fireEvent.change(screen.getByLabelText('标题'), { target: { value: '新文章2' } }); // 输入仍可编辑（未静默关闭）
+    fireEvent.click(screen.getByRole('button', { name: '创建' })); // 重试
+    await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+  });
+  it('移动失败时看板呈现中文错误并提供重试，重试成功后清除', async () => {
+    mocks.update.mockReset();
+    mocks.update.mockRejectedValueOnce(new Error('boom')).mockResolvedValue({ ...items[0]!, stage: 'draft' });
+    render(<Board onOpen={() => {}} />);
+    fireEvent.click(await screen.findByRole('button', { name: '移动 甲文章' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: '移动到 draft' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('移动失败');
+    fireEvent.click(screen.getByRole('button', { name: '重试' }));
+    await waitFor(() => expect(mocks.update).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+  });
 });

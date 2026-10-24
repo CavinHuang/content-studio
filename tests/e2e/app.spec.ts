@@ -1,5 +1,5 @@
 import { test, expect, _electron, type ElectronApplication, type Page } from '@playwright/test';
-import { mkdtempSync, readFileSync, existsSync, readdirSync } from 'node:fs';
+import { mkdtempSync, readFileSync, existsSync, readdirSync, cpSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -44,4 +44,29 @@ test('建内容→编辑→自动保存→重启后持久存在→移动 stage',
   expect(raw).toContain('stage: draft');
   expect(raw).toContain('自动保存验证');
   expect(existsSync(path.join(lib, folder, 'assets'))).toBe(true);
+});
+
+test('内容库可迁移：整库拷贝到新目录并以 CONTENTDECK_LIBRARY 指向新库后内容完整可见', async () => {
+  // 在第一个库创建内容
+  const { app, page, lib } = await launch();
+  await page.getByRole('button', { name: '新建内容' }).click();
+  await page.getByLabel('标题').fill('迁移样本');
+  await page.getByRole('button', { name: '创建' }).click();
+  await expect(page.getByRole('button', { name: '迁移样本', exact: true })).toBeVisible();
+  await app.close();
+
+  // 整库拷贝到第二个临时目录，换 CONTENTDECK_LIBRARY 重启
+  const lib2 = mkdtempSync(path.join(tmpdir(), 'deck-e2e-migrated-'));
+  cpSync(lib, lib2, { recursive: true });
+  const migrated = await _electron.launch({ args: ['.'], env: { ...process.env, CONTENTDECK_LIBRARY: lib2 } });
+  const p2 = await migrated.firstWindow();
+  await expect(p2.getByRole('button', { name: '迁移样本', exact: true })).toBeVisible();
+  // 不只看列表：能打开进入编辑器读正文（迁移后的库可继续工作）
+  await p2.getByRole('button', { name: '迁移样本', exact: true }).click();
+  await expect(p2.locator('.cm-editor')).toBeVisible();
+  await migrated.close();
+
+  // 直接断言新库磁盘文件确实随库迁移
+  const folder = readdirSync(lib2).find((f) => f.endsWith('迁移样本'))!;
+  expect(readFileSync(path.join(lib2, folder, 'content.md'), 'utf8')).toContain('id: c_');
 });

@@ -81,6 +81,21 @@ button:disabled { opacity: 0.6; cursor: default; }
   padding: 6px 20px; font-size: 12px; color: #8A6D1A;
   background: #FFF7E0; border-top: 1px solid #EDDCA0;
 }
+.board-error {
+  padding: 8px 20px; font-size: 13px; color: #A33B3B;
+  background: #FDEEEE; border-top: 1px solid #EFC5C5;
+  display: flex; align-items: center; gap: 10px;
+}
+.board-error button {
+  all: unset; cursor: pointer; font-size: 12px; color: #A33B3B;
+  border: 1px solid #EFC5C5; border-radius: 4px; padding: 2px 8px;
+}
+.board-error button:hover { background: #FBDDDD; }
+.modal-error { margin: 0; font-size: 13px; color: #A33B3B; }
+.save-retry {
+  all: unset; cursor: pointer; font-size: 12px; color: #A33B3B;
+  border: 1px solid #EFC5C5; border-radius: 4px; padding: 2px 8px;
+}
 
 /* 编辑器 */
 .editor { height: 100vh; display: flex; flex-direction: column; }
@@ -97,7 +112,9 @@ button:disabled { opacity: 0.6; cursor: default; }
 .cm-host { flex: 1; overflow: auto; background: #fff; }
 .cm-host .cm-editor.cm-focused { outline: none; }
 .cm-host .cm-scroller { font-family: inherit; line-height: 1.7; padding: 16px 24px; }
-/* a11y 回退：常驻但视觉隐藏（jsdom/读屏路径），真实用户走 CodeMirror */
+/* 回退 textarea：仅 jsdom 测试路径使用（getByLabelText 寻址）。
+   aria-hidden 把它挡在读屏树外——真实用户与读屏都只走上方 CodeMirror 主编辑框，
+   避免「正文编辑区」同名 textbox 出现两个。 */
 .a11y-fallback {
   position: absolute; opacity: 0; pointer-events: none;
   width: 1px; height: 1px; left: -9999px; top: 0;

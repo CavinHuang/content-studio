@@ -8,7 +8,8 @@ import type { Content } from '../../shared/types';
 
 export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
   const [content, setContent] = useState<Content | null>(null);
-  const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved'>('idle');
+  const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveError, setSaveError] = useState<string | null>(null);
   const bodyRef = useRef('');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -18,10 +19,20 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
     setContent(c); bodyRef.current = c.body;
   }); }, [id]);
 
+  // 卸载时清掉挂起的防抖计时器，避免离开页面后仍触发保存/状态更新
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+
   const doSave = useCallback(async () => {
     setSaveState('saving');
-    await bridge.saveBody(id, bodyRef.current);
-    setSaveState('saved');
+    setSaveError(null);
+    try {
+      await bridge.saveBody(id, bodyRef.current);
+      setSaveState('saved');
+    } catch (err) {
+      // 保存失败落到指示器文案，重试按钮/再次输入（回到 dirty 自动保存）均可重试
+      setSaveState('error');
+      setSaveError(err instanceof Error ? err.message : String(err));
+    }
   }, [id]);
 
   const onInput = useCallback((body: string) => {
@@ -41,6 +52,9 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
         doc: bodyRef.current,
         extensions: [
           markdown(), keymap.of(defaultKeymap),
+          // 真正可编辑的 contenteditable 由 CodeMirror 渲染为 role=textbox，
+          // 可访问名在这里给它（宿主 div 上的 aria-label 不会下传，反而制造同名重复）。
+          EditorView.contentAttributes.of({ 'aria-label': '正文编辑区' }),
           EditorView.updateListener.of((u) => { if (u.docChanged) onInput(u.state.doc.toString()); }),
         ],
       }),
@@ -51,19 +65,20 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
   }, [content?.id, onInput]);
 
   if (!content) return <div className="editor">载入中…</div>;
-  const label = { idle: '', dirty: '未保存', saving: '保存中…', saved: '已保存' }[saveState];
+  const label = { idle: '', dirty: '未保存', saving: '保存中…', saved: '已保存', error: '保存失败' }[saveState];
   return (
     <div className="editor">
       <header className="editor-header">
-        <button onClick={() => { if (timer.current) clearTimeout(timer.current); if (saveState === 'dirty') void doSave(); onBack(); }}>← 返回看板</button>
+        <button onClick={() => { if (timer.current) clearTimeout(timer.current); if (saveState === 'dirty' || saveState === 'error') void doSave(); onBack(); }}>← 返回看板</button>
         <input aria-label="内容标题" defaultValue={content.title} onBlur={async (e) => {
           const t = e.target.value.trim();
           if (t && t !== content.title) { await bridge.updateMeta(id, { title: t }); setContent({ ...content, title: t }); }
         }} />
-        <span className="save-state" role="status">{label}</span>
+        <span className="save-state" role="status" title={saveError ?? undefined}>{label}</span>
+        {saveState === 'error' && <button className="save-retry" onClick={() => { void doSave(); }}>重试保存</button>}
       </header>
-      <div ref={hostRef} className="cm-host" aria-label="正文编辑区" />
-      <textarea className="a11y-fallback" aria-label="正文编辑区" value={bodyRef.current}
+      <div ref={hostRef} className="cm-host" />
+      <textarea className="a11y-fallback" aria-label="正文编辑区（回退）" aria-hidden="true" value={bodyRef.current}
         onChange={(e) => onInput(e.target.value)} tabIndex={-1} />
     </div>
   );
