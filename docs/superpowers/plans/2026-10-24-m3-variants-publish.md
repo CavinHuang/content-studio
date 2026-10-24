@@ -1602,7 +1602,7 @@ function fakeAdapter(over: Partial<PlatformAdapter> = {}): PlatformAdapter {
 }
 const driver: PageDriver = { evaluate: async () => ({ ok: true }) as never, currentUrl: () => 'https://u' };
 
-function harness(adapter: PlatformAdapter, opts: { minIntervalMs?: number } = {}) {
+function harness(adapter: PlatformAdapter, opts: { minIntervalMs?: number; now?: () => number } = {}) {
   const events: PublishEventOut[] = [];
   const open = vi.fn(async () => driver);
   const show = vi.fn(async () => {});
@@ -1613,7 +1613,7 @@ function harness(adapter: PlatformAdapter, opts: { minIntervalMs?: number } = {}
   mkdirSync(path.join(root, '2026-10-24-a', 'platforms'), { recursive: true });
   writeFileSync(path.join(root, '2026-10-24-a', 'platforms', 'xiaohongshu.md'),
     `---\nplatform: xiaohongshu\ntitle: 变体标题\ntopics: []\nupdated: "2026-10-24"\n---\n${'字'.repeat(650)}`, 'utf8');
-  const svc = new PublishService({ root: () => root, runtime, emit: (e) => events.push(e), minIntervalMs: opts.minIntervalMs ?? 0 });
+  const svc = new PublishService({ root: () => root, runtime, emit: (e) => events.push(e), minIntervalMs: opts.minIntervalMs ?? 0, ...(opts.now ? { now: opts.now } : {}) });
   const last = (): PublishTask => events[events.length - 1]!.task;
   return { svc, events, last, open, show, adapter, root };
 }
@@ -1659,16 +1659,23 @@ describe('PublishService（spec §6：串行限速/三分类/防覆盖映射）'
   it('平台间串行：第二个任务等第一个完成才执行；最小间隔生效', async () => {
     let release!: () => void;
     const slow = fakeAdapter({ injectDraft: vi.fn(() => new Promise((res) => { release = () => res({ ok: true, warnings: [] }); })) });
-    const h = harness(slow, { minIntervalMs: 50 });
+    let clock = 1_000_000; // 可控时钟：最小间隔判定（lastRunAt + minIntervalMs - now）不依赖真实墙钟
+    const h = harness(slow, { minIntervalMs: 50, now: () => clock });
     const t1 = (await h.svc.createTask(XHS_ID, 'xiaohongshu') as { task: PublishTask }).task;
     const t2 = (await h.svc.createTask(XHS_ID, 'xiaohongshu') as { task: PublishTask }).task;
+    const calls = () => (slow.injectDraft as ReturnType<typeof vi.fn>).mock.calls.length;
     const p1 = h.svc.run(t1.taskId);
     const p2 = h.svc.run(t2.taskId);
-    await new Promise((r) => setTimeout(r, 20));
-    expect((slow.injectDraft as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1); // 串行：第二个未开始
+    // 到达注入前有真实 fs I/O（listContents/readVariant），时长不定——用 waitFor 而非固定 20ms 定时假设（并行负载下会抖动）
+    await vi.waitFor(() => expect(calls()).toBe(1));
+    expect(calls()).toBe(1); // 串行：第一个注入挂起期间第二个绝不开跑
     release();
-    await p1; await p2;
-    expect((slow.injectDraft as ReturnType<typeof vi.fn>).mock.calls.length).toBe(2);
+    await p1;
+    expect(calls()).toBe(1); // 第一个已完成而第二个尚未注入：最小间隔仍在 gating（时钟未走满 50ms）
+    await vi.waitFor(() => expect(calls()).toBe(2)); // 间隔过后第二个才注入
+    release(); // 闭包 release 只指向最新一次注入的 resolver：第二个任务挂起时需再释放一次
+    await p2;
+    expect(calls()).toBe(2);
   });
   it('retry 重跑失败任务；checkLogin 不建任务；showView 透传', async () => {
     const h = harness(fakeAdapter({ injectDraft: vi.fn(async () => ({ ok: false, code: 'NETWORK', message: '断网' })) }));
