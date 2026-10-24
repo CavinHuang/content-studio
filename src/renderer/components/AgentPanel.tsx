@@ -6,6 +6,7 @@ import { ModelSettingsModal } from './ModelSettingsModal';
 const SKILLS = [
   { label: '长文初稿', command: '/skill:longform-draft' },
   { label: '审稿改稿', command: '/skill:review-revise' },
+  { label: '一稿多态转化', command: '/skill:variant-convert' },
 ] as const;
 
 type Line = { role: 'user' | 'assistant' | 'tool' | 'alert'; text: string };
@@ -20,8 +21,10 @@ export function AgentPanel({ contentId, onApplied }: { contentId: string; onAppl
   const [showSettings, setShowSettings] = useState(false);
   const runningRef = useRef(false);
 
+  // 变体草稿（带 platform）不进编辑器草稿区——「采纳入正文」会把变体写进 content.md，
+  // 形成与架构声明相抵的第二条采纳路径；变体草稿唯一采纳路径是变体工作台。
   const refreshDrafts = useCallback(async () => {
-    setDrafts(await agentBridge.listDrafts(contentId));
+    setDrafts((await agentBridge.listDrafts(contentId)).filter((d) => !d.platform));
   }, [contentId]);
   useEffect(() => { void refreshDrafts(); }, [refreshDrafts]);
 

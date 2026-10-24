@@ -7,7 +7,7 @@ import { bridge } from '../lib/bridge';
 import { AgentPanel } from '../components/AgentPanel';
 import type { Content } from '../../shared/types';
 
-export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
+export function Editor({ id, onBack, onVariants }: { id: string; onBack: () => void; onVariants?: (id: string) => void }) {
   const [content, setContent] = useState<Content | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'error'>('idle');
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -87,6 +87,7 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
     <div className="editor">
       <header className="editor-header">
         <button onClick={() => { if (timer.current) clearTimeout(timer.current); if (saveState === 'dirty' || saveState === 'error') void doSave(); onBack(); }}>← 返回看板</button>
+        <button onClick={() => onVariants?.(id)}>变体工作台</button>
         <input aria-label="内容标题" defaultValue={content.title} onBlur={async (e) => {
           const t = e.target.value.trim();
           if (t && t !== content.title) { await bridge.updateMeta(id, { title: t }); setContent({ ...content, title: t }); }

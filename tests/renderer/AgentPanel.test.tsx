@@ -80,4 +80,13 @@ describe('AgentPanel', () => {
     emit({ kind: 'tool_end', contentId: 'c_1', runId: 'r1', tool: 'write_draft', isError: false, summary: '草稿已保存' });
     await waitFor(() => expect(mocks.listDrafts).toHaveBeenCalledTimes(2)); // 挂载 1 次 + 事件 1 次
   });
+  it('变体草稿（带 platform）不进 AI 助手草稿区——唯一采纳路径是变体工作台', async () => {
+    mocks.listDrafts.mockResolvedValue([
+      { ...draft, name: 'draft-20261024-130000-cd34.md', note: '变体:xiaohongshu', platform: 'xiaohongshu' },
+    ]);
+    render(<AgentPanel contentId="c_1" onApplied={() => {}} />);
+    await screen.findByRole('list', { name: '草稿区' });
+    expect(screen.queryByRole('button', { name: /采纳入正文/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/变体:xiaohongshu/)).not.toBeInTheDocument();
+  });
 });

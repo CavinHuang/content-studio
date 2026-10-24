@@ -161,3 +161,38 @@ button:disabled { opacity: 0.6; cursor: default; }
 .hint { font-size: 12px; color: #8A8FA8; }
 .ask-modal { min-width: 320px; display: flex; flex-direction: column; gap: 8px; }
 .ask-free { display: flex; gap: 8px; }
+
+/* M3：变体工作台与发布中心 */
+.page-header { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-bottom: 1px solid #E3E5EF; }
+.page-header h1 { font-size: 16px; margin: 0; flex: 1; }
+.variants-page, .publish-page { display: flex; flex-direction: column; height: 100vh; }
+.variants-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; padding: 12px; overflow: auto; }
+.variant-card { border: 1px solid #E3E5EF; border-radius: 8px; padding: 10px; background: #fff; display: flex; flex-direction: column; gap: 6px; }
+.variant-card h2 { font-size: 14px; margin: 0; display: flex; align-items: center; gap: 6px; }
+.mode-tag { font-size: 11px; color: #5A5E72; border: 1px solid #E3E5EF; border-radius: 4px; padding: 0 4px; }
+.rule-notes { margin: 0; padding-left: 16px; font-size: 12px; color: #8A8FA8; }
+.variant-card label { display: flex; flex-direction: column; font-size: 12px; gap: 2px; }
+.variant-card input, .variant-card textarea { font: inherit; padding: 4px 6px; }
+.variant-card textarea { min-height: 120px; resize: vertical; }
+.v-error { color: #C4342B; font-size: 12px; margin: 2px 0; }
+.v-warn { color: #9A6B00; font-size: 12px; margin: 2px 0; }
+.v-ok { color: #2E7D32; font-size: 12px; }
+.variant-actions { display: flex; gap: 8px; align-items: center; }
+.variant-drafts ul { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.variant-drafts li { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; border-top: 1px dashed #E3E5EF; padding-top: 4px; }
+.risk-note { margin: 0; padding: 6px 12px; background: #FFF7E0; font-size: 12px; color: #7A5B00; }
+.publish-main { display: flex; flex: 1; min-height: 0; }
+.publish-left { flex: 1; padding: 12px; display: flex; flex-direction: column; gap: 12px; overflow: auto; }
+.platform-card { border: 1px solid #E3E5EF; border-radius: 8px; background: #fff; padding: 8px; }
+.platform-card.active { border-color: #465FD7; }
+.platform-pick { all: unset; cursor: pointer; display: flex; align-items: center; gap: 8px; width: 100%; }
+.platform-card h2 { font-size: 14px; margin: 0; }
+.login-line { display: flex; align-items: center; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
+.login-line .ok { color: #2E7D32; font-size: 12px; }
+.login-line .bad { color: #C4342B; font-size: 12px; }
+.variant-confirm { border-top: 1px solid #E3E5EF; padding-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.publish-tasks { border: 1px solid #E3E5EF; border-radius: 8px; background: #fff; padding: 8px; }
+.publish-tasks .task { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12px; padding: 4px 0; border-top: 1px dashed #E3E5EF; }
+.task.phase-prepared > span:first-child { color: #2E7D32; font-weight: 600; }
+.publish-view-host { flex: 0 0 0px; }
+.publish-view-host p { width: 0; overflow: hidden; }

@@ -25,7 +25,7 @@ function MoveMenu({ id, title, onMove }: { id: string; title: string; onMove: (i
   );
 }
 
-export function Board({ onOpen }: { onOpen: (id: string) => void }) {
+export function Board({ onOpen, onPublish }: { onOpen: (id: string) => void; onPublish?: () => void }) {
   const [scan, setScan] = useState<LibraryScan>({ items: [], warnings: [] });
   const [showNew, setShowNew] = useState(false);
   const [moveError, setMoveError] = useState<{ id: string; stage: Stage } | null>(null);
@@ -48,6 +48,7 @@ export function Board({ onOpen }: { onOpen: (id: string) => void }) {
     <div className="board">
       <header className="board-header">
         <h1>内容管线</h1>
+        <button onClick={() => onPublish?.()}>发布中心</button>
         <button onClick={() => setShowNew(true)}>新建内容</button>
       </header>
       <div className="board-columns">
