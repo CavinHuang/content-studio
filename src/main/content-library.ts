@@ -157,7 +157,7 @@ function stringifyDoc(content: string, data: Record<string, unknown>): string {
   return front + content;
 }
 
-async function mustFind(root: string, id: string): Promise<ContentMeta> {
+export async function mustFind(root: string, id: string): Promise<ContentMeta> {
   const scan = await listContents(root);
   const meta = scan.items.find((m) => m.id === id && m.id !== '');
   if (!meta) {

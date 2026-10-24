@@ -6,7 +6,7 @@ export type ContentMeta = {
 };
 export type LibraryScan = { items: ContentMeta[]; warnings: string[] };
 export type Content = ContentMeta & { body: string };
-export type DraftSummary = { name: string; created: string; note: string; bytes: number };
+export type DraftSummary = { name: string; created: string; note: string; bytes: number; platform?: string };
 export type ModelConfig = {
   providerId: 'contentdeck';
   name?: string;
@@ -14,7 +14,23 @@ export type ModelConfig = {
   apiKey: string;
   modelId: string;
 };
-export type Settings = { libraryRoot: string | null; model?: ModelConfig | null };
+export type Settings = {
+  libraryRoot: string | null; model?: ModelConfig | null;
+  wechatMp?: { appid: string; secretStore: string } | null;
+  platforms?: { xiaohongshuEditorUrl?: string } | null;
+};
+/** 一稿多态平台键（M3：小红书/X/即刻 DOM 注入 + 公众号文章 API；知乎等 M4）。 */
+export type PlatformKey = 'xiaohongshu' | 'x' | 'jike' | 'wechat-article';
+export type VariantDoc = {
+  platform: PlatformKey;
+  title: string;        // X 动态恒为空
+  topics: string[];     // 即刻必填；小红书可选；其余平台忽略
+  body: string;
+  digest?: string;      // 仅 wechat-article（公众号摘要，≤120 字）
+  cover?: string;       // 仅 wechat-article（内容库内相对路径，如 assets/cover.png）
+  updatedAt?: string;
+};
+export type VariantValidation = { ok: boolean; errors: string[]; warnings: string[] };
 /** 渲染端可见的设置视图：getSettings 只回 libraryRoot——model 含明文 apiKey，不出主进程（spec §3 IPC 最小信任）。 */
 export type SettingsView = { libraryRoot: string | null };
 export type ChooseLibraryResult = { libraryRoot: string } | { cancelled: true };
