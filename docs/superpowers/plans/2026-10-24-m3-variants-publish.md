@@ -35,7 +35,7 @@
 - 既有 M1/M2 能力**只复用不重构**：变体落盘复用 content-library 的原子写模式与 `mustFind`；`save_variant` 只写草稿区（M2 铁律延伸）；所有既有测试保持绿。
 - **风控边界（spec §6，全部机械化）**：只注入草稿（脚本只填标题/正文/话题）；**绝不点发布按钮**（注入脚本不含任何点击「发布」类按钮的代码路径；fixture 页发布按钮点击会上报 fixture 服务器，e2e 断言上报数为 0）；**不调平台内部接口**（DOM 注入只派发 UI 事件，脚本内无 fetch/XHR 到平台域名）；平台间**串行限速**（PublishService 全局互斥链 + 相邻注入最小间隔，默认 15s，env 可调）；**注入前防覆盖**（编辑器已有内容且与本次负载不一致 ⇒ 拒绝注入并明确报错，绝不静默；一致视为幂等重试允许重填）。
 - **失败三分类 + 显式扩展**（spec §6）：`not_logged_in`（引导去登录页）/ `page_changed`（明确报「适配器需更新」，绝不静默失败）/ `network`（可重试）；外加两个必须显式呈现的非静默结果：`already_has_content`（防覆盖拒绝）、`api_error`（公众号 errcode 非 token 类）。UI 逐类有中文文案与对应动作。
-- **人机边界不变**：AI 只有 `save_variant`（写草稿区）与 `create_publish_task`（只建任务不注入）；`platforms/*.md` 的写入路径只有「人在变体工作台确认/编辑保存」；注入只能由人在发布中心点击发起。
+- **人机边界不变**：AI 只有 `save_variant`（写草稿区）与 `create_publish_task`（只建任务不注入）；`platforms/*.md` 的写入路径只有「人在变体工作台确认/编辑保存」；注入只能由人在发布中心点击发起。变体草稿（带 `platform` 元数据）**不出现在编辑器 AI 助手的草稿区列表**——其唯一采纳路径是变体工作台（Task 7 在 AgentPanel 过滤）。
 - **凭证最小信任**（spec §3/§6，沿用 M2 评审模式）：公众号 AppSecret 出主进程的只有脱敏视图（`hasSecret`/尾四位）；保存时未改密钥用占位 `KEEP_WECHAT_SECRET` 沿用旧值；存 userData（safeStorage 加密优先，不可用则 `plain:` 前缀明文并在视图标记），绝不进内容库/git。
 - **平台会话安全**：WebContentsView 只加载平台白名单域名（默认 `creator.xiaohongshu.com`；env/设置显式覆盖的编辑器地址 hostname 追加进白名单——覆盖是用户的显式动作）；`contextIsolation: true, nodeIntegration: false, sandbox: true`；UA 常规化（剥离 Electron 与应用名 token）。
 - 单测不联网：公众号客户端注入 fetch 替身；注入脚本 jsdom fixture 回放；发布编排用 FakeAdapter/FakeRuntime。e2e 全本地（fixture 编辑器服务器 + mock 微信 API + mock OpenAI 复用 M2）。**真实平台行为=人工验收清单**（Task 8 文档化，不伪造自动化通过，spec §9）。
@@ -71,7 +71,7 @@ src/renderer/lib/publish-bridge.ts           # 渲染桥（惰性，同 agent-br
 src/renderer/pages/VariantsPage.tsx          # 变体工作台（Task 7）
 src/renderer/pages/PublishCenter.tsx         # 发布中心（Task 7）
 src/renderer/components/WechatSettingsModal.tsx# 公众号配置弹窗（Task 7）
-src/renderer/components/AgentPanel.tsx       # SKILLS +「一稿多态转化」（Task 7）
+src/renderer/components/AgentPanel.tsx       # SKILLS +「一稿多态转化」+ 草稿区过滤变体草稿（Task 7）
 src/renderer/App.tsx / pages/Board.tsx / pages/Editor.tsx  # 视图路由与导航（Task 7）
 src/renderer/styles.css                      # +两页样式（Task 7）
 tests/unit/platform-rules.test.ts            # Task 1
@@ -483,7 +483,7 @@ npm run typecheck && npm test    # 既有全绿（Settings 加字段向后兼容
     const root = makeLibrary();
     addContent(root, '2026-10-24-a', `id: ${ID}\ntitle: 甲\nstage: draft\ncreated: "2026-10-24"`);
     const ts = await tools(root);
-    const r = await exec(ts[4]!, { id: ID, platform: 'xiaohongshu', markdown: '# 太长的标题超过二十个字了呀\n\n正文' });
+    const r = await exec(ts[4]!, { id: ID, platform: 'xiaohongshu', markdown: '# 这条标题实在太长了明显超过二十个字的硬上限\n\n正文' }); // 标题 21 字 > 20 → 必走「标题 N 字，超过小红书 20 字上限」错误分支
     expect(r.content[0]?.text).toContain('变体草稿已保存');
     expect(r.content[0]?.text).toContain('人工');
     expect(r.content[0]?.text).toContain('20 字'); // 规则未过→模型可见
@@ -657,8 +657,22 @@ describe('WechatMpClient', () => {
     expect(calls[0]!.body).toMatchObject({ grant_type: 'client_credential', appid: 'wx-test', secret: 'secret-test' });
     expect((calls[1]!.body as { articles: { thumb_media_id: string }[] }).articles[0].thumb_media_id).toBe('TH');
   });
-  it('token 过期后重新获取；业务返回 40001 时强刷一次再重试', async () => {
-    let t = 0; let tokens = 0; let draftCalls = 0;
+  it('token 过期后重新获取：过期的 T1 不再随业务请求发出', async () => {
+    let t = 0; let tokens = 0;
+    const { fetchImpl, calls } = makeFetch((c) => {
+      if (c.url.includes('stable_token')) { tokens += 1; return { access_token: `T${tokens}`, expires_in: 7200 }; }
+      return { media_id: 'D9' };
+    });
+    const client = new WechatMpClient(cfg, { fetchImpl: fetchImpl as never, now: () => t });
+    await client.getAccessToken();            // T1（expiresAt = 6_900_000，含 5 分钟提前量）
+    t = 7_200_000;                            // 已过期
+    const id = await client.createDraft({ title: 'a', content: 'x', thumbMediaId: 'TH' });
+    expect(id).toBe('D9');
+    expect(tokens).toBe(2);                   // 恰好重取一次
+    expect(calls.some((c) => c.url.includes('access_token=T1'))).toBe(false); // 旧 token 不再发出
+  });
+  it('缓存未过期：业务请求携带 T1；返回 40001 时单次强刷后重试成功', async () => {
+    let t = 60_000; let tokens = 0; let draftCalls = 0;
     const { fetchImpl, calls } = makeFetch((c) => {
       if (c.url.includes('stable_token')) { tokens += 1; return { access_token: `T${tokens}`, expires_in: 7200 }; }
       draftCalls += 1;
@@ -666,11 +680,11 @@ describe('WechatMpClient', () => {
       return { media_id: 'D9' };
     });
     const client = new WechatMpClient(cfg, { fetchImpl: fetchImpl as never, now: () => t });
-    await client.getAccessToken();            // T1
-    t = 7200_000;                              // 过期
+    await client.getAccessToken();            // T1 未过期（60_000 < 6_960_000）→ 首次业务调用必携带 T1
     const id = await client.createDraft({ title: 'a', content: 'x', thumbMediaId: 'TH' });
-    expect(id).toBe('D9');
-    expect(tokens).toBeGreaterThanOrEqual(2); // 过期重取（40001 路径由 T1 触发一次强刷，共 2-3 次均合法）
+    expect(id).toBe('D9');                    // 强刷 T2 后重试成功
+    expect(tokens).toBe(2);                   // 40001 恰好触发一次强刷
+    expect(draftCalls).toBe(2);               // 首次(T1)被拒 → 重试(T2)成功，只重试一次
     expect(calls.some((c) => c.url.includes('access_token=T1') && (c.body as { articles?: unknown })?.articles)).toBe(true);
   });
   it('非 token errcode 直接抛 WechatApiError；HTTP 非 200 抛 WechatNetworkError', async () => {
@@ -1435,7 +1449,7 @@ export type ReadBackResult = { ok: true; title: string; bodyChars: number; url?:
 export interface PlatformAdapter {
   readonly key: PlatformKey;
   readonly rules: PlatformRules;
-  readonly usesSession: boolean; // dom=true（页面驱动）；api=false（无页面）
+  readonly usesSession: boolean; // dom=true（页面驱动）；api=false（无页面——PublishService 跳过 runtime.open，传空驱动 noPageDriver）
   loginCheck(d: PageDriver): Promise<LoginCheckResult>;
   injectDraft(d: PageDriver, input: InjectInput): Promise<InjectResult>;
   readBackStatus(d: PageDriver): Promise<ReadBackResult>;
@@ -1559,8 +1573,8 @@ npm run typecheck && npm test
     - `checkLogin(platform): Promise<{loggedIn, message?}>`
     - `showView(platform, visible)`、`task(taskId)`、`list(): PublishTask[]`
     - 每次相位变化 `emit({kind:'task_update', task})`
-  - `PublishRuntime = { adapter(platform), open(platform): Promise<PageDriver>, show(platform, visible) }`
-  - 领域工具 `create_publish_task(id, platform)`：经 `deps.createPublishTask` 建任务，返回确认文本；服务未接时 `isError`。
+  - `PublishRuntime = { adapter(platform), open(platform): Promise<PageDriver>, show(platform, visible) }`——`runtime.open` **只对 `usesSession=true`（dom）平台调用**；api 平台（公众号文章）无内嵌编辑器（`ElectronPublishRuntime.editorUrl` 对非 xiaohongshu 平台直接 throw），服务层对其传空驱动 `noPageDriver`（`evaluate` 即抛错——API 适配器约定不使用 driver，误用显式报错）
+  - 领域工具 `create_publish_task(id, platform)`：经 `deps.createPublishTask`（**返回 `CreateTaskResult`，不吞返回值**）建任务，成功返回确认文本；`ok:false`（如 x/jike 无适配器 → `PUBLISH_PLATFORM_UNSUPPORTED`）与服务未接均 `isError` 如实呈现，绝不谎报「已创建」。
 
 - [ ] **Step 1: 失败测试 `tests/unit/publish-service.test.ts`**
 
@@ -1669,21 +1683,50 @@ describe('PublishService（spec §6：串行限速/三分类/防覆盖映射）'
     await h.svc.showView('xiaohongshu', true);
     expect(h.show).toHaveBeenCalledWith('xiaohongshu', true);
   });
+  it('api 平台（usesSession=false）不调 runtime.open：checkLogin/execute 传空驱动，全链到 prepared 且无回读', async () => {
+    const api = fakeAdapter({
+      key: 'wechat-article',
+      rules: { key: 'wechat-article', label: '公众号文章', mode: 'api', notes: [], validate: () => ({ ok: true, errors: [], warnings: [] }) },
+      usesSession: false,
+      injectDraft: vi.fn(async () => ({ ok: true, mediaId: 'e2e-draft-1', warnings: [] })),
+    });
+    const h = harness(api);
+    // wechat-article 变体需过其平台规则（封面必填；fake 适配器不读文件，只校验 doc）
+    writeFileSync(path.join(h.root, '2026-10-24-a', 'platforms', 'wechat-article.md'),
+      '---\nplatform: wechat-article\ntitle: 变体标题\ntopics: []\ncover: assets/cover.png\nupdated: "2026-10-24"\n---\n公众号正文', 'utf8');
+    expect(await h.svc.checkLogin('wechat-article')).toEqual({ loggedIn: true });
+    expect(h.open).not.toHaveBeenCalled();
+    const r = h.svc.createTask(XHS_ID, 'wechat-article');
+    expect(r.ok).toBe(true);
+    await h.svc.run((r as { task: PublishTask }).task.taskId);
+    expect(h.last()).toMatchObject({ phase: 'prepared', mediaId: 'e2e-draft-1' });
+    expect(h.open).not.toHaveBeenCalled(); // ElectronPublishRuntime 对无编辑器平台 open 即 throw——服务必须按 usesSession 分流（e2e 前的回归闸）
+    expect(h.adapter.readBackStatus).not.toHaveBeenCalled(); // api 模式无页面回读
+  });
 });
 ```
 
 `tests/unit/domain-tools.test.ts` 追加（Task 2 后工具数组第 6 位）：
 ```ts
-  it('create_publish_task 只建任务不注入（回调可注入），服务未接时 isError', async () => {
+  it('create_publish_task 只建任务不注入（回调可注入）；CreateTaskResult 失败如实 isError，服务未接时 isError', async () => {
     const created: [string, string][] = [];
     const pi = await loadPi(); const T = await loadTypebox();
     const ts = await buildDomainTools(pi, T, {
       root: makeLibrary(), askUser: async () => 'x',
-      createPublishTask: (id: string, p: string) => { created.push([id, p]); },
+      createPublishTask: (id: string, p: string) => { // 与 PublishService.createTask 同形：无适配器平台（M4）返回 ok:false
+        created.push([id, p]);
+        return p === 'xiaohongshu'
+          ? { ok: true as const, task: { taskId: 't_1', contentId: id, platform: 'xiaohongshu', phase: 'queued', updatedAt: 't' } }
+          : { ok: false as const, code: 'PUBLISH_PLATFORM_UNSUPPORTED', message: `平台 ${p} 的发布适配器暂未提供` };
+      },
     });
     const r = await exec(ts[5]!, { id: ID, platform: 'xiaohongshu' });
     expect(r.content[0]?.text).toContain('发布任务已创建');
     expect(created).toEqual([[ID, 'xiaohongshu']]);
+    const unsupported = await exec(ts[5]!, { id: ID, platform: 'jike' }); // 无适配器平台 → 服务端拒绝路径
+    expect(unsupported.isError).toBe(true);                               // 绝不谎报「已创建」
+    expect(unsupported.content[0]?.text).toContain('PUBLISH_PLATFORM_UNSUPPORTED');
+    expect(created).toEqual([[ID, 'xiaohongshu'], [ID, 'jike']]);
     const ts2 = await buildDomainTools(pi, T, { root: makeLibrary(), askUser: async () => 'x' });
     const bad = await exec(ts2[5]!, { id: ID, platform: 'xiaohongshu' });
     expect(bad.isError).toBe(true);
@@ -1709,6 +1752,12 @@ export type PublishRuntime = {
 export type CreateTaskResult = { ok: true; task: PublishTask } | { ok: false; code: string; message: string };
 
 function msg(err: unknown): string { return err instanceof Error ? err.message : String(err); }
+
+/** api 平台（usesSession=false）无页面：空驱动占位——API 适配器约定不使用 driver，误用即显式报错。 */
+const noPageDriver: PageDriver = {
+  evaluate: async () => { throw new Error('API 平台无页面会话，driver 不可用'); },
+  currentUrl: () => '',
+};
 
 /** 发布编排（spec §6）：选内容+平台→变体确认（本地校验先行）→登录探测→注入（全局串行+限速）→停在草稿态→回读。 */
 export class PublishService {
@@ -1745,8 +1794,13 @@ export class PublishService {
   async checkLogin(platform: PlatformKey): Promise<{ loggedIn: boolean; message?: string }> {
     const adapter = this.deps.runtime.adapter(platform);
     if (!adapter) return { loggedIn: false, message: '平台暂不支持' };
-    try { return await adapter.loginCheck(await this.deps.runtime.open(platform)); }
+    try { return await adapter.loginCheck(await this.openDriver(adapter, platform)); }
     catch (err) { return { loggedIn: false, message: msg(err) }; }
+  }
+
+  /** dom 平台（usesSession=true）才开页面会话；api 平台（公众号文章等）无内嵌编辑器，跳过 runtime.open 传空驱动。 */
+  private async openDriver(adapter: PlatformAdapter, platform: PlatformKey): Promise<PageDriver> {
+    return adapter.usesSession ? await this.deps.runtime.open(platform) : noPageDriver;
   }
 
   async showView(platform: PlatformKey, visible: boolean): Promise<void> { await this.deps.runtime.show(platform, visible); }
@@ -1794,7 +1848,7 @@ export class PublishService {
       t.variantPath = `${meta.folder}/platforms/${t.platform}.md`;
 
       t.phase = 'login_check'; this.emit(t);
-      const driver = await this.deps.runtime.open(t.platform);
+      const driver = await this.openDriver(adapter, t.platform);
       const login = await adapter.loginCheck(driver);
       if (!login.loggedIn) return this.fail(t, 'not_logged_in', login.message ?? '请先登录平台');
 
@@ -1822,7 +1876,7 @@ export class PublishService {
 }
 ```
 
-`src/main/agent/domain-tools.ts` 追加（`TOOL_NAMES` 增 `'create_publish_task'`；deps 增 `createPublishTask?: (contentId: string, platform: string) => void`；返回数组追加）：
+`src/main/agent/domain-tools.ts` 追加（`TOOL_NAMES` 增 `'create_publish_task'`；deps 增 `createPublishTask?: (contentId: string, platform: string) => CreateTaskResult`——顶部 `import type { CreateTaskResult } from '../publish/publish-service'`；返回数组追加）：
 ```ts
   const createPublishTaskTool = pi.defineTool({
     name: 'create_publish_task',
@@ -1836,14 +1890,15 @@ export class PublishService {
     async execute(_id, params) {
       try { assertPlatform(params.platform); } catch { return textErr(`create_publish_task 失败：未知平台 ${params.platform}`); }
       if (!deps.createPublishTask) return textErr('create_publish_task 失败：发布服务尚未就绪');
-      deps.createPublishTask(params.id, params.platform);
+      const r = deps.createPublishTask(params.id, params.platform);
+      if (!r.ok) return textErr(`create_publish_task 失败（${r.code}）：${r.message}`); // 无适配器平台（x/jike）等失败如实反馈，绝不谎报「已创建」
       return text(`发布任务已创建（${params.platform}，只建任务不注入）；请在发布中心确认变体并手动发起注入`);
     },
   });
 ```
-（注意：`assertPlatform` 允许四平台建任务，但 M3 只有 xiaohongshu/wechat-article 有适配器——`PublishService.createTask` 对无适配器平台返回 `PUBLISH_PLATFORM_UNSUPPORTED`，工具文案因此如实反馈；若想让工具更严格可只接受两平台，二选一以测试断言为准——本计划采用 `assertPlatform` 四平台 + 服务端拒绝，与「能力可选化」一致。**对应地 Task 5 的 domain-tools 测试用 platform:'xiaohongshu' 即可。**）
+（注意：`assertPlatform` 允许四平台建任务，但 M3 只有 xiaohongshu/wechat-article 有适配器——`PublishService.createTask` 对无适配器平台返回 `PUBLISH_PLATFORM_UNSUPPORTED`；**`deps.createPublishTask` 必须把 `CreateTaskResult` 原样返回给工具**（Task 6 ipc 装配即 `createPublishTask: (id, p) => publishService().createTask(id, p as PlatformKey)`，不得吞掉返回值），工具对 `ok:false` 以 `isError` 呈现——「工具文案因此如实反馈」由该接线成立。本计划采用 `assertPlatform` 四平台 + 服务端拒绝 + 结果回传，与「能力可选化」一致。**对应地 Task 5 的 domain-tools 测试补无适配器平台的失败路径断言。**）
 
-`src/main/agent/real-session.ts`：`RealSessionFactoryDeps` 增 `createPublishTask?: (contentId: string, platform: string) => void`，`buildDomainTools(pi, T, { root, askUser, ...(deps.createPublishTask ? { createPublishTask: deps.createPublishTask } : {}) })`（Task 6 在 ipc 装配处传入）。
+`src/main/agent/real-session.ts`：`RealSessionFactoryDeps` 增 `createPublishTask?: (contentId: string, platform: string) => CreateTaskResult`（`import type { CreateTaskResult } from '../publish/publish-service'`），`buildDomainTools(pi, T, { root, askUser, ...(deps.createPublishTask ? { createPublishTask: deps.createPublishTask } : {}) })`（Task 6 在 ipc 装配处传入）。
 
 - [ ] **Step 3: 通过 + typecheck**
 
@@ -1926,7 +1981,7 @@ class ElectronPublishRuntime implements PublishRuntime {
     if (!s) { s = new PlatformSession(platform); this.sessions.set(platform, s); }
     return s;
   }
-  async open(platform: PlatformKey) {
+  async open(platform: PlatformKey) { // 仅 dom 平台（usesSession=true）会被调用：PublishService 按 usesSession 分流，api 平台（公众号文章）无页面不经此处
     const s = this.session(platform);
     await s.open(this.editorUrl(platform), this.allowedHosts(platform));
     return { evaluate: <T>(fn: string, payload: unknown) => s.evaluate<T>(fn, payload), currentUrl: () => s.currentUrl() };
@@ -1967,7 +2022,7 @@ export function disposePublish(): void { runtime.dispose(); publish = null; }
       createSession: createRealSessionFactory({
         root: currentRoot,
         skillsDir: () => (app.isPackaged ? path.join(process.resourcesPath, 'skills') : path.join(app.getAppPath(), 'skills')),
-        createPublishTask: (contentId, platform) => { publishService().createTask(contentId, platform as PlatformKey); },
+        createPublishTask: (contentId, platform) => publishService().createTask(contentId, platform as PlatformKey), // CreateTaskResult 原样回传给领域工具（失败如实 isError，不吞返回值）
       }),
 ```
 `registerIpc()` 末尾追加通道：
@@ -2121,8 +2176,8 @@ npm start   # 人工冒烟：devtools 执行 await window.studio.publish.tasks()
 
 **Files:**
 - Create: `src/renderer/pages/VariantsPage.tsx`、`src/renderer/pages/PublishCenter.tsx`、`src/renderer/components/WechatSettingsModal.tsx`
-- Modify: `src/renderer/App.tsx`、`src/renderer/pages/Board.tsx`（+发布中心按钮）、`src/renderer/pages/Editor.tsx`（+变体工作台按钮）、`src/renderer/components/AgentPanel.tsx`（+技能按钮）、`src/renderer/styles.css`
-- Test: `tests/renderer/VariantsPage.test.tsx`、`tests/renderer/PublishCenter.test.tsx`
+- Modify: `src/renderer/App.tsx`、`src/renderer/pages/Board.tsx`（+发布中心按钮）、`src/renderer/pages/Editor.tsx`（+变体工作台按钮）、`src/renderer/components/AgentPanel.tsx`（+技能按钮+草稿区过滤变体草稿）、`src/renderer/styles.css`
+- Test: `tests/renderer/VariantsPage.test.tsx`、`tests/renderer/PublishCenter.test.tsx`、`tests/renderer/AgentPanel.test.tsx`（追加用例）
 
 **Interfaces:**
 - Consumes: `variantBridge/publishBridge`（Task 6）、`agentBridge.onEvent`（drafts_changed 刷新）、Task 1 规则（渲染端直接 import `validateVariant/PLATFORM_RULES`——纯模块可入渲染 bundle）。
@@ -2608,7 +2663,29 @@ export function PublishCenter({ initial, onBack }: {
 }
 ```
 
-`src/renderer/components/AgentPanel.tsx` 一行：`SKILLS` 数组追加 `{ label: '一稿多态转化', command: '/skill:variant-convert' }`。
+`src/renderer/components/AgentPanel.tsx` 两处改动：
+```ts
+// ① SKILLS 数组追加：
+  { label: '一稿多态转化', command: '/skill:variant-convert' },
+// ② refreshDrafts 过滤变体草稿——带 platform 的草稿若在此列出，「采纳入正文」会把变体写进
+//    content.md，形成与架构声明相抵的第二条采纳路径；变体草稿唯一采纳路径是变体工作台：
+  const refreshDrafts = useCallback(async () => {
+    setDrafts((await agentBridge.listDrafts(contentId)).filter((d) => !d.platform));
+  }, [contentId]);
+```
+
+`tests/renderer/AgentPanel.test.tsx` 追加用例（复用文件既有 `draft` 夹具与 mocks）：
+```tsx
+  it('变体草稿（带 platform）不进 AI 助手草稿区——唯一采纳路径是变体工作台', async () => {
+    mocks.listDrafts.mockResolvedValue([
+      { ...draft, name: 'draft-20261024-130000-cd34.md', note: '变体:xiaohongshu', platform: 'xiaohongshu' },
+    ]);
+    render(<AgentPanel contentId="c_1" onApplied={() => {}} />);
+    await screen.findByRole('list', { name: '草稿区' });
+    expect(screen.queryByRole('button', { name: /采纳入正文/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/变体:xiaohongshu/)).not.toBeInTheDocument();
+  });
+```
 
 `src/renderer/App.tsx` 整体替换：
 ```tsx
@@ -2692,8 +2769,8 @@ export function App() {
 - [ ] **Step 3: 通过 + typecheck**
 
 ```bash
-npx vitest run tests/renderer/VariantsPage.test.tsx tests/renderer/PublishCenter.test.tsx
-npm run typecheck && npm test    # 既有 Board/Editor/AgentPanel 用例保持绿（新按钮不参与既有断言）
+npx vitest run tests/renderer/VariantsPage.test.tsx tests/renderer/PublishCenter.test.tsx tests/renderer/AgentPanel.test.tsx
+npm run typecheck && npm test    # 既有 Board/Editor/AgentPanel 用例保持绿（新按钮与草稿过滤不参与既有断言）
 ```
 
 - [ ] **Step 4: Commit** `git commit -m "feat(m3): 变体工作台与发布中心（登录探测/变体确认/注入进度/三分类重试/公众号配置）"`
@@ -2923,6 +3000,7 @@ test.describe('小红书：fixture 编辑器全链（选内容+平台→变体�
 
     await page.getByRole('button', { name: '← 返回看板' }).click();
     await page.getByRole('button', { name: '发布中心' }).click();
+    await page.getByLabel('发布内容选择').selectOption({ label: '发布全链' }); // 从看板进入无 initial：canInject 与任务列表均按 contentId 过滤，必先选内容（对齐单测 selectContent）
     const xhs = page.getByRole('region', { name: '平台卡片 小红书' });
     await xhs.getByRole('button', { name: '检查登录' }).click();
     await expect(xhs.getByText('已就绪')).toBeVisible({ timeout: 30_000 });
@@ -2942,6 +3020,7 @@ test.describe('小红书：fixture 编辑器全链（选内容+平台→变体�
     await card.getByRole('button', { name: '保存变体' }).click();
     await page.getByRole('button', { name: '← 返回看板' }).click();
     await page.getByRole('button', { name: '发布中心' }).click();
+    await page.getByLabel('发布内容选择').selectOption({ label: '发布全链' }); // 重进发布中心 contentId 复位为 ''：重新选内容
     await xhs.getByRole('button', { name: '注入草稿' }).click();
     await expect(page.getByText('编辑器已有内容（防覆盖停止）')).toBeVisible({ timeout: 60_000 });
 
@@ -2984,8 +3063,10 @@ test('公众号文章：mock API 全链（token→封面素材→正文图→草
 
   await page.getByRole('button', { name: '← 返回看板' }).click();
   await page.getByRole('button', { name: '发布中心' }).click();
-  // 切换到公众号文章卡片（确认面板只渲染活动平台）
+  // 切换到公众号文章卡片（确认面板只渲染活动平台）——先切卡片再选内容：选中即对活动平台自动 checkLogin，
+  // api 平台走 mock API（usesSession=false 不开页面），不会触碰小红书默认编辑器 URL
   await page.getByRole('button', { name: '公众号文章' }).click();
+  await page.getByLabel('发布内容选择').selectOption({ label: '公众号文章全链' }); // 从看板进入无 initial：canInject 与任务列表均按 contentId 过滤，必先选内容
   const wx = page.getByRole('region', { name: '平台卡片 公众号文章' });
   await wx.getByRole('button', { name: '检查登录' }).click();
   await expect(wx.getByText('已就绪')).toBeVisible({ timeout: 30_000 });
@@ -3086,5 +3167,5 @@ npm run e2e     # electron-forge package && playwright test：既有 5 条 + var
 3. **占位符扫描**：无 TBD、无"以实现为准微调"类悬置指令。两处带判定标准的回退说明保留（vitest pragma 失效时挪 `tests/renderer/`，判定=该文件 vitest run 通过；Task 4 platform-session 的 UA 归一化单测可选，判定=typecheck+e2e 覆盖），均为环境回退而非行为未定义。
 4. **类型一致性**：`PlatformKey/VariantDoc/VariantValidation`（Task 1 定义，2/4/5/6/7/8 消费）；`PublishTask/PublishEventOut/PublishFailureCategory/PublishPhase`（Task 4 定义发布任务形状于 shared/types，Task 5 服务/Task 6 桥/Task 7 UI/e2e 消费）；`InjectInput` 含 `contentFolder`（Task 4 定义，Task 5 execute 构造，微信适配器消费）；`XhsPayload.timeoutMs`（Task 4 脚本与测试共用）；`WechatMpConfigView/KEEP_WECHAT_SECRET`（Task 3 定义，Task 6 IPC/Task 7 弹窗消费）；可达名字符串在 Task 7 Interfaces 集中声明并被 Task 8 e2e 逐一引用。
 5. **任务独立可测**：每任务"失败测试→实现→通过→typecheck+全量 npm test→commit"收口；electron 专属层（PlatformSession/ElectronPublishRuntime）只进 ipc.ts，纯逻辑（规则/变体/客户端/脚本/服务/适配器映射）全部单测隔离（fetch 替身/jsdom/FakeRuntime）；真实 Electron 链路集中在 Task 8 e2e。
-6. **不回归**：M1/M2 文件改动全部加法——content-library 仅导出 mustFind；drafts 增可选 platform（既有断言不涉及）；domain-tools 数组追加（既有用例索引 0–3 不变）；agent-service 一行扩展（新增用例覆盖）；ipc 既有通道逐字保留、agent 工厂仅增 createPublishTask 注入；preload 只增两个子对象；App/Board/Editor 增导航（既有可达名不动，AgentPanel 仅增技能按钮）；skills.test 断言更新为三技能（显式列出）；CI 工作流零改动（e2e 命令不变）。
+6. **不回归**：M1/M2 文件改动全部加法——content-library 仅导出 mustFind；drafts 增可选 platform（既有断言不涉及）；domain-tools 数组追加（既有用例索引 0–3 不变）；agent-service 一行扩展（新增用例覆盖）；ipc 既有通道逐字保留、agent 工厂仅增 createPublishTask 注入；preload 只增两个子对象；App/Board/Editor 增导航（既有可达名不动，AgentPanel 增技能按钮并在草稿区过滤变体草稿——变体草稿唯一采纳路径是变体工作台；既有 AgentPanel 断言不涉及 platform 草稿，保持绿）；skills.test 断言更新为三技能（显式列出）；CI 工作流零改动（e2e 命令不变）。
 7. **取舍声明**（对 spec 的显式偏移，均在「M3 明确不做」）：小红书 M3 文本注入（图片自动上传留 M4——ask 的 fixture 范围即标题/正文/发布按钮，公众号封面因 API 必须传属例外）；publishes 表留 M4（M3 任务内存态+UI 明示）；微信仅 draft/add（无 update）。D2（IP 白名单）在 Task 8 验收清单 B 前置条件与设置弹窗提示两处落地。
