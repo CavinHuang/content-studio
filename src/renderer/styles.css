@@ -134,3 +134,30 @@ button:disabled { opacity: 0.6; cursor: default; }
   font: inherit; padding: 6px 10px; border: 1px solid #E3E6EF; border-radius: 6px;
 }
 .modal > button { align-self: flex-end; }
+
+/* M2：编辑器双栏与 AI 面板 */
+.editor { display: flex; flex-direction: column; height: 100vh; }
+.editor-main { display: flex; flex: 1; min-height: 0; }
+.editor-body { flex: 1; display: flex; flex-direction: column; min-width: 0; position: relative; }
+.editor-body .cm-host { flex: 1; overflow: auto; }
+.agent-side { width: 360px; flex: none; border-left: 1px solid #E3E5EF; background: #FBFBFD; overflow: hidden; display: flex; }
+.agent-panel { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 8px; gap: 8px; }
+.agent-header { display: flex; align-items: center; justify-content: space-between; }
+.agent-header h2 { font-size: 14px; margin: 0; }
+.agent-skills { display: flex; gap: 8px; }
+.agent-transcript { flex: 1; overflow-y: auto; border: 1px solid #E3E5EF; border-radius: 6px; padding: 8px; background: #fff; font-size: 13px; }
+.agent-transcript .line { margin-bottom: 6px; white-space: pre-wrap; }
+.line-user { color: #465FD7; }
+.line-assistant { color: #242635; }
+.line-tool { color: #8A8FA8; font-size: 12px; }
+.line-alert { color: #C4342B; }
+.agent-input { display: flex; gap: 8px; align-items: flex-end; }
+.agent-input textarea { flex: 1; min-height: 56px; resize: vertical; }
+.agent-drafts h3 { font-size: 13px; margin: 4px 0; }
+.agent-drafts ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.agent-drafts li { border: 1px solid #E3E5EF; border-radius: 6px; padding: 6px; background: #fff; }
+.draft-meta { font-size: 12px; color: #5A5E72; margin-bottom: 4px; }
+.draft-actions { display: flex; gap: 8px; }
+.hint { font-size: 12px; color: #8A8FA8; }
+.ask-modal { min-width: 320px; display: flex; flex-direction: column; gap: 8px; }
+.ask-free { display: flex; gap: 8px; }

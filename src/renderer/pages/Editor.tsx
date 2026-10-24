@@ -4,6 +4,7 @@ import { EditorView, keymap } from '@codemirror/view';
 import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap } from '@codemirror/commands';
 import { bridge } from '../lib/bridge';
+import { AgentPanel } from '../components/AgentPanel';
 import type { Content } from '../../shared/types';
 
 export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
@@ -14,6 +15,7 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const hostRef = useRef<HTMLDivElement>(null);
+  const applyingRef = useRef(false); // 外部应用正文（采纳入正文）时不触发自动保存回路
 
   useEffect(() => { void bridge.readContent(id).then((c) => {
     setContent(c); bodyRef.current = c.body;
@@ -42,6 +44,19 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
     timer.current = setTimeout(() => { void doSave(); }, 800);
   }, [doSave]);
 
+  /** 草稿采纳入正文后：重读磁盘并把新正文灌回编辑器（不触发自动保存）。 */
+  const applyExternalBody = useCallback(async () => {
+    const c = await bridge.readContent(id);
+    bodyRef.current = c.body;
+    const v = viewRef.current;
+    if (v) {
+      applyingRef.current = true;
+      v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: c.body } });
+      applyingRef.current = false;
+    }
+    setSaveState('saved');
+  }, [id]);
+
   // 视图按内容 id 只创建一次：初始 doc 取 bodyRef.current（载入处理器已写入）。
   // 依赖不含 content 对象——标题 blur 会 setContent({...content, title}) 替换对象身份，
   // 若视图随之销毁重建，会用载入时的旧正文顶掉编辑器里未保存的输入（数据丢失路径）。
@@ -55,7 +70,9 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
           // 真正可编辑的 contenteditable 由 CodeMirror 渲染为 role=textbox，
           // 可访问名在这里给它（宿主 div 上的 aria-label 不会下传，反而制造同名重复）。
           EditorView.contentAttributes.of({ 'aria-label': '正文编辑区' }),
-          EditorView.updateListener.of((u) => { if (u.docChanged) onInput(u.state.doc.toString()); }),
+          EditorView.updateListener.of((u) => {
+            if (u.docChanged && !applyingRef.current) onInput(u.state.doc.toString());
+          }),
         ],
       }),
       parent: hostRef.current,
@@ -77,9 +94,16 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
         <span className="save-state" role="status" title={saveError ?? undefined}>{label}</span>
         {saveState === 'error' && <button className="save-retry" onClick={() => { void doSave(); }}>重试保存</button>}
       </header>
-      <div ref={hostRef} className="cm-host" />
-      <textarea className="a11y-fallback" aria-label="正文编辑区（回退）" aria-hidden="true" value={bodyRef.current}
-        onChange={(e) => onInput(e.target.value)} tabIndex={-1} />
+      <div className="editor-main">
+        <div className="editor-body">
+          <div ref={hostRef} className="cm-host" />
+          <textarea className="a11y-fallback" aria-label="正文编辑区（回退）" aria-hidden="true" value={bodyRef.current}
+            onChange={(e) => onInput(e.target.value)} tabIndex={-1} />
+        </div>
+        <aside className="agent-side">
+          <AgentPanel contentId={id} onApplied={() => { void applyExternalBody(); }} />
+        </aside>
+      </div>
     </div>
   );
 }

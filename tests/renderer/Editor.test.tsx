@@ -12,6 +12,9 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(async (id: string, p: { title?: string }) => ({ id, title: p.title ?? 'x', stage: 'draft', tags: [], created: '2026-10-24', media: 'article' as const, folder: 'f' })),
 }));
 vi.mock('../../src/renderer/lib/bridge', () => ({ bridge: { readContent: mocks.read, saveBody: mocks.save, updateMeta: mocks.update } }));
+vi.mock('../../src/renderer/lib/agent-bridge', () => ({
+  agentBridge: { onEvent: () => () => {}, listDrafts: async () => [] },
+}));
 // shouldAdvanceTime：让 testing-library waitFor 的轮询 setInterval 仍随真实时间推进，
 // 否则 fake timers 下 waitFor 永不触发、findBy* 挂起（@testing-library/dom 只识别 jest 计时器）。
 vi.useFakeTimers({ shouldAdvanceTime: true });
