@@ -1,0 +1,46 @@
+{
+  "name": "contentdeck",
+  "productName": "ContentDeck",
+  "version": "0.1.0",
+  "description": "本地优先的桌面内容运营工作台",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "main": ".vite/build/main.js",
+  "scripts": {
+    "start": "electron-forge start",
+    "package": "electron-forge package",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15",
+    "gray-matter": "^4.0.3",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@electron-forge/cli": "^8.0.1",
+    "@electron-forge/maker-zip": "^8.0.1",
+    "@electron-forge/plugin-vite": "^8.0.1",
+    "@playwright/test": "^1.64.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "electron": "^45.0.0",
+    "jsdom": "^29.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  }
+}

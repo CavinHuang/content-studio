@@ -1,0 +1,20 @@
+:root {
+  --canvas: #F7F8FA;
+  --ink: #242635;
+  --accent: #465FD7;
+  font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--canvas);
+  color: var(--ink);
+}
+
+.app-root {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
