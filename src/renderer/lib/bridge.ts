@@ -1,10 +1,10 @@
 import type {
-  ChooseLibraryResult, Content, ContentMeta, LibraryScan, Settings, Stage,
+  ChooseLibraryResult, Content, ContentMeta, LibraryScan, SettingsView, Stage,
 } from '../../shared/types';
 import type { AgentBridge } from './agent-bridge';
 
 export type StudioBridge = {
-  getSettings(): Promise<Settings>;
+  getSettings(): Promise<SettingsView>;
   chooseLibrary(): Promise<ChooseLibraryResult>;
   listContents(): Promise<LibraryScan>;
   createContent(input: { title: string; tags?: string[] }): Promise<ContentMeta>;

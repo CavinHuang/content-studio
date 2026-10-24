@@ -5,7 +5,7 @@ import { loadSettings, saveSettings, detectSyncDir } from './settings';
 import { listDrafts, applyDraft, discardDraft } from './drafts';
 import { AgentService } from './agent/agent-service';
 import { createRealSessionFactory } from './agent/real-session';
-import { getModelConfig, setModelConfig } from './agent/model-config';
+import { getModelConfig, setModelConfig, modelConfigView } from './agent/model-config';
 import { loadPi } from './agent/pi-loader';
 import type { Stage } from '../shared/types';
 
@@ -40,7 +40,9 @@ function fail(err: unknown): Fail {
 }
 
 export function registerIpc(): void {
-  ipcMain.handle('studio:getSettings', () => ({ libraryRoot: currentRoot(), model: getModelConfig() }));
+  // IPC 最小信任（spec §3）：密钥不出主进程——getSettings 只回 libraryRoot（渲染端启动仅需此字段），
+  // 模型配置经 studio:agent:getModelConfig 回脱敏视图（hasKey/尾四位）。
+  ipcMain.handle('studio:getSettings', () => ({ libraryRoot: currentRoot() }));
 
   ipcMain.handle('studio:chooseLibrary', async () => {
     const r = await dialog.showOpenDialog({ properties: ['openDirectory'] });
@@ -84,7 +86,7 @@ export function registerIpc(): void {
     try { await discardDraft(root(), contentId, name); return { ok: true as const }; }
     catch (err) { return fail(err); }
   });
-  ipcMain.handle('studio:agent:getModelConfig', () => ({ model: getModelConfig() }));
+  ipcMain.handle('studio:agent:getModelConfig', () => ({ model: modelConfigView(getModelConfig()) }));
   ipcMain.handle('studio:agent:setModelConfig', (_e, input: { name?: string; baseUrl: string; apiKey: string; modelId: string }) => {
     try { setModelConfig(input); return { ok: true as const }; }
     catch (err) { return fail(err); }

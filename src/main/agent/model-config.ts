@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { ModelConfig } from '../../shared/types';
+import type { ModelConfig, ModelConfigView } from '../../shared/types';
+import { KEEP_API_KEY } from '../../shared/types';
 import { loadSettings, saveSettings } from '../settings';
 
 const PROVIDER_ID = 'contentdeck' as const;
@@ -26,8 +27,23 @@ export function getModelConfig(): ModelConfig | null {
   return loadSettings().model ?? null;
 }
 
+/** 渲染端可见的脱敏视图：apiKey 全程不出主进程（spec §3——渲染层 XSS/依赖投毒不可及）。 */
+export function modelConfigView(c: ModelConfig | null): ModelConfigView | null {
+  if (!c) return null;
+  return {
+    providerId: c.providerId,
+    ...(c.name ? { name: c.name } : {}),
+    baseUrl: c.baseUrl,
+    modelId: c.modelId,
+    hasKey: Boolean(c.apiKey),
+    apiKeyTail: c.apiKey ? c.apiKey.slice(-4) : '',
+  };
+}
+
 export function setModelConfig(input: { name?: string; baseUrl: string; apiKey: string; modelId: string }): ModelConfig {
-  const c = validateModelConfig(input);
+  // 占位值：渲染端已保存配置后回显不出明文 key，用户未改 key 就保存时传 KEEP_API_KEY，沿用旧 key
+  const apiKey = input.apiKey === KEEP_API_KEY ? loadSettings().model?.apiKey ?? '' : input.apiKey;
+  const c = validateModelConfig({ ...input, apiKey });
   saveSettings({ ...loadSettings(), model: c });
   return c;
 }

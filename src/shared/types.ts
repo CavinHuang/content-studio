@@ -15,7 +15,20 @@ export type ModelConfig = {
   modelId: string;
 };
 export type Settings = { libraryRoot: string | null; model?: ModelConfig | null };
+/** 渲染端可见的设置视图：getSettings 只回 libraryRoot——model 含明文 apiKey，不出主进程（spec §3 IPC 最小信任）。 */
+export type SettingsView = { libraryRoot: string | null };
 export type ChooseLibraryResult = { libraryRoot: string } | { cancelled: true };
+/** 渲染端可见的模型配置视图（apiKey 不出主进程；尾四位仅供回显确认）。 */
+export type ModelConfigView = {
+  providerId: 'contentdeck';
+  name?: string;
+  baseUrl: string;
+  modelId: string;
+  hasKey: boolean;
+  apiKeyTail: string;
+};
+/** setModelConfig 的 apiKey 占位值：渲染端拿不到已存 key，用户留空保存时传此值，主进程沿用旧 key。 */
+export const KEEP_API_KEY = '__KEEP_SAVED_KEY__';
 
 /** 主进程→渲染进程的 agent 事件（webContents.send('studio:agent:event', ev)）。 */
 export type AgentEventOut =

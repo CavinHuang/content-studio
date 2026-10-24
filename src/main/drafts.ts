@@ -5,7 +5,17 @@ import matter from 'gray-matter';
 import type { DraftSummary } from '../shared/types';
 import { writeBody } from './content-library';
 
+/** 内容 id 格式 = content-library uniqueId 的生成格式（c_YYYYMMDD_<hex4>）。
+ *  drafts 的 contentId 多来自渲染端 IPC 直传，先过格式关再拼路径——
+ *  挡目录穿越（../、绝对路径、分隔符），与 name 侧 assertDraftName 同为防纵深（spec §3）。 */
+const CONTENT_ID_RE = /^c_\d{8}_[0-9a-f]{4}$/;
+
 export function draftsDir(root: string, contentId: string): string {
+  if (!CONTENT_ID_RE.test(contentId)) {
+    const err = new Error(`非法内容 id: ${contentId}`) as Error & { code: string };
+    err.code = 'DRAFT_BAD_CONTENT_ID';
+    throw err;
+  }
   return path.join(root, '.studio', 'drafts', contentId);
 }
 
@@ -31,14 +41,15 @@ export async function saveDraft(
 }
 
 export async function listDrafts(root: string, contentId: string): Promise<DraftSummary[]> {
+  const dir = draftsDir(root, contentId); // 校验在前：非法 id 直接抛，不落入下方"目录不存在"兜底
   let entries;
-  try { entries = await readdir(draftsDir(root, contentId), { withFileTypes: true }); }
+  try { entries = await readdir(dir, { withFileTypes: true }); }
   catch { return []; } // 目录不存在=无草稿
   const out: DraftSummary[] = [];
   for (const e of entries) {
     if (!e.isFile() || !e.name.endsWith('.md')) continue;
     try {
-      const raw = await readFile(path.join(draftsDir(root, contentId), e.name), 'utf8');
+      const raw = await readFile(path.join(dir, e.name), 'utf8');
       const { data, content } = matter(raw);
       out.push({
         name: e.name,

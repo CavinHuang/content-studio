@@ -1,4 +1,4 @@
-import type { AgentEventOut, AgentSendResult, DraftSummary, ModelConfig } from '../../shared/types';
+import type { AgentEventOut, AgentSendResult, DraftSummary, ModelConfigView } from '../../shared/types';
 
 export type AgentBridge = {
   ping(): Promise<{ version: string }>;
@@ -8,7 +8,8 @@ export type AgentBridge = {
   listDrafts(contentId: string): Promise<DraftSummary[]>;
   applyDraft(contentId: string, name: string): Promise<{ ok: true; savedAt: string } | { ok: false; code: string; message: string }>;
   discardDraft(contentId: string, name: string): Promise<{ ok: true } | { ok: false; code: string; message: string }>;
-  getModelConfig(): Promise<{ model: ModelConfig | null }>;
+  /** 脱敏视图：明文 apiKey 不出主进程（apiKey 仅有 hasKey/尾四位）。 */
+  getModelConfig(): Promise<{ model: ModelConfigView | null }>;
   setModelConfig(input: { name?: string; baseUrl: string; apiKey: string; modelId: string }): Promise<{ ok: true } | { ok: false; code: string; message: string }>;
   onEvent(cb: (ev: AgentEventOut) => void): () => void;
 };
