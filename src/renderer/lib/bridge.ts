@@ -2,6 +2,7 @@ import type {
   ChooseLibraryResult, Content, ContentMeta, LibraryScan, SettingsView, Stage,
 } from '../../shared/types';
 import type { AgentBridge } from './agent-bridge';
+import type { VariantBridge, PublishBridge } from './publish-bridge';
 
 export type StudioBridge = {
   getSettings(): Promise<SettingsView>;
@@ -13,6 +14,9 @@ export type StudioBridge = {
   updateMeta(id: string, patch: { stage?: Stage; tags?: string[]; title?: string }): Promise<ContentMeta>;
   /** agent 桥经 preload 注入；渲染端统一经 lib/agent-bridge 使用（可选以兼容未注入的测试环境）。 */
   agent?: AgentBridge;
+  /** variant/publish 桥经 preload 注入；渲染端统一经 lib/publish-bridge 使用（可选以兼容未注入的测试环境）。 */
+  variant?: VariantBridge;
+  publish?: PublishBridge;
 };
 
 declare global {

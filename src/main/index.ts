@@ -1,6 +1,6 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
-import { registerIpc, disposeAgent } from './ipc';
+import { registerIpc, disposeAgent, disposePublish } from './ipc';
 
 // @electron-forge/plugin-vite 8.x 以编译期 define 注入各渲染器 dev server URL
 // （vite.base.config.js getBuildDefine：开发为 '"http://localhost:port"' 字符串字面量，
@@ -32,4 +32,4 @@ app.whenReady().then(() => {
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 // 会话存活时直接退出会触发 Windows libuv 断言（探针实测）；先 dispose 再退
-app.on('will-quit', () => { disposeAgent(); });
+app.on('will-quit', () => { disposeAgent(); disposePublish(); });
