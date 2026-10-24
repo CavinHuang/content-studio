@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { listContents } from '../../src/main/content-library';
+import { listContents, createContent, readContent } from '../../src/main/content-library';
 import { makeLibrary, addContent } from '../helpers/libFixture';
 
 describe('listContents', () => {
@@ -34,5 +34,33 @@ describe('listContents', () => {
     expect(scan.items[0]?.stage).toBe('idea');
     expect(scan.items[0]?.media).toBe('article');
     expect(scan.items[0]?.tags).toEqual([]);
+  });
+});
+
+describe('createContent / readContent', () => {
+  it('创建规范文件夹与 frontmatter，id 格式 c_YYYYMMDD_hex4', async () => {
+    const root = makeLibrary();
+    const meta = await createContent(root, { title: '你好 世界/测试:A', tags: ['AI'] });
+    expect(meta.id).toMatch(/^c_\d{8}_[0-9a-f]{4}$/);
+    expect(meta.folder).toMatch(/^2026-\d{2}-\d{2}-你好-世界-测试-A$/);
+    expect(meta.stage).toBe('idea');
+    expect(existsSync(path.join(root, meta.folder, 'content.md'))).toBe(true);
+    expect(existsSync(path.join(root, meta.folder, 'assets'))).toBe(true);
+    const raw = readFileSync(path.join(root, meta.folder, 'content.md'), 'utf8');
+    expect(raw).toContain(`id: ${meta.id}`);
+    expect(raw).toContain('title: 你好 世界/测试:A');
+  });
+  it('同名文件夹冲突时追加 -2 去重', async () => {
+    const root = makeLibrary();
+    const a = await createContent(root, { title: '重复' });
+    const b = await createContent(root, { title: '重复' });
+    expect(a.folder).not.toBe(b.folder);
+  });
+  it('readContent 返回 meta+body；不存在时 code=CONTENT_NOT_FOUND', async () => {
+    const root = makeLibrary();
+    const meta = await createContent(root, { title: 'x' });
+    const content = await readContent(root, meta.id);
+    expect(content.body).toBe('');
+    await expect(readContent(root, 'c_20260101_zzzz')).rejects.toMatchObject({ code: 'CONTENT_NOT_FOUND' });
   });
 });

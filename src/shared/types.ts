@@ -5,3 +5,4 @@ export type ContentMeta = {
   created: string; media: 'article' | 'video'; folder: string;
 };
 export type LibraryScan = { items: ContentMeta[]; warnings: string[] };
+export type Content = ContentMeta & { body: string };
