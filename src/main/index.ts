@@ -1,5 +1,6 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
+import { registerIpc } from './ipc';
 
 const createWindow = () => {
   const win = new BrowserWindow({
@@ -17,5 +18,9 @@ const createWindow = () => {
   }
 };
 
-app.whenReady().then(() => { createWindow(); });
+app.whenReady().then(() => {
+  process.env.CONTENTDECK_USER_DATA ??= app.getPath('userData');
+  registerIpc();
+  createWindow();
+});
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

@@ -6,3 +6,5 @@ export type ContentMeta = {
 };
 export type LibraryScan = { items: ContentMeta[]; warnings: string[] };
 export type Content = ContentMeta & { body: string };
+export type Settings = { libraryRoot: string | null };
+export type ChooseLibraryResult = { libraryRoot: string } | { cancelled: true };
