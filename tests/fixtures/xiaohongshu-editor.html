@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8" /><title>小红书创作服务平台（fixture）</title></head>
+<body>
+  <div id="root"></div>
+  <script>
+    // fixture 行为：默认登录态 UI（文案与真实平台登录页同特征）；?login=1 或 localStorage 标记 → 编辑器。
+    // 编辑器 input 事件上报 /fixture/state；「发布」按钮点击上报 /fixture/published（e2e 断言为 0——
+    // 应用只注入草稿，发布永远由人点；本按钮的存在使「被程序点击」变为可检测事件）。
+    (function () {
+      var logged = location.search.indexOf('login=1') !== -1 || localStorage.getItem('fixture-login') === '1';
+      var root = document.getElementById('root');
+      if (!logged) {
+        root.innerHTML = '<div class="login-panel"><p>扫码登录小红书创作服务平台</p><button id="mock-login">模拟登录</button></div>';
+        document.getElementById('mock-login').onclick = function () {
+          localStorage.setItem('fixture-login', '1'); location.search = '?login=1';
+        };
+        return;
+      }
+      root.innerHTML = '<div class="publish-page">' +
+        '<input id="title" placeholder="填写标题会有更多赞哦~" maxlength="20" />' +
+        '<div class="ql-editor" contenteditable="true" data-placeholder="填写正文" role="textbox"></div>' +
+        '<button id="publish">发布</button></div>';
+      var report = function () {
+        fetch('/fixture/state', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+          title: document.getElementById('title').value,
+          body: document.querySelector('.ql-editor').textContent,
+        }) }).catch(function () {});
+      };
+      document.getElementById('title').addEventListener('input', report);
+      document.querySelector('.ql-editor').addEventListener('input', report);
+      document.getElementById('publish').addEventListener('click', function () { fetch('/fixture/published', { method: 'POST' }).catch(function () {}); });
+    })();
+  </script>
+</body>
+</html>

@@ -67,3 +67,14 @@ export type AgentErrorCode =
 export type AgentSendResult =
   | { ok: true; runId: string }
   | { ok: false; code: AgentErrorCode; message: string };
+
+/** 发布任务（M3：任务态在内存，publishes/SQLite 持久化随 M4 交付）。 */
+export type PublishPhase = 'queued' | 'validating' | 'login_check' | 'injecting' | 'reading_back' | 'prepared' | 'failed';
+export type PublishFailureCategory = 'not_logged_in' | 'page_changed' | 'network' | 'already_has_content' | 'api_error' | 'validation' | 'unknown';
+export type PublishTask = {
+  taskId: string; contentId: string; platform: PlatformKey; phase: PublishPhase;
+  category?: PublishFailureCategory; message?: string;
+  draftUrl?: string; mediaId?: string; variantPath?: string;
+  readBack?: { title: string; bodyChars: number; url: string }; updatedAt: string;
+};
+export type PublishEventOut = { kind: 'task_update'; task: PublishTask };
