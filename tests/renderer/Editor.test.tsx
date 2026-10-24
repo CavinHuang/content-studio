@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { Editor } from '../../src/renderer/pages/Editor';
 
 const mocks = vi.hoisted(() => ({
@@ -28,5 +28,22 @@ describe('Editor', () => {
     expect(mocks.save).not.toHaveBeenCalled();
     vi.advanceTimersByTime(900);
     await waitFor(() => expect(mocks.save).toHaveBeenCalledWith('c_20261024_aaaa', '# 新内容'));
+  });
+  it('标题 blur 更新标题但不销毁重建 CodeMirror 视图（未保存正文编辑不丢失）', async () => {
+    render(<Editor id="c_20261024_aaaa" onBack={() => {}} />);
+    await screen.findByDisplayValue('测试文');
+    const host = document.querySelector('.cm-host');
+    expect(host).not.toBeNull();
+    // 等待 CodeMirror 视图挂载（不依赖 effect flush 时机）
+    await waitFor(() => expect(host!.querySelector('.cm-editor')).not.toBeNull());
+    const viewEl = host!.querySelector('.cm-editor');
+    const title = screen.getByLabelText('内容标题');
+    fireEvent.change(title, { target: { value: '改名文' } });
+    fireEvent.blur(title);
+    await waitFor(() => expect(mocks.update).toHaveBeenCalledWith('c_20261024_aaaa', { title: '改名文' }));
+    // 留出重渲染与 effect flush 的时机，再断言视图节点身份
+    await act(async () => { await new Promise((r) => { setTimeout(r, 50); }); });
+    // 同一 DOM 节点仍在：视图未被 cleanup 销毁后以旧正文重建
+    expect(host!.querySelector('.cm-editor')).toBe(viewEl);
   });
 });

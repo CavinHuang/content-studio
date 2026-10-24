@@ -31,11 +31,14 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
     timer.current = setTimeout(() => { void doSave(); }, 800);
   }, [doSave]);
 
+  // 视图按内容 id 只创建一次：初始 doc 取 bodyRef.current（载入处理器已写入）。
+  // 依赖不含 content 对象——标题 blur 会 setContent({...content, title}) 替换对象身份，
+  // 若视图随之销毁重建，会用载入时的旧正文顶掉编辑器里未保存的输入（数据丢失路径）。
   useEffect(() => {
     if (!content || !hostRef.current || viewRef.current) return;
     const view = new EditorView({
       state: EditorState.create({
-        doc: content.body,
+        doc: bodyRef.current,
         extensions: [
           markdown(), keymap.of(defaultKeymap),
           EditorView.updateListener.of((u) => { if (u.docChanged) onInput(u.state.doc.toString()); }),
@@ -45,7 +48,7 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
     });
     viewRef.current = view;
     return () => { view.destroy(); viewRef.current = null; };
-  }, [content, onInput]);
+  }, [content?.id, onInput]);
 
   if (!content) return <div className="editor">载入中…</div>;
   const label = { idle: '', dirty: '未保存', saving: '保存中…', saved: '已保存' }[saveState];
