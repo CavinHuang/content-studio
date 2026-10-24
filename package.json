@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
-    "e2e": "playwright test"
+    "e2e": "electron-forge package && playwright test"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.1",
