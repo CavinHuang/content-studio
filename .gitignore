@@ -1,0 +1,11 @@
+# 运行时与本机环境产物，永不入库
+node_modules/
+.next/
+data/
+.env
+.env.*
+!.env.example
+playwright-report/
+test-results/
+.superpowers/
+*.log
