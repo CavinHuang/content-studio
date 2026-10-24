@@ -1,4 +1,4 @@
-import { readdir, readFile, writeFile, mkdir, access } from 'node:fs/promises';
+import { readdir, readFile, writeFile, rename, mkdir, access } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import matter from 'gray-matter';
@@ -79,14 +79,55 @@ export async function createContent(root: string, input: { title: string; tags?:
 }
 
 export async function readContent(root: string, id: string): Promise<Content> {
+  const meta = await mustFind(root, id);
+  const raw = await readFile(path.join(root, meta.folder, 'content.md'), 'utf8');
+  const parsed = matter(raw);
+  return { ...meta, body: parsed.content.trimStart() };
+}
+
+export async function writeBody(root: string, id: string, body: string): Promise<{ savedAt: string }> {
+  const meta = await mustFind(root, id);
+  const file = path.join(root, meta.folder, 'content.md');
+  const raw = await readFile(file, 'utf8');
+  const { data } = matter(raw);
+  const tmp = `${file}.tmp`;
+  await writeFile(tmp, stringifyDoc(body, data), 'utf8');
+  await rename(tmp, file);
+  return { savedAt: new Date().toISOString() };
+}
+
+export async function updateMeta(
+  root: string, id: string,
+  patch: { stage?: Stage; tags?: string[]; title?: string },
+): Promise<ContentMeta> {
+  const meta = await mustFind(root, id);
+  const file = path.join(root, meta.folder, 'content.md');
+  const raw = await readFile(file, 'utf8');
+  const { data, content } = matter(raw);
+  const next = { ...data, ...(patch.stage ? { stage: patch.stage } : {}),
+    ...(patch.tags ? { tags: patch.tags } : {}), ...(patch.title ? { title: patch.title } : {}) };
+  const tmp = `${file}.tmp`;
+  await writeFile(tmp, stringifyDoc(content, next), 'utf8');
+  await rename(tmp, file);
+  return { ...meta, ...patch };
+}
+
+/**
+ * gray-matter 的 stringify（实测 4.0.3）会在正文末尾无条件追加一个换行符，
+ * 并非逐字节保真。此处剥掉该追加的换行，保证写盘文件为
+ * `---\n<yaml>\n---\n` + 正文 原样，writeBody/updateMeta 的正文得以逐字节往返。
+ */
+function stringifyDoc(content: string, data: Record<string, unknown>): string {
+  const out = matter.stringify(content, data);
+  return out.endsWith('\n') ? out.slice(0, -1) : out;
+}
+
+async function mustFind(root: string, id: string): Promise<ContentMeta> {
   const scan = await listContents(root);
   const meta = scan.items.find((m) => m.id === id && m.id !== '');
   if (!meta) {
     const err = new Error(`内容不存在: ${id}`) as Error & { code: string };
-    err.code = 'CONTENT_NOT_FOUND';
-    throw err;
+    err.code = 'CONTENT_NOT_FOUND'; throw err;
   }
-  const raw = await readFile(path.join(root, meta.folder, 'content.md'), 'utf8');
-  const parsed = matter(raw);
-  return { ...meta, body: parsed.content.trimStart() };
+  return meta;
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { mkdirSync, existsSync, readFileSync } from 'node:fs';
+import { mkdirSync, existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
-import { listContents, createContent, readContent } from '../../src/main/content-library';
+import { listContents, createContent, readContent, writeBody, updateMeta } from '../../src/main/content-library';
 import { makeLibrary, addContent } from '../helpers/libFixture';
 
 describe('listContents', () => {
@@ -62,5 +62,34 @@ describe('createContent / readContent', () => {
     const content = await readContent(root, meta.id);
     expect(content.body).toBe('');
     await expect(readContent(root, 'c_20260101_zzzz')).rejects.toMatchObject({ code: 'CONTENT_NOT_FOUND' });
+  });
+});
+
+describe('writeBody / updateMeta', () => {
+  it('writeBody 原子写正文，frontmatter 不丢', async () => {
+    const root = makeLibrary();
+    const meta = await createContent(root, { title: '原子' });
+    await writeBody(root, meta.id, '# 标题\n\n第一段');
+    const c = await readContent(root, meta.id);
+    expect(c.body).toBe('# 标题\n\n第一段');
+    expect(c.title).toBe('原子');
+  });
+  it('writeBody 后目录中不残留 .tmp 文件', async () => {
+    const root = makeLibrary();
+    const meta = await createContent(root, { title: 'tmp' });
+    await writeBody(root, meta.id, 'x');
+    expect(readdirSync(path.join(root, meta.folder)).some((f) => f.endsWith('.tmp'))).toBe(false);
+  });
+  it('updateMeta 改 stage/tags/title 且正文逐字节保留', async () => {
+    const root = makeLibrary();
+    const meta = await createContent(root, { title: '旧标题', tags: ['a'] });
+    await writeBody(root, meta.id, '正文保持\n第二行\n');
+    const before = (await readContent(root, meta.id)).body;
+    const next = await updateMeta(root, meta.id, { stage: 'review', tags: ['b', 'c'], title: '新标题' });
+    expect(next.stage).toBe('review');
+    const after = await readContent(root, next.id);
+    expect(after.body).toBe(before);
+    expect(after.title).toBe('新标题');
+    expect(after.tags).toEqual(['b', 'c']);
   });
 });
