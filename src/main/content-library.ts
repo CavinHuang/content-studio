@@ -113,13 +113,16 @@ export async function updateMeta(
 }
 
 /**
- * gray-matter 的 stringify（实测 4.0.3）会在正文末尾无条件追加一个换行符，
- * 并非逐字节保真。此处剥掉该追加的换行，保证写盘文件为
- * `---\n<yaml>\n---\n` + 正文 原样，writeBody/updateMeta 的正文得以逐字节往返。
+ * 手工拼装写盘文件：`---\n<yaml>\n---\n` + 正文原样。
+ * 不用 matter.stringify 收尾：其 newline()（gray-matter 4.0.3 lib/stringify.js）
+ * 仅在正文末尾无 '\n' 时才补换行，若再剥尾换行就会吃掉以 '\n' 结尾正文的
+ * 最后一个换行（'B\n' 落盘为 'B'）。YAML 块仍复用 gray-matter 引擎序列化：
+ * 对空正文调用 matter.stringify 得 `---\n<yaml>\n---\n\n`，去掉为空正文补上的
+ * 那一个 '\n' 即得纯 frontmatter 块，正文不再经过任何条件补换行，逐字节往返。
  */
 function stringifyDoc(content: string, data: Record<string, unknown>): string {
-  const out = matter.stringify(content, data);
-  return out.endsWith('\n') ? out.slice(0, -1) : out;
+  const front = matter.stringify('', data).slice(0, -1); // `---\n<yaml>\n---\n`
+  return front + content;
 }
 
 async function mustFind(root: string, id: string): Promise<ContentMeta> {

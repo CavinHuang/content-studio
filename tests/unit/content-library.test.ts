@@ -92,4 +92,18 @@ describe('writeBody / updateMeta', () => {
     expect(after.title).toBe('新标题');
     expect(after.tags).toEqual(['b', 'c']);
   });
+  it('正文以 \\n 结尾时磁盘字节不变（writeBody/updateMeta 不吞尾换行）', async () => {
+    const root = makeLibrary();
+    const meta = await createContent(root, { title: '尾换行' });
+    const file = path.join(root, meta.folder, 'content.md');
+    await writeBody(root, meta.id, 'B\n');
+    const afterWrite = readFileSync(file, 'utf8');
+    expect(afterWrite.endsWith('---\nB\n')).toBe(true); // 尾部 '\n' 未被吃掉
+    // 取磁盘文件关闭定界符之后的正文字节区
+    const bodyBytes = (raw: string) => raw.slice(raw.indexOf('\n---\n', 3) + 5);
+    await updateMeta(root, meta.id, { stage: 'draft' });
+    const afterUpdate = readFileSync(file, 'utf8');
+    expect(bodyBytes(afterUpdate)).toBe('B\n');
+    expect(bodyBytes(afterUpdate)).toBe(bodyBytes(afterWrite));
+  });
 });
