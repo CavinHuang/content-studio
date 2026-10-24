@@ -33,3 +33,11 @@ CI（`.github/workflows/ci.yml`）显式使用 npm 官方源，`package-lock.jso
     export ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/
     export ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/
 
+## AI 协作（M2）
+
+- 编辑器右侧「AI 助手」：技能按钮（长文初稿/审稿改稿）或自由指令；运行中 AI 可弹「问询」让你拍板。
+- **人机边界**：AI 产出只进草稿区（内容库 `.studio/drafts/<内容id>/`），点「采纳入正文」才写入 content.md（原子写）；AI 永远不会改正文、更不会发布。
+- 首次使用点「AI 设置」：填 OpenAI 兼容 API 地址、API Key、模型 ID（存本机用户数据目录，不进内容库）。
+- 会话按内容绑定并持久化于 `.studio/pi-sessions/`（重启可续聊）；全局同时只跑一个任务，可随时取消。
+- 测试无需真实 key：`npm test`（合成 fixture）；`npm run e2e`（本地 mock OpenAI 端点 + 打包冒烟）。
+
