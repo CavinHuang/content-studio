@@ -5,10 +5,12 @@ import type { SessionLike, CreateSessionFn } from './agent-service';
 import { buildDomainTools, domainToolNames, type AskUserFn } from './domain-tools';
 import { loadPi, loadTypebox } from './pi-loader';
 import { getModelConfig, piAgentDir, writePiModelsJson } from './model-config';
+import type { CreateTaskResult } from '../publish/publish-service';
 
 export interface RealSessionFactoryDeps {
   root: () => string | null;
   skillsDir: () => string;
+  createPublishTask?: (contentId: string, platform: string) => CreateTaskResult;
 }
 
 function coded(message: string, code: string): Error & { code: string } {
@@ -57,7 +59,10 @@ export function createRealSessionFactory(deps: RealSessionFactoryDeps): CreateSe
     });
     await loader.reload();
 
-    const customTools = await buildDomainTools(pi, T, { root, askUser });
+    const customTools = await buildDomainTools(pi, T, {
+      root, askUser,
+      ...(deps.createPublishTask ? { createPublishTask: deps.createPublishTask } : {}), // Task 6 在 ipc 装配处传入
+    });
     const { session } = await pi.createAgentSession({
       cwd: contentDir,
       agentDir,

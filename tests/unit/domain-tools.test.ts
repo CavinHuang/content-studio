@@ -78,4 +78,27 @@ describe('领域工具', () => {
     const bad = await exec(ts[4]!, { id: ID, platform: 'zhihu', markdown: 'x' });
     expect(bad.isError).toBe(true); // 平台白名单外
   }, 30_000);
+  it('create_publish_task 只建任务不注入（回调可注入）；CreateTaskResult 失败如实 isError，服务未接时 isError', async () => {
+    const created: [string, string][] = [];
+    const pi = await loadPi(); const T = await loadTypebox();
+    const ts = await buildDomainTools(pi, T, {
+      root: makeLibrary(), askUser: async () => 'x',
+      createPublishTask: (id: string, p: string) => { // 与 PublishService.createTask 同形：无适配器平台（M4）返回 ok:false
+        created.push([id, p]);
+        return p === 'xiaohongshu'
+          ? { ok: true as const, task: { taskId: 't_1', contentId: id, platform: 'xiaohongshu', phase: 'queued', updatedAt: 't' } }
+          : { ok: false as const, code: 'PUBLISH_PLATFORM_UNSUPPORTED', message: `平台 ${p} 的发布适配器暂未提供` };
+      },
+    });
+    const r = await exec(ts[5]!, { id: ID, platform: 'xiaohongshu' });
+    expect(r.content[0]?.text).toContain('发布任务已创建');
+    expect(created).toEqual([[ID, 'xiaohongshu']]);
+    const unsupported = await exec(ts[5]!, { id: ID, platform: 'jike' }); // 无适配器平台 → 服务端拒绝路径
+    expect(unsupported.isError).toBe(true);                               // 绝不谎报「已创建」
+    expect(unsupported.content[0]?.text).toContain('PUBLISH_PLATFORM_UNSUPPORTED');
+    expect(created).toEqual([[ID, 'xiaohongshu'], [ID, 'jike']]);
+    const ts2 = await buildDomainTools(pi, T, { root: makeLibrary(), askUser: async () => 'x' });
+    const bad = await exec(ts2[5]!, { id: ID, platform: 'xiaohongshu' });
+    expect(bad.isError).toBe(true);
+  }, 30_000);
 });

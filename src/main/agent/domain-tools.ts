@@ -2,6 +2,7 @@ import { listContents, readContent } from '../content-library';
 import { saveDraft } from '../drafts';
 import { parseVariantDraftMarkdown, assertPlatform } from '../variants';
 import { validateVariant } from '../../shared/platform-rules';
+import type { CreateTaskResult } from '../publish/publish-service';
 import type { PiModule, TypeBoxModule } from './pi-loader';
 
 export type AskUserFn = (question: string, options: string[] | undefined) => Promise<string>;
@@ -9,9 +10,10 @@ export type AskUserFn = (question: string, options: string[] | undefined) => Pro
 export interface DomainToolDeps {
   root: string;
   askUser: AskUserFn;
+  createPublishTask?: (contentId: string, platform: string) => CreateTaskResult;
 }
 
-const TOOL_NAMES = ['list_contents', 'read_content', 'write_draft', 'ask_user', 'save_variant'] as const;
+const TOOL_NAMES = ['list_contents', 'read_content', 'write_draft', 'ask_user', 'save_variant', 'create_publish_task'] as const;
 export type DomainToolName = (typeof TOOL_NAMES)[number];
 export function domainToolNames(): readonly DomainToolName[] { return TOOL_NAMES; }
 
@@ -113,5 +115,22 @@ export async function buildDomainTools(pi: PiModule, T: TypeBoxModule, deps: Dom
       } catch (err) { return textErr(`save_variant 失败：${String(err)}`); }
     },
   });
-  return [listContentsTool, readContentTool, writeDraftTool, askUserTool, saveVariantTool];
+  const createPublishTaskTool = pi.defineTool({
+    name: 'create_publish_task',
+    label: '创建发布任务',
+    description: '为内容创建一个平台发布任务（只建任务，绝不触发注入——注入由用户在发布中心手动发起）。',
+    parameters: T.Type.Object({
+      id: T.Type.String(),
+      platform: T.Type.String({ description: 'xiaohongshu | wechat-article' }),
+    }),
+    annotations: { readOnlyHint: true },
+    async execute(_id, params) {
+      try { assertPlatform(params.platform); } catch { return textErr(`create_publish_task 失败：未知平台 ${params.platform}`); }
+      if (!deps.createPublishTask) return textErr('create_publish_task 失败：发布服务尚未就绪');
+      const r = deps.createPublishTask(params.id, params.platform);
+      if (!r.ok) return textErr(`create_publish_task 失败（${r.code}）：${r.message}`); // 无适配器平台（x/jike）等失败如实反馈，绝不谎报「已创建」
+      return text(`发布任务已创建（${params.platform}，只建任务不注入）；请在发布中心确认变体并手动发起注入`);
+    },
+  });
+  return [listContentsTool, readContentTool, writeDraftTool, askUserTool, saveVariantTool, createPublishTaskTool];
 }
