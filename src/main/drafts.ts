@@ -25,7 +25,7 @@ function stamp(d = new Date()): string {
 }
 
 export async function saveDraft(
-  root: string, contentId: string, input: { markdown: string; note?: string },
+  root: string, contentId: string, input: { markdown: string; note?: string; platform?: string },
 ): Promise<DraftSummary> {
   const dir = draftsDir(root, contentId);
   await mkdir(dir, { recursive: true });
@@ -34,10 +34,10 @@ export async function saveDraft(
   const file = path.join(dir, name);
   // 与 content-library 同策略：唯一临时名 + rename（并发写互不覆盖）
   const tmp = `${file}.${randomBytes(6).toString('hex')}.tmp`;
-  const front = matter.stringify('', { created, note: input.note ?? '' }).slice(0, -1); // `---\n<yaml>\n---\n`
+  const front = matter.stringify('', { created, note: input.note ?? '', ...(input.platform ? { platform: input.platform } : {}) }).slice(0, -1); // `---\n<yaml>\n---\n`
   await writeFile(tmp, front + input.markdown, 'utf8');
   await rename(tmp, file);
-  return { name, created, note: input.note ?? '', bytes: Buffer.byteLength(input.markdown, 'utf8') };
+  return { name, created, note: input.note ?? '', bytes: Buffer.byteLength(input.markdown, 'utf8'), ...(input.platform ? { platform: input.platform } : {}) };
 }
 
 export async function listDrafts(root: string, contentId: string): Promise<DraftSummary[]> {
@@ -51,11 +51,13 @@ export async function listDrafts(root: string, contentId: string): Promise<Draft
     try {
       const raw = await readFile(path.join(dir, e.name), 'utf8');
       const { data, content } = matter(raw);
+      const platform = String(data.platform ?? '');
       out.push({
         name: e.name,
         created: String(data.created ?? ''),
         note: String(data.note ?? ''),
         bytes: Buffer.byteLength(content, 'utf8'),
+        ...(platform ? { platform } : {}),
       });
     } catch { /* 单文件损坏跳过，不阻塞列表 */ }
   }

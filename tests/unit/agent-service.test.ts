@@ -114,4 +114,13 @@ describe('AgentService', () => {
     expect(h.events.find((e) => e.kind === 'tool_start')).toMatchObject({ tool: 'write_draft' });
     expect(h.events.find((e) => e.kind === 'tool_end')).toMatchObject({ tool: 'write_draft', summary: '草稿已保存：draft-x.md' });
   });
+  it('save_variant 的 tool_end 也触发 drafts_changed', async () => {
+    const h = harness((s) => {
+      s.promptImpl = async (_t, self) => {
+        self.emit({ type: 'tool_execution_end', toolCallId: 't1', toolName: 'save_variant', result: { content: [{ type: 'text', text: '变体草稿已保存：draft-x.md' }] }, isError: false });
+      };
+    });
+    await h.svc.send('c1', '转');
+    await waitFor(() => h.events.some((e) => e.kind === 'drafts_changed'));
+  });
 });

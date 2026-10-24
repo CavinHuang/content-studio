@@ -65,4 +65,17 @@ describe('领域工具', () => {
     const r2 = (await p) as ExecResult;
     expect(r2.content[0]?.text).toContain('取消');
   }, 30_000);
+  it('save_variant 只落草稿区（note=变体:平台）并把本地规则结果带回给模型', async () => {
+    const root = makeLibrary();
+    addContent(root, '2026-10-24-a', `id: ${ID}\ntitle: 甲\nstage: draft\ncreated: "2026-10-24"`);
+    const ts = await tools(root);
+    const r = await exec(ts[4]!, { id: ID, platform: 'xiaohongshu', markdown: '# 这条标题实在太长了明显超过二十个字的硬上限\n\n正文' }); // 标题 21 字 > 20 → 必走「标题 N 字，超过小红书 20 字上限」错误分支
+    expect(r.content[0]?.text).toContain('变体草稿已保存');
+    expect(r.content[0]?.text).toContain('人工');
+    expect(r.content[0]?.text).toContain('20 字'); // 规则未过→模型可见
+    const files = readdirSync(draftsDir(root, ID));
+    expect(files.some((f) => f.startsWith('draft-'))).toBe(true);
+    const bad = await exec(ts[4]!, { id: ID, platform: 'zhihu', markdown: 'x' });
+    expect(bad.isError).toBe(true); // 平台白名单外
+  }, 30_000);
 });

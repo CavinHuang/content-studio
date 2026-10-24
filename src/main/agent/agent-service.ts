@@ -124,7 +124,7 @@ export class AgentService {
       if (ev.type === 'tool_execution_end') {
         const tool = String(ev.toolName);
         this.deps.emit({ kind: 'tool_end', contentId, runId, tool, isError: Boolean(ev.isError), summary: firstText(ev.result) });
-        if (tool === 'write_draft') this.deps.emit({ kind: 'drafts_changed', contentId });
+        if (tool === 'write_draft' || tool === 'save_variant') this.deps.emit({ kind: 'drafts_changed', contentId });
       }
     });
   }

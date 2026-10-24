@@ -51,6 +51,13 @@ describe('草稿区', () => {
     await expect(discardDraft(root, id, 'a/../../b.md')).rejects.toMatchObject({ code: 'DRAFT_BAD_NAME' });
     expect(readdirSync(path.join(root, '.studio')).length).toBeGreaterThan(-1); // .studio 仍在
   });
+  it('platform 元数据随草稿落盘并可往返', async () => {
+    const d = await saveDraft(root, id, { markdown: '# x', note: '变体:xiaohongshu', platform: 'xiaohongshu' });
+    const list = await listDrafts(root, id);
+    expect(list[0]).toMatchObject({ name: d.name, platform: 'xiaohongshu' });
+    const plain = await saveDraft(root, id, { markdown: '# y' });
+    expect((await listDrafts(root, id)).find((x) => x.name === plain.name)!.platform).toBeUndefined();
+  });
   it('IPC 直传的 contentId 先过格式关：穿越/畸形 id 各入口拒绝（DRAFT_BAD_CONTENT_ID），库外零副作用', async () => {
     const evil = '../../../..';
     // 枚举入口：显式拒绝而非静默空列表

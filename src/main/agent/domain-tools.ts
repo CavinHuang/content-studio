@@ -1,5 +1,7 @@
 import { listContents, readContent } from '../content-library';
 import { saveDraft } from '../drafts';
+import { parseVariantDraftMarkdown, assertPlatform } from '../variants';
+import { validateVariant } from '../../shared/platform-rules';
 import type { PiModule, TypeBoxModule } from './pi-loader';
 
 export type AskUserFn = (question: string, options: string[] | undefined) => Promise<string>;
@@ -9,7 +11,7 @@ export interface DomainToolDeps {
   askUser: AskUserFn;
 }
 
-const TOOL_NAMES = ['list_contents', 'read_content', 'write_draft', 'ask_user'] as const;
+const TOOL_NAMES = ['list_contents', 'read_content', 'write_draft', 'ask_user', 'save_variant'] as const;
 export type DomainToolName = (typeof TOOL_NAMES)[number];
 export function domainToolNames(): readonly DomainToolName[] { return TOOL_NAMES; }
 
@@ -86,5 +88,30 @@ export async function buildDomainTools(pi: PiModule, T: TypeBoxModule, deps: Dom
       });
     },
   });
-  return [listContentsTool, readContentTool, writeDraftTool, askUserTool];
+  const saveVariantTool = pi.defineTool({
+    name: 'save_variant',
+    label: '保存平台变体草稿',
+    description: '把一稿多态转化产物保存为该内容的平台变体草稿（等待人工在变体工作台确认后才进 platforms/<平台>.md）。markdown 格式：首行 `# 标题`（x 平台省略），可选一行 `话题: A、B`，空行后为正文。',
+    parameters: T.Type.Object({
+      id: T.Type.String(),
+      platform: T.Type.String({ description: 'xiaohongshu | x | jike | wechat-article' }),
+      markdown: T.Type.String(),
+    }),
+    annotations: { destructiveHint: false },
+    async execute(_id, params) {
+      try {
+        try { assertPlatform(params.platform); } catch { return textErr(`save_variant 失败：未知平台 ${params.platform}（支持 xiaohongshu/x/jike/wechat-article）`); }
+        await readContent(deps.root, params.id); // 校验内容存在
+        const platform = params.platform as 'xiaohongshu' | 'x' | 'jike' | 'wechat-article';
+        const parsed = parseVariantDraftMarkdown(params.markdown);
+        const v = validateVariant(platform, { platform, title: parsed.title, topics: parsed.topics, body: parsed.body });
+        const d = await saveDraft(deps.root, params.id, { markdown: params.markdown, note: `变体:${platform}`, platform });
+        const lines = [`变体草稿已保存：${d.name}（${platform}，等待人工在变体工作台确认采纳）`];
+        if (!v.ok) lines.push(`本地规则未通过（确认前需修正）：${v.errors.join('；')}`);
+        if (v.warnings.length) lines.push(`提示：${v.warnings.join('；')}`);
+        return text(lines.join('\n'));
+      } catch (err) { return textErr(`save_variant 失败：${String(err)}`); }
+    },
+  });
+  return [listContentsTool, readContentTool, writeDraftTool, askUserTool, saveVariantTool];
 }
