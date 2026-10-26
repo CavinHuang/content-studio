@@ -106,7 +106,7 @@ export function VideosPage() {
                 size="default"
               >
                 <Plus size={15} />
-                新建视频
+                新建视频作品
               </Button>
             }
           />
@@ -221,9 +221,9 @@ export function VideosPage() {
           onClose={() => setCreate(false)}
           footer={
             <>
-              <span className="small-meta">视频工作台 · Mock</span>
+              <span className="small-meta">Mock · 视频工作台</span>
               <Button className="button primary" onClick={add} variant="default" size="default">
-                创建视频作品
+                新建视频作品
                 <ArrowRight size={15} />
               </Button>
             </>
@@ -466,7 +466,7 @@ function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => 
                             color: '#34583b',
                             interval: 0.7,
                             sceneTitles: ['开场字卡', '三步方法', '结尾收束'],
-                            label: '按创作说明创建（Mock）',
+                            label: '按创作说明创建（示例）',
                             at: now(),
                           },
                         ],
@@ -492,7 +492,7 @@ function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => 
       number: Math.max(...video.versions.map((v) => v.number)) + 1,
       interval: Math.max(0.3, base.interval - 0.1),
       color: base.color === '#34583b' ? '#b5663f' : '#34583b',
-      label: '场景节奏候选（Mock）',
+      label: '场景节奏候选（示例）',
       at: now(),
     }
     patch({
@@ -504,7 +504,7 @@ function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => 
   }
   function exportManifest() {
     download(
-      `${video.title}-v${video.adopted}-演示导出清单.json`,
+      `${video.title}-v${video.adopted}-演示导出清单-${new Date().toISOString().slice(0, 10)}.json`,
       JSON.stringify(
         {
           mock: true,
@@ -517,7 +517,7 @@ function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => 
       ),
       'application/json',
     )
-    notify('已下载制作清单 JSON。Mock 界面不会生成 MP4。')
+    notify('已下载制作清单 JSON。演示界面不会生成 MP4。')
   }
   function simulateExport(fail = false) {
     const projectId = project.id,
@@ -635,7 +635,7 @@ function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => 
           </Button>
           <Button className="text-button text-muted-foreground" onClick={onNew} variant="ghost" size="sm">
             <Plus size={14} />
-            新建作品
+            新建视频作品
           </Button>
         </div>
         <div className="video-title-row">
@@ -719,7 +719,7 @@ function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => 
               <div className="export-result-title">
                 <Film size={24} />
                 <strong>本次固定快照 v{exportTask?.version ?? video.adopted}</strong>
-                <Badge>Mock · 未生成 MP4</Badge>
+                <Badge>演示 · 未生成 MP4</Badge>
               </div>
               <ol className="export-phases">
                 <li className="done">
@@ -839,7 +839,7 @@ function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => 
                   {running
                     ? '准备预览中…'
                     : video.confirmed
-                      ? '按说明新建预览（Mock）'
+                      ? '按说明新建预览'
                       : '确认说明，生成示例预览'}
                 </Button>
               </div>
@@ -1097,7 +1097,7 @@ function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => 
                           })
                         }
                       >
-                        <option>自然叙述（示例）</option>
+                        <option>自然叙述（Mock）</option>
                         <option>温暖分享（示例）</option>
                         <option>清晰讲解（示例）</option>
                       </NativeSelect>
@@ -1280,7 +1280,7 @@ function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => 
                           videoId = video.id
                         task(
                           '更新所选镜头配音',
-                          '模拟配音更新，字幕文本保持原样…',
+                          '演示配音更新，字幕文本保持原样…',
                           'agent',
                           (s) => ({
                             ...s,
@@ -1317,7 +1317,7 @@ function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => 
                       size="default"
                     >
                       <Mic size={15} />
-                      更新所选镜头配音（Mock）
+                      更新所选镜头配音
                     </Button>
                   </div>
                 </>
@@ -1608,7 +1608,7 @@ function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => 
                     variant="default"
                     size="default"
                   >
-                    模拟成功流程
+                    演示成功流程
                   </Button>
                 </>
               }
@@ -1623,7 +1623,7 @@ function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => 
                 </div>
               </div>
               <div className="inline-alert orange">
-                Mock 演示只运行任务状态，不生成 MP4。可以下载包含脚本、镜头和设置的制作清单，SRT
+                演示只运行任务状态，不生成 MP4。可以下载包含脚本、镜头和设置的制作清单，SRT
                 从字幕页单独导出。
               </div>
               <Button

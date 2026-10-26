@@ -53,7 +53,7 @@ export function SettingsPage() {
       JSON.stringify(
         {
           ...state,
-          backupNote: 'Mock workspace. Credentials are not included.',
+          backupNote: '本机演示工作区备份，不包含密钥。',
         },
         null,
         2,
@@ -98,7 +98,7 @@ export function SettingsPage() {
             <>
               <div className="inline-alert orange">
                 <Sparkles size={16} />
-                Mock 模式：连接测试仅演示状态，不请求模型服务。密钥只留在本次输入框，不会保存。
+                演示模式：连接测试仅更新状态显示，不请求模型服务。密钥只留在本次输入框，不会保存。
               </div>
               <div className="service-cards">
                 {(
@@ -133,7 +133,7 @@ export function SettingsPage() {
                         <p>{service.description}</p>
                       </div>
                       <Badge tone={preferences.connection[service.id] ? 'green' : 'neutral'}>
-                        {preferences.connection[service.id] ? 'Mock 就绪' : '未启用'}
+                        {preferences.connection[service.id] ? '演示就绪' : '未启用'}
                       </Badge>
                     </div>
                     <div className="service-controls">
@@ -172,7 +172,7 @@ export function SettingsPage() {
                               },
                             })
                             setTesting(null)
-                            notify('Mock 连接演示完成，未发送网络请求。')
+                            notify('连接演示完成，未发送网络请求。')
                           }, 750)
                         }}
                         variant="outline"
@@ -340,7 +340,7 @@ export function SettingsPage() {
                     className="button secondary"
                     onClick={() => {
                       download(
-                        `${project.title || '未命名内容'}-项目.json`,
+                        `${project.title || '未命名内容'}-项目-${new Date().toISOString().slice(0, 10)}.json`,
                         JSON.stringify(
                           {
                             mock: true,
@@ -352,7 +352,7 @@ export function SettingsPage() {
                         ),
                         'application/json',
                       )
-                      notify('当前项目与引用素材已导出。项目文件与全量备份的格式分别使用。')
+                      notify('当前项目与引用素材已导出。项目文件与全部备份的格式分别使用。')
                     }}
                     variant="outline"
                     size="default"
@@ -361,7 +361,7 @@ export function SettingsPage() {
                   </Button>
                   <label className="button secondary file-button">
                     <FileUp size={15} />
-                    导入全量备份
+                    导入全部备份
                     <input
                       type="file"
                       accept="application/json,.json"
@@ -479,7 +479,7 @@ export function SettingsPage() {
           {reset && (
             <Modal
               title="重新载入示例内容？"
-              description="当前内容、对话、素材及发布记录将被演示数据替换。此操作不会改动 docs/ux 中的设计稿。"
+              description="当前内容、对话、素材及发布记录将被演示数据替换。"
               onClose={() => setReset(false)}
               footer={
                 <>

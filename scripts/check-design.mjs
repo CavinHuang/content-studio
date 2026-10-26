@@ -112,4 +112,30 @@ for (const file of files) {
   }
   assert(!/variant="unstyled"|size="unset"/.test(source), `${file}: obsolete variants`)
 }
+// Copy gates from the v2.3 word table (docs/ux/DESIGN-SYSTEM.md N1/N4, UX-FIX-PLAN §1 门禁扩展).
+// App.tsx is not listed yet: its design-overview helper intentionally names docs/ux/index.html and
+// is owned by another batch; every page, panel component and studio data module is covered here.
+const copyFiles = [
+  `${root}/components/ui.tsx`,
+  `${root}/components/Agent.tsx`,
+  `${root}/components/StudioSidebar.tsx`,
+  `${root}/studio/mock.ts`,
+  `${root}/studio/store.tsx`,
+  `${root}/studio/types.ts`,
+  ...(await readdir(`${root}/pages`)).filter((n) => n.endsWith('.tsx')).map((n) => `${root}/pages/${n}`),
+]
+for (const file of copyFiles) {
+  const source = await readFile(file, 'utf8')
+  assert(
+    !/[\u4e00-\u9fff][?!.,;:]/.test(source),
+    `${file}: half-width punctuation directly after CJK (N4: use full-width ？！。，；：)`,
+  )
+  // Service names like 自然叙述（Mock） are entity names and may keep （Mock） — no other copy may.
+  const withoutServiceNames = source.replaceAll(/(?:创作助手|视觉助手|自然叙述)（Mock）/g, '')
+  assert(
+    !/[（(]\s*Mock\s*[)）]/.test(withoutServiceNames),
+    `${file}: user-visible copy must not carry a (Mock) suffix (N1: badge or description carries the demo state)`,
+  )
+  assert(!/docs\/|src\//.test(source), `${file}: user-visible strings must not leak repository paths (E2)`)
+}
 console.log('Tailwind/shadcn foundation, standard controls and business CSS boundaries verified.')

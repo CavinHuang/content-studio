@@ -107,7 +107,7 @@ export function HotspotsPage() {
         : a.ageHours - b.ageHours,
     )
   function refresh() {
-    task('刷新热点来源', '模拟获取已启用来源；失败项保留旧缓存…', 'source')
+    task('刷新热点来源', '演示获取已启用来源；失败项保留旧缓存…', 'source')
     notify('正在演示刷新。话题均为示例，未请求实时榜单；失败来源保留缓存。')
   }
   return (
@@ -129,7 +129,7 @@ export function HotspotsPage() {
           <PageTitle
             eyebrow="A GOOD STORY STARTS WITH CURIOSITY"
             title="从热点，找到你的表达。"
-            description="汇集多个信息源，再找到属于你的创作角度。"
+            description="汇集多个来源，再找到属于你的创作角度。"
             actions={
               <div className="discovery-header-actions">
                 <Badge tone="orange">示例话题 · 非实时</Badge>
@@ -213,7 +213,7 @@ export function HotspotsPage() {
               ))}
             </div>
             <NativeSelect
-              aria-label="具体信息源"
+              aria-label="具体来源"
               value={filters.source}
               onChange={(e) =>
                 filter({
@@ -221,7 +221,7 @@ export function HotspotsPage() {
                 })
               }
             >
-              <option value="all">全部信息源</option>
+              <option value="all">全部来源</option>
               {state.sources.map((source) => (
                 <option key={source.id} value={source.id}>
                   {source.name}
@@ -299,8 +299,7 @@ export function HotspotsPage() {
                     <div className="topic-category">
                       {topic.category}
                       <span>·</span>
-                      {topic.ageHours < 24 ? `${topic.ageHours} 小时内` : '昨天'}
-                      <span>·</span>示例
+                      示例收录 {dateLabel(topic.updated)}
                     </div>
                     <Button
                       className="topic-title h-auto justify-start p-0 text-left text-lg font-semibold whitespace-normal"
@@ -313,7 +312,7 @@ export function HotspotsPage() {
                     <div className="topic-sources">
                       <Layers size={13} />
                       <span>
-                        {ids.length} 个信息源 · {topic.articles.length} 篇原文
+                        {ids.length} 个来源 · {topic.articles.length} 篇原文
                       </span>
                       {ids.slice(0, 2).map((id) => (
                         <span key={id} className="source-name">
@@ -399,7 +398,7 @@ export function HotspotsPage() {
             <Button
               className="text-button text-muted-foreground"
               onClick={() =>
-                notify('「最新」按示例收录时间排序；「来源覆盖」按不同信息源数量排序，不加总各平台热度。')
+                notify('「最新」按示例收录时间排序；「来源覆盖」按不同来源数量排序，不加总各平台热度。')
               }
               variant="ghost"
               size="sm"
@@ -557,7 +556,7 @@ function TopicDetail({
       <div className="section-heading">
         <h2>先看看，大家在讨论什么</h2>
         <span>
-          {allSources.length} 个源 · {topic.articles.length} 篇去重原文
+          {allSources.length} 个来源 · {topic.articles.length} 篇去重原文
         </span>
       </div>
       <div className="filter-chips source-detail-filter">
@@ -673,7 +672,7 @@ function TopicDetail({
       <div className="topic-create-footer">
         <p>
           <Layers size={15} />
-          带入 {chosen.length} 篇原文，来自 {new Set(chosen.flatMap((a) => a.sourceIds)).size} 个源
+          带入 {chosen.length} 篇原文，来自 {new Set(chosen.flatMap((a) => a.sourceIds)).size} 个来源
           {chosen.some((a) => !a.body) && ' · 包含仅链接来源'}
         </p>
         <div>
@@ -714,7 +713,7 @@ export function SourcesPage() {
   const [error, setError] = useState('')
   const busy = state.tasks.some((t) => t.kind === 'source' && t.state === 'running')
   function refresh(source: Source) {
-    task(`刷新 ${source.name}`, '模拟更新此信息源…', 'source', (s) => ({
+    task(`刷新 ${source.name}`, '演示更新此来源…', 'source', (s) => ({
       ...s,
       sources: s.sources.map((item) =>
         item.id === source.id
@@ -766,8 +765,8 @@ export function SourcesPage() {
       <PageTitle
         back={() => navigate('hotspots')}
         eyebrow="YOUR INFORMATION, YOUR PERSPECTIVE"
-        title="热点信息源"
-        description="管理热榜、新闻与订阅。信息来源与最终发布平台，分别设置。"
+        title="热点来源"
+        description="管理热榜、新闻与订阅。来源与最终发布平台，分别设置。"
         actions={
           <Button
             className="button primary"
@@ -805,7 +804,7 @@ export function SourcesPage() {
           <strong>{state.sources.filter((s) => s.status === 'failed').length}</strong>
           <span>需要留意</span>
         </div>
-        <Badge tone="orange">Mock 来源管理</Badge>
+        <Badge tone="orange">Mock · 来源管理</Badge>
       </div>
       <SearchBox value={query} onChange={setQuery} placeholder="搜索来源名称…" />
       <Tabs
@@ -823,7 +822,7 @@ export function SourcesPage() {
       </Tabs>
       <div className="sources-list">
         <div className="sources-table-heading" aria-hidden="true">
-          <span>信息源</span>
+          <span>来源</span>
           <span>类型</span>
           <span>状态</span>
           <span>启用与管理</span>
@@ -905,7 +904,7 @@ export function SourcesPage() {
           ))}
       </div>
       {!state.sources.some((s) => (type === '全部类型' || s.type === type) && s.name.includes(query)) && (
-        <Empty title="没有找到信息源" description="试试其他分类或名称，也可以添加自己的订阅。" />
+        <Empty title="没有找到来源" description="试试其他分类或名称，也可以添加自己的订阅。" />
       )}
       <div className="inline-note">
         <Link2 size={15} />
@@ -913,8 +912,8 @@ export function SourcesPage() {
       </div>
       {editing && (
         <Modal
-          title={state.sources.some((s) => s.id === editing.id) ? '来源设置' : '添加一个信息源'}
-          description="当前为 Mock 配置界面，保存地址不会发起网络请求。"
+          title={state.sources.some((s) => s.id === editing.id) ? '来源设置' : '添加来源'}
+          description="当前为演示配置界面，保存地址不会发起网络请求。"
           onClose={() => setEditing(null)}
           footer={
             <>

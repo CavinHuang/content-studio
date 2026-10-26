@@ -109,6 +109,23 @@ export type PublishItem = {
   link: string
 }
 export type Batch = { id: string; at: string; items: PublishItem[] }
+export type CreationSnapshot = {
+  input: string
+  title: string
+  point: string
+  tone: string
+  language: string
+  materials: Pick<Material, 'id' | 'title' | 'body' | 'url' | 'type'>[]
+}
+export type CreationFlow = {
+  input: string
+  status: 'idle' | 'blocked' | 'running' | 'stopped' | 'failed' | 'ready' | 'candidate'
+  message?: string
+  runId?: string
+  snapshot?: CreationSnapshot
+  candidate?: { title: string; body: string; baseTitle: string; baseBody: string }
+  applied?: { title: string; body: string; previousTitle: string; previousBody: string }
+}
 export type Project = {
   id: string
   title: string
@@ -122,6 +139,7 @@ export type Project = {
   conversations: Conversation[]
   activeConversation: string
   batches: Batch[]
+  creation?: CreationFlow
   source?: { topicId: string; title: string; angle: string; articleIds: string[]; at: string }
   trashed?: boolean
   updated: string
@@ -171,6 +189,7 @@ export type Topic = {
   articles: SourceArticle[]
   angles: string[]
   ageHours: number
+  updated: string
 }
 export type Task = {
   id: string

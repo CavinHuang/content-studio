@@ -201,7 +201,7 @@ export function PublishPage() {
     }
     notify(
       (await copyText(`${current.snapshot.title}\n\n${current.snapshot.body}\n\n${current.snapshot.tags}`))
-        ? '已复制。请到对应平台手动发布，完成后再标记。'
+        ? '已复制。请到对应平台手动发布，完成后再记录。'
         : '复制失败，请下载文稿后复制。',
     )
   }
@@ -220,7 +220,7 @@ export function PublishPage() {
       link: link.trim(),
     })
     setMarking(null)
-    notify('已记录你手动标记的发布状态。')
+    notify('已记录发布状态。')
   }
   return (
     <section ref={pageRef} className={`workspace-page publish-page ${batch ? 'has-batch' : ''}`}>
@@ -413,9 +413,9 @@ export function PublishPage() {
                   }
                 >
                   {current.status === 'published'
-                    ? '用户已标记发布'
+                    ? '已记录发布'
                     : current.status === 'exported'
-                      ? '已导出 · 未标记发布'
+                      ? '已导出 · 未记录'
                       : isItemReady(current)
                         ? '等待手动交付'
                         : '缺少内容'}
@@ -510,7 +510,7 @@ export function PublishPage() {
                             status: 'preparing',
                             link: '',
                           })
-                          notify('已撤销误标记，内容快照保留。')
+                          notify('已撤销记录，内容快照保留。')
                         }}
                         variant="ghost"
                         size="sm"
@@ -531,7 +531,7 @@ export function PublishPage() {
                         size="default"
                       >
                         <Check size={15} />
-                        标记已手动发布
+                        记录发布
                       </Button>
                     )}
                   </div>
@@ -645,7 +645,7 @@ export function PublishPage() {
                   </span>
                 </div>
                 <Badge tone="green">
-                  {item.items.filter((i) => i.status === 'published').length} / {item.items.length} 已标记发布
+                  已记录 {item.items.filter((i) => i.status === 'published').length} / {item.items.length}
                 </Badge>
                 <ArrowRight size={16} />
               </Button>

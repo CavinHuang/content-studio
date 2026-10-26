@@ -10,6 +10,7 @@ import {
   type SetStateAction,
 } from 'react'
 import { generateBody, makeProject, platformContent, seedState, topics } from './mock'
+import { applyCreation, beginCreation, creationSnapshot, finishCreation } from './creation'
 import {
   makeDraft,
   now,
@@ -44,6 +45,9 @@ function readState(): StudioState {
         ...saved,
         projects: saved.projects.map((project) => ({
           ...project,
+          creation: project.creation?.status === 'running'
+            ? { ...project.creation, status: 'stopped', message: '上次整理被中断。输入与素材已保留，可继续整理。' }
+            : project.creation,
           drafts: Object.fromEntries(
             Object.entries(project.drafts).map(([platform, draft]) => {
               if (!draft) return [platform, draft]
@@ -122,6 +126,11 @@ type Store = {
   patchProject: (id: string, updater: (p: Project) => Project) => void
   patchDraft: (patch: Partial<Draft>, label?: string, platform?: Platform) => void
   newProject: () => void
+  updateCreationInput: (input: string) => void
+  runCreation: () => void
+  stopCreation: () => void
+  acceptCreation: () => void
+  undoCreation: () => void
   createFromTopic: (topic: Topic) => void
   generatePlatforms: (platforms: Platform[]) => void
   generateArticle: () => void
@@ -292,7 +301,56 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   }
   function newProject() {
     const next = makeProject()
+    next.creation = { input: '', status: 'idle' }
+    next.brief.tone = state.preferences.tone
     setState((s) => ({ ...s, projects: [next, ...s.projects], selectedProject: next.id, page: 'article' }))
+  }
+  function updateCreationInput(input: string) {
+    patchProject(project.id, (p) => ({ ...p, creation: {
+      ...(p.creation ?? { input: '', status: 'idle' }), input, status: 'idle',
+      candidate: undefined, message: undefined, runId: undefined,
+    } }))
+  }
+  function runCreation() {
+    const id = project.id
+    // Compute outside React's updater: a replay must not schedule a second task.
+    const started = beginCreation(stateRef.current, id)
+    setState(started.state)
+    if (!started.runId) return
+    const timer = setTimeout(() => {
+      timers.current.delete(timer)
+      setState(s => finishCreation(s, id, started.runId!))
+    }, 1000)
+    timers.current.add(timer)
+  }
+  function stopCreation() {
+    patchProject(project.id, p => ({ ...p, creation: p.creation ? {
+      ...p.creation, status: 'stopped', message: '整理已停止，输入、素材和母稿均已保留。',
+    } : undefined }))
+  }
+  function acceptCreation() {
+    patchProject(project.id, p => {
+      const flow = p.creation
+      const candidate = flow?.candidate
+      if (flow?.status !== 'candidate' || !candidate) return p
+      const master = p.drafts.master!
+      if (candidate.baseTitle !== master.title || candidate.baseBody !== master.body ||
+          JSON.stringify(flow.snapshot) !== JSON.stringify(creationSnapshot(stateRef.current, p))) {
+        return { ...p, creation: { ...flow, message: '母稿、方向或素材已变化。请重新整理；现有正文和候选均已保留。' } }
+      }
+      return applyCreation(p, candidate.title, candidate.body)
+    })
+  }
+  function undoCreation() {
+    patchProject(project.id, p => {
+      const applied = p.creation?.applied
+      const master = p.drafts.master!
+      if (!applied || master.title !== applied.title || master.body !== applied.body) return p
+      return { ...p, title: applied.previousTitle,
+        drafts: { ...p.drafts, master: versioned(master, { title: applied.previousTitle, body: applied.previousBody }, '撤销材料整理') },
+        creation: { ...p.creation!, status: 'idle', applied: undefined, message: '已撤销整理。原始输入和版本记录均保留。' },
+      }
+    })
   }
   function createFromTopic(topic: Topic) {
     const draft = state.topicDrafts[topic.id] ?? {
@@ -383,7 +441,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         projects: s.projects.map((p) => {
           if (p.id !== id) return p
           const old = p.drafts.master ?? makeDraft(title)
-          const next = versioned(old, { title, body: generateBody(title, brief) }, '按创作方案生成（Mock）')
+          const next = versioned(old, { title, body: generateBody(title, brief) }, '按创作方案生成（示例）')
           return {
             ...p,
             title,
@@ -415,7 +473,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           if (drafts[platform] || originals[platform] !== undefined) continue
           const content = platformContent(platform, master.title, master.body)
           drafts[platform] = {
-            ...makeDraft(content.title, content.body, '从母稿适配（Mock）'),
+            ...makeDraft(content.title, content.body, '从母稿适配（示例）'),
             ...content,
             sourceBody: master.body,
             sourceVersion: master.versions.at(-1)?.number ?? 1,
@@ -453,7 +511,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       }))
       setComposer('')
       setContext(null)
-      task('Agent 正在整理建议', '围绕所选热点整理角度（Mock）…', 'agent', (s) => ({
+      task('Agent 正在整理建议', '围绕所选热点整理角度（演示）…', 'agent', (s) => ({
         ...s,
         discoveryConversations: s.discoveryConversations.map((c) =>
           c.id === threadId
@@ -518,7 +576,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         }
         if (wantsPlan) {
           response.text =
-            '可以从一个具体的问题出发。我已在中间整理了一份可编辑的创作方向。先确认观点、读者和大纲，再生成母稿。（Mock 演示）'
+            '可以从一个具体的问题出发。我已在中间整理了一份可编辑的创作方向。先确认观点、读者和大纲，再生成母稿。（演示）'
           response.action = 'plan'
           if (!p.brief.point)
             p = {
@@ -550,7 +608,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
                   .find((line) => !line.startsWith('#') && !line.startsWith('>') && line.length > 20) ??
                 sourceDraft.body)
           response.text =
-            '我为当前范围整理了一个更简洁的表达，原文和建议都放在文稿中。你可以逐条采用或保留原文。（Mock 演示）'
+            '我为当前范围整理了一个更简洁的表达，原文和建议都放在文稿中。你可以逐条采用或保留原文。（演示）'
           response.action = 'article'
           response.suggestion = {
             id: uid(),
@@ -663,6 +721,11 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         patchProject,
         patchDraft,
         newProject,
+        updateCreationInput,
+        runCreation,
+        stopCreation,
+        acceptCreation,
+        undoCreation,
         createFromTopic,
         generatePlatforms,
         generateArticle,

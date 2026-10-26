@@ -65,7 +65,7 @@ export function StudioSidebar({
     `${item.title || '未命名内容'}${item.brief.point}`.toLowerCase().includes(search.toLowerCase()),
   )
   const pending = state.tasks.filter((task) => ['queued', 'running'].includes(task.state)).length
-  const failed = state.tasks.filter((task) => task.state === 'failed').length
+  const attention = state.tasks.filter((task) => ['failed', 'stopped'].includes(task.state)).length
   const shortcut = /Mac/.test(navigator.platform) ? '⌘' : 'Ctrl'
 
   return (
@@ -182,9 +182,9 @@ export function StudioSidebar({
                                 <span className="min-w-0 flex-1 truncate">{tab.label}</span>
                                 <span className="ml-auto shrink-0 text-xs text-muted-foreground">
                                   {tab.id === 'article'
-                                    ? `${Object.keys(item.drafts).length} 版`
+                                    ? `${Object.keys(item.drafts).length} 个平台版本`
                                     : tab.id === 'video'
-                                      ? `${item.videos.length} 部`
+                                      ? `${item.videos.length} 个`
                                       : tab.id === 'materials'
                                         ? item.materialIds.length
                                         : item.brief.confirmed
@@ -230,9 +230,9 @@ export function StudioSidebar({
               <ListTodo />
               <span>任务中心</span>
             </SidebarMenuButton>
-            {(pending > 0 || failed > 0) && (
+            {(pending > 0 || attention > 0) && (
               <SidebarMenuBadge className="text-muted-foreground">
-                {pending > 0 ? `${pending} 进行中` : `${failed} 待留意`}
+                {pending > 0 ? `${pending} 进行中` : `${attention} 需要留意`}
               </SidebarMenuBadge>
             )}
           </SidebarMenuItem>

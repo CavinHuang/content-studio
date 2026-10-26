@@ -41,8 +41,8 @@ export function TasksPage() {
       <PageTitle
         eyebrow="GOOD THINGS TAKE A LITTLE TIME"
         title="作品，正在慢慢成形。"
-        description="查看本机演示任务。暂停或失败，都不会抹掉已经完成的内容。"
-        actions={<Badge tone="orange">Mock 任务中心</Badge>}
+        description="查看本机演示任务。失败或已停止，都不会抹掉已经完成的内容。"
+        actions={<Badge tone="orange">Mock · 任务中心</Badge>}
       />
       <div className="task-overview">
         <div>
@@ -74,7 +74,7 @@ export function TasksPage() {
           },
           {
             id: 'failed',
-            name: '失败与停止',
+            name: '失败或已停止',
           },
         ].map((item) => (
           <Button
@@ -157,7 +157,7 @@ export function TasksPage() {
                           return
                         }
                         download(
-                          `${video.title}-演示任务.json`,
+                          `${video.title}-演示任务-${new Date().toISOString().slice(0, 10)}.json`,
                           JSON.stringify(
                             {
                               mock: true,

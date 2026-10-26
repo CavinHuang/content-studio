@@ -1,0 +1,40 @@
+{
+  "evidence": "scripted Electron mock; synthetic fixture; not human usability data",
+  "idea": "少收集一点，给每周回顾留出时间",
+  "note": "周五原始记录：我存了 12 个链接，只重读了 2 条。下周先重读，再决定要不要继续收藏。",
+  "steps": [
+    {
+      "action": "click",
+      "target": "新建内容"
+    },
+    {
+      "action": "fill",
+      "target": "一次放入主题和原始记录"
+    },
+    {
+      "action": "click",
+      "target": "整理成初稿"
+    },
+    {
+      "action": "fill",
+      "target": "校订正文"
+    },
+    {
+      "action": "click",
+      "target": "直接导出 Markdown"
+    }
+  ],
+  "clicks": 3,
+  "inputOperations": 2,
+  "keyboardShortcuts": 0,
+  "userKeystrokes": null,
+  "elapsedAutomationMs": 5254,
+  "taskWaits": 1,
+  "workspaceTransitions": 0,
+  "repeatedIntentEntries": 0,
+  "rawNoteInGeneratedBody": true,
+  "exportMatchesEditedBody": true,
+  "humanSuccessRate": null,
+  "humanWorkload": null,
+  "blindQualityScore": null
+}

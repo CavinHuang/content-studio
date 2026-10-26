@@ -45,6 +45,7 @@ import {
 import { platformContent } from '../studio/mock'
 import { images } from '../studio/images'
 import { watchSuggestionReview } from '../studio/suggestion-review'
+import { CreationFlow } from '../components/CreationFlow'
 export function PlatformDialog() {
   const { project, platformsOpen, setPlatformsOpen, generatePlatforms } = useStudio()
   const [chosen, setChosen] = useState<Platform[]>([])
@@ -59,7 +60,7 @@ export function PlatformDialog() {
       onClose={() => setPlatformsOpen(false)}
       footer={
         <>
-          <span className="muted">已选 {chosen.length} 个平台 · Mock 适配</span>
+          <span className="muted">已选 {chosen.length} 个平台 · 演示适配</span>
           <Button
             className="button primary"
             disabled={!chosen.length || !project.drafts.master?.body.trim()}
@@ -279,7 +280,7 @@ export function ArticlePage() {
         className="suggestion-body"
         hidden={!expandedSuggestions.has(suggestion.id)}
       >
-        <span className="small-meta">范围：{platformName(platform)} · 所选段落 · Mock</span>
+        <span className="small-meta">范围：{platformName(platform)} · 所选段落 · 演示</span>
         <div className="diff-block original">
           <label>原文</label>
           <p>{suggestion.original}</p>
@@ -660,10 +661,11 @@ export function ArticlePage() {
               className={`document article-document theme-${draft.typography.theme} ${!draft.body ? 'empty-document' : ''}`}
               style={style}
             >
+              {platform === 'master' && project.creation && <CreationFlow key={project.id} />}
               <Input
-                className="title-input h-auto rounded-none border-0 bg-transparent px-0 py-1 font-sans text-3xl font-semibold tracking-tight shadow-none focus-visible:ring-0 md:text-3xl"
+                className="title-input h-auto rounded-none border-0 bg-transparent px-0 py-1 font-sans text-3xl font-semibold tracking-tight shadow-none placeholder:opacity-60 focus-visible:ring-0 md:text-3xl"
                 aria-label="文稿标题"
-                placeholder="无标题"
+                placeholder="未命名内容"
                 value={draft.title}
                 onChange={(e) =>
                   patchDraft({
@@ -743,7 +745,7 @@ export function ArticlePage() {
                   />
                 </Field>
               )}
-              {!draft.body && (
+              {!draft.body && !project.creation && (
                 <div className="empty-editor-actions">
                   <Button variant="outline" onClick={() => setCaptureOpen(true)}>
                     <Paperclip size={16} />
@@ -811,7 +813,7 @@ export function ArticlePage() {
               onClose={() => setHistory(false)}
               footer={
                 <>
-                  <span className="muted">共 {draft.versions.length} 个版本</span>
+                  <span className="muted">共 {draft.versions.length} 个修订版本</span>
                   <Button
                     className="button primary"
                     disabled={!selectedHistory}
@@ -877,7 +879,7 @@ export function ArticlePage() {
             <Modal
               wide
               title={`重新适配 · ${platformName(platform)}`}
-              description="当前平台稿会一直保留，采用前请对照。以下是 Mock 候选内容。"
+              description="当前平台稿会一直保留，采用前请对照。以下是示例候选内容。"
               onClose={() => setCandidate(null)}
               footer={
                 <>
@@ -899,7 +901,7 @@ export function ArticlePage() {
                           sourceBody: candidate.master,
                           sourceVersion: candidate.version,
                         },
-                        '采用重新适配候选（Mock）',
+                        '采用重新适配候选（示例）',
                       )
                       setCandidate(null)
                       notify('已采用候选，手改内容保存在历史版本中。')

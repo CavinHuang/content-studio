@@ -459,7 +459,7 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
           <span>
             {state.preferences.enterToSend ? 'Enter 发送 · Shift+Enter 换行' : 'Ctrl/Cmd+Enter 发送'}
           </span>
-          <span>Mock 演示</span>
+          <span>本机演示</span>
         </p>
       </div>
     </aside>
