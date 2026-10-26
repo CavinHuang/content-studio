@@ -35,6 +35,7 @@ import {
   PageTitle,
   SearchBox,
   IconButton,
+  SegmentedControl,
 } from '../components/ui'
 import { useStudio } from '../studio/store'
 import { images } from '../studio/images'
@@ -360,7 +361,7 @@ export function MaterialsPage({ global = false }: { global?: boolean }) {
           footer={
             <>
               <Button
-                className="text-button danger-text text-destructive"
+                className="text-button danger-text text-destructive sm:mr-auto"
                 onClick={() => setDeleteId(active.id)}
                 variant="ghost"
                 size="sm"
@@ -368,6 +369,7 @@ export function MaterialsPage({ global = false }: { global?: boolean }) {
                 <Trash2 size={15} />
                 删除原素材
               </Button>
+              <span className="muted">更改自动保存</span>
               <div className="button-row">
                 <Button
                   className="button secondary"
@@ -654,7 +656,13 @@ export function MaterialCapture() {
       onClose={() => setCaptureOpen(false)}
       footer={
         <>
-          <span className="muted">保存在本机 · 演示存储</span>
+          <span className="muted sm:mr-auto">
+            {!valid && !loading
+              ? `还缺：${
+                  type === 'text' ? '一段想法或摘录' : type === 'link' ? '原始链接地址' : '选择要保存的文件'
+                }`
+              : '保存在本机 · 演示存储'}
+          </span>
           <Button
             className="button primary"
             disabled={!valid || loading}
@@ -662,30 +670,30 @@ export function MaterialCapture() {
             variant="default"
             size="default"
           >
-            <Check size={15} />
             {linkProject ? '保存并引用' : '保存素材'}
           </Button>
         </>
       }
     >
-      <div className="capture-types mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {Object.entries(typeInfo).map(([id, item]) => (
-          <Button
-            aria-pressed={type === id}
-            key={id}
-            onClick={() => {
-              setType(id as Material['type'])
-              setError('')
-              setFile(null)
-            }}
-            variant={type === id ? 'secondary' : 'outline'}
-            size="default"
-          >
-            <item.icon size={19} />
-            {item.name}
-          </Button>
-        ))}
-      </div>
+      <SegmentedControl
+        className="mb-3 max-w-full"
+        label="素材类型"
+        value={type}
+        onValueChange={(value) => {
+          setType(value as Material['type'])
+          setError('')
+          setFile(null)
+        }}
+        options={Object.entries(typeInfo).map(([id, item]) => ({
+          value: id,
+          label: (
+            <>
+              <item.icon size={19} />
+              {item.name}
+            </>
+          ),
+        }))}
+      />
       <Field label="标题（可选）">
         <Input
           value={title}

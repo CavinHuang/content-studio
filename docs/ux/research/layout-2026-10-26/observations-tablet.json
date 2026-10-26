@@ -1,0 +1,289 @@
+{
+  "evidence": "local Electron cognitive walkthrough; synthetic seed; no human participant study",
+  "screens": [
+    {
+      "id": "13-tablet-fresh-1099",
+      "viewport": {
+        "width": 1099,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 1099,
+        "height": 960,
+        "bottom": 960
+      },
+      "main": {
+        "x": 1099,
+        "y": 0,
+        "width": 0,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": null,
+      "creation": null,
+      "title": {
+        "x": 1107,
+        "y": 193,
+        "width": 0,
+        "height": 44,
+        "bottom": 237
+      },
+      "body": null,
+      "inputAreas": [],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "创作方案",
+          "fullyInsideNav": false
+        },
+        {
+          "label": "文稿",
+          "fullyInsideNav": false
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": false
+        },
+        {
+          "label": "素材",
+          "fullyInsideNav": false
+        }
+      ],
+      "nav": {
+        "width": 0,
+        "contentWidth": 316,
+        "scrollLeft": 102.4000015258789
+      },
+      "scrollAreas": [
+        {
+          "tag": "DIV",
+          "class": "document-scroll",
+          "x": 1083,
+          "y": 177,
+          "width": 0,
+          "height": 738,
+          "bottom": 915
+        }
+      ],
+      "primaryActions": [
+        "发布准备"
+      ]
+    },
+    {
+      "id": "13-tablet-fresh-1000",
+      "viewport": {
+        "width": 1000,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 1000,
+        "height": 960,
+        "bottom": 960
+      },
+      "main": {
+        "x": 1000,
+        "y": 0,
+        "width": 0,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": null,
+      "creation": null,
+      "title": {
+        "x": 1008,
+        "y": 193,
+        "width": 0,
+        "height": 44,
+        "bottom": 237
+      },
+      "body": null,
+      "inputAreas": [],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "创作方案",
+          "fullyInsideNav": false
+        },
+        {
+          "label": "文稿",
+          "fullyInsideNav": false
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": false
+        },
+        {
+          "label": "素材",
+          "fullyInsideNav": false
+        }
+      ],
+      "nav": {
+        "width": 0,
+        "contentWidth": 316,
+        "scrollLeft": 102.4000015258789
+      },
+      "scrollAreas": [
+        {
+          "tag": "DIV",
+          "class": "document-scroll",
+          "x": 984,
+          "y": 177,
+          "width": 0,
+          "height": 738,
+          "bottom": 915
+        }
+      ],
+      "primaryActions": [
+        "发布准备"
+      ]
+    },
+    {
+      "id": "13-tablet-fresh-768",
+      "viewport": {
+        "width": 768,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 768,
+        "height": 960,
+        "bottom": 960
+      },
+      "main": {
+        "x": 768,
+        "y": 0,
+        "width": 0,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": null,
+      "creation": null,
+      "title": {
+        "x": 776,
+        "y": 193,
+        "width": 0,
+        "height": 44,
+        "bottom": 237
+      },
+      "body": null,
+      "inputAreas": [],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "创作方案",
+          "fullyInsideNav": false
+        },
+        {
+          "label": "文稿",
+          "fullyInsideNav": false
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": false
+        },
+        {
+          "label": "素材",
+          "fullyInsideNav": false
+        }
+      ],
+      "nav": {
+        "width": 0,
+        "contentWidth": 316,
+        "scrollLeft": 102.4000015258789
+      },
+      "scrollAreas": [
+        {
+          "tag": "DIV",
+          "class": "document-scroll",
+          "x": 752,
+          "y": 177,
+          "width": 0,
+          "height": 738,
+          "bottom": 915
+        }
+      ],
+      "primaryActions": [
+        "发布准备"
+      ]
+    },
+    {
+      "id": "14-tablet-sidebar-collapsed",
+      "viewport": {
+        "width": 768,
+        "height": 960
+      },
+      "sidebar": null,
+      "main": {
+        "x": 0,
+        "y": 0,
+        "width": 768,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": null,
+      "creation": null,
+      "title": {
+        "x": 24,
+        "y": 128,
+        "width": 715,
+        "height": 44,
+        "bottom": 172
+      },
+      "body": null,
+      "inputAreas": [],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "创作方案",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "素材",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 387,
+        "contentWidth": 387,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [
+        {
+          "tag": "DIV",
+          "class": "document-scroll",
+          "x": 0,
+          "y": 112,
+          "width": 768,
+          "height": 812,
+          "bottom": 924
+        }
+      ],
+      "primaryActions": [
+        "发布准备"
+      ]
+    }
+  ],
+  "observations": [],
+  "errors": []
+}

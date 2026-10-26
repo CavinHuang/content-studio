@@ -27,6 +27,7 @@ import {
 import { Badge, CheckOption, download, Empty, Field, Modal, PageTitle, PlatformMark } from '../components/ui'
 import { useStudio } from '../studio/store'
 import { seedState } from '../studio/mock'
+import { recoverCreation } from '../studio/creation'
 import { PLATFORMS, type Platform, type StudioState } from '../studio/types'
 export function SettingsPage() {
   const { state, setState, project, navigate, notify, retrySave, clearAgentDrafts } = useStudio()
@@ -224,7 +225,14 @@ export function SettingsPage() {
                 <p>常用平台用于创作建议，每次发布仍由你重新选择。</p>
                 <div className="preference-platforms">
                   {PLATFORMS.map((item) => (
-                    <div key={item.id}>
+                    <div
+                      key={item.id}
+                      className={
+                        preferences.platforms.includes(item.id)
+                          ? 'border-[var(--brand-accent)]/40 bg-[var(--selected-platform)]'
+                          : undefined
+                      }
+                    >
                       <PlatformMark platform={item.id} />
                       <CheckOption
                         checked={preferences.platforms.includes(item.id)}
@@ -483,8 +491,24 @@ export function SettingsPage() {
               onClose={() => setReset(false)}
               footer={
                 <>
-                  <Button className="button secondary" onClick={backup} variant="outline" size="default">
-                    先导出备份
+                  <Button
+                    className="button secondary"
+                    onClick={() => {
+                      backup()
+                      setReset(false)
+                    }}
+                    variant="outline"
+                    size="default"
+                  >
+                    导出备份并取消
+                  </Button>
+                  <Button
+                    className="button secondary"
+                    onClick={() => setReset(false)}
+                    variant="outline"
+                    size="default"
+                  >
+                    取消
                   </Button>
                   <Button
                     className="button danger"
@@ -523,6 +547,10 @@ export function SettingsPage() {
                         clearAgentDrafts()
                         setState({
                           ...imported,
+                          projects: imported.projects.map((p) => ({
+                            ...p,
+                            creation: recoverCreation(p.creation),
+                          })),
                           tasks: imported.tasks.map((t) =>
                             ['running', 'queued'].includes(t.state)
                               ? {

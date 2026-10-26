@@ -1,0 +1,1500 @@
+{
+  "evidence": "local Electron cognitive walkthrough; synthetic seed; no human participant study",
+  "screens": [
+    {
+      "id": "01-existing-writing",
+      "viewport": {
+        "width": 1480,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 256,
+        "height": 960,
+        "bottom": 960
+      },
+      "main": {
+        "x": 257,
+        "y": 0,
+        "width": 838,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": {
+        "x": 1096,
+        "y": 0,
+        "width": 384,
+        "height": 960,
+        "bottom": 960
+      },
+      "creation": null,
+      "title": {
+        "x": 281,
+        "y": 128,
+        "width": 785,
+        "height": 44,
+        "bottom": 172
+      },
+      "body": null,
+      "inputAreas": [
+        {
+          "label": "Agent 消息",
+          "x": 1113,
+          "y": 805,
+          "width": 350,
+          "height": 64,
+          "bottom": 869
+        }
+      ],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "创作方案",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "素材",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 541,
+        "contentWidth": 541,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [
+        {
+          "tag": "DIV",
+          "class": "document-scroll",
+          "x": 257,
+          "y": 112,
+          "width": 838,
+          "height": 812,
+          "bottom": 924
+        }
+      ],
+      "context": "让灵感成为作品 · 母稿",
+      "primaryActions": [
+        "发布准备"
+      ]
+    },
+    {
+      "id": "02-new-content",
+      "viewport": {
+        "width": 1480,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 256,
+        "height": 960,
+        "bottom": 960
+      },
+      "main": {
+        "x": 257,
+        "y": 0,
+        "width": 838,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": {
+        "x": 1096,
+        "y": 0,
+        "width": 384,
+        "height": 960,
+        "bottom": 960
+      },
+      "creation": {
+        "x": 281,
+        "y": 173,
+        "width": 790,
+        "height": 307,
+        "bottom": 480
+      },
+      "title": {
+        "x": 281,
+        "y": 496,
+        "width": 790,
+        "height": 44,
+        "bottom": 540
+      },
+      "body": {
+        "x": 281,
+        "y": 540,
+        "width": 790,
+        "height": 100,
+        "bottom": 640
+      },
+      "inputAreas": [
+        {
+          "label": "想法与原始记录",
+          "x": 298,
+          "y": 262,
+          "width": 756,
+          "height": 64,
+          "bottom": 326
+        },
+        {
+          "label": "文稿正文",
+          "x": 281,
+          "y": 540,
+          "width": 790,
+          "height": 100,
+          "bottom": 640
+        },
+        {
+          "label": "Agent 消息",
+          "x": 1113,
+          "y": 805,
+          "width": 350,
+          "height": 64,
+          "bottom": 869
+        }
+      ],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "创作方案",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "素材",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 541,
+        "contentWidth": 541,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [],
+      "context": "未命名内容 · 母稿",
+      "primaryActions": [
+        "发布准备",
+        "整理成初稿"
+      ]
+    },
+    {
+      "id": "03-agent-separate-context",
+      "viewport": {
+        "width": 1480,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 256,
+        "height": 960,
+        "bottom": 960
+      },
+      "main": {
+        "x": 257,
+        "y": 0,
+        "width": 838,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": {
+        "x": 1096,
+        "y": 0,
+        "width": 384,
+        "height": 960,
+        "bottom": 960
+      },
+      "creation": {
+        "x": 281,
+        "y": 173,
+        "width": 790,
+        "height": 307,
+        "bottom": 480
+      },
+      "title": {
+        "x": 281,
+        "y": 496,
+        "width": 790,
+        "height": 44,
+        "bottom": 540
+      },
+      "body": {
+        "x": 281,
+        "y": 540,
+        "width": 790,
+        "height": 100,
+        "bottom": 640
+      },
+      "inputAreas": [
+        {
+          "label": "想法与原始记录",
+          "x": 298,
+          "y": 262,
+          "width": 756,
+          "height": 64,
+          "bottom": 326
+        },
+        {
+          "label": "文稿正文",
+          "x": 281,
+          "y": 540,
+          "width": 790,
+          "height": 100,
+          "bottom": 640
+        },
+        {
+          "label": "Agent 消息",
+          "x": 1113,
+          "y": 805,
+          "width": 350,
+          "height": 64,
+          "bottom": 869
+        }
+      ],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "创作方案",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "素材",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 541,
+        "contentWidth": 541,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [],
+      "context": "未命名内容 · 母稿",
+      "primaryActions": [
+        "发布准备",
+        "整理成初稿"
+      ]
+    },
+    {
+      "id": "04-ready-content",
+      "viewport": {
+        "width": 1480,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 256,
+        "height": 960,
+        "bottom": 960
+      },
+      "main": {
+        "x": 257,
+        "y": 0,
+        "width": 838,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": {
+        "x": 1096,
+        "y": 0,
+        "width": 384,
+        "height": 960,
+        "bottom": 960
+      },
+      "creation": {
+        "x": 281,
+        "y": 173,
+        "width": 785,
+        "height": 134,
+        "bottom": 306
+      },
+      "title": {
+        "x": 281,
+        "y": 322,
+        "width": 785,
+        "height": 44,
+        "bottom": 366
+      },
+      "body": {
+        "x": 281,
+        "y": 394,
+        "width": 785,
+        "height": 624,
+        "bottom": 1018
+      },
+      "inputAreas": [
+        {
+          "label": "文稿正文",
+          "x": 281,
+          "y": 394,
+          "width": 785,
+          "height": 624,
+          "bottom": 1018
+        },
+        {
+          "label": "Agent 消息",
+          "x": 1113,
+          "y": 805,
+          "width": 350,
+          "height": 64,
+          "bottom": 869
+        }
+      ],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "创作方案",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "素材",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 541,
+        "contentWidth": 541,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [
+        {
+          "tag": "DIV",
+          "class": "document-scroll",
+          "x": 257,
+          "y": 157,
+          "width": 838,
+          "height": 767,
+          "bottom": 924
+        }
+      ],
+      "context": "每周回顾：少收集一点 · 母稿",
+      "primaryActions": [
+        "发布准备"
+      ]
+    },
+    {
+      "id": "05-candidate-comparison",
+      "viewport": {
+        "width": 1480,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 256,
+        "height": 960,
+        "bottom": 960
+      },
+      "main": {
+        "x": 257,
+        "y": 0,
+        "width": 838,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": {
+        "x": 1096,
+        "y": 0,
+        "width": 384,
+        "height": 960,
+        "bottom": 960
+      },
+      "creation": {
+        "x": 281,
+        "y": 173,
+        "width": 785,
+        "height": 959,
+        "bottom": 1132
+      },
+      "title": {
+        "x": 281,
+        "y": 1148,
+        "width": 785,
+        "height": 44,
+        "bottom": 1192
+      },
+      "body": {
+        "x": 281,
+        "y": 1220,
+        "width": 785,
+        "height": 624,
+        "bottom": 1844
+      },
+      "inputAreas": [
+        {
+          "label": "想法与原始记录",
+          "x": 298,
+          "y": 262,
+          "width": 752,
+          "height": 64,
+          "bottom": 326
+        },
+        {
+          "label": "文稿正文",
+          "x": 281,
+          "y": 1220,
+          "width": 785,
+          "height": 624,
+          "bottom": 1844
+        },
+        {
+          "label": "Agent 消息",
+          "x": 1113,
+          "y": 805,
+          "width": 350,
+          "height": 64,
+          "bottom": 869
+        }
+      ],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "创作方案",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "素材",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 541,
+        "contentWidth": 541,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [
+        {
+          "tag": "DIV",
+          "class": "document-scroll",
+          "x": 257,
+          "y": 157,
+          "width": 838,
+          "height": 767,
+          "bottom": 924
+        },
+        {
+          "tag": "PRE",
+          "class": "max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-3 font-sans text-sm",
+          "x": 298,
+          "y": 571,
+          "width": 752,
+          "height": 208,
+          "bottom": 779
+        },
+        {
+          "tag": "PRE",
+          "class": "max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-3 font-sans text-sm",
+          "x": 298,
+          "y": 819,
+          "width": 752,
+          "height": 208,
+          "bottom": 1027
+        }
+      ],
+      "context": "每周回顾：少收集一点 · 母稿",
+      "primaryActions": [
+        "发布准备",
+        "按新方向准备候选",
+        "采用候选，保留原稿版本"
+      ]
+    },
+    {
+      "id": "06-candidate-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 221,
+        "height": 960,
+        "bottom": 960
+      },
+      "main": {
+        "x": 222,
+        "y": 0,
+        "width": 725,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": {
+        "x": 948,
+        "y": 0,
+        "width": 332,
+        "height": 960,
+        "bottom": 960
+      },
+      "creation": {
+        "x": 246,
+        "y": 173,
+        "width": 672,
+        "height": 959,
+        "bottom": 1132
+      },
+      "title": {
+        "x": 246,
+        "y": 1148,
+        "width": 672,
+        "height": 44,
+        "bottom": 1192
+      },
+      "body": {
+        "x": 246,
+        "y": 1220,
+        "width": 672,
+        "height": 624,
+        "bottom": 1844
+      },
+      "inputAreas": [
+        {
+          "label": "想法与原始记录",
+          "x": 263,
+          "y": 262,
+          "width": 638,
+          "height": 64,
+          "bottom": 326
+        },
+        {
+          "label": "文稿正文",
+          "x": 246,
+          "y": 1220,
+          "width": 672,
+          "height": 624,
+          "bottom": 1844
+        },
+        {
+          "label": "Agent 消息",
+          "x": 965,
+          "y": 805,
+          "width": 298,
+          "height": 64,
+          "bottom": 869
+        }
+      ],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "创作方案",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "素材",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 439,
+        "contentWidth": 439,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [
+        {
+          "tag": "DIV",
+          "class": "document-scroll",
+          "x": 222,
+          "y": 157,
+          "width": 725,
+          "height": 767,
+          "bottom": 924
+        },
+        {
+          "tag": "PRE",
+          "class": "max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-3 font-sans text-sm",
+          "x": 263,
+          "y": 571,
+          "width": 638,
+          "height": 208,
+          "bottom": 779
+        },
+        {
+          "tag": "PRE",
+          "class": "max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-3 font-sans text-sm",
+          "x": 263,
+          "y": 819,
+          "width": 638,
+          "height": 208,
+          "bottom": 1027
+        }
+      ],
+      "context": "每周回顾：少收集一点 · 母稿",
+      "primaryActions": [
+        "发布准备",
+        "按新方向准备候选",
+        "采用候选，保留原稿版本"
+      ]
+    },
+    {
+      "id": "06-candidate-1100",
+      "viewport": {
+        "width": 1100,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 216,
+        "height": 960,
+        "bottom": 960
+      },
+      "main": {
+        "x": 217,
+        "y": 0,
+        "width": 562,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": {
+        "x": 780,
+        "y": 0,
+        "width": 320,
+        "height": 960,
+        "bottom": 960
+      },
+      "creation": {
+        "x": 241,
+        "y": 173,
+        "width": 509,
+        "height": 980,
+        "bottom": 1153
+      },
+      "title": {
+        "x": 241,
+        "y": 1169,
+        "width": 509,
+        "height": 44,
+        "bottom": 1213
+      },
+      "body": {
+        "x": 241,
+        "y": 1241,
+        "width": 509,
+        "height": 624,
+        "bottom": 1865
+      },
+      "inputAreas": [
+        {
+          "label": "想法与原始记录",
+          "x": 258,
+          "y": 262,
+          "width": 476,
+          "height": 64,
+          "bottom": 326
+        },
+        {
+          "label": "文稿正文",
+          "x": 241,
+          "y": 1241,
+          "width": 509,
+          "height": 624,
+          "bottom": 1865
+        },
+        {
+          "label": "Agent 消息",
+          "x": 797,
+          "y": 805,
+          "width": 286,
+          "height": 64,
+          "bottom": 869
+        }
+      ],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "创作方案",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "素材",
+          "fullyInsideNav": false
+        }
+      ],
+      "nav": {
+        "width": 277,
+        "contentWidth": 316,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [
+        {
+          "tag": "DIV",
+          "class": "document-scroll",
+          "x": 217,
+          "y": 157,
+          "width": 562,
+          "height": 767,
+          "bottom": 924
+        },
+        {
+          "tag": "PRE",
+          "class": "max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-3 font-sans text-sm",
+          "x": 258,
+          "y": 592,
+          "width": 476,
+          "height": 208,
+          "bottom": 800
+        },
+        {
+          "tag": "PRE",
+          "class": "max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-3 font-sans text-sm",
+          "x": 258,
+          "y": 840,
+          "width": 476,
+          "height": 208,
+          "bottom": 1048
+        }
+      ],
+      "context": "每周回顾：少收集一点 · 母稿",
+      "primaryActions": [
+        "发布准备",
+        "按新方向准备候选",
+        "采用候选，保留原稿版本"
+      ]
+    },
+    {
+      "id": "06-candidate-1099",
+      "viewport": {
+        "width": 1099,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 1099,
+        "height": 960,
+        "bottom": 960
+      },
+      "main": {
+        "x": 1099,
+        "y": 0,
+        "width": 0,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": null,
+      "creation": {
+        "x": 1107,
+        "y": 238,
+        "width": 34,
+        "height": 1676,
+        "bottom": 1913
+      },
+      "title": {
+        "x": 1107,
+        "y": 1929,
+        "width": 0,
+        "height": 44,
+        "bottom": 1973
+      },
+      "body": {
+        "x": 1107,
+        "y": 2081,
+        "width": 0,
+        "height": 624,
+        "bottom": 2705
+      },
+      "inputAreas": [
+        {
+          "label": "想法与原始记录",
+          "x": 1124,
+          "y": 419,
+          "width": 154,
+          "height": 98,
+          "bottom": 517
+        },
+        {
+          "label": "文稿正文",
+          "x": 1107,
+          "y": 2081,
+          "width": 0,
+          "height": 624,
+          "bottom": 2705
+        }
+      ],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "创作方案",
+          "fullyInsideNav": false
+        },
+        {
+          "label": "文稿",
+          "fullyInsideNav": false
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": false
+        },
+        {
+          "label": "素材",
+          "fullyInsideNav": false
+        }
+      ],
+      "nav": {
+        "width": 0,
+        "contentWidth": 316,
+        "scrollLeft": 102.4000015258789
+      },
+      "scrollAreas": [
+        {
+          "tag": "DIV",
+          "class": "document-scroll",
+          "x": 1083,
+          "y": 222,
+          "width": 0,
+          "height": 694,
+          "bottom": 915
+        },
+        {
+          "tag": "PRE",
+          "class": "max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-3 font-sans text-sm",
+          "x": 1124,
+          "y": 1292,
+          "width": 178,
+          "height": 208,
+          "bottom": 1500
+        },
+        {
+          "tag": "PRE",
+          "class": "max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-3 font-sans text-sm",
+          "x": 1124,
+          "y": 1560,
+          "width": 178,
+          "height": 208,
+          "bottom": 1768
+        },
+        {
+          "tag": "TEXTAREA",
+          "class": "flex field-sizing-content min-h-16 w-full border-input bg-transparent text-base transition-[color,bo",
+          "x": 1107,
+          "y": 2081,
+          "width": 0,
+          "height": 624,
+          "bottom": 2705
+        }
+      ],
+      "primaryActions": [
+        "发布准备",
+        "按新方向准备候选",
+        "采用候选，保留原稿版本"
+      ]
+    },
+    {
+      "id": "06-candidate-390",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sidebar": null,
+      "main": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 780,
+        "bottom": 780
+      },
+      "agent": null,
+      "creation": {
+        "x": 24,
+        "y": 179,
+        "width": 338,
+        "height": 1078,
+        "bottom": 1257
+      },
+      "title": {
+        "x": 24,
+        "y": 1273,
+        "width": 338,
+        "height": 53,
+        "bottom": 1326
+      },
+      "body": {
+        "x": 24,
+        "y": 1354,
+        "width": 338,
+        "height": 549,
+        "bottom": 1902
+      },
+      "inputAreas": [
+        {
+          "label": "想法与原始记录",
+          "x": 41,
+          "y": 268,
+          "width": 304,
+          "height": 66,
+          "bottom": 334
+        },
+        {
+          "label": "文稿正文",
+          "x": 24,
+          "y": 1354,
+          "width": 338,
+          "height": 549,
+          "bottom": 1902
+        }
+      ],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "创作方案",
+          "fullyInsideNav": false
+        },
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "素材",
+          "fullyInsideNav": false
+        }
+      ],
+      "nav": {
+        "width": 125,
+        "contentWidth": 228,
+        "scrollLeft": 80.80000305175781
+      },
+      "scrollAreas": [
+        {
+          "tag": "DIV",
+          "class": "document-scroll",
+          "x": 0,
+          "y": 163,
+          "width": 390,
+          "height": 581,
+          "bottom": 744
+        },
+        {
+          "tag": "PRE",
+          "class": "max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-3 font-sans text-sm",
+          "x": 41,
+          "y": 656,
+          "width": 304,
+          "height": 208,
+          "bottom": 864
+        },
+        {
+          "tag": "PRE",
+          "class": "max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-3 font-sans text-sm",
+          "x": 41,
+          "y": 904,
+          "width": 304,
+          "height": 208,
+          "bottom": 1112
+        },
+        {
+          "tag": "TEXTAREA",
+          "class": "flex field-sizing-content min-h-16 w-full border-input bg-transparent text-base transition-[color,bo",
+          "x": 24,
+          "y": 1354,
+          "width": 338,
+          "height": 549,
+          "bottom": 1902
+        }
+      ],
+      "primaryActions": [
+        "发布准备",
+        "按新方向准备候选",
+        "采用候选，保留原稿版本"
+      ]
+    },
+    {
+      "id": "07-empty-publish",
+      "viewport": {
+        "width": 1480,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 256,
+        "height": 960,
+        "bottom": 960
+      },
+      "main": {
+        "x": 257,
+        "y": 0,
+        "width": 838,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": {
+        "x": 1096,
+        "y": 0,
+        "width": 384,
+        "height": 960,
+        "bottom": 960
+      },
+      "creation": null,
+      "title": null,
+      "body": null,
+      "inputAreas": [
+        {
+          "label": "Agent 消息",
+          "x": 1113,
+          "y": 805,
+          "width": 350,
+          "height": 64,
+          "bottom": 869
+        }
+      ],
+      "activeArtifactTabs": [],
+      "artifactTabs": [
+        {
+          "label": "创作方案",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "素材",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 646,
+        "contentWidth": 646,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [
+        {
+          "tag": "SECTION",
+          "class": "workspace-page publish-page ",
+          "x": 257,
+          "y": 56,
+          "width": 838,
+          "height": 904,
+          "bottom": 960
+        }
+      ],
+      "context": "未命名内容 · 母稿",
+      "primaryActions": [
+        "发布准备",
+        "继续，预览所选平台"
+      ]
+    },
+    {
+      "id": "08-global-materials",
+      "viewport": {
+        "width": 1480,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 256,
+        "height": 960,
+        "bottom": 960
+      },
+      "main": {
+        "x": 257,
+        "y": 0,
+        "width": 838,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": {
+        "x": 1096,
+        "y": 0,
+        "width": 384,
+        "height": 960,
+        "bottom": 960
+      },
+      "creation": null,
+      "title": null,
+      "body": null,
+      "inputAreas": [
+        {
+          "label": "Agent 消息",
+          "x": 1113,
+          "y": 805,
+          "width": 350,
+          "height": 64,
+          "bottom": 869
+        }
+      ],
+      "activeArtifactTabs": [],
+      "artifactTabs": [],
+      "nav": null,
+      "scrollAreas": [
+        {
+          "tag": "SECTION",
+          "class": "workspace-page materials-page",
+          "x": 257,
+          "y": 0,
+          "width": 838,
+          "height": 960,
+          "bottom": 960
+        }
+      ],
+      "context": "未命名内容 · 母稿",
+      "primaryActions": [
+        "收集素材"
+      ]
+    },
+    {
+      "id": "09-global-tasks",
+      "viewport": {
+        "width": 1480,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 256,
+        "height": 960,
+        "bottom": 960
+      },
+      "main": {
+        "x": 257,
+        "y": 0,
+        "width": 838,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": {
+        "x": 1096,
+        "y": 0,
+        "width": 384,
+        "height": 960,
+        "bottom": 960
+      },
+      "creation": null,
+      "title": null,
+      "body": null,
+      "inputAreas": [
+        {
+          "label": "Agent 消息",
+          "x": 1113,
+          "y": 805,
+          "width": 350,
+          "height": 64,
+          "bottom": 869
+        }
+      ],
+      "activeArtifactTabs": [],
+      "artifactTabs": [],
+      "nav": null,
+      "scrollAreas": [],
+      "context": "未命名内容 · 母稿",
+      "primaryActions": []
+    },
+    {
+      "id": "10-platform-preview",
+      "viewport": {
+        "width": 1480,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 256,
+        "height": 960,
+        "bottom": 960
+      },
+      "main": {
+        "x": 257,
+        "y": 0,
+        "width": 838,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": {
+        "x": 1096,
+        "y": 0,
+        "width": 384,
+        "height": 960,
+        "bottom": 960
+      },
+      "creation": null,
+      "title": {
+        "x": 281,
+        "y": 246,
+        "width": 790,
+        "height": 44,
+        "bottom": 290
+      },
+      "body": null,
+      "inputAreas": [
+        {
+          "label": "Agent 消息",
+          "x": 1113,
+          "y": 805,
+          "width": 350,
+          "height": 64,
+          "bottom": 869
+        }
+      ],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "创作方案",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "素材",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 541,
+        "contentWidth": 541,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [],
+      "context": "让灵感成为作品 · 小红书",
+      "primaryActions": [
+        "发布准备"
+      ]
+    },
+    {
+      "id": "11-mobile-writing",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sidebar": null,
+      "main": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 780,
+        "bottom": 780
+      },
+      "agent": null,
+      "creation": null,
+      "title": {
+        "x": 24,
+        "y": 290,
+        "width": 338,
+        "height": 53,
+        "bottom": 343
+      },
+      "body": null,
+      "inputAreas": [],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "创作方案",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": false
+        },
+        {
+          "label": "素材",
+          "fullyInsideNav": false
+        }
+      ],
+      "nav": {
+        "width": 125,
+        "contentWidth": 228,
+        "scrollLeft": 0.800000011920929
+      },
+      "scrollAreas": [
+        {
+          "tag": "DIV",
+          "class": "document-scroll",
+          "x": 0,
+          "y": 274,
+          "width": 390,
+          "height": 470,
+          "bottom": 744
+        }
+      ],
+      "primaryActions": [
+        "发布准备"
+      ]
+    },
+    {
+      "id": "12-mobile-agent",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sidebar": null,
+      "main": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 780,
+        "bottom": 780
+      },
+      "agent": null,
+      "creation": null,
+      "title": {
+        "x": 24,
+        "y": 290,
+        "width": 338,
+        "height": 53,
+        "bottom": 343
+      },
+      "body": null,
+      "inputAreas": [
+        {
+          "label": "Agent 消息",
+          "x": 18,
+          "y": 689,
+          "width": 356,
+          "height": 64,
+          "bottom": 753
+        }
+      ],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "创作方案",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": false
+        },
+        {
+          "label": "素材",
+          "fullyInsideNav": false
+        }
+      ],
+      "nav": {
+        "width": 161,
+        "contentWidth": 228,
+        "scrollLeft": 0.800000011920929
+      },
+      "scrollAreas": [
+        {
+          "tag": "DIV",
+          "class": "document-scroll",
+          "x": 0,
+          "y": 274,
+          "width": 390,
+          "height": 470,
+          "bottom": 744
+        }
+      ],
+      "context": "让灵感成为作品 · 小红书",
+      "primaryActions": [
+        "发布准备"
+      ]
+    }
+  ],
+  "observations": [
+    {
+      "case": "creation-input-and-agent-context",
+      "creationInput": "每周回顾：少收集一点\n周五记录：存了 12 条，只重读 2 条。",
+      "lastUserMessage": "请使用刚才输入的记录，帮我继续创作。",
+      "lastReply": "先记下最想回应的问题，再补一个例子。你可以在创作方案中修改结构，确认后生成第一版示例稿。",
+      "bodyEmpty": true
+    },
+    {
+      "case": "preview-editability",
+      "previewTabSelected": "active",
+      "titleEditable": true,
+      "tagsEditable": true
+    }
+  ],
+  "errors": []
+}

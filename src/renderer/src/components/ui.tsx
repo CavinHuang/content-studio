@@ -22,6 +22,7 @@ import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '
 import { Badge as UIBadge } from './ui/badge'
 import { Checkbox } from './ui/checkbox'
 import { Label } from './ui/label'
+import { Tabs, TabsList, TabsTrigger } from './ui/tabs'
 import {
   Dialog,
   DialogContent,
@@ -223,6 +224,33 @@ export function CheckOption({
       <Checkbox checked={checked} disabled={disabled} onCheckedChange={(value) => onChange(value === true)} />
       <span>{children}</span>
     </Label>
+  )
+}
+// 横排单选的唯一选中语言（DESIGN-SYSTEM v2.3「选中态规范」N3）：沙色轨道 + 白色凸起片的
+// 分段白块式，直接复用上游 TabsList 默认外观；实底药丸样式退役。
+export function SegmentedControl({
+  value,
+  onValueChange,
+  options,
+  label,
+  className,
+}: {
+  value: string
+  onValueChange: (value: string) => void
+  options: { value: string; label: ReactNode }[]
+  label: string
+  className?: string
+}) {
+  return (
+    <Tabs value={value} onValueChange={onValueChange} className={className}>
+      <TabsList aria-label={label}>
+        {options.map((option) => (
+          <TabsTrigger key={option.value} value={option.value}>
+            {option.label}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
   )
 }
 export function Modal({

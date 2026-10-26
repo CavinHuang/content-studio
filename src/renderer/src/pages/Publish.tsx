@@ -394,8 +394,13 @@ export function PublishPage() {
                 key={item.platform}
                 aria-pressed={current?.platform === item.platform}
                 onClick={() => setCurrentPlatform(item.platform)}
-                variant={current?.platform === item.platform ? 'secondary' : 'outline'}
+                variant="outline"
                 size="default"
+                className={cn(
+                  current?.platform === item.platform
+                    ? 'bg-[var(--selected-platform)] text-foreground hover:bg-[var(--selected-platform)]'
+                    : 'bg-card hover:bg-secondary/60',
+                )}
               >
                 <PlatformMark platform={item.platform} />
                 <span>{platformName(item.platform)}</span>
@@ -589,6 +594,9 @@ export function PublishPage() {
           onClose={() => setMarking(null)}
           footer={
             <>
+              <span className="muted sm:mr-auto">
+                {confirmed ? '已确认手动完成发布，可以保存记录。' : '勾选确认后可保存'}
+              </span>
               <Button
                 className="button secondary"
                 onClick={() => setMarking(null)}

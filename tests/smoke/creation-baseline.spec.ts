@@ -8,7 +8,13 @@ const idea = '少收集一点，给每周回顾留出时间'
 const note = '周五原始记录：我存了 12 个链接，只重读了 2 条。下周先重读，再决定要不要继续收藏。'
 test('baseline: existing material and brief route to an editable exported master', async () => {
   test.setTimeout(60_000)
-  const env: Record<string, string> = Object.fromEntries(Object.entries({ ...process.env, STUDIO_SMOKE: '1', STUDIO_USER_DATA: mkdtempSync(join(tmpdir(), 'studio-baseline-')) }).filter((entry): entry is [string, string] => entry[1] !== undefined))
+  const env: Record<string, string> = Object.fromEntries(
+    Object.entries({
+      ...process.env,
+      STUDIO_SMOKE: '1',
+      STUDIO_USER_DATA: mkdtempSync(join(tmpdir(), 'studio-baseline-')),
+    }).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  )
   delete env.ELECTRON_RUN_AS_NODE
   const app = await electron.launch({ args: ['.'], env })
   const page = await app.firstWindow()
@@ -16,10 +22,12 @@ test('baseline: existing material and brief route to an editable exported master
   const started = Date.now()
   const steps: { action: string; target: string }[] = []
   const click = async (target: ReturnType<typeof page.getByRole>, label: string) => {
-    steps.push({ action: 'click', target: label }); await target.click()
+    steps.push({ action: 'click', target: label })
+    await target.click()
   }
   const fill = async (target: ReturnType<typeof page.getByRole>, value: string, label: string) => {
-    steps.push({ action: 'fill', target: label }); await target.fill(value)
+    steps.push({ action: 'fill', target: label })
+    await target.fill(value)
   }
   try {
     await click(page.getByRole('button', { name: '新建内容', exact: true }), '新建内容')
@@ -46,25 +54,49 @@ test('baseline: existing material and brief route to an editable exported master
       scope.creationDownload = 'waiting'
       session.defaultSession.once('will-download', (_event, item) => {
         item.setSavePath(destination)
-        item.once('done', (_event, result) => { scope.creationDownload = result })
+        item.once('done', (_event, result) => {
+          scope.creationDownload = result
+        })
       })
     }, destination)
     await click(page.getByRole('button', { name: '更多工作区操作' }), '更多操作')
     await click(page.getByRole('menuitem', { name: '导出当前文稿' }), '导出 Markdown')
-    await expect.poll(() => app.evaluate(() => (globalThis as unknown as { creationDownload: string }).creationDownload)).toBe('completed')
+    await expect
+      .poll(() =>
+        app.evaluate(() => (globalThis as unknown as { creationDownload: string }).creationDownload),
+      )
+      .toBe('completed')
     const exported = readFileSync(destination, 'utf8')
-    expect(exported).toContain('作者校订：先完成一次回顾。')
-    writeFileSync(join(directory, 'baseline.json'), JSON.stringify({
-      evidence: 'scripted Electron mock; synthetic fixture; not human usability data',
-      idea, note, steps, clicks: steps.filter(s => s.action === 'click').length,
-      inputOperations: steps.filter(s => s.action === 'fill').length,
-      keyboardShortcuts: 0, userKeystrokes: null,
-      elapsedAutomationMs: Date.now() - started, taskWaits: 1,
-      workspaceTransitions: 3, repeatedIntentEntries: 1,
-      rawNoteInGeneratedBody: generated.includes(note), exportMatchesEditedBody: true,
-      humanSuccessRate: null, humanWorkload: null, blindQualityScore: null,
-    }, null, 2))
+    expect(exported).toBe(`# ${idea}\n\n${await body.inputValue()}`)
+    writeFileSync(
+      join(directory, 'baseline.json'),
+      JSON.stringify(
+        {
+          evidence: 'scripted Electron mock; synthetic fixture; not human usability data',
+          idea,
+          note,
+          steps,
+          clicks: steps.filter((s) => s.action === 'click').length,
+          inputOperations: steps.filter((s) => s.action === 'fill').length,
+          keyboardShortcuts: 0,
+          userKeystrokes: null,
+          elapsedAutomationMs: Date.now() - started,
+          taskWaits: 1,
+          workspaceTransitions: 3,
+          repeatedIntentEntries: 1,
+          rawNoteInGeneratedBody: generated.includes(note),
+          exportMatchesEditedBody: true,
+          humanSuccessRate: null,
+          humanWorkload: null,
+          blindQualityScore: null,
+        },
+        null,
+        2,
+      ),
+    )
     writeFileSync(join(directory, 'baseline.md'), exported)
     await page.screenshot({ path: join(directory, 'baseline.png') })
-  } finally { await app.close() }
+  } finally {
+    await app.close()
+  }
 })

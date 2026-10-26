@@ -1,5 +1,12 @@
 import { test, expect } from '@playwright/test'
-import { applyCreation, beginCreation, composeCreation, creationSnapshot, finishCreation } from '../../src/renderer/src/studio/creation'
+import {
+  applyCreation,
+  beginCreation,
+  composeCreation,
+  creationSnapshot,
+  finishCreation,
+  recoverCreation,
+} from '../../src/renderer/src/studio/creation'
 import { makeProject, seedState } from '../../src/renderer/src/studio/mock'
 import { makeDraft } from '../../src/renderer/src/studio/types'
 
@@ -12,10 +19,30 @@ const fixture = () => {
   return { state, project }
 }
 
+test('restart and backup restore stop running snapshots and invalidate old callbacks', () => {
+  const { state, project } = fixture()
+  const started = beginCreation(state, project.id)
+  const running = started.state.projects[0]!
+  const recovered = recoverCreation(running.creation)!
+  expect(recovered.status).toBe('stopped')
+  expect(recovered.runId).toBeUndefined()
+  expect(recovered.input).toBe(project.creation!.input)
+  expect(recovered.snapshot).toEqual(running.creation!.snapshot)
+  running.creation = recovered
+  expect(finishCreation(started.state, project.id, started.runId!)).toBe(started.state)
+  const resumed = beginCreation(started.state, project.id)
+  expect(resumed.runId).toBeTruthy()
+  expect(finishCreation(resumed.state, project.id, resumed.runId!).projects[0]!.creation?.status).toBe(
+    'ready',
+  )
+})
+
 test('failure preserves input and drafts; retry actually replays composition', () => {
   const { state, project } = fixture()
   const first = beginCreation(state, project.id)
-  const failed = finishCreation(first.state, project.id, first.runId!, () => { throw new Error('injected generator failure') })
+  const failed = finishCreation(first.state, project.id, first.runId!, () => {
+    throw new Error('injected generator failure')
+  })
   expect(failed.projects[0]!.creation?.status).toBe('failed')
   expect(failed.projects[0]!.creation?.input).toBe(project.creation!.input)
   expect(failed.projects[0]!.drafts).toEqual(project.drafts)
@@ -28,10 +55,34 @@ test('failure preserves input and drafts; retry actually replays composition', (
 test('snapshot keeps original material; unavailable sources are never invented', () => {
   const { state, project } = fixture()
   state.materials = [
-    { id: 'raw', title: '未整理采访', type: 'text', body: '受访者说：我不确定。\n样本只有两人。', url: '', tags: [], at: '' },
-    { id: 'url', title: '仅链接', type: 'link', body: '', url: 'https://example.org/unread', tags: [], at: '' },
+    {
+      id: 'raw',
+      title: '未整理采访',
+      type: 'text',
+      body: '受访者说：我不确定。\n样本只有两人。',
+      url: '',
+      tags: [],
+      at: '',
+    },
+    {
+      id: 'url',
+      title: '仅链接',
+      type: 'link',
+      body: '',
+      url: 'https://example.org/unread',
+      tags: [],
+      at: '',
+    },
     { id: 'image', title: '未读图', type: 'image', body: '', url: '', tags: [], at: '' },
-    { id: 'other', title: '不属于本篇', type: 'text', body: 'PRIVATE-OTHER-PROJECT', url: '', tags: [], at: '' },
+    {
+      id: 'other',
+      title: '不属于本篇',
+      type: 'text',
+      body: 'PRIVATE-OTHER-PROJECT',
+      url: '',
+      tags: [],
+      at: '',
+    },
   ]
   project.materialIds = ['raw', 'url', 'image']
   project.brief.point = '不能推广到所有人'
@@ -84,6 +135,6 @@ test('manual edit while generating becomes a candidate; adoption versions both m
   p.drafts.master = makeDraft('已有标题', '原有正文')
   p.drafts.master.body = '未存快照的手改'
   const adopted = applyCreation(p, '新标题', '新候选正文')
-  expect(adopted.drafts.master!.versions.some(v => v.body === '未存快照的手改')).toBe(true)
+  expect(adopted.drafts.master!.versions.some((v) => v.body === '未存快照的手改')).toBe(true)
   expect(adopted.creation!.applied!.previousBody).toBe('未存快照的手改')
 })

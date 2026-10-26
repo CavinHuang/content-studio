@@ -16,6 +16,7 @@ import {
   ChevronDown,
   Clapperboard,
   Code2,
+  Copy,
   Download,
   Film,
   FileText,
@@ -38,7 +39,17 @@ import {
   Volume2,
   X,
 } from 'lucide-react'
-import { Badge, CheckOption, download, Empty, Field, IconButton, Modal, PageTitle } from '../components/ui'
+import {
+  Badge,
+  CheckOption,
+  copyText,
+  download,
+  Empty,
+  Field,
+  IconButton,
+  Modal,
+  PageTitle,
+} from '../components/ui'
 import { useStudio } from '../studio/store'
 import { makeVideo } from '../studio/mock'
 import { images } from '../studio/images'
@@ -65,11 +76,12 @@ function recalculate(shots: Shot[]) {
 export function VideosPage() {
   const { project, patchProject, state } = useStudio()
   const [create, setCreate] = useState(false)
-  const [mode, setMode] = useState<Video['mode']>('storyboard')
+  const [mode, setMode] = useState<Video['mode'] | null>(null)
   const [source, setSource] = useState('master')
   const [name, setName] = useState('')
   const selected = project.videos.find((v) => v.id === project.activeVideo)
   function add() {
+    if (!mode) return
     const video = makeVideo(
       mode,
       source === 'new' ? '新的创作想法' : project.drafts[source as 'master']?.title || project.title,
@@ -221,10 +233,22 @@ export function VideosPage() {
           onClose={() => setCreate(false)}
           footer={
             <>
-              <span className="small-meta">Mock · 视频工作台</span>
-              <Button className="button primary" onClick={add} variant="default" size="default">
+              <span className="muted sm:mr-auto">
+                {mode
+                  ? `将创建「${mode === 'code' ? 'Agent 代码创作' : '素材分镜'}」独立作品`
+                  : '还缺：选择一种制作方式'}
+              </span>
+              <Button
+                className="button secondary"
+                onClick={() => setCreate(false)}
+                variant="outline"
+                size="default"
+              >
+                取消
+              </Button>
+              <Button className="button primary" disabled={!mode} onClick={add} variant="default" size="default">
                 新建视频作品
-                <ArrowRight size={15} />
+                <Plus size={15} />
               </Button>
             </>
           }
@@ -587,6 +611,17 @@ function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => 
       ),
     }))
   }
+  const codeSnippet = `// Mock composition — read-only illustration
+const composition = {
+  title: ${JSON.stringify(previewVersion?.title)},
+  aspectRatio: ${JSON.stringify(video.ratio)},
+  accent: ${JSON.stringify(previewVersion?.color)},
+  interval: ${previewVersion?.interval},
+  scenes: ${JSON.stringify(previewVersion?.sceneTitles, null, 2)}
+};
+
+// The rendering engine will be integrated separately.
+// No external compilation or encoding is performed.`
   const labels =
     video.mode === 'code'
       ? [
@@ -1716,8 +1751,33 @@ function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => 
               title="动画代码 · 高级只读视图"
               description="以下是示例模板，界面未执行用户输入的代码；动画预览由本地组件呈现。"
               onClose={() => setCode(false)}
+              footer={
+                <>
+                  <Button
+                    className="button secondary"
+                    onClick={() =>
+                      void copyText(codeSnippet).then((ok) =>
+                        notify(ok ? '已复制动画代码。' : '复制失败，请在代码视图手动选择后复制。'),
+                      )
+                    }
+                    variant="outline"
+                    size="default"
+                  >
+                    <Copy size={15} />
+                    复制代码
+                  </Button>
+                  <Button
+                    className="button secondary"
+                    onClick={() => setCode(false)}
+                    variant="outline"
+                    size="default"
+                  >
+                    关闭
+                  </Button>
+                </>
+              }
             >
-              <pre className="code-view">{`// Mock composition — read-only illustration\nconst composition = {\n  title: ${JSON.stringify(previewVersion?.title)},\n  aspectRatio: ${JSON.stringify(video.ratio)},\n  accent: ${JSON.stringify(previewVersion?.color)},\n  interval: ${previewVersion?.interval},\n  scenes: ${JSON.stringify(previewVersion?.sceneTitles, null, 2)}\n};\n\n// The rendering engine will be integrated separately.\n// No external compilation or encoding is performed.`}</pre>
+              <pre className="code-view">{codeSnippet}</pre>
             </Modal>
           )}
         </TabsContent>
@@ -1746,22 +1806,32 @@ function ParameterDialog({
       description="模板只开放这些参数；保存后形成候选版本。"
       onClose={onClose}
       footer={
-        <Button
-          className="button primary"
-          disabled={!title.trim() || !scene.trim()}
-          onClick={() =>
-            onSave({
-              title,
-              color,
-              interval,
-              sceneTitles: version.sceneTitles.map((s, i) => (i === video.selectedScene ? scene : s)),
-            })
-          }
-          variant="default"
-          size="default"
-        >
-          保存为候选版本
-        </Button>
+        <>
+          <span className="muted sm:mr-auto">
+            {!title.trim() || !scene.trim()
+              ? `还缺：${[!title.trim() && '画面主标题', !scene.trim() && '场景名称'].filter(Boolean).join('、')}`
+              : '保存后形成候选版本，不影响当前已采用版本'}
+          </span>
+          <Button className="button secondary" onClick={onClose} variant="outline" size="default">
+            取消
+          </Button>
+          <Button
+            className="button primary"
+            disabled={!title.trim() || !scene.trim()}
+            onClick={() =>
+              onSave({
+                title,
+                color,
+                interval,
+                sceneTitles: version.sceneTitles.map((s, i) => (i === video.selectedScene ? scene : s)),
+              })
+            }
+            variant="default"
+            size="default"
+          >
+            保存为候选版本
+          </Button>
+        </>
       }
     >
       <Field label="画面主标题">

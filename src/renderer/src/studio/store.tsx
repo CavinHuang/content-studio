@@ -10,7 +10,7 @@ import {
   type SetStateAction,
 } from 'react'
 import { generateBody, makeProject, platformContent, seedState, topics } from './mock'
-import { applyCreation, beginCreation, creationSnapshot, finishCreation } from './creation'
+import { applyCreation, beginCreation, creationSnapshot, finishCreation, recoverCreation } from './creation'
 import {
   makeDraft,
   now,
@@ -45,9 +45,7 @@ function readState(): StudioState {
         ...saved,
         projects: saved.projects.map((project) => ({
           ...project,
-          creation: project.creation?.status === 'running'
-            ? { ...project.creation, status: 'stopped', message: '上次整理被中断。输入与素材已保留，可继续整理。' }
-            : project.creation,
+          creation: recoverCreation(project.creation),
           drafts: Object.fromEntries(
             Object.entries(project.drafts).map(([platform, draft]) => {
               if (!draft) return [platform, draft]
@@ -306,10 +304,17 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     setState((s) => ({ ...s, projects: [next, ...s.projects], selectedProject: next.id, page: 'article' }))
   }
   function updateCreationInput(input: string) {
-    patchProject(project.id, (p) => ({ ...p, creation: {
-      ...(p.creation ?? { input: '', status: 'idle' }), input, status: 'idle',
-      candidate: undefined, message: undefined, runId: undefined,
-    } }))
+    patchProject(project.id, (p) => ({
+      ...p,
+      creation: {
+        ...(p.creation ?? { input: '', status: 'idle' }),
+        input,
+        status: 'idle',
+        candidate: undefined,
+        message: undefined,
+        runId: undefined,
+      },
+    }))
   }
   function runCreation() {
     const id = project.id
@@ -319,36 +324,63 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     if (!started.runId) return
     const timer = setTimeout(() => {
       timers.current.delete(timer)
-      setState(s => finishCreation(s, id, started.runId!))
+      setState((s) => finishCreation(s, id, started.runId!))
     }, 1000)
     timers.current.add(timer)
   }
   function stopCreation() {
-    patchProject(project.id, p => ({ ...p, creation: p.creation ? {
-      ...p.creation, status: 'stopped', message: '整理已停止，输入、素材和母稿均已保留。',
-    } : undefined }))
+    patchProject(project.id, (p) => ({
+      ...p,
+      creation: p.creation
+        ? {
+            ...p.creation,
+            status: 'stopped',
+            message: '整理已停止，输入、素材和母稿均已保留。',
+          }
+        : undefined,
+    }))
   }
   function acceptCreation() {
-    patchProject(project.id, p => {
+    patchProject(project.id, (p) => {
       const flow = p.creation
       const candidate = flow?.candidate
       if (flow?.status !== 'candidate' || !candidate) return p
       const master = p.drafts.master!
-      if (candidate.baseTitle !== master.title || candidate.baseBody !== master.body ||
-          JSON.stringify(flow.snapshot) !== JSON.stringify(creationSnapshot(stateRef.current, p))) {
-        return { ...p, creation: { ...flow, message: '母稿、方向或素材已变化。请重新整理；现有正文和候选均已保留。' } }
+      if (
+        candidate.baseTitle !== master.title ||
+        candidate.baseBody !== master.body ||
+        JSON.stringify(flow.snapshot) !== JSON.stringify(creationSnapshot(stateRef.current, p))
+      ) {
+        return {
+          ...p,
+          creation: { ...flow, message: '母稿、方向或素材已变化。请重新整理；现有正文和候选均已保留。' },
+        }
       }
       return applyCreation(p, candidate.title, candidate.body)
     })
   }
   function undoCreation() {
-    patchProject(project.id, p => {
+    patchProject(project.id, (p) => {
       const applied = p.creation?.applied
       const master = p.drafts.master!
       if (!applied || master.title !== applied.title || master.body !== applied.body) return p
-      return { ...p, title: applied.previousTitle,
-        drafts: { ...p.drafts, master: versioned(master, { title: applied.previousTitle, body: applied.previousBody }, '撤销材料整理') },
-        creation: { ...p.creation!, status: 'idle', applied: undefined, message: '已撤销整理。原始输入和版本记录均保留。' },
+      return {
+        ...p,
+        title: applied.previousTitle,
+        drafts: {
+          ...p.drafts,
+          master: versioned(
+            master,
+            { title: applied.previousTitle, body: applied.previousBody },
+            '撤销材料整理',
+          ),
+        },
+        creation: {
+          ...p.creation!,
+          status: 'idle',
+          applied: undefined,
+          message: '已撤销整理。原始输入和版本记录均保留。',
+        },
       }
     })
   }

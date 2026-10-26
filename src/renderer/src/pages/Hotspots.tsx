@@ -27,7 +27,16 @@ import {
   Sparkles,
   TriangleAlert,
 } from 'lucide-react'
-import { Badge, CheckOption, Empty, Field, Modal, PageTitle, SearchBox } from '../components/ui'
+import {
+  Badge,
+  CheckOption,
+  Empty,
+  Field,
+  Modal,
+  PageTitle,
+  SearchBox,
+  SegmentedControl,
+} from '../components/ui'
 import { useStudio } from '../studio/store'
 import { topics } from '../studio/mock'
 import { images } from '../studio/images'
@@ -195,22 +204,20 @@ export function HotspotsPage() {
             label="搜索热点"
           />
           <div className="discovery-filters flex-wrap">
-            <div className="category-tabs min-w-0 max-w-full basis-full flex-wrap gap-1 md:basis-auto">
-              {['综合', 'AI 科技', '职场', '生活', '文化'].map((category) => (
-                <Button
-                  key={category}
-                  aria-pressed={filters.category === category}
-                  onClick={() =>
-                    filter({
-                      category,
-                    })
-                  }
-                  variant={filters.category === category ? 'secondary' : 'ghost'}
-                  size="sm"
-                >
-                  {category}
-                </Button>
-              ))}
+            <div className="category-tabs min-w-0 max-w-full basis-full md:basis-auto">
+              <SegmentedControl
+                label="热点分类"
+                value={filters.category}
+                onValueChange={(category) =>
+                  filter({
+                    category,
+                  })
+                }
+                options={['综合', 'AI 科技', '职场', '生活', '文化'].map((category) => ({
+                  value: category,
+                  label: category,
+                }))}
+              />
             </div>
             <NativeSelect
               aria-label="具体来源"
@@ -629,8 +636,8 @@ function TopicDetail({
           <Button
             key={angle}
             className={cn(
-              draft.angle === angle ? 'selected' : '',
               'h-auto justify-start whitespace-normal text-left',
+              draft.angle === angle && 'bg-[var(--selected-row)] hover:bg-[var(--selected-row)]',
             )}
             onClick={() =>
               patch({
@@ -712,6 +719,7 @@ export function SourcesPage() {
   const [editing, setEditing] = useState<Source | null>(null)
   const [error, setError] = useState('')
   const busy = state.tasks.some((t) => t.kind === 'source' && t.state === 'running')
+  const canSaveSource = !!editing?.name.trim() && !!editing?.url.trim()
   function refresh(source: Source) {
     task(`刷新 ${source.name}`, '演示更新此来源…', 'source', (s) => ({
       ...s,
@@ -917,6 +925,7 @@ export function SourcesPage() {
           onClose={() => setEditing(null)}
           footer={
             <>
+              {!canSaveSource && <span className="muted sm:mr-auto">还缺：来源名称与来源地址</span>}
               <Button
                 className="button secondary"
                 onClick={() => setEditing(null)}
@@ -925,7 +934,13 @@ export function SourcesPage() {
               >
                 取消
               </Button>
-              <Button className="button primary" onClick={save} variant="default" size="default">
+              <Button
+                className="button primary"
+                disabled={!canSaveSource}
+                onClick={save}
+                variant="default"
+                size="default"
+              >
                 保存来源
               </Button>
             </>
@@ -974,7 +989,10 @@ export function SourcesPage() {
               </NativeSelect>
             </Field>
           </div>
-          <Field label={editing.type === 'RSS' ? 'Feed URL' : '来源 URL'}>
+          <Field
+            label={editing.type === 'RSS' ? 'RSS 地址' : '来源 URL'}
+            hint={editing.type === 'RSS' ? '填写 RSS 或 Atom 订阅地址。' : undefined}
+          >
             <Input
               type="url"
               placeholder="https://example.com/feed.xml"

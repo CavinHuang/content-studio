@@ -1,0 +1,1 @@
+participant_id,experience,task_id,condition,order,success_level,assistance,total_seconds,system_wait_seconds,review_seconds,edit_seconds,recovery_seconds,clicks,input_operations,typed_characters,pasted_characters,shortcuts,page_transitions,repeated_intent_entries,creative_decisions,workflow_confirmations,errors,abandoned,tlx_score,notes,evidence_reference

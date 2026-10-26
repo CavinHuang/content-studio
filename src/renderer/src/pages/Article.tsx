@@ -60,7 +60,15 @@ export function PlatformDialog() {
       onClose={() => setPlatformsOpen(false)}
       footer={
         <>
-          <span className="muted">已选 {chosen.length} 个平台 · 演示适配</span>
+          <span className="muted sm:mr-auto">已选 {chosen.length} 个平台 · 演示适配</span>
+          <Button
+            className="button secondary"
+            onClick={() => setPlatformsOpen(false)}
+            variant="outline"
+            size="default"
+          >
+            取消
+          </Button>
           <Button
             className="button primary"
             disabled={!chosen.length || !project.drafts.master?.body.trim()}
@@ -813,7 +821,15 @@ export function ArticlePage() {
               onClose={() => setHistory(false)}
               footer={
                 <>
-                  <span className="muted">共 {draft.versions.length} 个修订版本</span>
+                  <span className="muted sm:mr-auto">共 {draft.versions.length} 个修订版本</span>
+                  <Button
+                    className="button secondary"
+                    onClick={() => setHistory(false)}
+                    variant="outline"
+                    size="default"
+                  >
+                    取消
+                  </Button>
                   <Button
                     className="button primary"
                     disabled={!selectedHistory}
