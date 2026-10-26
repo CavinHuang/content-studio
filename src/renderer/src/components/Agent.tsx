@@ -317,7 +317,7 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
                                 </strong>
                                 <small>
                                   {message.suggestion
-                                    ? `${platformName(message.suggestion.platform)} · ${message.suggestion.status === 'accepted' ? '已采用' : message.suggestion.status === 'pending' ? '等待对照' : '已处理'}`
+                                    ? `${platformName(message.suggestion.platform)} · ${message.suggestion.status === 'accepted' ? '已采用' : message.suggestion.status === 'pending' ? '待你确认' : '已处理'}`
                                     : '在中间继续调整'}
                                 </small>
                               </div>

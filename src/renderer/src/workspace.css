@@ -498,11 +498,18 @@
     color: var(--muted-foreground);
     @apply text-xs;
   }
+  .version-list > .selected {
+    background: var(--selected-row);
+    border-radius: var(--radius);
+  }
   .version-comparison {
     display: grid;
     grid-template-columns: 1fr 1fr;
     min-width: 0;
     @apply gap-3;
+  }
+  .version-comparison > .version-legend {
+    grid-column: 1 / -1;
   }
   .version-comparison p {
     white-space: pre-wrap;

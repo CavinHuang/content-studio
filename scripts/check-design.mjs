@@ -115,9 +115,9 @@ for (const file of files) {
   assert(!/variant="unstyled"|size="unset"/.test(source), `${file}: obsolete variants`)
 }
 // Copy gates from the v2.3 word table (docs/ux/DESIGN-SYSTEM.md N1/N4, UX-FIX-PLAN §1 门禁扩展).
-// App.tsx is not listed yet: its design-overview helper intentionally names docs/ux/index.html and
-// is owned by another batch; every page, panel component and studio data module is covered here.
+// Covers every page, panel component, App shell and studio data module.
 const copyFiles = [
+  `${root}/App.tsx`,
   `${root}/components/ui.tsx`,
   `${root}/components/Agent.tsx`,
   `${root}/components/StudioSidebar.tsx`,

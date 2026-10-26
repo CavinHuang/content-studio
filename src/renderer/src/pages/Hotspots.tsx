@@ -288,7 +288,7 @@ export function HotspotsPage() {
           </div>
           <div className="feed-summary">
             <span>{visible.length} 个聚合话题</span>
-            <span>{enabled.length} 个来源已启用 · 示例日期 10 月 25 日</span>
+            <span>{enabled.length} 个来源已启用 · 示例同步 10/25 09:40</span>
           </div>
           <div className="topic-list">
             {visible.map((topic) => {

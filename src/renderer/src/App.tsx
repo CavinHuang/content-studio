@@ -186,14 +186,14 @@ function Workbench() {
   async function openDesigns() {
     setMore(false)
     if (!window.desktop) {
-      notify('设计总览保存在项目 docs/ux/index.html，可从文件面板打开。')
+      notify('当前环境不支持直接打开，设计总览已随应用内置。')
       return
     }
     try {
       const result = await window.desktop.openDesigns()
       if (!result.ok) notify(result.message ?? '无法打开设计总览。')
     } catch {
-      notify('打开失败，请从 docs/ux/index.html 查看设计。')
+      notify('设计总览打开失败，请稍后重试。')
     }
   }
   function trashProject() {

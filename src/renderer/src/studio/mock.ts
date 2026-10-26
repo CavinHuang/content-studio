@@ -144,7 +144,7 @@ export const topics: Topic[] = [
         body: '',
         published: '10/25 08:10',
         collected: '10/24 14:00',
-        metric: '话题讨论 · 缓存示例',
+        metric: '话题讨论 · 已保留缓存',
       },
     ],
   },

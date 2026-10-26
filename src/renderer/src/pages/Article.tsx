@@ -70,7 +70,7 @@ export function PlatformDialog() {
       onClose={() => setPlatformsOpen(false)}
       footer={
         <>
-          <span className="muted sm:mr-auto">已选 {chosen.length} 个平台 · 演示适配</span>
+          <span className="muted sm:mr-auto">已选 {chosen.length} 个平台</span>
           <Button
             className="button secondary"
             onClick={() => setPlatformsOpen(false)}
@@ -103,6 +103,10 @@ export function PlatformDialog() {
           >
             全选
           </Button>
+          {/* C9：成对操作的统一分隔样式（与发布页一致） */}
+          <span aria-hidden className="text-muted-foreground">
+            ·
+          </span>
           <Button
             className="text-button text-muted-foreground"
             onClick={() => setChosen([])}
@@ -780,9 +784,7 @@ export function ArticlePage() {
                       <div className="document-kicker">
                         <span>
                           {platformName(platform)}
-                          {platform !== 'master'
-                            ? ` · 基于母稿 v${draft.sourceVersion ?? 1}`
-                            : ' · 一点想法，慢慢成形'}
+                          {platform !== 'master' ? ' · 独立平台稿' : ' · 一点想法，慢慢成形'}
                         </span>
                         <span>{Math.ceil(draft.body.replace(/\s/g, '').length / 400)} 分钟阅读</span>
                       </div>
@@ -911,8 +913,8 @@ export function ArticlePage() {
           )}
           <footer className="document-status">
             <span>
-              {draft.body.replace(/\s/g, '').length.toLocaleString()} 字 <span className="status-divider" />v
-              {latest?.number ?? 1}
+              {draft.body.replace(/\s/g, '').length.toLocaleString()} 字 <span className="status-divider" />
+              草稿 v{latest?.number ?? 1}
             </span>
           </footer>
           {history && (
@@ -979,13 +981,14 @@ export function ArticlePage() {
                   ))}
                 </div>
                 <div className="version-comparison">
+                  <p className="version-legend">高亮图例：绿色＝当前内容，陶土＝历史版本</p>
                   <div>
-                    <Badge tone="green">当前文稿</Badge>
+                    <Badge tone="orange">当前文稿</Badge>
                     <h3>{draft.title}</h3>
                     <VersionText body={draft.body} other={selectedHistory?.body ?? ''} kind="added" />
                   </div>
                   <div>
-                    <Badge tone="orange">历史 v{selectedHistory?.number}</Badge>
+                    <Badge tone="neutral">历史 v{selectedHistory?.number}</Badge>
                     <h3>{selectedHistory?.title}</h3>
                     <VersionText body={selectedHistory?.body ?? ''} other={draft.body} kind="removed" />
                   </div>
