@@ -367,7 +367,9 @@ export function SettingsPage() {
                   >
                     导出当前项目
                   </Button>
-                  <label className="button secondary file-button">
+                  {/* E1：与同排 outline 按钮同形态——label 原先无 flex 布局，
+                      preflight 的 svg display:block 让图标纵堆在文字上方且无边框底色。 */}
+                  <label className="file-button inline-flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md border bg-background px-3 text-sm font-medium shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground">
                     <FileUp size={15} />
                     导入全部备份
                     <input

@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useEffect, useRef, useState } from 'react'
 import {
   ArrowDownToLine,
+  ArrowLeft,
   ArrowRight,
   ArrowUpRight,
   Check,
@@ -69,6 +70,9 @@ export function MaterialsPage({ global = false }: { global?: boolean }) {
   const [tag, setTag] = useState('all')
   const [detail, setDetail] = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [tagDraft, setTagDraft] = useState('')
+  const [savedFlash, setSavedFlash] = useState(false)
+  const savedTimer = useRef<number | undefined>(undefined)
   const [expanded, setExpanded] = useState<string | null>(
     () =>
       state.materials.find(
@@ -78,6 +82,12 @@ export function MaterialsPage({ global = false }: { global?: boolean }) {
   useEffect(() => {
     setScope(global ? 'all' : 'project')
   }, [global, project.id])
+  useEffect(() => {
+    setTagDraft('')
+    setSavedFlash(false)
+    window.clearTimeout(savedTimer.current)
+  }, [detail])
+  useEffect(() => () => window.clearTimeout(savedTimer.current), [])
   const active = state.materials.find((m) => m.id === detail)
   const deleting = state.materials.find((m) => m.id === deleteId)
   const all = state.materials.filter((m) => !m.trashed)
@@ -98,6 +108,28 @@ export function MaterialsPage({ global = false }: { global?: boolean }) {
         .toLocaleLowerCase()
         .includes(normalizedQuery),
   )
+  // 详情弹窗为自动保存模型（DESIGN-SYSTEM v2.3「弹窗 footer 规范」详情模板）：
+  // 字段改动直接写入 store，短暂闪烁「已保存」作为保存回执。
+  function flashSaved() {
+    setSavedFlash(true)
+    window.clearTimeout(savedTimer.current)
+    savedTimer.current = window.setTimeout(() => setSavedFlash(false), 1600)
+  }
+  function patchMaterial(id: string, patch: Partial<Material>) {
+    setState((s) => ({
+      ...s,
+      materials: s.materials.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+    }))
+    flashSaved()
+  }
+  function addTag(material: Material) {
+    const t = tagDraft.trim()
+    setTagDraft('')
+    if (!t || material.tags.includes(t)) return
+    patchMaterial(material.id, {
+      tags: [...material.tags, t],
+    })
+  }
   function toggleReference(material: Material) {
     const exists = project.materialIds.includes(material.id)
     patchProject(project.id, (p) => ({
@@ -161,9 +193,22 @@ export function MaterialsPage({ global = false }: { global?: boolean }) {
             </TabsTrigger>
           </TabsList>
         </Tabs>
-        <span className="small-meta">
-          {scope === 'project' ? project.title || '未命名内容' : '跨项目复用'}
-        </span>
+        {scope === 'project' ? (
+          <span className="small-meta flex min-w-0 items-center gap-2">
+            <span className="min-w-0 truncate">当前文稿：{project.title || '未命名内容'}</span>
+            <Button
+              className="text-button h-auto shrink-0 p-0 text-primary"
+              onClick={() => navigate('article')}
+              variant="ghost"
+              size="sm"
+            >
+              <ArrowLeft size={13} />
+              返回文稿
+            </Button>
+          </span>
+        ) : (
+          <span className="small-meta">跨项目复用</span>
+        )}
       </div>
       <div className="material-search-row">
         <SearchBox
@@ -173,19 +218,24 @@ export function MaterialsPage({ global = false }: { global?: boolean }) {
           placeholder="搜索素材标题、正文或标签…"
           label="搜索素材"
         />
-        <div className="material-filters">
-          <NativeSelect
-            aria-label="素材类型筛选"
-            value={type}
-            onChange={(event) => setType(event.target.value)}
-          >
-            <option value="all">全部类型</option>
-            {Object.entries(typeInfo).map(([id, item]) => (
-              <option key={id} value={id}>
-                {item.name}
-              </option>
+        <div className="material-filters flex-wrap">
+          <div className="filter-chips min-w-0" role="group" aria-label="素材类型筛选">
+            {(['all', 'text', 'link', 'image', 'file'] as const).map((id) => (
+              <Button
+                key={id}
+                aria-pressed={type === id}
+                onClick={() => setType(id)}
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  type === id &&
+                    'bg-[var(--selected-platform)] text-foreground hover:bg-[var(--selected-platform)]',
+                )}
+              >
+                {id === 'all' ? '全部类型' : typeInfo[id].name}
+              </Button>
             ))}
-          </NativeSelect>
+          </div>
           <NativeSelect aria-label="素材标签筛选" value={tag} onChange={(e) => setTag(e.target.value)}>
             <option value="all">全部标签</option>
             {[...new Set(all.flatMap((m) => m.tags))].map((t) => (
@@ -369,7 +419,15 @@ export function MaterialsPage({ global = false }: { global?: boolean }) {
                 <Trash2 size={15} />
                 删除原素材
               </Button>
-              <span className="muted">更改自动保存</span>
+              <span className="muted inline-flex items-center gap-1.5" aria-live="polite">
+                <span>更改自动保存</span>
+                {savedFlash && (
+                  <span className="inline-flex items-center gap-1 text-success">
+                    <Check size={13} />
+                    已保存
+                  </span>
+                )}
+              </span>
               <div className="button-row">
                 <Button
                   className="button secondary"
@@ -423,19 +481,7 @@ export function MaterialsPage({ global = false }: { global?: boolean }) {
           <Field label="标题">
             <Input
               value={active.title}
-              onChange={(e) =>
-                setState((s) => ({
-                  ...s,
-                  materials: s.materials.map((m) =>
-                    m.id === active.id
-                      ? {
-                          ...m,
-                          title: e.target.value,
-                        }
-                      : m,
-                  ),
-                }))
-              }
+              onChange={(e) => patchMaterial(active.id, { title: e.target.value })}
             />
           </Field>
           <Field label={active.type === 'link' ? '原文片段 / 你的摘录' : '正文与备注'}>
@@ -444,26 +490,43 @@ export function MaterialsPage({ global = false }: { global?: boolean }) {
               value={active.body}
               placeholder="可以粘贴原文片段，或记下你的理解…"
               onChange={(e) =>
-                setState((s) => ({
-                  ...s,
-                  materials: s.materials.map((m) =>
-                    m.id === active.id
-                      ? {
-                          ...m,
-                          body: e.target.value,
-                          readState: e.target.value ? 'ready' : 'link-only',
-                        }
-                      : m,
-                  ),
-                }))
+                patchMaterial(active.id, {
+                  body: e.target.value,
+                  readState: e.target.value ? 'ready' : 'link-only',
+                })
               }
             />
           </Field>
-          <div className="tag-row">
-            {active.tags.map((t) => (
-              <span key={t}>{t}</span>
-            ))}
-          </div>
+          <Field label="标签" hint="点标签删除，输入新标签后回车添加。">
+            <div className="tag-row items-center">
+              {active.tags.map((t) => (
+                <Button
+                  key={t}
+                  aria-label={`删除标签：${t}`}
+                  onClick={() => patchMaterial(active.id, { tags: active.tags.filter((x) => x !== t) })}
+                  variant="ghost"
+                  size="xs"
+                  className="rounded-full bg-[var(--muted)] px-2.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                >
+                  {t}
+                  <X />
+                </Button>
+              ))}
+              <Input
+                value={tagDraft}
+                aria-label="添加标签"
+                placeholder="添加标签，回车保存"
+                className="h-8 w-36 text-xs"
+                onChange={(e) => setTagDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    addTag(active)
+                  }
+                }}
+              />
+            </div>
+          </Field>
           <p className="small-meta">
             引用此素材：
             {state.projects

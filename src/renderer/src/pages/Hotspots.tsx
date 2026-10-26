@@ -676,7 +676,7 @@ function TopicDetail({
           }
         />
       </Field>
-      <div className="topic-create-footer">
+      <div className="topic-create-footer sticky bottom-0 z-10 -mx-4 -mb-4 rounded-none border-x-0 border-b-0 px-4 pb-4">
         <p>
           <Layers size={15} />
           带入 {chosen.length} 篇原文，来自 {new Set(chosen.flatMap((a) => a.sourceIds)).size} 个来源

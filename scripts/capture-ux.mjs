@@ -229,7 +229,7 @@ try {
   await page.getByRole('button', { name: '发布准备', exact: true }).click()
   await page.getByRole('button', { name: /发布记录 1/ }).click()
   await page.getByRole('dialog').getByRole('button', { name: /批次/ }).first().click()
-  await page.getByRole('button', { name: '记录发布', exact: true }).click()
+  await page.getByRole('button', { name: '标记公众号已发布', exact: true }).click()
   await capture('32-publish-record', '15-publish-handoff.png', '人工发布结果记录')
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: /发布记录 1/ }).click()

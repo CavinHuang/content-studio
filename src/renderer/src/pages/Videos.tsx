@@ -253,13 +253,19 @@ export function VideosPage() {
             </>
           }
         >
-          <div className="mode-picker">
+          {/* D2：两条路线改卡片式单选——选中用 primary 描边 + 浅陶土底（N3 选中态规范），
+          未选择时主按钮保持禁用，footer muted 说明还缺什么。 */}
+          <div className="mode-picker" role="radiogroup" aria-label="制作方式">
             <Button
+              aria-checked={mode === 'storyboard'}
               className={cn(
-                mode === 'storyboard' ? 'selected' : '',
-                'h-auto justify-start whitespace-normal text-left',
+                'h-auto items-start justify-start whitespace-normal rounded-xl border p-4 text-left',
+                mode === 'storyboard'
+                  ? 'border-primary bg-[var(--selected-platform)] [&>strong]:text-foreground'
+                  : 'border-border',
               )}
               onClick={() => setMode('storyboard')}
+              role="radio"
               variant="ghost"
               size="default"
             >
@@ -268,11 +274,15 @@ export function VideosPage() {
               <p>脚本 · 配图 · 配音与字幕</p>
             </Button>
             <Button
+              aria-checked={mode === 'code'}
               className={cn(
-                mode === 'code' ? 'selected' : '',
-                'h-auto justify-start whitespace-normal text-left',
+                'h-auto items-start justify-start whitespace-normal rounded-xl border p-4 text-left',
+                mode === 'code'
+                  ? 'border-primary bg-[var(--selected-platform)] [&>strong]:text-foreground'
+                  : 'border-border',
               )}
               onClick={() => setMode('code')}
+              role="radio"
               variant="ghost"
               size="default"
             >
@@ -312,12 +322,17 @@ function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => 
   const [code, setCode] = useState(false)
   const [parameters, setParameters] = useState(false)
   const [shotHistory, setShotHistory] = useState(false)
+  // D5：播放器上报的当前镜头，驱动时间轴节点随播放进度联动高亮；未播放时回退到手选镜头。
+  const [playbackScene, setPlaybackScene] = useState<number | null>(null)
   const previewVersion = video.versions.find((v) => v.number === previewNumber) ?? video.versions.at(-1)
   const shot = video.shots.find((s) => s.id === video.selectedShot) ?? video.shots[0]!
   const total = video.shots.reduce((s, shot) => s + shot.seconds, 0)
   const running = state.tasks.some((t) => t.state === 'running' && t.videoId === video.id)
   const exportTask = state.tasks.find((t) => t.kind === 'export' && t.videoId === video.id)
   const isCandidate = previewVersion?.number !== video.adopted
+  // S7 一屏一个实心主按钮：内容区已存在 primary 动作的屏（19 创作说明、20 版本、13 配音、
+  // 候选预览的「采用此版」）里，底部「导出视频」降为 outline。
+  const exportPrimary = video.mode === 'code' ? tab === 'preview' && !isCandidate : tab !== 'voice'
   function patch(value: Partial<Video>) {
     patchProject(project.id, (p) => ({
       ...p,
@@ -696,7 +711,14 @@ const composition = {
         <div className="video-tabs min-w-0 flex-wrap gap-2">
           <TabsList className="category-tabs max-w-full" variant="line" aria-label="视频制作步骤">
             {labels.map((label) => (
-              <TabsTrigger key={label.id} className={tab === label.id ? 'active' : ''} value={label.id}>
+              <TabsTrigger
+                key={label.id}
+                className={tab === label.id ? 'active' : ''}
+                value={label.id}
+                // D19：导出子页激活时其宿主页签被「视频导出」面板取代，禁用并以半透明弱化，
+                // 返回主路径只保留面板内的「返回作品预览」。
+                disabled={exportStatus && tab === label.id}
+              >
                 {label.label}
               </TabsTrigger>
             ))}
@@ -785,7 +807,17 @@ const composition = {
                   </span>
                 </li>
               </ol>
-              <p role="status">{exportTask?.detail ?? '作品已保留，可返回继续编辑。'}</p>
+              <p
+                role="status"
+                className={cn(
+                  // D6：失败说明脱离输入框式容器，改 warning 语义条（警示图标 + 警示底）。
+                  exportTask?.state === 'failed' &&
+                    'flex items-start gap-2 border-0 bg-warning-background p-3 text-warning',
+                )}
+              >
+                {exportTask?.state === 'failed' && <TriangleAlert size={16} className="mt-0.5 shrink-0" />}
+                {exportTask?.detail ?? '作品已保留，可返回继续编辑。'}
+              </p>
               <div className="button-row">
                 {exportTask && ['failed', 'stopped'].includes(exportTask.state) && (
                   <Button variant="default" onClick={() => controlTask(exportTask.id, 'retry')}>
@@ -823,7 +855,7 @@ const composition = {
             )}
           </section>
         )}
-        <TabsContent value={tab} className="video-content">
+        <TabsContent value={tab} className="video-content pb-3">
           {video.mode === 'code' && (!video.confirmed || tab === 'brief') ? (
             <div className="code-brief">
               <div className="section-heading">
@@ -1398,36 +1430,46 @@ const composition = {
                     )}
                     <span className="small-meta">本地界面预览 · 无音轨</span>
                   </div>
-                  <VideoPlayer video={video} version={previewVersion} />
+                  <VideoPlayer video={video} version={previewVersion} onSceneChange={setPlaybackScene} />
                   <div className="scene-strip">
-                    {video.shots.map((s, i) => (
-                      <Button
-                        key={s.id}
-                        className={cn(
-                          (video.mode === 'code' ? video.selectedScene === i : video.selectedShot === s.id)
-                            ? 'selected'
-                            : '',
-                          'h-auto justify-start whitespace-normal text-left',
-                        )}
-                        onClick={() =>
-                          patch({
-                            selectedShot: s.id,
-                            selectedScene: i,
-                          })
-                        }
-                        variant="ghost"
-                        size="default"
-                      >
-                        <span>0{i + 1}</span>
-                        <div>
-                          <strong>{video.mode === 'code' ? previewVersion?.sceneTitles[i] : s.title}</strong>
-                          <small>
-                            {timeLabel(video.shots.slice(0, i).reduce((n, s) => n + s.seconds, 0))} —{' '}
-                            {timeLabel(video.shots.slice(0, i + 1).reduce((n, s) => n + s.seconds, 0))}
-                          </small>
-                        </div>
-                      </Button>
-                    ))}
+                    {video.shots.map((s, i) => {
+                      const active =
+                        (playbackScene ??
+                          (video.mode === 'code'
+                            ? video.selectedScene
+                            : Math.max(
+                                0,
+                                video.shots.findIndex((item) => item.id === video.selectedShot),
+                              ))) === i
+                      return (
+                        <Button
+                          key={s.id}
+                          className={cn(
+                            active && 'text-primary',
+                            'h-auto justify-start whitespace-normal text-left',
+                          )}
+                          onClick={() =>
+                            patch({
+                              selectedShot: s.id,
+                              selectedScene: i,
+                            })
+                          }
+                          variant="ghost"
+                          size="default"
+                        >
+                          <span className={active ? 'text-primary' : undefined}>0{i + 1}</span>
+                          <div>
+                            <strong className={active ? 'text-primary' : undefined}>
+                              {video.mode === 'code' ? previewVersion?.sceneTitles[i] : s.title}
+                            </strong>
+                            <small>
+                              {timeLabel(video.shots.slice(0, i).reduce((n, s) => n + s.seconds, 0))} —{' '}
+                              {timeLabel(video.shots.slice(0, i + 1).reduce((n, s) => n + s.seconds, 0))}
+                            </small>
+                          </div>
+                        </Button>
+                      )
+                    })}
                   </div>
                   {video.mode === 'code' ? (
                     <div className="scene-parameters">
@@ -1518,30 +1560,6 @@ const composition = {
               )}
             </>
           )}
-          <div className="video-bottom-bar">
-            <span className="small-meta">
-              {video.lastExport
-                ? `上次演示快照 v${video.lastExport.version}${video.lastExport.version !== video.adopted ? ' · 未包含最新修改' : ''}`
-                : '预览不等于已导出文件'}
-            </span>
-            <Button className="button secondary" onClick={exportManifest} variant="outline" size="default">
-              <Download size={15} />
-              制作清单
-            </Button>
-            <Button
-              className="button primary"
-              disabled={!video.confirmed || running}
-              onClick={() => {
-                if (video.mode === 'storyboard') saveShotVersion('导出前分镜快照')
-                setExporting(true)
-              }}
-              variant="default"
-              size="default"
-            >
-              <Film size={15} />
-              导出视频
-            </Button>
-          </div>
           {settings && (
             <Modal
               title="视频设置 · 全片范围"
@@ -1703,7 +1721,10 @@ const composition = {
                             ? version.shots.map((s) => s.title).join(' / ')
                             : '初始示例记录，无恢复快照'}
                         </span>
-                        {isCurrent && <Badge tone="green">当前版本</Badge>}
+                        {/* D8：与动画侧版本列表（20）同一套采用状态徽标。 */}
+                        <Badge tone={isCurrent ? 'green' : 'orange'}>
+                          {isCurrent ? '当前已采用' : '历史 / 候选'}
+                        </Badge>
                       </div>
                       {!isCurrent && (
                         <Button
@@ -1781,6 +1802,35 @@ const composition = {
             </Modal>
           )}
         </TabsContent>
+        {/* S9：常驻工具条移出页签内容区、作为工作台末位子项——短内容（19 创作说明 / 20 版本）
+        也贴住面板底缘（TabsContent flex-1 + 工具条 mt-auto），长内容仍由 sticky 吸底；
+        导出子页激活时随内容区一并隐藏，行为与迁移前一致。 */}
+        {!exportStatus && (
+          <div className="video-bottom-bar mt-auto">
+            <span className="small-meta">
+              {video.lastExport
+                ? `上次演示快照 v${video.lastExport.version}${video.lastExport.version !== video.adopted ? ' · 未包含最新修改' : ''}`
+                : '预览不等于已导出文件'}
+            </span>
+            <Button className="button secondary" onClick={exportManifest} variant="outline" size="default">
+              <Download size={15} />
+              制作清单
+            </Button>
+            <Button
+              className={exportPrimary ? 'button primary' : 'button secondary'}
+              disabled={!video.confirmed || running}
+              onClick={() => {
+                if (video.mode === 'storyboard') saveShotVersion('导出前分镜快照')
+                setExporting(true)
+              }}
+              variant={exportPrimary ? 'default' : 'outline'}
+              size="default"
+            >
+              <Film size={15} />
+              导出视频
+            </Button>
+          </div>
+        )}
       </section>
     </Tabs>
   )
@@ -1858,7 +1908,15 @@ function ParameterDialog({
     </Modal>
   )
 }
-function VideoPlayer({ video, version }: { video: Video; version?: VideoVersion }) {
+function VideoPlayer({
+  video,
+  version,
+  onSceneChange,
+}: {
+  video: Video
+  version?: VideoVersion
+  onSceneChange?: (index: number) => void
+}) {
   const { state, notify } = useStudio()
   const [playing, setPlaying] = useState(false),
     [time, setTime] = useState(0)
@@ -1893,6 +1951,10 @@ function VideoPlayer({ video, version }: { video: Video; version?: VideoVersion 
     }),
   )
   const shot = video.shots[index] ?? video.shots[0]!
+  useEffect(() => {
+    // D5：把播放位置换算出的当前镜头同步给时间轴（仅在跨镜头时触发）。
+    onSceneChange?.(index)
+  }, [index, onSceneChange])
   return (
     <div className="video-player">
       <div

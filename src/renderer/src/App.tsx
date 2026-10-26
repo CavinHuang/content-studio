@@ -36,7 +36,7 @@ import { AgentPanel } from './components/Agent'
 import { download, Field, IconButton, Modal } from './components/ui'
 import { StudioProvider, useStudio } from './studio/store'
 import { makeProject } from './studio/mock'
-import { type Artifact, type Project } from './studio/types'
+import { type Artifact, type Page, type Project } from './studio/types'
 import { ArticlePage, PlatformDialog } from './pages/Article'
 import { BriefPage } from './pages/Brief'
 import { HotspotsPage, SourcesPage } from './pages/Hotspots'
@@ -45,17 +45,19 @@ import { VideosPage } from './pages/Videos'
 import { PublishPage } from './pages/Publish'
 import { SettingsPage } from './pages/Settings'
 import { TasksPage } from './pages/Tasks'
-const pageNames = {
-  hotspots: '热点发现',
-  sources: '热点 / 来源管理',
-  library: '全局素材库',
-  settings: '工作台设置',
-  tasks: '任务中心',
-  publish: '发布准备',
-  plan: '创作方案',
-  article: '文稿',
-  video: '视频',
-  materials: '参考素材',
+// 面包屑分区命名（G4）：首段固定复用侧栏同名入口，二级页用「>」连接，
+// 不再自创「/」分隔或另起分区名（48「热点 / 来源管理」即由此修掉）。
+const pageCrumbs: Record<Page, { section: string; page?: string }> = {
+  hotspots: { section: '热点' },
+  sources: { section: '热点', page: '来源管理' },
+  library: { section: '素材库' },
+  settings: { section: '设置' },
+  tasks: { section: '任务中心' },
+  publish: { section: '发布准备' },
+  plan: { section: '创作方案' },
+  article: { section: '文稿' },
+  video: { section: '视频' },
+  materials: { section: '参考素材' },
 }
 export function App() {
   return (
@@ -267,9 +269,15 @@ function Workbench() {
             </div>
           ) : (
             <div className="global-breadcrumb">
-              <span>工作区</span>
-              <ChevronRight size={14} />
-              <strong>{pageNames[state.page]}</strong>
+              {pageCrumbs[state.page].page ? (
+                <>
+                  <span>{pageCrumbs[state.page].section}</span>
+                  <ChevronRight size={14} />
+                  <strong>{pageCrumbs[state.page].page}</strong>
+                </>
+              ) : (
+                <strong>{pageCrumbs[state.page].section}</strong>
+              )}
             </div>
           )}
           <div className="header-actions">
@@ -288,8 +296,14 @@ function Workbench() {
             )}
             <DropdownMenu open={more} onOpenChange={setMore}>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="更多工作区操作">
+                <Button variant="ghost" size="icon" aria-label="更多工作区操作（含设置）" className="relative">
                   <MoreHorizontal size={18} />
+                  {/* 关闭态提示（G2）：手机档没有常驻侧栏，「…」是设置等全局入口的唯一黑盒，
+                      给一个静默小圆点提示菜单内有设置；桌面档侧栏常驻，不显示。 */}
+                  <span
+                    aria-hidden="true"
+                    className="absolute top-1.5 right-1.5 hidden size-1.5 rounded-full bg-primary max-[767px]:block"
+                  />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -309,7 +323,7 @@ function Workbench() {
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => navigate('settings')}>
                   <Settings size={15} />
-                  工作台设置
+                  设置
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -323,7 +337,11 @@ function Workbench() {
             {renderPage()}
           </TabsContent>
         ) : (
-          <div className="current-artifact" role="region" aria-label={pageNames[state.page]}>
+          <div
+            className="current-artifact"
+            role="region"
+            aria-label={pageCrumbs[state.page].page ?? pageCrumbs[state.page].section}
+          >
             {renderPage()}
           </div>
         )}
@@ -424,9 +442,11 @@ function Workbench() {
         </SheetContent>
       </Sheet>
       <nav className="mobile-navigation" aria-label="手机主要导航">
+        {/* 激活态（G1）：当前分区墨绿图标+文字，非当前分区弱化为次要文字色，
+            与桌面侧栏的选中机制对应。 */}
         <Button
           className={cn(
-            state.page === 'library' ? 'active' : '',
+            state.page === 'library' ? 'active text-primary' : 'text-muted-foreground',
             'h-auto justify-start whitespace-normal text-left',
           )}
           onClick={() => setCaptureOpen(true)}
@@ -437,7 +457,10 @@ function Workbench() {
           收集
         </Button>
         <Button
-          className={cn(projectPage ? 'active' : '', 'h-auto justify-start whitespace-normal text-left')}
+          className={cn(
+            projectPage ? 'active text-primary' : 'text-muted-foreground',
+            'h-auto justify-start whitespace-normal text-left',
+          )}
           onClick={() => go(project.activeTab)}
           variant="ghost"
           size="default"
@@ -447,7 +470,7 @@ function Workbench() {
         </Button>
         <Button
           className={cn(
-            state.page === 'tasks' ? 'active' : '',
+            state.page === 'tasks' ? 'active text-primary' : 'text-muted-foreground',
             'h-auto justify-start whitespace-normal text-left',
           )}
           onClick={() => go('tasks')}

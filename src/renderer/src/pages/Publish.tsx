@@ -224,6 +224,11 @@ export function PublishPage() {
   }
   return (
     <section ref={pageRef} className={`workspace-page publish-page ${batch ? 'has-batch' : ''}`}>
+      <div className="mb-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+        <span>文稿</span>
+        <span aria-hidden>·</span>
+        <span className="font-medium text-foreground">发布准备</span>
+      </div>
       <PageTitle
         back={() => (batch ? setBatchId(null) : navigate('article'))}
         eyebrow="A GOOD IDEA DESERVES TO BE SHARED"
@@ -246,15 +251,19 @@ export function PublishPage() {
         }
       />
       <div className="publish-stepper">
-        <span className={!batch ? 'active' : 'done'}>
-          <i>{batch ? <Check size={13} /> : '1'}</i>选择平台
+        <span className={cn(!batch ? 'active text-foreground' : 'done text-muted-foreground')}>
+          <i className={cn(!batch && 'bg-primary text-primary-foreground', batch && 'text-primary')}>
+            {batch ? <Check size={13} /> : '1'}
+          </i>
+          选择平台
+        </span>
+        <div className={batch ? 'border-primary' : ''} />
+        <span className={cn(batch ? 'active text-foreground' : 'text-muted-foreground')}>
+          <i className={cn(batch && 'bg-primary text-primary-foreground')}>2</i>
+          预览与交付
         </span>
         <div />
-        <span className={batch ? 'active' : ''}>
-          <i>2</i>预览与交付
-        </span>
-        <div />
-        <span>
+        <span className="text-muted-foreground">
           <i>3</i>手动记录发布
         </span>
       </div>
@@ -404,7 +413,17 @@ export function PublishPage() {
               >
                 <PlatformMark platform={item.platform} />
                 <span>{platformName(item.platform)}</span>
-                <i className={item.status === 'published' ? 'published-dot' : ''} />
+                <i
+                  aria-hidden
+                  className={cn(
+                    'size-1.5 shrink-0 rounded-full',
+                    item.status === 'published'
+                      ? 'bg-success'
+                      : isItemReady(item)
+                        ? 'bg-muted-foreground/50'
+                        : 'bg-warning',
+                  )}
+                />
                 {item.status === 'published' && <Check size={13} />}
               </Button>
             ))}
@@ -536,7 +555,7 @@ export function PublishPage() {
                         size="default"
                       >
                         <Check size={15} />
-                        记录发布
+                        标记{platformName(current.platform)}已发布
                       </Button>
                     )}
                   </div>
@@ -574,10 +593,10 @@ export function PublishPage() {
                 .join('、') || '暂无可交付内容'}
             </span>
             <Button
-              className="button primary"
+              className="button secondary"
               disabled={!batch.items.some(isItemReady)}
               onClick={exportBatch}
-              variant="default"
+              variant="outline"
               size="default"
             >
               <Download size={15} />
@@ -652,7 +671,11 @@ export function PublishPage() {
                     {dateLabel(item.at)} · {item.items.map((i) => platformName(i.platform)).join(' / ')}
                   </span>
                 </div>
-                <Badge tone="green">
+                <Badge
+                  tone={
+                    item.items.every((i) => i.status === 'published') ? 'green' : 'neutral'
+                  }
+                >
                   已记录 {item.items.filter((i) => i.status === 'published').length} / {item.items.length}
                 </Badge>
                 <ArrowRight size={16} />
