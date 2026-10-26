@@ -6,6 +6,7 @@ import {
   useCallback,
   useId,
   useRef,
+  useEffect,
   type ComponentProps,
   type RefObject,
   type ReactNode,
@@ -268,6 +269,12 @@ export function Modal({
   wide?: boolean
   footer?: ReactNode
 }) {
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('studio:modal-visibility', { detail: 1 }))
+    return () => {
+      window.dispatchEvent(new CustomEvent('studio:modal-visibility', { detail: -1 }))
+    }
+  }, [])
   const previousFocus = useRef(document.activeElement as HTMLElement | null)
   const trackScrollArea = useCallback((container: HTMLDivElement | null) => {
     if (!container) return
@@ -305,9 +312,16 @@ export function Modal({
         )}
         showCloseButton={false}
         onCloseAutoFocus={(event) => {
-          if (previousFocus.current?.isConnected) {
+          if (previousFocus.current) {
             event.preventDefault()
-            previousFocus.current.focus()
+            const target = previousFocus.current
+            requestAnimationFrame(() => {
+              if (target.isConnected) target.focus()
+              else
+                requestAnimationFrame(() => {
+                  if (target.isConnected) target.focus()
+                })
+            })
           }
         }}
       >

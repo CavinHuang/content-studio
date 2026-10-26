@@ -9,8 +9,16 @@ import {
   type ReactNode,
   type SetStateAction,
 } from 'react'
-import { generateBody, makeProject, platformContent, seedState, topics } from './mock'
-import { applyCreation, beginCreation, creationSnapshot, finishCreation, recoverCreation } from './creation'
+import { makeProject, platformContent, seedState, topics } from './mock'
+import {
+  applyCreation,
+  beginCreation,
+  creationSnapshot,
+  finishCreation,
+  recoverCreation,
+  stopCreationRun,
+  syncCreationTask,
+} from './creation'
 import {
   makeDraft,
   now,
@@ -153,6 +161,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   const [platformsOpen, setPlatformsOpen] = useState(false)
   const [agentDrafts, setAgentDrafts] = useState<Record<string, AgentDraft>>({})
   const timers = useRef(new Set<ReturnType<typeof setTimeout>>())
+  const creationTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
   const stateRef = useRef(state)
   stateRef.current = state
   const project =
@@ -212,25 +221,52 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     },
     [],
   )
+  useEffect(() => {
+    const running = state.projects.filter(
+      (p) => !p.trashed && p.creation?.status === 'running' && p.creation.runId,
+    )
+    const active = new Set(running.map((p) => p.creation!.runId!))
+    for (const [runId, timer] of creationTimers.current) {
+      if (!active.has(runId)) {
+        clearTimeout(timer)
+        timers.current.delete(timer)
+        creationTimers.current.delete(runId)
+      }
+    }
+    for (const p of running) {
+      const runId = p.creation!.runId!
+      if (creationTimers.current.has(runId)) continue
+      const timer = setTimeout(() => {
+        timers.current.delete(timer)
+        setState((s) => finishCreation(s, p.id, runId))
+      }, 1000)
+      creationTimers.current.set(runId, timer)
+      timers.current.add(timer)
+    }
+  }, [state.projects])
   const patchProject = useCallback(
     (id: string, updater: (p: Project) => Project) =>
-      setState((s) => ({
-        ...s,
-        projects: s.projects.map((p) => (p.id === id ? { ...updater(p), updated: now() } : p)),
-      })),
+      setState((s) =>
+        syncCreationTask(
+          {
+            ...s,
+            projects: s.projects.map((p) => (p.id === id ? { ...updater(p), updated: now() } : p)),
+          },
+          id,
+        ),
+      ),
     [],
   )
   function navigate(page: Page) {
-    if (['plan', 'article', 'video', 'materials'].includes(page))
+    if (['article', 'video'].includes(page))
       patchProject(project.id, (p) => ({ ...p, activeTab: page as Artifact }))
     setState((s) => ({ ...s, page }))
   }
   function selectProject(id: string, tab?: Artifact) {
-    setState((s) => ({
-      ...s,
-      selectedProject: id,
-      page: tab ?? s.projects.find((p) => p.id === id)?.activeTab ?? 'article',
-    }))
+    setState((s) => {
+      const previous = s.projects.find((p) => p.id === id)?.activeTab
+      return { ...s, selectedProject: id, page: tab ?? (previous === 'video' ? 'video' : 'article') }
+    })
   }
   function patchDraft(patch: Partial<Draft>, label?: string, platform = project.activePlatform) {
     patchProject(project.id, (p) => {
@@ -279,6 +315,21 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   function controlTask(id: string, action: 'stop' | 'retry') {
     const target = state.tasks.find((t) => t.id === id)
     if (!target) return
+    if (target.kind === 'creation') {
+      setState((s) => {
+        const current = s.tasks.find((t) => t.id === id)
+        const owner = s.projects.find((p) => p.id === current?.projectId && !p.trashed)
+        if (!current || !owner) return s
+        if (action === 'stop') return owner.creation?.runId === id ? stopCreationRun(s, owner.id) : s
+        return beginCreation(s, owner.id).state
+      })
+      notify(
+        action === 'stop'
+          ? '整理已停止，记录与母稿保留。'
+          : '已按这篇内容的当前记录重新整理；已有正文会保留。',
+      )
+      return
+    }
     if (action === 'stop') {
       setState((s) => ({
         ...s,
@@ -304,41 +355,37 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     setState((s) => ({ ...s, projects: [next, ...s.projects], selectedProject: next.id, page: 'article' }))
   }
   function updateCreationInput(input: string) {
-    patchProject(project.id, (p) => ({
-      ...p,
-      creation: {
-        ...(p.creation ?? { input: '', status: 'idle' }),
-        input,
-        status: 'idle',
-        candidate: undefined,
-        message: undefined,
-        runId: undefined,
-      },
-    }))
+    const id = project.id
+    setState((s) => {
+      const stopped = stopCreationRun(s, id, '原始记录已修改，旧整理任务已停止。')
+      return {
+        ...stopped,
+        projects: stopped.projects.map((p) =>
+          p.id === id
+            ? {
+                ...p,
+                updated: now(),
+                creation: {
+                  ...(p.creation ?? { input: '', status: 'idle' }),
+                  input,
+                  source: 'input',
+                  status: 'idle',
+                  candidate: undefined,
+                  message: undefined,
+                  runId: undefined,
+                },
+              }
+            : p,
+        ),
+      }
+    })
   }
   function runCreation() {
     const id = project.id
-    // Compute outside React's updater: a replay must not schedule a second task.
-    const started = beginCreation(stateRef.current, id)
-    setState(started.state)
-    if (!started.runId) return
-    const timer = setTimeout(() => {
-      timers.current.delete(timer)
-      setState((s) => finishCreation(s, id, started.runId!))
-    }, 1000)
-    timers.current.add(timer)
+    setState((s) => beginCreation(s, id).state)
   }
   function stopCreation() {
-    patchProject(project.id, (p) => ({
-      ...p,
-      creation: p.creation
-        ? {
-            ...p.creation,
-            status: 'stopped',
-            message: '整理已停止，输入、素材和母稿均已保留。',
-          }
-        : undefined,
-    }))
+    setState((s) => stopCreationRun(s, project.id))
   }
   function acceptCreation() {
     patchProject(project.id, (p) => {
@@ -443,49 +490,21 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   }
   function generateArticle() {
     const id = project.id
-    const title = project.brief.topic || project.title || '从一个想法开始'
-    const brief = structuredClone(project.brief)
-    const sourceBody = project.drafts.master?.body ?? ''
-    const sourceTitle = project.drafts.master?.title ?? ''
-    const taskId = task('生成母稿', '正在按已确认方案整理示例初稿…', 'agent', (s) => {
-      const current = s.projects.find((p) => p.id === id)
-      if (
-        !current ||
-        current.trashed ||
-        current.drafts.master?.body !== sourceBody ||
-        current.drafts.master.title !== sourceTitle
-      )
-        return {
-          ...s,
-          tasks: s.tasks.map((t) =>
-            t.id === taskId
-              ? {
-                  ...t,
-                  state: 'failed',
-                  detail: '母稿在生成期间有新修改，已保留手改内容。请基于新稿重新发起。',
-                }
-              : t,
-          ),
-        }
+    setState((s) => {
+      const started = beginCreation(s, id, 'plan').state
       return {
-        ...s,
-        page: s.selectedProject === id ? 'article' : s.page,
-        projects: s.projects.map((p) => {
-          if (p.id !== id) return p
-          const old = p.drafts.master ?? makeDraft(title)
-          const next = versioned(old, { title, body: generateBody(title, brief) }, '按创作方案生成（示例）')
-          return {
-            ...p,
-            title,
-            brief: { ...p.brief, confirmed: JSON.stringify(p.brief) === JSON.stringify(brief) },
-            activeTab: 'article',
-            activePlatform: 'master',
-            drafts: { ...p.drafts, master: next },
-          }
-        }),
+        ...started,
+        page: 'article',
+        projects: started.projects.map((p) =>
+          p.id === id ? { ...p, activeTab: 'article', activePlatform: 'master' } : p,
+        ),
       }
     })
-    notify(sourceBody ? '将保留现有母稿为历史版本，再生成示例稿。' : '正在生成示例初稿…')
+    notify(
+      project.drafts.master?.body.trim()
+        ? '正在基于方案、原始记录和素材准备候选，现有母稿保留。'
+        : '正在基于方案、原始记录和素材整理底稿。',
+    )
   }
   function generatePlatforms(platforms: Platform[]) {
     const id = project.id
@@ -571,11 +590,13 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       platform = project.activePlatform
     const capturedContext = context
     const sourceDraft = structuredClone(project.drafts[platform] ?? makeDraft(project.title))
+    const sharedContext = creationSnapshot(state, project)
     const userMessage = {
       id: uid(),
       role: 'user' as const,
       text: capturedContext ? `引用：${capturedContext.label}\n「${capturedContext.text}」\n\n${text}` : text,
       at: now(),
+      context: sharedContext,
     }
     patchProject(id, (p) => ({
       ...p,
@@ -591,6 +612,37 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     }))
     setComposer('')
     setContext(null)
+    if (project.creation && !sourceDraft.body.trim()) {
+      setState((s) => {
+        const projects = s.projects.map((p) =>
+          p.id === id
+            ? {
+                ...p,
+                creation: { ...p.creation!, input: p.creation!.input.trim() ? p.creation!.input : text },
+                conversations: p.conversations.map((c) =>
+                  c.id === conversationId
+                    ? {
+                        ...c,
+                        messages: [
+                          ...c.messages,
+                          {
+                            id: uid(),
+                            role: 'assistant' as const,
+                            at: now(),
+                            action: 'article' as const,
+                            text: '已带入这篇内容的原始记录与参考素材，正在整理底稿。整理完成后可直接在正文继续编辑。（演示）',
+                          },
+                        ],
+                      }
+                    : c,
+                ),
+              }
+            : p,
+        )
+        return beginCreation({ ...s, projects }, id).state
+      })
+      return
+    }
     const wantsPlan = /方案|选题|方向|大纲/.test(text)
     const wantsPlatforms = /平台|小红书|公众号|知乎|适配|串文/.test(text)
     const wantsVideo = /视频|动画|镜头|画面/.test(text)
@@ -616,7 +668,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
               brief: {
                 ...p.brief,
                 topic: p.title || text.slice(0, 28),
-                point: '把零散记录整理成自己的观点，让表达回应一个具体的问题。',
+                point: p.brief.point,
               },
             }
         } else if (wantsPlatforms) {

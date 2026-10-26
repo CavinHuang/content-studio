@@ -1,0 +1,76 @@
+{
+  "evidence": "scripted Electron mock; synthetic fixture; not human usability data",
+  "idea": "少收集一点，给每周回顾留出时间",
+  "note": "周五原始记录：我存了 12 个链接，只重读了 2 条。下周先重读，再决定要不要继续收藏。",
+  "steps": [
+    {
+      "action": "click",
+      "target": "新建内容"
+    },
+    {
+      "action": "click",
+      "target": "作品工具"
+    },
+    {
+      "action": "click",
+      "target": "参考素材"
+    },
+    {
+      "action": "click",
+      "target": "收集素材"
+    },
+    {
+      "action": "fill",
+      "target": "保存原始记录"
+    },
+    {
+      "action": "click",
+      "target": "保存并引用"
+    },
+    {
+      "action": "click",
+      "target": "作品工具"
+    },
+    {
+      "action": "click",
+      "target": "创作方案"
+    },
+    {
+      "action": "fill",
+      "target": "选题"
+    },
+    {
+      "action": "fill",
+      "target": "重复填写观点"
+    },
+    {
+      "action": "click",
+      "target": "确认并生成"
+    },
+    {
+      "action": "click",
+      "target": "切换到编辑"
+    },
+    {
+      "action": "fill",
+      "target": "校订正文"
+    },
+    {
+      "action": "click",
+      "target": "导出 Markdown"
+    }
+  ],
+  "clicks": 10,
+  "inputOperations": 4,
+  "keyboardShortcuts": 0,
+  "userKeystrokes": null,
+  "elapsedAutomationMs": 28467,
+  "taskWaits": 1,
+  "workspaceTransitions": 3,
+  "repeatedIntentEntries": 1,
+  "rawNoteInGeneratedBody": true,
+  "exportMatchesEditedBody": true,
+  "humanSuccessRate": null,
+  "humanWorkload": null,
+  "blindQualityScore": null
+}

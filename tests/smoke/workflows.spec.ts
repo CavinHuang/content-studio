@@ -26,6 +26,7 @@ test.beforeEach(async () => {
   })
   await page.setViewportSize({ width: 1480, height: 960 })
   await expect(page.getByLabel('文稿标题', { exact: true })).toHaveValue('让灵感成为作品')
+  await page.getByRole('button', { name: '展开 Agent', exact: true }).click()
 })
 test.afterEach(async ({}, info) => {
   try {
@@ -36,6 +37,15 @@ test.afterEach(async ({}, info) => {
   }
 })
 const artifacts = () => page.getByRole('tablist', { name: '内容产物' })
+async function tool(name: string) {
+  const local = page.getByRole('tablist', { name: '作品辅助内容' }).getByRole('tab', { name, exact: true })
+  if (await local.isVisible()) {
+    await local.click()
+    return
+  }
+  await page.getByRole('button', { name: '作品工具', exact: true }).click()
+  await page.getByRole('menuitem', { name, exact: true }).click()
+}
 
 test('suggestions, independent platform editing, stale-source notice and version restore', async () => {
   const suggestion = page.getByRole('region', { name: 'Agent 修改建议' })
@@ -105,11 +115,11 @@ test('multi-source discovery becomes a new project without mixing its conversati
   await expect(page.getByRole('checkbox').nth(2)).not.toBeChecked()
   await page.getByRole('button', { name: '用这个角度开始创作', exact: true }).click()
   await expect(page.getByLabel('核心观点')).toHaveValue('把 AI 当作整理工具，保留自己的判断。')
-  await expect(page.getByText('已带入', { exact: false })).toBeVisible()
+  await expect(page.getByText('从热点发起 · 已保留来源快照', { exact: true })).toBeVisible()
   await page.getByLabel('核心观点').fill('先形成问题，再使用工具整理信息，最后用自己的话表达。')
   await page.getByRole('button', { name: '确认方案，生成母稿', exact: true }).click()
   await expect(page.getByLabel('文稿标题', { exact: true })).toHaveValue('AI 工具，能帮普通人持续创作吗？')
-  await artifacts().getByRole('tab', { name: '素材', exact: true }).click()
+  await tool('参考素材')
   await expect(page.getByText('工具替我们省下的时间，去了哪里？', { exact: true })).toBeVisible()
   await expect(page.getByText('一人创作工作流，正在变轻', { exact: true })).toHaveCount(0)
 })
@@ -126,7 +136,7 @@ test('publish targets are explicit, snapshots are frozen, and copy does not mark
   await page.getByRole('button', { name: '小红书', exact: true }).click()
   await page.getByRole('button', { name: '复制正文', exact: true }).click()
   await expect(page.getByText('等待手动交付', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '记录发布', exact: true }).click()
+  await page.getByRole('button', { name: '标记小红书已发布', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog.getByRole('button', { name: '保存发布记录' })).toBeDisabled()
   await dialog.getByRole('checkbox').check()
@@ -134,7 +144,7 @@ test('publish targets are explicit, snapshots are frozen, and copy does not mark
   await expect(page.getByText('已记录发布', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '改回未发布', exact: true }).click()
   await expect(page.getByText('等待手动交付', { exact: true })).toBeVisible()
-  await artifacts().getByRole('tab', { name: '文稿', exact: true }).click()
+  await page.getByRole('button', { name: '返回文稿编辑', exact: true }).click()
   await page.getByRole('tab', { name: '编辑', exact: true }).click()
   await page.getByLabel('文稿标题', { exact: true }).fill('批次建立之后的新标题')
   await page.getByRole('button', { name: '发布准备', exact: true }).click()
@@ -144,18 +154,18 @@ test('publish targets are explicit, snapshots are frozen, and copy does not mark
 })
 
 test('material capture, reference removal and recycle restore preserve original and inserted text', async () => {
-  await artifacts().getByRole('tab', { name: '素材', exact: true }).click()
+  await tool('参考素材')
   await page.getByRole('button', { name: '收集素材', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await dialog.getByRole('textbox', { name: '标题（可选）' }).fill('新的观察笔记')
   await dialog.getByRole('textbox', { name: '写下你的想法' }).fill('先观察具体场景，再做出自己的判断。')
   await dialog.getByRole('button', { name: '保存并引用', exact: true }).click()
   await page.getByRole('button', { name: '查看素材：新的观察笔记', exact: true }).click()
-  await page.getByRole('dialog').getByRole('button', { name: '插入文稿', exact: true }).click()
+  await page.getByRole('dialog').getByRole('button', { name: '插入正文', exact: true }).click()
   await expect(page.locator('.document-preview')).toContainText('先观察具体场景，再做出自己的判断。')
-  await artifacts().getByRole('tab', { name: '素材', exact: true }).click()
+  await tool('参考素材')
   await page.getByRole('button', { name: '查看素材：新的观察笔记', exact: true }).click()
-  await page.getByRole('dialog').getByRole('button', { name: '移除本篇引用', exact: true }).click()
+  await page.getByRole('dialog').getByRole('button', { name: '移除本篇参考', exact: true }).click()
   await page.getByRole('dialog').getByRole('button', { name: '删除原素材', exact: true }).click()
   await page
     .getByRole('dialog', { name: '将原素材移入回收站？' })
@@ -165,6 +175,8 @@ test('material capture, reference removal and recycle restore preserve original 
   await page.getByRole('tab', { name: '数据与导出', exact: true }).click()
   await page.getByRole('button', { name: '恢复', exact: true }).click()
   await page.getByRole('button', { name: '返回', exact: true }).click()
+  if (await page.getByRole('button', { name: '关闭作品工具', exact: true }).count())
+    await page.getByRole('button', { name: '关闭作品工具', exact: true }).click()
   await artifacts().getByRole('tab', { name: '文稿', exact: true }).click()
   await expect(page.locator('.document-preview')).toContainText('先观察具体场景，再做出自己的判断。')
 })
@@ -252,8 +264,7 @@ test('real downloads contain the fixed draft, current subtitles and a restorable
   }
   const markdown = join(directory, 'draft.md')
   await captureDownload(markdown)
-  await page.getByRole('button', { name: '更多工作区操作' }).click()
-  await page.getByRole('menuitem', { name: '导出当前文稿', exact: true }).click()
+  await page.getByRole('button', { name: '导出当前文稿', exact: true }).click()
   await expect
     .poll(() => app.evaluate(() => (globalThis as unknown as { studioDownload: string }).studioDownload))
     .toBe('completed')

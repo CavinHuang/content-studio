@@ -1,0 +1,291 @@
+{
+  "date": "2026-10-26",
+  "evidence": "Isolated Electron; synthetic data; combined latest result per case, not one clean full-suite run",
+  "uniqueCases": 45,
+  "latestPassed": 45,
+  "latestNotPassed": 0,
+  "phases": [
+    {
+      "phase": "playwright-run",
+      "stats": {
+        "startTime": "2026-10-26T10:36:19.75Z",
+        "duration": 815683.359,
+        "expected": 44,
+        "skipped": 0,
+        "unexpected": 1,
+        "flaky": 0
+      }
+    },
+    {
+      "phase": "final-regression",
+      "stats": {
+        "startTime": "2026-10-26T10:51:20.346Z",
+        "duration": 369093.512,
+        "expected": 23,
+        "skipped": 0,
+        "unexpected": 1,
+        "flaky": 0
+      }
+    },
+    {
+      "phase": "focus-regression",
+      "stats": {
+        "startTime": "2026-10-26T11:00:29.856Z",
+        "duration": 37419.939,
+        "expected": 1,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      }
+    },
+    {
+      "phase": "interaction-final",
+      "stats": {
+        "startTime": "2026-10-26T11:04:27.833Z",
+        "duration": 216084.823,
+        "expected": 7,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      }
+    },
+    {
+      "phase": "task-final",
+      "stats": {
+        "startTime": "2026-10-26T11:08:58.411Z",
+        "duration": 21611.912,
+        "expected": 1,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      }
+    }
+  ],
+  "cases": [
+    {
+      "file": "creation-flow.spec.ts",
+      "title": "stop, modify direction and reload keep raw inputs without accepting late results",
+      "status": "passed"
+    },
+    {
+      "file": "design-system.spec.ts",
+      "title": "unsent Agent drafts stay with their conversation and references preserve typed instructions",
+      "status": "passed"
+    },
+    {
+      "file": "creation-state.spec.ts",
+      "title": "failure preserves input and drafts; retry actually replays composition",
+      "status": "passed"
+    },
+    {
+      "file": "design-system.spec.ts",
+      "title": "form controls retain upstream typography and borders across business layouts",
+      "status": "passed"
+    },
+    {
+      "file": "layout-fixes.spec.ts",
+      "title": "diff reconstructs both documents including large fallback and empty paragraphs",
+      "status": "passed"
+    },
+    {
+      "file": "creation-state.spec.ts",
+      "title": "snapshot keeps original material; unavailable sources are never invented",
+      "status": "passed"
+    },
+    {
+      "file": "layout-fixes.spec.ts",
+      "title": "one project navigation, contextual tools preserve editing, global pages hide the project agent",
+      "status": "passed"
+    },
+    {
+      "file": "design-system.spec.ts",
+      "title": "save failures offer a retry while successful saves remain a status",
+      "status": "passed"
+    },
+    {
+      "file": "creation-flow.spec.ts",
+      "title": "direction changes produce reviewed candidates; manual edits block stale adoption and undo",
+      "status": "passed"
+    },
+    {
+      "file": "creation-flow.spec.ts",
+      "title": "prototype: same raw task, editable master and exact Markdown export with fewer explicit actions",
+      "status": "passed"
+    },
+    {
+      "file": "desktop.spec.ts",
+      "title": "desktop boots with its isolated preload bridge and editable React workspace",
+      "status": "passed"
+    },
+    {
+      "file": "design-system.spec.ts",
+      "title": "responsive sheets, sources switch and local assets remain usable",
+      "status": "passed"
+    },
+    {
+      "file": "layout-followup.spec.ts",
+      "title": "capacity errors remain visible after closing direction dialog and can be corrected without retyping records",
+      "status": "passed"
+    },
+    {
+      "file": "creation-state.spec.ts",
+      "title": "manual edit while generating becomes a candidate; adoption versions both manual and generated text",
+      "status": "passed"
+    },
+    {
+      "file": "design-system.spec.ts",
+      "title": "conversation menus handle long labels, keyboard selection and focus recovery",
+      "status": "passed"
+    },
+    {
+      "file": "workflows.spec.ts",
+      "title": "material capture, reference removal and recycle restore preserve original and inserted text",
+      "status": "passed"
+    },
+    {
+      "file": "design-system.spec.ts",
+      "title": "workspace survives responsive layout changes and long material dialogs stay usable",
+      "status": "passed"
+    },
+    {
+      "file": "workflows.spec.ts",
+      "title": "video routes stay independent and animation parameters become adoptable candidates",
+      "status": "passed"
+    },
+    {
+      "file": "design-system.spec.ts",
+      "title": "artifact tabs keep mouse selection clean and keyboard focus visible",
+      "status": "passed"
+    },
+    {
+      "file": "workflows.spec.ts",
+      "title": "multi-source discovery becomes a new project without mixing its conversation with the original",
+      "status": "passed"
+    },
+    {
+      "file": "creation-state.spec.ts",
+      "title": "stopping and retrying a creation task preserves input, isolates projects and invalidates late callbacks",
+      "status": "passed"
+    },
+    {
+      "file": "creation-state.spec.ts",
+      "title": "old callbacks, duplicate runs and trashed projects never write; changing projects does not redirect results",
+      "status": "passed"
+    },
+    {
+      "file": "workflows.spec.ts",
+      "title": "publish targets are explicit, snapshots are frozen, and copy does not mark published",
+      "status": "passed"
+    },
+    {
+      "file": "creation-state.spec.ts",
+      "title": "a legacy project enters the same plan pipeline; changing plan or materials blocks automatic writing",
+      "status": "passed"
+    },
+    {
+      "file": "design-system.spec.ts",
+      "title": "tokens, keyboard tabs, typography sliders, dialog focus and resize persistence",
+      "status": "passed"
+    },
+    {
+      "file": "creation-state.spec.ts",
+      "title": "restart and backup restore stop running snapshots and invalidate old callbacks",
+      "status": "passed"
+    },
+    {
+      "file": "layout-followup.spec.ts",
+      "title": "plan entry shares raw context and stages a candidate before replacing an authored master",
+      "status": "passed"
+    },
+    {
+      "file": "creation-baseline.spec.ts",
+      "title": "legacy material and brief route stays usable through contextual tools",
+      "status": "passed"
+    },
+    {
+      "file": "layout-fixes.spec.ts",
+      "title": "mobile tasks are visible and all platform preview fields are read only",
+      "status": "passed"
+    },
+    {
+      "file": "creation-flow.spec.ts",
+      "title": "only a missing topic interrupts; links and notes survive the correction",
+      "status": "passed"
+    },
+    {
+      "file": "layout-fixes.spec.ts",
+      "title": "candidate occupies the workspace with one scroll area and reachable actions at desktop and mobile",
+      "status": "passed"
+    },
+    {
+      "file": "layout-fixes.spec.ts",
+      "title": "tablet widths keep a visible editable workspace after resizing, reload and sidebar toggle",
+      "status": "passed"
+    },
+    {
+      "file": "workflows.spec.ts",
+      "title": "real downloads contain the fixed draft, current subtitles and a restorable backup",
+      "status": "passed"
+    },
+    {
+      "file": "layout-followup.spec.ts",
+      "title": "task center stops and resumes the actual creation across reload and project switches",
+      "status": "passed"
+    },
+    {
+      "file": "workflows.spec.ts",
+      "title": "suggestions, independent platform editing, stale-source notice and version restore",
+      "status": "passed"
+    },
+    {
+      "file": "workflows.spec.ts",
+      "title": "mobile layout stays single-column with usable navigation, capture and agent",
+      "status": "passed"
+    },
+    {
+      "file": "layout-followup.spec.ts",
+      "title": "mobile platform picker creates a new version and returns to its current draft on cancel",
+      "status": "passed"
+    },
+    {
+      "file": "layout-followup.spec.ts",
+      "title": "video tools preserve the active video, local editor state and mobile return focus",
+      "status": "passed"
+    },
+    {
+      "file": "design-system.spec.ts",
+      "title": "sidebar project navigation, project actions and desktop/mobile shortcuts",
+      "status": "passed"
+    },
+    {
+      "file": "creation-flow.spec.ts",
+      "title": "small viewport keeps a keyboard accessible creation and export path",
+      "status": "passed"
+    },
+    {
+      "file": "layout-fixes.spec.ts",
+      "title": "new creation has one input and no premature publish; agent resumes the same raw context",
+      "status": "passed"
+    },
+    {
+      "file": "creation-state.spec.ts",
+      "title": "plan generation keeps raw records and linked materials, stages changes and tracks the actual task",
+      "status": "passed"
+    },
+    {
+      "file": "design-system.spec.ts",
+      "title": "filters recover from empty results and keep search and expansion accessible",
+      "status": "passed"
+    },
+    {
+      "file": "creation-state.spec.ts",
+      "title": "missing intent asks once without losing raw input; large input is not silently truncated",
+      "status": "passed"
+    },
+    {
+      "file": "design-system.spec.ts",
+      "title": "AI Elements input respects composition, newline, context and independent conversation",
+      "status": "passed"
+    }
+  ]
+}

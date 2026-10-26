@@ -6,6 +6,7 @@ import {
   creationSnapshot,
   finishCreation,
   recoverCreation,
+  stopCreationRun,
 } from '../../src/renderer/src/studio/creation'
 import { makeProject, seedState } from '../../src/renderer/src/studio/mock'
 import { makeDraft } from '../../src/renderer/src/studio/types'
@@ -137,4 +138,64 @@ test('manual edit while generating becomes a candidate; adoption versions both m
   const adopted = applyCreation(p, '新标题', '新候选正文')
   expect(adopted.drafts.master!.versions.some((v) => v.body === '未存快照的手改')).toBe(true)
   expect(adopted.creation!.applied!.previousBody).toBe('未存快照的手改')
+})
+
+test('plan generation keeps raw records and linked materials, stages changes and tracks the actual task', () => {
+  const { state, project } = fixture()
+  project.drafts.master = makeDraft('已写标题', '作者手写正文')
+  project.brief.topic = '新的方案选题'
+  project.brief.outline = ['第一部分', '第二部分']
+  project.materialIds = [state.materials[0]!.id]
+  const started = beginCreation(state, project.id, 'plan')
+  expect(started.state.tasks.filter((t) => t.id === started.runId)).toHaveLength(1)
+  expect(started.state.tasks[0]!.state).toBe('running')
+  expect(beginCreation(started.state, project.id, 'plan').state).toBe(started.state)
+  const finished = finishCreation(started.state, project.id, started.runId!)
+  const next = finished.projects[0]!
+  expect(next.drafts.master!.body).toBe('作者手写正文')
+  expect(next.creation!.status).toBe('candidate')
+  expect(next.creation!.candidate!.title).toBe('新的方案选题')
+  expect(next.creation!.candidate!.body).toContain(project.creation!.input.split('\n')[1]!)
+  expect(next.creation!.candidate!.body.replace(/^> ?/gm, '')).toContain(state.materials[0]!.body)
+  expect(next.creation!.candidate!.body).toContain('第一部分')
+  expect(finished.tasks[0]!.state).toBe('complete')
+  expect(finished.tasks[0]!.detail).toContain('候选')
+})
+
+test('a legacy project enters the same plan pipeline; changing plan or materials blocks automatic writing', () => {
+  const { state, project } = fixture()
+  delete project.creation
+  project.brief.topic = '旧作品的方案'
+  const started = beginCreation(state, project.id, 'plan')
+  expect(started.runId).toBeTruthy()
+  started.state.projects[0]!.brief.outline = ['生成期间新改的大纲']
+  const finished = finishCreation(started.state, project.id, started.runId!)
+  expect(finished.projects[0]!.drafts.master!.body).toBe('')
+  expect(finished.projects[0]!.creation!.status).toBe('candidate')
+  expect(finished.projects[0]!.creation!.snapshot).not.toEqual(
+    creationSnapshot(finished, finished.projects[0]!),
+  )
+})
+
+test('stopping and retrying a creation task preserves input, isolates projects and invalidates late callbacks', () => {
+  const { state, project } = fixture()
+  const first = beginCreation(state, project.id)
+  const stopped = stopCreationRun(first.state, project.id)
+  expect(stopped.tasks[0]!.state).toBe('stopped')
+  expect(stopped.projects[0]!.creation!.input).toBe(project.creation!.input)
+  expect(finishCreation(stopped, project.id, first.runId!)).toBe(stopped)
+  stopped.selectedProject = stopped.projects[1]!.id
+  const other = structuredClone(stopped.projects[1]!)
+  const retry = beginCreation(stopped, project.id)
+  const failed = finishCreation(retry.state, project.id, retry.runId!, () => {
+    throw new Error('injected failure')
+  })
+  expect(failed.tasks[0]!.state).toBe('failed')
+  expect(failed.tasks[1]!.state).toBe('stopped')
+  const next = beginCreation(failed, project.id)
+  const done = finishCreation(next.state, project.id, next.runId!)
+  expect(done.tasks[0]!.state).toBe('complete')
+  expect(done.projects[1]).toEqual(other)
+  expect(done.selectedProject).toBe(other.id)
+  expect(done.projects[0]!.drafts.master!.body).toContain('只有 2 次观察')
 })

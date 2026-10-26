@@ -92,6 +92,7 @@ const files = [
   `${root}/components/Agent.tsx`,
   `${root}/components/StudioSidebar.tsx`,
   `${root}/components/CreationFlow.tsx`,
+  `${root}/components/CreationComparison.tsx`,
   ...(await readdir(`${root}/pages`)).filter((n) => n.endsWith('.tsx')).map((n) => `${root}/pages/${n}`),
 ]
 for (const file of files) {
@@ -121,6 +122,7 @@ const copyFiles = [
   `${root}/components/Agent.tsx`,
   `${root}/components/StudioSidebar.tsx`,
   `${root}/components/CreationFlow.tsx`,
+  `${root}/components/CreationComparison.tsx`,
   `${root}/studio/creation.ts`,
   `${root}/studio/mock.ts`,
   `${root}/studio/store.tsx`,

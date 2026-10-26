@@ -1,0 +1,256 @@
+{
+  "evidence": "local Electron cognitive walkthrough; synthetic seed; no human participant study",
+  "screens": [
+    {
+      "id": "13-tablet-fresh-1099",
+      "viewport": {
+        "width": 1099,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 256,
+        "height": 960,
+        "bottom": 960
+      },
+      "sidebarStyle": "width: 256px; flex-shrink: 0;",
+      "compactMedia": false,
+      "main": {
+        "x": 256,
+        "y": 0,
+        "width": 843,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": null,
+      "creation": null,
+      "title": {
+        "x": 280,
+        "y": 128,
+        "width": 790,
+        "height": 44,
+        "bottom": 172
+      },
+      "body": null,
+      "inputAreas": [],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 492,
+        "contentWidth": 492,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [
+        {
+          "tag": "DIV",
+          "class": "document-scroll",
+          "x": 256,
+          "y": 112,
+          "width": 843,
+          "height": 812,
+          "bottom": 924
+        }
+      ],
+      "primaryActions": []
+    },
+    {
+      "id": "13-tablet-fresh-1000",
+      "viewport": {
+        "width": 1000,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 256,
+        "height": 960,
+        "bottom": 960
+      },
+      "sidebarStyle": "width: 256px; flex-shrink: 0;",
+      "compactMedia": true,
+      "main": {
+        "x": 256,
+        "y": 0,
+        "width": 744,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": null,
+      "creation": null,
+      "title": {
+        "x": 280,
+        "y": 149,
+        "width": 691,
+        "height": 44,
+        "bottom": 193
+      },
+      "body": null,
+      "inputAreas": [],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 392,
+        "contentWidth": 392,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [
+        {
+          "tag": "DIV",
+          "class": "document-scroll",
+          "x": 256,
+          "y": 133,
+          "width": 744,
+          "height": 791,
+          "bottom": 924
+        }
+      ],
+      "primaryActions": []
+    },
+    {
+      "id": "13-tablet-fresh-768",
+      "viewport": {
+        "width": 768,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 256,
+        "height": 960,
+        "bottom": 960
+      },
+      "sidebarStyle": "width: 256px; flex-shrink: 0;",
+      "compactMedia": true,
+      "main": {
+        "x": 256,
+        "y": 0,
+        "width": 512,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": null,
+      "creation": null,
+      "title": {
+        "x": 280,
+        "y": 169,
+        "width": 459,
+        "height": 44,
+        "bottom": 213
+      },
+      "body": null,
+      "inputAreas": [],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 160,
+        "contentWidth": 160,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [
+        {
+          "tag": "DIV",
+          "class": "document-scroll",
+          "x": 256,
+          "y": 153,
+          "width": 512,
+          "height": 771,
+          "bottom": 924
+        }
+      ],
+      "primaryActions": []
+    },
+    {
+      "id": "14-tablet-sidebar-collapsed",
+      "viewport": {
+        "width": 768,
+        "height": 960
+      },
+      "sidebar": null,
+      "compactMedia": true,
+      "main": {
+        "x": 0,
+        "y": 0,
+        "width": 768,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": null,
+      "creation": null,
+      "title": {
+        "x": 24,
+        "y": 149,
+        "width": 715,
+        "height": 44,
+        "bottom": 193
+      },
+      "body": null,
+      "inputAreas": [],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 376,
+        "contentWidth": 376,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [
+        {
+          "tag": "DIV",
+          "class": "document-scroll",
+          "x": 0,
+          "y": 133,
+          "width": 768,
+          "height": 791,
+          "bottom": 924
+        }
+      ],
+      "primaryActions": []
+    }
+  ],
+  "observations": [],
+  "errors": []
+}

@@ -41,6 +41,7 @@ import { useStudio } from '../studio/store'
 import { platformName, uid } from '../studio/types'
 import { topics } from '../studio/mock'
 import { requestSuggestionReview } from '../studio/suggestion-review'
+import { creationSnapshot } from '../studio/creation'
 
 export function AgentPanel({ onClose }: { onClose: () => void }) {
   const {
@@ -70,9 +71,11 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
   const thread =
     conversations.find((c) => c.id === (discovery ? state.activeDiscovery : project.activeConversation)) ??
     conversations[0]!
-  const busy = state.tasks.some(
-    (t) => t.title === 'Agent 正在整理建议' && t.projectId === project.id && t.state === 'running',
-  )
+  const busy =
+    project.creation?.status === 'running' ||
+    state.tasks.some(
+      (t) => t.title === 'Agent 正在整理建议' && t.projectId === project.id && t.state === 'running',
+    )
   const topic = state.page === 'hotspots' ? topics.find((t) => t.id === state.selectedTopic) : undefined
   const contextLabel =
     context?.label ||
@@ -84,6 +87,7 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
   const referencedMaterials = state.materials.filter(
     (material) => !material.trashed && project.materialIds.includes(material.id),
   )
+  const sharedContext = creationSnapshot(state, project)
   useEffect(() => {
     if (context) input.current?.focus()
   }, [context])
@@ -353,6 +357,24 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
                 </InputGroupButton>
               )}
             </div>
+            {!discovery && (sharedContext.input || referencedMaterials.length > 0) && (
+              <details className="mt-1 text-xs text-muted-foreground">
+                <summary className="cursor-pointer">
+                  已带入原始记录与 {referencedMaterials.length} 份本篇素材
+                </summary>
+                {sharedContext.input && (
+                  <p className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words">
+                    {sharedContext.input}
+                  </p>
+                )}
+                {referencedMaterials.map((m) => (
+                  <p key={m.id}>
+                    {m.title}
+                    {m.body ? '' : '（未读取原文）'}
+                  </p>
+                ))}
+              </details>
+            )}
           </InputGroupAddon>
           <InputGroupTextarea
             ref={input}

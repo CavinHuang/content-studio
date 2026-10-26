@@ -41,7 +41,6 @@ import {
 } from 'lucide-react'
 import {
   Badge,
-  CheckOption,
   copyText,
   download,
   Empty,
@@ -61,6 +60,9 @@ function timeLabel(seconds: number) {
     .toString()
     .padStart(2, '0')}`
 }
+// G10：陶土 = 「当前产物」标识（DESIGN-SYSTEM 配色角色表），当前已采用徽章沿用该语义；
+// 历史版本退为默认中性灰徽章，不再占用警示橙。
+const clayBadgeClass = 'border-[var(--brand-accent)]/30 bg-[var(--accent)] text-[var(--accent-foreground)]'
 function recalculate(shots: Shot[]) {
   let time = 0
   return shots.map((shot) => {
@@ -80,15 +82,16 @@ export function VideosPage() {
   const [source, setSource] = useState('master')
   const [name, setName] = useState('')
   const selected = project.videos.find((v) => v.id === project.activeVideo)
-  function add() {
-    if (!mode) return
+  // D27：路线卡携带明确路线直达创建，不再经过弹窗二次询问；弹窗只留给顶栏
+  // 「新建视频作品」等无上下文入口，在那里再选制作方式。
+  function createVideo(pickedMode: Video['mode'], fromSource: string, nameValue = '') {
     const video = makeVideo(
-      mode,
-      source === 'new' ? '新的创作想法' : project.drafts[source as 'master']?.title || project.title,
+      pickedMode,
+      fromSource === 'new' ? '新的创作想法' : project.drafts[fromSource as 'master']?.title || project.title,
     )
-    video.title = name.trim() || video.title
+    video.title = nameValue.trim() || video.title
     video.ratio = state.preferences.ratio
-    if (mode === 'code') {
+    if (pickedMode === 'code') {
       video.versions = []
       video.adopted = 0
       video.candidate = undefined
@@ -99,6 +102,10 @@ export function VideosPage() {
       videos: [...p.videos, video],
       activeVideo: video.id,
     }))
+  }
+  function add() {
+    if (!mode) return
+    createVideo(mode, source, name)
     setCreate(false)
     setName('')
   }
@@ -125,10 +132,7 @@ export function VideosPage() {
           <div className="video-route-grid">
             <Button
               className="video-route h-auto justify-start whitespace-normal text-left grid h-auto gap-3 rounded-xl border p-3"
-              onClick={() => {
-                setMode('storyboard')
-                setCreate(true)
-              }}
+              onClick={() => createVideo('storyboard', 'master')}
               variant="ghost"
               size="default"
             >
@@ -141,16 +145,13 @@ export function VideosPage() {
               <h2>素材分镜</h2>
               <p>脚本、图片与声音，逐个镜头编排。</p>
               <span className="inline-flex items-center gap-2 text-sm font-medium">
-                素材分镜
+                开始编排镜头
                 <ArrowRight size={15} />
               </span>
             </Button>
             <Button
               className="video-route h-auto justify-start whitespace-normal text-left grid h-auto gap-3 rounded-xl border p-3"
-              onClick={() => {
-                setMode('code')
-                setCreate(true)
-              }}
+              onClick={() => createVideo('code', 'master')}
               variant="ghost"
               size="default"
             >
@@ -164,13 +165,13 @@ export function VideosPage() {
               <h2>Agent 代码创作</h2>
               <p>描述动画意图，通过预览与对话调整。</p>
               <span className="inline-flex items-center gap-2 text-sm font-medium">
-                Agent 代码创作
+                描述动画意图
                 <ArrowRight size={15} />
               </span>
             </Button>
           </div>
           <div className="section-heading">
-            <h2>本篇视频作品</h2>
+            <h2>全部视频作品</h2>
             <span>{project.videos.length} 个独立作品</span>
           </div>
           <div className="video-work-list">
@@ -690,7 +691,9 @@ const composition = {
         </div>
         <div className="video-title-row">
           <div>
+            {/* D15：产物标题对齐文稿形态——无框大标题（点按即改），不再用通栏输入框。 */}
             <Input
+              className="title-input h-auto rounded-none border-0 bg-transparent px-0 py-1 font-sans text-3xl font-semibold tracking-tight shadow-none placeholder:opacity-60 focus-visible:ring-0 md:text-3xl"
               aria-label="视频作品名称"
               value={video.title}
               onChange={(e) =>
@@ -699,8 +702,16 @@ const composition = {
                 })
               }
             />
-            <p>
-              {video.ratio} · 约 {total} 秒 · 来自「{video.source || '新想法'}」
+            {/* D10：分镜可精确合计，时长统一精确值，不再写「约」。 */}
+            {/* D16：父级文稿来源由小字升为徽章，近同名演示条目与父级的关系一眼可辨。 */}
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="text-muted-foreground">
+                {video.ratio} · {total} 秒
+              </span>
+              <Badge tone="neutral">
+                <FileText size={12} />
+                来自文稿「{video.source || '新想法'}」
+              </Badge>
             </p>
           </div>
           <Badge tone={video.mode === 'code' ? 'green' : 'neutral'}>
@@ -753,7 +764,8 @@ const composition = {
               返回作品预览
             </Button>
             <div className="section-heading">
-              <h2>视频导出</h2>
+              {/* D18：导出子页标题与同级页面标题一致，降为 text-2xl（覆盖 CSS 中的 text-3xl）。 */}
+              <h2 className="text-2xl font-semibold tracking-tight">视频导出</h2>
               <Badge
                 tone={
                   exportTask?.state === 'failed'
@@ -834,6 +846,7 @@ const composition = {
                 >
                   调整导出设置
                 </Button>
+                {/* D22：同一动作统一「下载制作清单 + 下载图标」，跨屏一致。 */}
                 <Button variant="outline" onClick={exportManifest}>
                   <Download size={15} />
                   下载制作清单
@@ -923,16 +936,22 @@ const composition = {
                   {[...video.versions].reverse().map((version) => {
                     const isCurrent = video.adopted === version.number
                     return (
-                      <Card key={version.number} role="article" className="flex-wrap gap-3 p-3">
-                        <div className="version-art">Aa</div>
-                        <div>
+                      // D4/D14：版本卡压成横向紧凑行（缩略靠左、信息居中、操作靠右），内容一律左对齐，
+                      // 覆盖 Card 默认 flex-col + 居中造成的中央大片空白。
+                      <Card key={version.number} role="article" className="flex-row flex-wrap items-center gap-3 p-3">
+                        {/* D14：缩略占位由千篇一律的「Aa」改为版本号 + 该版强调色，行内可辨识差异。 */}
+                        <div className="version-art" style={{ color: version.color }}>
+                          v{version.number}
+                        </div>
+                        <div className="min-w-0 flex-1">
                           <h3>
                             v{version.number} · {version.label}
                           </h3>
                           <p>
                             {dateLabel(version.at)} · {version.interval.toFixed(1)} 秒间隔
                           </p>
-                          <Badge tone={isCurrent ? 'green' : 'orange'}>
+                          {/* G10：当前已采用 = 当前产物 → 陶土；历史/候选退为中性灰徽章。 */}
+                          <Badge tone="neutral" className={isCurrent ? clayBadgeClass : undefined}>
                             {isCurrent ? '当前已采用' : '历史 / 候选'}
                           </Badge>
                         </div>
@@ -1219,18 +1238,31 @@ const composition = {
                         )}
                       >
                         <header>
-                          <CheckOption
-                            checked={video.selectedShot === item.id}
-                            onChange={() =>
+                          {/* D25：行首勾选框并无批量操作能力，按方案移除——改行选中按钮，
+                          选中态由整行浅绿底（N3 勾选行语言）+ 序号 primary 色呈现。 */}
+                          <Button
+                            aria-label={`选中镜头 ${index + 1}：${item.title}`}
+                            aria-pressed={video.selectedShot === item.id}
+                            className="check-option h-auto justify-start p-0 text-left text-xs"
+                            onClick={() =>
                               patch({
                                 selectedShot: item.id,
                                 selectedScene: index,
                               })
                             }
+                            variant="ghost"
+                            size="default"
                           >
-                            <span className="subtitle-index">{String(index + 1).padStart(2, '0')}</span>
+                            <span
+                              className={cn(
+                                'subtitle-index',
+                                video.selectedShot === item.id && 'font-semibold text-primary',
+                              )}
+                            >
+                              {String(index + 1).padStart(2, '0')}
+                            </span>
                             <span className="subtitle-shot-title">{item.title}</span>
-                          </CheckOption>
+                          </Button>
                           <Badge tone={item.voiceDirty ? 'orange' : 'green'}>
                             {item.voiceDirty ? '配音待更新' : '示例已就绪'}
                           </Badge>
@@ -1404,7 +1436,11 @@ const composition = {
                             </option>
                           ))}
                         </NativeSelect>
-                        <Badge tone={isCandidate ? 'orange' : 'green'}>
+                        {/* G10：当前已采用改陶土（当前产物语义）；待采用的预览态保留警示橙。 */}
+                        <Badge
+                          tone={isCandidate ? 'orange' : 'neutral'}
+                          className={isCandidate ? undefined : clayBadgeClass}
+                        >
                           {isCandidate ? '正在预览，尚未采用' : '当前已采用'}
                         </Badge>
                         {isCandidate && previewVersion && (
@@ -1475,7 +1511,8 @@ const composition = {
                     <div className="scene-parameters">
                       <div>
                         <Sparkles size={17} />
-                        <strong>场景 0{video.selectedScene + 1} · 声明的可调参数</strong>
+                        {/* D13：与弹窗标题统一叫「可调参数」，实现术语「声明的」不再外露。 */}
+                        <strong>场景 0{video.selectedScene + 1} · 可调参数</strong>
                       </div>
                       <Button
                         className="button secondary small"
@@ -1501,15 +1538,9 @@ const composition = {
                     </div>
                   ) : (
                     <div className="scene-parameters">
+                      {/* D17：预览侧字幕为只读展示，去输入框描边改纯文本；修改入口唯一化到「编辑镜头」。 */}
                       <Field label={`当前镜头 · ${shot.title}`}>
-                        <Input
-                          value={shot.subtitle}
-                          onChange={(e) =>
-                            patchShot(shot.id, {
-                              subtitle: e.target.value,
-                            })
-                          }
-                        />
+                        <p className="text-sm leading-relaxed">{shot.subtitle || '（暂无字幕）'}</p>
                       </Field>
                       <Button
                         className="button secondary small"
@@ -1647,21 +1678,14 @@ const composition = {
               onClose={() => setExporting(false)}
               footer={
                 <>
-                  <Button
-                    className="button secondary"
-                    onClick={exportManifest}
-                    variant="outline"
-                    size="default"
-                  >
+                  <Button className="button secondary" onClick={exportManifest} variant="outline" size="default">
+                    {/* D22：弹窗内同样补下载图标，与状态页/底栏一致。 */}
+                    <Download size={15} />
                     下载制作清单
                   </Button>
-                  <Button
-                    className="button primary"
-                    onClick={() => simulateExport()}
-                    variant="default"
-                    size="default"
-                  >
-                    演示成功流程
+                  <Button className="button primary" onClick={() => simulateExport()} variant="default" size="default">
+                    {/* D21：主按钮以用户任务命名，演示属性交由说明区交代。 */}
+                    开始导出（演示）
                   </Button>
                 </>
               }
@@ -1679,12 +1703,15 @@ const composition = {
                 演示只运行任务状态，不生成 MP4。可以下载包含脚本、镜头和设置的制作清单，SRT
                 从字幕页单独导出。
               </div>
+              {/* D20：演练入口是演示功能不是危险操作，改链接样式（下划线 + 中性色 + 警示图标），
+              destructive 红只留给真实危险操作。 */}
               <Button
-                className="text-button danger-text text-destructive"
+                className="text-button text-muted-foreground underline underline-offset-2"
                 onClick={() => simulateExport(true)}
                 variant="ghost"
                 size="sm"
               >
+                <TriangleAlert size={14} />
                 演练一次失败与恢复
               </Button>
             </Modal>
@@ -1708,8 +1735,9 @@ const composition = {
                 {[...video.versions].reverse().map((version) => {
                   const isCurrent = video.adopted === version.number
                   return (
-                    <Card key={version.number} role="article" className="gap-3 p-3">
-                      <div>
+                    // D4：版本卡改左对齐横向行（信息居中占满、按钮靠右），替换默认 flex-col + 居中。
+                    <Card key={version.number} role="article" className="flex-row flex-wrap items-center gap-3 p-3">
+                      <div className="min-w-0 flex-1">
                         <h3>
                           v{version.number} · {version.label}
                         </h3>
@@ -1722,7 +1750,8 @@ const composition = {
                             : '初始示例记录，无恢复快照'}
                         </span>
                         {/* D8：与动画侧版本列表（20）同一套采用状态徽标。 */}
-                        <Badge tone={isCurrent ? 'green' : 'orange'}>
+                        {/* G10：当前已采用 = 陶土（当前产物），历史/候选退为中性灰。 */}
+                        <Badge tone="neutral" className={isCurrent ? clayBadgeClass : undefined}>
                           {isCurrent ? '当前已采用' : '历史 / 候选'}
                         </Badge>
                       </div>

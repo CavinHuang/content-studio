@@ -53,8 +53,8 @@ const sourceIcon = (type: string) =>
   type === 'RSS' ? <Rss size={14} /> : type === '平台热榜' ? <Flame size={14} /> : <BookOpen size={14} />
 const stateLabels = {
   ready: '可用 · 示例缓存',
-  failed: '获取失败 · 保留缓存',
-  unconfigured: '未配置',
+  failed: '获取失败 · 已保留缓存',
+  unconfigured: '未配置 · 待接入',
   stale: '缓存过期',
 }
 export function HotspotsPage() {
@@ -117,7 +117,7 @@ export function HotspotsPage() {
     )
   function refresh() {
     task('刷新热点来源', '演示获取已启用来源；失败项保留旧缓存…', 'source')
-    notify('正在演示刷新。话题均为示例，未请求实时榜单；失败来源保留缓存。')
+    notify('正在演示刷新。话题均为示例，未请求实时榜单；失败来源已保留缓存。')
   }
   return (
     <section className="workspace-page hotspot-page">
@@ -182,7 +182,7 @@ export function HotspotsPage() {
           {state.sources.some((s) => s.enabled && s.status === 'failed') && (
             <div className="source-warning">
               <TriangleAlert size={15} />
-              <span>小红书话题更新失败，正在显示已有示例缓存。</span>
+              <span>小红书话题获取失败 · 已保留缓存，正在显示已有内容。</span>
               <Button
                 onClick={() => navigate('sources')}
                 variant="ghost"
@@ -269,18 +269,21 @@ export function HotspotsPage() {
               ))}
             </div>
             <div className="shrink-0">
-              <NativeSelect
-                aria-label="热点排序"
-                value={filters.sort}
-                onChange={(e) =>
-                  filter({
-                    sort: e.target.value,
-                  })
-                }
-              >
-                <option value="latest">最新收录</option>
-                <option value="coverage">来源覆盖</option>
-              </NativeSelect>
+              <label className="flex items-center gap-2 whitespace-nowrap text-sm text-muted-foreground">
+                排序：
+                <NativeSelect
+                  aria-label="热点排序"
+                  value={filters.sort}
+                  onChange={(e) =>
+                    filter({
+                      sort: e.target.value,
+                    })
+                  }
+                >
+                  <option value="latest">最新收录</option>
+                  <option value="coverage">来源覆盖</option>
+                </NativeSelect>
+              </label>
             </div>
           </div>
           <div className="feed-summary">
@@ -401,17 +404,9 @@ export function HotspotsPage() {
           )}
           <p className="feed-footnote">
             <Layers size={14} />
-            同一话题汇总展示，排名和原文按来源分别保留。
-            <Button
-              className="text-button text-muted-foreground"
-              onClick={() =>
-                notify('「最新」按示例收录时间排序；「来源覆盖」按不同来源数量排序，不加总各平台热度。')
-              }
-              variant="ghost"
-              size="sm"
-            >
-              排序依据
-            </Button>
+            <span>
+              同一话题汇总展示，排名和原文按来源分别保留。排序依据：「最新收录」按示例收录时间排序，「来源覆盖」按不同来源数量排序，不加总各平台热度。
+            </span>
           </p>
         </>
       )}
@@ -770,8 +765,16 @@ export function SourcesPage() {
   }
   return (
     <section className="workspace-page sources-page">
+      <Button
+        className="text-button back-link text-muted-foreground"
+        onClick={() => navigate('hotspots')}
+        variant="ghost"
+        size="sm"
+      >
+        <ArrowLeft size={15} />
+        返回热点发现
+      </Button>
       <PageTitle
-        back={() => navigate('hotspots')}
         eyebrow="YOUR INFORMATION, YOUR PERSPECTIVE"
         title="热点来源"
         description="管理热榜、新闻与订阅。来源与最终发布平台，分别设置。"
@@ -1010,7 +1013,7 @@ export function SourcesPage() {
               {error}
             </p>
           )}
-          <p className="muted">保存后显示「未配置」，后续接入实际来源服务后才会获取内容。</p>
+          <p className="muted">保存后来源显示「未配置 · 待接入」：接入实际来源服务后才会获取内容。</p>
         </Modal>
       )}
     </section>

@@ -46,6 +46,7 @@ export type Message = {
   at: string
   suggestion?: Suggestion
   action?: 'plan' | 'article' | 'video' | 'platforms'
+  context?: CreationSnapshot
 }
 export type Conversation = { id: string; title: string; messages: Message[] }
 export type Shot = {
@@ -116,8 +117,11 @@ export type CreationSnapshot = {
   tone: string
   language: string
   materials: Pick<Material, 'id' | 'title' | 'body' | 'url' | 'type'>[]
+  plan?: Pick<Brief, 'topic' | 'audience' | 'length' | 'outline'>
 }
 export type CreationFlow = {
+  mode?: 'guided' | 'manual'
+  source?: 'input' | 'plan'
   input: string
   status: 'idle' | 'blocked' | 'running' | 'stopped' | 'failed' | 'ready' | 'candidate'
   message?: string
@@ -197,7 +201,7 @@ export type Task = {
   detail: string
   projectId: string
   state: 'queued' | 'running' | 'failed' | 'stopped' | 'complete'
-  kind: 'agent' | 'export' | 'source'
+  kind: 'agent' | 'export' | 'source' | 'creation'
   at: string
   version?: number
   videoId?: string

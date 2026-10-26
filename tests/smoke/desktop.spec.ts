@@ -46,7 +46,8 @@ test('desktop boots with its isolated preload bridge and editable React workspac
     await page.getByRole('tab', { name: '预览', exact: true }).click()
     await expect(page.locator('.document-preview')).toContainText('第一篇文稿可以编辑')
     await page.getByRole('button', { name: '新建内容', exact: false }).first().click()
-    await expect(page.getByLabel('文稿标题', { exact: true })).toHaveValue('')
+    await expect(page.getByLabel('想法与原始记录', { exact: true })).toHaveValue('')
+    await expect(page.getByLabel('文稿正文', { exact: true })).toHaveCount(0)
     expect(errors).toEqual([])
   } finally {
     await application.close()

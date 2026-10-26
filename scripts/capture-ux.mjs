@@ -24,6 +24,15 @@ try {
   })
   await page.setViewportSize({ width: 1480, height: 992 })
   const tabs = () => page.getByRole('tablist', { name: '内容产物' })
+  const tool = async (name) => {
+    const local = page.getByRole('tablist', { name: '作品辅助内容' }).getByRole('tab', { name, exact: true })
+    if (await local.isVisible()) {
+      await local.click()
+      return
+    }
+    await page.getByRole('button', { name: '作品工具', exact: true }).click()
+    await page.getByRole('menuitem', { name, exact: true }).click()
+  }
   const capture = async (id, reference, name, basis = '页面设计稿') => {
     await page.evaluate(async () => {
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
@@ -118,6 +127,7 @@ try {
     for (const margin of bounds.spacing.fieldMargins) expect(margin).toBe('0px')
   }
   await expect(page.getByLabel('文稿标题', { exact: true })).toHaveValue('让灵感成为作品')
+  await page.getByRole('button', { name: '展开 Agent', exact: true }).click()
   await capture('01-writing', '03-writing-review.png')
   await page.locator('.chat-artifact').filter({ hasText: '段落修改建议' }).click()
   await expect(page.getByRole('button', { name: '展开或收起修改建议' })).toHaveAttribute(
@@ -135,9 +145,9 @@ try {
   await page.getByRole('button', { name: '排版', exact: true }).click()
   await capture('02-typography', '05-typography.png')
   await page.keyboard.press('Escape')
-  await tabs().getByRole('tab', { name: '创作方案', exact: true }).click()
+  await tool('创作方案')
   await capture('03-brief', '02-creative-plan.png')
-  await tabs().getByRole('tab', { name: '素材', exact: true }).click()
+  await tool('参考素材')
   await capture('04-materials', '06-material-library.png')
   await page.getByRole('button', { name: '收集素材', exact: true }).click()
   await capture('05-capture', '07-material-capture.png')
@@ -146,7 +156,7 @@ try {
   await capture('06-hotspots', '17-hotspot-discovery-v2.png')
   await page.getByRole('button', { name: '来源管理', exact: true }).click()
   await capture('07-sources', '19-hotspot-source-management.png')
-  await page.getByRole('button', { name: '返回', exact: true }).click()
+  await page.getByRole('button', { name: '返回热点发现', exact: true }).click()
   await page.getByRole('button', { name: '查看与创作', exact: true }).first().click()
   await capture('08-topic', '18-hotspot-to-create.png')
   await page.getByRole('button', { name: '让灵感成为作品', exact: true }).click()
@@ -156,6 +166,7 @@ try {
   await capture('09-publish', '14-publish-selection.png')
   await page.getByRole('button', { name: '继续，预览所选平台', exact: true }).click()
   await capture('10-handoff', '15-publish-handoff.png')
+  await page.getByRole('button', { name: '返回文稿编辑', exact: true }).click()
   await tabs().getByRole('tab', { name: '视频', exact: true }).click()
   await capture('11-video-entry', '08-video-entry.png')
   await page.getByRole('button', { name: /素材分镜.*让创作回到日常/ }).click()
@@ -305,10 +316,8 @@ try {
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: '新建内容', exact: true }).click()
   await capture('47-new-content', '01-new-content.png', '新建内容 · 直接开写')
-  // 新建内容屏由 CreationFlow 接管后，空稿「添加素材」入口不再渲染；改验同屏「版本历史」弹窗可开合。
-  await page.getByRole('button', { name: '版本历史', exact: true }).click()
-  await expect(page.getByRole('dialog')).toBeVisible()
-  await page.keyboard.press('Escape')
+  await expect(page.getByLabel('想法与原始记录', { exact: true })).toBeVisible()
+  await expect(page.getByLabel('文稿正文', { exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: '让灵感成为作品', exact: true }).click()
   await tabs().getByRole('tab', { name: '文稿', exact: true }).click()
   await page.setViewportSize({ width: 1100, height: 820 })

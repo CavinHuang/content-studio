@@ -14,8 +14,8 @@ import {
 } from 'lucide-react'
 import { useStudio } from '../studio/store'
 import { Badge, Field, PageTitle } from '../components/ui'
-export function BriefPage() {
-  const { project, patchProject, generateArticle, reference, setState, state, notify } = useStudio()
+export function BriefPage({ embedded = false }: { embedded?: boolean }) {
+  const { project, patchProject, generateArticle, reference, setState, notify } = useStudio()
   const brief = project.brief
   function patch(value: Partial<typeof brief>) {
     patchProject(project.id, (p) => ({
@@ -36,21 +36,29 @@ export function BriefPage() {
       outline,
     })
   }
-  const running = state.tasks.some(
-    (t) => t.projectId === project.id && t.state === 'running' && t.title === '生成母稿',
-  )
+  const running = project.creation?.status === 'running'
   return (
     <section className="workspace-page brief-page">
-      <PageTitle
-        eyebrow="A LITTLE CLARITY, BEFORE YOU CREATE"
-        title="这篇内容怎么写"
-        description="先把方向和结构定下来，再开始写作。"
-        actions={
+      {!embedded && (
+        <PageTitle
+          eyebrow="A LITTLE CLARITY, BEFORE YOU CREATE"
+          title="这篇内容怎么写"
+          description="先把方向和结构定下来，再开始写作。"
+          actions={
+            <Badge tone={brief.confirmed ? 'green' : 'orange'}>
+              {brief.confirmed ? '已确认方案' : '待确认'}
+            </Badge>
+          }
+        />
+      )}
+      {embedded && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
+          <span className="min-w-0 break-words">《{project.title || '未命名内容'}》的方案</span>
           <Badge tone={brief.confirmed ? 'green' : 'orange'}>
             {brief.confirmed ? '已确认方案' : '待确认'}
           </Badge>
-        }
-      />
+        </div>
+      )}
       {project.source && (
         <Button
           className="source-origin h-auto justify-start whitespace-normal text-left"
@@ -97,7 +105,7 @@ export function BriefPage() {
           }
         />
       </Field>
-      <div className="form-grid">
+      <div className={`form-grid ${embedded ? 'grid-cols-1' : ''}`}>
         <Field label="写给谁">
           <Input
             value={brief.audience}
@@ -237,8 +245,8 @@ export function BriefPage() {
         >
           {running ? (
             '正在生成示例母稿…'
-          ) : brief.confirmed ? (
-            '重新生成母稿'
+          ) : project.drafts.master?.body.trim() ? (
+            '按方案准备候选'
           ) : (
             <>
               <Check size={16} />

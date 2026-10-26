@@ -27,15 +27,13 @@ import {
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
   SidebarSeparator,
   SidebarTrigger,
+  useSidebar,
 } from './ui/sidebar'
 import { useStudio } from '../studio/store'
-import { artifactTabs } from '../studio/navigation'
 import type { Artifact, Project } from '../studio/types'
+import { useMediaQuery } from '@/hooks/use-media-query'
 
 type StudioSidebarProps = {
   search: string
@@ -59,6 +57,9 @@ export function StudioSidebar({
   onOpenDesigns,
 }: StudioSidebarProps) {
   const { state, project } = useStudio()
+  const { isMobile } = useSidebar()
+  const desktop = useMediaQuery('(min-width: 1100px)')
+  const compact = !isMobile && !desktop
   const projectPage = ['plan', 'article', 'video', 'materials', 'publish'].includes(state.page)
   const projects = state.projects.filter((item) => !item.trashed)
   const visibleProjects = projects.filter((item) =>
@@ -71,7 +72,8 @@ export function StudioSidebar({
   return (
     <Sidebar
       collapsible="none"
-      className="sidebar min-h-0 w-full md:max-[1100px]:border-r md:max-[1100px]:border-sidebar-border"
+      className="sidebar min-h-0 md:max-[1100px]:border-r md:max-[1100px]:border-sidebar-border"
+      style={{ width: compact ? 256 : '100%', flexShrink: 0 }}
       role="complementary"
       aria-label="内容导航"
     >
@@ -168,35 +170,6 @@ export function StudioSidebar({
                     >
                       <MoreHorizontal />
                     </SidebarMenuAction>
-                    {selected && (
-                      <SidebarMenuSub className="mx-2 px-1.5">
-                        {artifactTabs.map((tab) => (
-                          <SidebarMenuSubItem key={tab.id}>
-                            <SidebarMenuSubButton asChild size="sm" isActive={state.page === tab.id}>
-                              <button
-                                type="button"
-                                className="w-full text-left"
-                                onClick={() => onChoose(item.id, tab.id)}
-                              >
-                                <tab.icon />
-                                <span className="min-w-0 flex-1 truncate">{tab.label}</span>
-                                <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                                  {tab.id === 'article'
-                                    ? `${Object.keys(item.drafts).length} 个平台版本`
-                                    : tab.id === 'video'
-                                      ? `${item.videos.length} 个`
-                                      : tab.id === 'materials'
-                                        ? item.materialIds.length
-                                        : item.brief.confirmed
-                                          ? '已确认'
-                                          : '构思中'}
-                                </span>
-                              </button>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                        ))}
-                      </SidebarMenuSub>
-                    )}
                   </SidebarMenuItem>
                 )
               })}

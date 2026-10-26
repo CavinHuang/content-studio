@@ -4,7 +4,7 @@
 
 界面采用 **shadcn/ui + 官方 AI Elements 组合模式**，由 Tailwind CSS 4 与 Radix 驱动。配色遵循已确认设计稿，字体、间距和控件尺寸沿用 Tailwind / shadcn 默认规范，见 [设计系统](docs/ux/DESIGN-SYSTEM.md)；[可视化 Token 手册](docs/ux/design-system.html) 可离线查看。
 
-内容库采用官方 Sidebar / Group / Menu / MenuSub / Footer 组合，支持搜索、嵌套导航、项目管理、栏宽拖动与手机抽屉；Ctrl / Cmd+B 折叠，Ctrl / Cmd+K 搜索。
+内容库采用官方 Sidebar / Group / Menu / Footer 组合，集中定位项目；文稿和视频在工作区切换，创作方案、参考素材与助手按需展开。支持搜索、项目管理、桌面栏宽拖动与手机抽屉；Ctrl / Cmd+B 折叠，Ctrl / Cmd+K 搜索。布局审查与逐项修复见 [布局修复记录](docs/ux/LAYOUT-FIXES-2026-10-26.md)。
 
 ## 环境
 

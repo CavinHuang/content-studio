@@ -2252,10 +2252,9 @@
     display: flex;
   }
   .compact-panels > .sidebar {
-    width: 244px;
     flex-shrink: 0;
   }
-  .compact-panels > .work-area {
+  .compact-panels > .workspace-mount {
     min-width: 0;
     flex: 1;
   }

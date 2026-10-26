@@ -1,0 +1,1015 @@
+{
+  "evidence": "local Electron cognitive walkthrough; synthetic seed; no human participant study",
+  "screens": [
+    {
+      "id": "01-existing-writing",
+      "viewport": {
+        "width": 1480,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 256,
+        "height": 960,
+        "bottom": 960
+      },
+      "sidebarStyle": "width: 100%; flex-shrink: 0;",
+      "compactMedia": false,
+      "main": {
+        "x": 257,
+        "y": 0,
+        "width": 1223,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": null,
+      "creation": null,
+      "title": {
+        "x": 440,
+        "y": 128,
+        "width": 852,
+        "height": 44,
+        "bottom": 172
+      },
+      "body": null,
+      "inputAreas": [],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 871,
+        "contentWidth": 871,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [
+        {
+          "tag": "DIV",
+          "class": "document-scroll",
+          "x": 257,
+          "y": 112,
+          "width": 1223,
+          "height": 812,
+          "bottom": 924
+        }
+      ],
+      "primaryActions": []
+    },
+    {
+      "id": "02-new-content",
+      "viewport": {
+        "width": 1480,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 256,
+        "height": 960,
+        "bottom": 960
+      },
+      "sidebarStyle": "width: 100%; flex-shrink: 0;",
+      "compactMedia": false,
+      "main": {
+        "x": 257,
+        "y": 0,
+        "width": 1223,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": null,
+      "creation": {
+        "x": 443,
+        "y": 72,
+        "width": 852,
+        "height": 368,
+        "bottom": 440
+      },
+      "title": null,
+      "body": null,
+      "inputAreas": [
+        {
+          "label": "想法与原始记录",
+          "x": 443,
+          "y": 211,
+          "width": 852,
+          "height": 64,
+          "bottom": 275
+        }
+      ],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 985,
+        "contentWidth": 985,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [],
+      "primaryActions": [
+        "整理成初稿"
+      ]
+    },
+    {
+      "id": "03-agent-shared-context",
+      "viewport": {
+        "width": 1480,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 256,
+        "height": 960,
+        "bottom": 960
+      },
+      "sidebarStyle": "width: 100%; flex-shrink: 0;",
+      "compactMedia": false,
+      "main": {
+        "x": 257,
+        "y": 0,
+        "width": 838,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": {
+        "x": 1096,
+        "y": 0,
+        "width": 384,
+        "height": 960,
+        "bottom": 960
+      },
+      "creation": {
+        "x": 257,
+        "y": 112,
+        "width": 838,
+        "height": 49,
+        "bottom": 161
+      },
+      "title": {
+        "x": 281,
+        "y": 222,
+        "width": 785,
+        "height": 44,
+        "bottom": 266
+      },
+      "body": {
+        "x": 281,
+        "y": 294,
+        "width": 785,
+        "height": 624,
+        "bottom": 918
+      },
+      "inputAreas": [
+        {
+          "label": "文稿正文",
+          "x": 281,
+          "y": 294,
+          "width": 785,
+          "height": 624,
+          "bottom": 918
+        },
+        {
+          "label": "Agent 消息",
+          "x": 1113,
+          "y": 805,
+          "width": 350,
+          "height": 64,
+          "bottom": 869
+        }
+      ],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 530,
+        "contentWidth": 530,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [
+        {
+          "tag": "DIV",
+          "class": "document-scroll",
+          "x": 257,
+          "y": 206,
+          "width": 838,
+          "height": 718,
+          "bottom": 924
+        }
+      ],
+      "context": "每周回顾：少收集一点 · 母稿",
+      "primaryActions": []
+    },
+    {
+      "id": "04-ready-content",
+      "viewport": {
+        "width": 1480,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 256,
+        "height": 960,
+        "bottom": 960
+      },
+      "sidebarStyle": "width: 100%; flex-shrink: 0;",
+      "compactMedia": false,
+      "main": {
+        "x": 257,
+        "y": 0,
+        "width": 838,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": {
+        "x": 1096,
+        "y": 0,
+        "width": 384,
+        "height": 960,
+        "bottom": 960
+      },
+      "creation": {
+        "x": 257,
+        "y": 112,
+        "width": 838,
+        "height": 49,
+        "bottom": 161
+      },
+      "title": {
+        "x": 281,
+        "y": 222,
+        "width": 785,
+        "height": 44,
+        "bottom": 266
+      },
+      "body": {
+        "x": 281,
+        "y": 294,
+        "width": 785,
+        "height": 624,
+        "bottom": 918
+      },
+      "inputAreas": [
+        {
+          "label": "文稿正文",
+          "x": 281,
+          "y": 294,
+          "width": 785,
+          "height": 624,
+          "bottom": 918
+        },
+        {
+          "label": "Agent 消息",
+          "x": 1113,
+          "y": 805,
+          "width": 350,
+          "height": 64,
+          "bottom": 869
+        }
+      ],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 530,
+        "contentWidth": 530,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [
+        {
+          "tag": "DIV",
+          "class": "document-scroll",
+          "x": 257,
+          "y": 206,
+          "width": 838,
+          "height": 718,
+          "bottom": 924
+        }
+      ],
+      "context": "每周回顾：少收集一点 · 母稿",
+      "primaryActions": []
+    },
+    {
+      "id": "05-candidate-comparison",
+      "viewport": {
+        "width": 1480,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 256,
+        "height": 960,
+        "bottom": 960
+      },
+      "sidebarStyle": "width: 100%; flex-shrink: 0;",
+      "compactMedia": false,
+      "main": {
+        "x": 257,
+        "y": 0,
+        "width": 838,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": {
+        "x": 1096,
+        "y": 0,
+        "width": 384,
+        "height": 960,
+        "bottom": 960
+      },
+      "creation": null,
+      "title": null,
+      "body": null,
+      "inputAreas": [
+        {
+          "label": "Agent 消息",
+          "x": 1113,
+          "y": 805,
+          "width": 350,
+          "height": 64,
+          "bottom": 869
+        }
+      ],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 530,
+        "contentWidth": 530,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [],
+      "context": "每周回顾：少收集一点 · 母稿",
+      "primaryActions": [
+        "采用候选，保留原稿版本"
+      ]
+    },
+    {
+      "id": "06-candidate-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 221,
+        "height": 960,
+        "bottom": 960
+      },
+      "sidebarStyle": "width: 100%; flex-shrink: 0;",
+      "compactMedia": false,
+      "main": {
+        "x": 222,
+        "y": 0,
+        "width": 725,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": {
+        "x": 948,
+        "y": 0,
+        "width": 332,
+        "height": 960,
+        "bottom": 960
+      },
+      "creation": null,
+      "title": null,
+      "body": null,
+      "inputAreas": [
+        {
+          "label": "Agent 消息",
+          "x": 965,
+          "y": 805,
+          "width": 298,
+          "height": 64,
+          "bottom": 869
+        }
+      ],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 431,
+        "contentWidth": 431,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [],
+      "context": "每周回顾：少收集一点 · 母稿",
+      "primaryActions": [
+        "采用候选，保留原稿版本"
+      ]
+    },
+    {
+      "id": "06-candidate-1100",
+      "viewport": {
+        "width": 1100,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 216,
+        "height": 960,
+        "bottom": 960
+      },
+      "sidebarStyle": "width: 100%; flex-shrink: 0;",
+      "compactMedia": false,
+      "main": {
+        "x": 217,
+        "y": 0,
+        "width": 562,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": {
+        "x": 780,
+        "y": 0,
+        "width": 320,
+        "height": 960,
+        "bottom": 960
+      },
+      "creation": null,
+      "title": null,
+      "body": null,
+      "inputAreas": [
+        {
+          "label": "Agent 消息",
+          "x": 797,
+          "y": 805,
+          "width": 286,
+          "height": 64,
+          "bottom": 869
+        }
+      ],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 268,
+        "contentWidth": 268,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [],
+      "context": "每周回顾：少收集一点 · 母稿",
+      "primaryActions": [
+        "采用候选，保留原稿版本"
+      ]
+    },
+    {
+      "id": "06-candidate-1099",
+      "viewport": {
+        "width": 1099,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 256,
+        "height": 960,
+        "bottom": 960
+      },
+      "sidebarStyle": "width: 256px; flex-shrink: 0;",
+      "compactMedia": false,
+      "main": {
+        "x": 256,
+        "y": 0,
+        "width": 843,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": null,
+      "creation": null,
+      "title": null,
+      "body": null,
+      "inputAreas": [],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 492,
+        "contentWidth": 492,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [],
+      "primaryActions": [
+        "采用候选，保留原稿版本"
+      ]
+    },
+    {
+      "id": "06-candidate-390",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sidebar": null,
+      "compactMedia": false,
+      "main": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 780,
+        "bottom": 780
+      },
+      "agent": null,
+      "creation": null,
+      "title": null,
+      "body": null,
+      "inputAreas": [],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 186,
+        "contentWidth": 186,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [
+        {
+          "tag": "DIV",
+          "class": "min-h-0 flex-1 overflow-y-auto p-4 text-sm",
+          "x": 0,
+          "y": 254,
+          "width": 390,
+          "height": 430,
+          "bottom": 683
+        }
+      ],
+      "primaryActions": [
+        "采用候选，保留原稿版本"
+      ]
+    },
+    {
+      "id": "07-empty-start",
+      "viewport": {
+        "width": 1480,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 256,
+        "height": 960,
+        "bottom": 960
+      },
+      "sidebarStyle": "width: 100%; flex-shrink: 0;",
+      "compactMedia": false,
+      "main": {
+        "x": 257,
+        "y": 0,
+        "width": 1223,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": null,
+      "creation": {
+        "x": 443,
+        "y": 72,
+        "width": 852,
+        "height": 368,
+        "bottom": 440
+      },
+      "title": null,
+      "body": null,
+      "inputAreas": [
+        {
+          "label": "想法与原始记录",
+          "x": 443,
+          "y": 211,
+          "width": 852,
+          "height": 64,
+          "bottom": 275
+        }
+      ],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 985,
+        "contentWidth": 985,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [],
+      "primaryActions": [
+        "整理成初稿"
+      ]
+    },
+    {
+      "id": "07-publish",
+      "viewport": {
+        "width": 1480,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 256,
+        "height": 960,
+        "bottom": 960
+      },
+      "sidebarStyle": "width: 100%; flex-shrink: 0;",
+      "compactMedia": false,
+      "main": {
+        "x": 257,
+        "y": 0,
+        "width": 1223,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": null,
+      "creation": null,
+      "title": null,
+      "body": null,
+      "inputAreas": [],
+      "activeArtifactTabs": [],
+      "artifactTabs": [],
+      "nav": null,
+      "scrollAreas": [],
+      "primaryActions": [
+        "继续，预览所选平台"
+      ]
+    },
+    {
+      "id": "08-global-materials",
+      "viewport": {
+        "width": 1480,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 256,
+        "height": 960,
+        "bottom": 960
+      },
+      "sidebarStyle": "width: 100%; flex-shrink: 0;",
+      "compactMedia": false,
+      "main": {
+        "x": 257,
+        "y": 0,
+        "width": 1223,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": null,
+      "creation": null,
+      "title": null,
+      "body": null,
+      "inputAreas": [],
+      "activeArtifactTabs": [],
+      "artifactTabs": [],
+      "nav": null,
+      "scrollAreas": [
+        {
+          "tag": "SECTION",
+          "class": "workspace-page materials-page",
+          "x": 257,
+          "y": 56,
+          "width": 1223,
+          "height": 904,
+          "bottom": 960
+        }
+      ],
+      "primaryActions": [
+        "收集素材"
+      ]
+    },
+    {
+      "id": "09-global-tasks",
+      "viewport": {
+        "width": 1480,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 256,
+        "height": 960,
+        "bottom": 960
+      },
+      "sidebarStyle": "width: 100%; flex-shrink: 0;",
+      "compactMedia": false,
+      "main": {
+        "x": 257,
+        "y": 0,
+        "width": 1223,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": null,
+      "creation": null,
+      "title": null,
+      "body": null,
+      "inputAreas": [],
+      "activeArtifactTabs": [],
+      "artifactTabs": [],
+      "nav": null,
+      "scrollAreas": [],
+      "primaryActions": []
+    },
+    {
+      "id": "10-platform-preview",
+      "viewport": {
+        "width": 1480,
+        "height": 960
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 256,
+        "height": 960,
+        "bottom": 960
+      },
+      "sidebarStyle": "width: 100%; flex-shrink: 0;",
+      "compactMedia": false,
+      "main": {
+        "x": 257,
+        "y": 0,
+        "width": 1223,
+        "height": 960,
+        "bottom": 960
+      },
+      "agent": null,
+      "creation": null,
+      "title": {
+        "x": 443,
+        "y": 246,
+        "width": 852,
+        "height": 44,
+        "bottom": 290
+      },
+      "body": null,
+      "inputAreas": [],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 871,
+        "contentWidth": 871,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [],
+      "primaryActions": []
+    },
+    {
+      "id": "11-mobile-writing",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sidebar": null,
+      "compactMedia": false,
+      "main": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 780,
+        "bottom": 780
+      },
+      "agent": null,
+      "creation": null,
+      "title": {
+        "x": 24,
+        "y": 290,
+        "width": 338,
+        "height": 53,
+        "bottom": 343
+      },
+      "body": null,
+      "inputAreas": [],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 186,
+        "contentWidth": 186,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [
+        {
+          "tag": "DIV",
+          "class": "document-scroll",
+          "x": 0,
+          "y": 274,
+          "width": 390,
+          "height": 470,
+          "bottom": 744
+        }
+      ],
+      "primaryActions": []
+    },
+    {
+      "id": "12-mobile-agent",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sidebar": null,
+      "compactMedia": false,
+      "main": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 780,
+        "bottom": 780
+      },
+      "agent": null,
+      "creation": null,
+      "title": {
+        "x": 24,
+        "y": 290,
+        "width": 338,
+        "height": 53,
+        "bottom": 343
+      },
+      "body": null,
+      "inputAreas": [
+        {
+          "label": "Agent 消息",
+          "x": 18,
+          "y": 689,
+          "width": 356,
+          "height": 64,
+          "bottom": 753
+        }
+      ],
+      "activeArtifactTabs": [
+        "文稿"
+      ],
+      "artifactTabs": [
+        {
+          "label": "文稿",
+          "fullyInsideNav": true
+        },
+        {
+          "label": "视频",
+          "fullyInsideNav": true
+        }
+      ],
+      "nav": {
+        "width": 222,
+        "contentWidth": 222,
+        "scrollLeft": 0
+      },
+      "scrollAreas": [
+        {
+          "tag": "DIV",
+          "class": "document-scroll",
+          "x": 0,
+          "y": 274,
+          "width": 390,
+          "height": 470,
+          "bottom": 744
+        }
+      ],
+      "context": "让灵感成为作品 · 小红书",
+      "primaryActions": []
+    }
+  ],
+  "observations": [
+    {
+      "case": "creation-input-and-agent-context",
+      "creationInput": "每周回顾：少收集一点\n周五记录：存了 12 条，只重读 2 条。",
+      "lastUserMessage": "请使用刚才输入的记录，帮我继续创作。",
+      "lastUserContext": {
+        "input": "每周回顾：少收集一点\n周五记录：存了 12 条，只重读 2 条。",
+        "title": "每周回顾：少收集一点",
+        "point": "",
+        "tone": "真诚、自然，有自己的观点",
+        "language": "简体中文",
+        "materials": []
+      },
+      "lastReply": "已带入这篇内容的原始记录与参考素材，正在整理底稿。整理完成后可直接在正文继续编辑。（演示）",
+      "bodyEmpty": false
+    },
+    {
+      "case": "preview-editability",
+      "previewTabSelected": "active",
+      "titleEditable": false,
+      "tagsEditable": false
+    }
+  ],
+  "errors": []
+}

@@ -14,6 +14,7 @@ import {
   ExternalLink,
   FileCheck2,
   History,
+  Info,
   Link2,
   Plus,
   Send,
@@ -229,8 +230,17 @@ export function PublishPage() {
         <span aria-hidden>·</span>
         <span className="font-medium text-foreground">发布准备</span>
       </div>
+      {/* B13：返回统一「返回 + 目的地」格式（批次视图回步骤一，选择视图回文稿页） */}
+      <Button
+        className="text-button back-link text-muted-foreground"
+        onClick={() => (batch ? setBatchId(null) : navigate('article'))}
+        variant="ghost"
+        size="sm"
+      >
+        <ArrowLeft size={15} />
+        {batch ? '返回选择平台' : '返回文稿'}
+      </Button>
       <PageTitle
-        back={() => (batch ? setBatchId(null) : navigate('article'))}
         eyebrow="A GOOD IDEA DESERVES TO BE SHARED"
         title={batch ? '最后看一眼，再分享。' : '这次发布到哪里？'}
         description={
@@ -280,7 +290,10 @@ export function PublishPage() {
               >
                 全选
               </Button>
-              <span>·</span>
+              {/* C9：成对操作的统一分隔样式（muted 间隔点，读屏跳过） */}
+              <span aria-hidden className="text-muted-foreground">
+                ·
+              </span>
               <Button
                 className="text-button text-muted-foreground"
                 onClick={() => setSelected([])}
@@ -315,8 +328,9 @@ export function PublishPage() {
                   {ready(platform.id) ? '内容已就绪' : '需要准备内容'}
                 </Badge>
                 {!ready(platform.id) && (
+                  // C7：「准备版本」右对齐到徽标列下方，保持各卡行结构一致
                   <Button
-                    className="text-button text-muted-foreground"
+                    className="text-button text-muted-foreground col-start-2 justify-self-end"
                     onClick={() => setPlatformsOpen(true)}
                     variant="ghost"
                     size="sm"
@@ -360,7 +374,8 @@ export function PublishPage() {
           )}
           <div className="publish-selection-footer">
             <span>
-              本次选择 <strong>{selected.length}</strong> 个平台 · {selected.filter(ready).length} 个已就绪
+              {/* C10：与平台选择弹窗统一摘要句式「已选 N 个平台 · M 个已就绪」 */}
+              已选 <strong>{selected.length}</strong> 个平台 · {selected.filter(ready).length} 个已就绪
             </span>
             <Button
               className="button primary"
@@ -374,7 +389,8 @@ export function PublishPage() {
             </Button>
           </div>
           <div className="quiet-note">
-            <Check size={15} />
+            {/* C8：中性说明用 info 图标，对勾只留给完成/选中语义 */}
+            <Info size={15} />
             常用平台只是偏好，每次发布范围由你决定。
           </div>
         </>

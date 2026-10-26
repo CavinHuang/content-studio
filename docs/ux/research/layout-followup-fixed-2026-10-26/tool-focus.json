@@ -1,0 +1,176 @@
+[
+  {
+    "stage": "after-label-click",
+    "htmlFor": "_r_1f_-control",
+    "control": "<input data-slot=\"input\" class=\"h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none selection:",
+    "inputId": "_r_1f_-control",
+    "matches": 1,
+    "active": {
+      "tag": "INPUT",
+      "id": "_r_1f_-control",
+      "label": "方案选题"
+    },
+    "inputIsActive": true,
+    "documentHasFocus": true,
+    "events": [
+      {
+        "type": "focusin",
+        "tag": "DIV",
+        "id": "radix-_r_8_",
+        "label": null
+      },
+      {
+        "type": "focusout",
+        "tag": "DIV",
+        "id": "radix-_r_8_",
+        "label": null
+      },
+      {
+        "type": "focusin",
+        "tag": "DIV",
+        "id": "",
+        "label": null
+      },
+      {
+        "type": "focusout",
+        "tag": "DIV",
+        "id": "",
+        "label": null
+      },
+      {
+        "type": "focusin",
+        "tag": "BUTTON",
+        "id": "radix-_r_7_",
+        "label": "作品工具"
+      },
+      {
+        "type": "focusout",
+        "tag": "BUTTON",
+        "id": "radix-_r_7_",
+        "label": "作品工具"
+      },
+      {
+        "type": "focusin",
+        "tag": "INPUT",
+        "id": "_r_1f_-control",
+        "label": "方案选题"
+      }
+    ]
+  },
+  {
+    "stage": "settled",
+    "htmlFor": "_r_1f_-control",
+    "control": "<input data-slot=\"input\" class=\"h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none selection:",
+    "inputId": "_r_1f_-control",
+    "matches": 1,
+    "active": {
+      "tag": "INPUT",
+      "id": "_r_1f_-control",
+      "label": "方案选题"
+    },
+    "inputIsActive": true,
+    "documentHasFocus": true,
+    "events": [
+      {
+        "type": "focusin",
+        "tag": "DIV",
+        "id": "radix-_r_8_",
+        "label": null
+      },
+      {
+        "type": "focusout",
+        "tag": "DIV",
+        "id": "radix-_r_8_",
+        "label": null
+      },
+      {
+        "type": "focusin",
+        "tag": "DIV",
+        "id": "",
+        "label": null
+      },
+      {
+        "type": "focusout",
+        "tag": "DIV",
+        "id": "",
+        "label": null
+      },
+      {
+        "type": "focusin",
+        "tag": "BUTTON",
+        "id": "radix-_r_7_",
+        "label": "作品工具"
+      },
+      {
+        "type": "focusout",
+        "tag": "BUTTON",
+        "id": "radix-_r_7_",
+        "label": "作品工具"
+      },
+      {
+        "type": "focusin",
+        "tag": "INPUT",
+        "id": "_r_1f_-control",
+        "label": "方案选题"
+      }
+    ]
+  },
+  {
+    "stage": "after-direct-input-click",
+    "htmlFor": "_r_1f_-control",
+    "control": "<input data-slot=\"input\" class=\"h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none selection:",
+    "inputId": "_r_1f_-control",
+    "matches": 1,
+    "active": {
+      "tag": "INPUT",
+      "id": "_r_1f_-control",
+      "label": "方案选题"
+    },
+    "inputIsActive": true,
+    "documentHasFocus": true,
+    "events": [
+      {
+        "type": "focusin",
+        "tag": "DIV",
+        "id": "radix-_r_8_",
+        "label": null
+      },
+      {
+        "type": "focusout",
+        "tag": "DIV",
+        "id": "radix-_r_8_",
+        "label": null
+      },
+      {
+        "type": "focusin",
+        "tag": "DIV",
+        "id": "",
+        "label": null
+      },
+      {
+        "type": "focusout",
+        "tag": "DIV",
+        "id": "",
+        "label": null
+      },
+      {
+        "type": "focusin",
+        "tag": "BUTTON",
+        "id": "radix-_r_7_",
+        "label": "作品工具"
+      },
+      {
+        "type": "focusout",
+        "tag": "BUTTON",
+        "id": "radix-_r_7_",
+        "label": "作品工具"
+      },
+      {
+        "type": "focusin",
+        "tag": "INPUT",
+        "id": "_r_1f_-control",
+        "label": "方案选题"
+      }
+    ]
+  }
+]

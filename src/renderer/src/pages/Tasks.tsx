@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 import { Badge, download, Empty, PageTitle } from '../components/ui'
 import { useStudio } from '../studio/store'
-import { dateLabel } from '../studio/types'
+import { dateLabel, type Task } from '../studio/types'
 const labels = {
   queued: '排队中',
   running: '运行中',
@@ -26,9 +26,17 @@ const labels = {
   complete: '已完成',
 }
 export function TasksPage() {
-  const { state, controlTask, selectProject, notify } = useStudio()
+  const { state, controlTask, selectProject, patchProject, notify } = useStudio()
   const [filter, setFilter] = useState('all')
   const allTasksFilter = useRef<HTMLButtonElement>(null)
+  function viewTask(task: Task) {
+    if (task.kind === 'creation') patchProject(task.projectId, (p) => ({ ...p, activePlatform: 'master' }))
+    selectProject(task.projectId, task.videoId ? 'video' : 'article')
+  }
+  function needsInput(task: Task) {
+    const flow = state.projects.find((p) => p.id === task.projectId)?.creation
+    return task.kind === 'creation' && flow?.status === 'blocked' && flow.runId === task.id
+  }
   const visibleTasks = state.tasks.filter(
     (task) =>
       filter === 'all' ||
@@ -44,7 +52,9 @@ export function TasksPage() {
         description="查看本机演示任务。失败或已停止，都不会抹掉已经完成的内容。"
         actions={<Badge tone="orange">Mock · 任务中心</Badge>}
       />
-      <div className="task-overview">
+      {/* F3 页首统计统一版式：复用热点页 40 的行内式 source-stats 块，
+          替换原先居中分栏带竖分隔线的卡片式，两域共用同一 CSS 版式。 */}
+      <div className="source-stats">
         <div>
           <strong>{state.tasks.filter((t) => ['queued', 'running'].includes(t.state)).length}</strong>
           <span>进行中</span>
@@ -119,6 +129,7 @@ export function TasksPage() {
               </div>
               <p>{task.detail}</p>
               <span className="small-meta">
+                《{state.projects.find((p) => p.id === task.projectId)?.title || '未命名内容'}》 ·{' '}
                 {dateLabel(task.at)}
                 {task.version ? ` · 固定采用 v${task.version}` : ''} · 本机演示
               </span>
@@ -136,15 +147,20 @@ export function TasksPage() {
                     <Pause size={14} />
                     停止
                   </Button>
-                ) : ['failed', 'stopped'].includes(task.state) ? (
+                ) : ['failed', 'stopped'].includes(task.state) && !needsInput(task) ? (
                   <Button
                     className="text-button text-muted-foreground"
                     onClick={() => controlTask(task.id, 'retry')}
+                    disabled={
+                      task.kind === 'creation' &&
+                      (!state.projects.some((p) => p.id === task.projectId && !p.trashed) ||
+                        state.projects.find((p) => p.id === task.projectId)?.creation?.status === 'running')
+                    }
                     variant="ghost"
                     size="sm"
                   >
                     <RefreshCw size={14} />
-                    重试演示
+                    {task.kind === 'creation' ? '继续整理' : '重试演示'}
                   </Button>
                 ) : (
                   task.kind === 'export' && (
@@ -182,11 +198,11 @@ export function TasksPage() {
                 <Button
                   className="text-button text-muted-foreground"
                   disabled={!state.projects.some((p) => p.id === task.projectId && !p.trashed)}
-                  onClick={() => selectProject(task.projectId, task.videoId ? 'video' : 'article')}
+                  onClick={() => viewTask(task)}
                   variant="ghost"
                   size="sm"
                 >
-                  查看内容
+                  {needsInput(task) ? '修正输入' : '查看内容'}
                   <ArrowRight size={14} />
                 </Button>
               </div>

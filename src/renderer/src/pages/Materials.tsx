@@ -59,7 +59,13 @@ const typeInfo = {
     icon: Paperclip,
   },
 }
-export function MaterialsPage({ global = false }: { global?: boolean }) {
+export function MaterialsPage({
+  global = false,
+  embedded = false,
+}: {
+  global?: boolean
+  embedded?: boolean
+}) {
   const { state, setState, project, patchProject, patchDraft, navigate, reference, notify, setCaptureOpen } =
     useStudio()
   const [scope, setScope] = useState(global ? 'all' : 'project')
@@ -90,6 +96,12 @@ export function MaterialsPage({ global = false }: { global?: boolean }) {
   useEffect(() => () => window.clearTimeout(savedTimer.current), [])
   const active = state.materials.find((m) => m.id === detail)
   const deleting = state.materials.find((m) => m.id === deleteId)
+  // B8：引用方向写法——素材是「被」内容引用，列表带书名号避免误读成素材引用了文稿。
+  const activeReferrers = active
+    ? state.projects
+        .filter((p) => !p.trashed && p.materialIds.includes(active.id))
+        .map((p) => p.title || '未命名内容')
+    : []
   const all = state.materials.filter((m) => !m.trashed)
   const normalizedQuery = query.trim().toLocaleLowerCase()
   const filtered = Boolean(normalizedQuery || type !== 'all' || tag !== 'all')
@@ -134,11 +146,15 @@ export function MaterialsPage({ global = false }: { global?: boolean }) {
     const exists = project.materialIds.includes(material.id)
     patchProject(project.id, (p) => ({
       ...p,
-      materialIds: exists
+      materialIds: p.materialIds.includes(material.id)
         ? p.materialIds.filter((id) => id !== material.id)
         : [...p.materialIds, material.id],
     }))
-    notify(exists ? '已移除本篇引用，原素材与已插入正文的内容均保留。' : '已引用到本篇，尚未插入正文。')
+    notify(
+      exists
+        ? '已移除本篇参考，原素材与已插入正文的内容均保留。'
+        : `已用于《${project.title || '未命名内容'}》的创作参考，正文未改动。`,
+    )
   }
   function insert(material: Material) {
     const draft = project.drafts[project.activePlatform] ?? project.drafts.master!
@@ -162,26 +178,66 @@ export function MaterialsPage({ global = false }: { global?: boolean }) {
   }
   return (
     <section className="workspace-page materials-page">
-      <PageTitle
-        eyebrow={global ? 'YOUR GROWING COLLECTION' : 'A FEW THINGS TO BUILD ON'}
-        title={global ? '给灵感，一个落脚的地方。' : '给这篇内容找素材'}
-        description={
-          global
-            ? '随手记录、慢慢整理。让每一份积累，都能被下一次创作找到。'
-            : `当前内容：${project.title || '未命名内容'}`
-        }
-        actions={
+      {!embedded && (
+        <PageTitle
+          eyebrow={global ? 'YOUR GROWING COLLECTION' : 'A FEW THINGS TO BUILD ON'}
+          title={global ? '给灵感，一个落脚的地方。' : '给这篇内容找素材'}
+          description={
+            global
+              ? '随手记录、慢慢整理。让每一份积累，都能被下一次创作找到。'
+              : `当前内容：${project.title || '未命名内容'}`
+          }
+          actions={
+            <Button
+              className="button primary"
+              onClick={() => setCaptureOpen(true)}
+              variant="default"
+              size="default"
+            >
+              <Plus size={15} />
+              收集素材
+            </Button>
+          }
+        />
+      )}
+      <div className="mb-3 grid gap-2 text-sm">
+        {global ? (
+          <Field label="素材用于哪篇内容">
+            <NativeSelect
+              aria-label="素材目标作品"
+              value={project.id}
+              onChange={(e) => {
+                const id = e.target.value
+                setState((s) => ({ ...s, selectedProject: id }))
+              }}
+            >
+              {state.projects
+                .filter((p) => !p.trashed)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.title || '未命名内容'}
+                  </option>
+                ))}
+            </NativeSelect>
+          </Field>
+        ) : (
+          <span>当前作品：《{project.title || '未命名内容'}》</span>
+        )}
+        <span className="text-xs text-muted-foreground">
+          用于这篇内容后，整理与助手会自动带入；插入正文需要单独选择。
+        </span>
+        {embedded && (
           <Button
-            className="button primary"
+            className="justify-self-start"
+            variant="outline"
+            size="sm"
             onClick={() => setCaptureOpen(true)}
-            variant="default"
-            size="default"
           >
             <Plus size={15} />
             收集素材
           </Button>
-        }
-      />
+        )}
+      </div>
       <div className="material-topline">
         <Tabs value={scope} onValueChange={(value) => setScope(value as 'project' | 'all')}>
           <TabsList aria-label="素材范围">
@@ -193,24 +249,25 @@ export function MaterialsPage({ global = false }: { global?: boolean }) {
             </TabsTrigger>
           </TabsList>
         </Tabs>
-        {scope === 'project' ? (
-          <span className="small-meta flex min-w-0 items-center gap-2">
-            <span className="min-w-0 truncate">当前文稿：{project.title || '未命名内容'}</span>
-            <Button
-              className="text-button h-auto shrink-0 p-0 text-primary"
-              onClick={() => navigate('article')}
-              variant="ghost"
-              size="sm"
-            >
-              <ArrowLeft size={13} />
-              返回文稿
-            </Button>
-          </span>
-        ) : (
-          <span className="small-meta">跨项目复用</span>
-        )}
+        {!embedded &&
+          (scope === 'project' ? (
+            <span className="small-meta flex min-w-0 items-center gap-2">
+              <span className="min-w-0 truncate">当前文稿：{project.title || '未命名内容'}</span>
+              <Button
+                className="text-button h-auto shrink-0 p-0 text-primary"
+                onClick={() => navigate('article')}
+                variant="ghost"
+                size="sm"
+              >
+                <ArrowLeft size={13} />
+                返回文稿
+              </Button>
+            </span>
+          ) : (
+            <span className="small-meta">跨项目复用</span>
+          ))}
       </div>
-      <div className="material-search-row">
+      <div className={cn('material-search-row', embedded && 'grid-cols-1')}>
         <SearchBox
           inputRef={searchInput}
           value={query}
@@ -219,7 +276,7 @@ export function MaterialsPage({ global = false }: { global?: boolean }) {
           label="搜索素材"
         />
         <div className="material-filters flex-wrap">
-          <div className="filter-chips min-w-0" role="group" aria-label="素材类型筛选">
+          <div className="filter-chips min-w-0 flex-wrap" role="group" aria-label="素材类型筛选">
             {(['all', 'text', 'link', 'image', 'file'] as const).map((id) => (
               <Button
                 key={id}
@@ -303,18 +360,19 @@ export function MaterialsPage({ global = false }: { global?: boolean }) {
                       'text-muted-foreground',
                     )}
                     onClick={() => toggleReference(material)}
+                    disabled={project.materialIds.includes(material.id)}
                     variant="ghost"
                     size="sm"
                   >
                     {project.materialIds.includes(material.id) ? (
                       <>
                         <Check size={13} />
-                        已引用
+                        已用于本篇
                       </>
                     ) : (
                       <>
                         <Plus size={13} />
-                        引用
+                        用于这篇内容
                       </>
                     )}
                   </Button>
@@ -340,19 +398,22 @@ export function MaterialsPage({ global = false }: { global?: boolean }) {
                   ))}
                 </div>
                 <div className="material-inline-actions">
-                  <Button
-                    variant="outline"
-                    onClick={() => reference(material.title, material.body || material.url || material.title)}
-                  >
-                    <MessageCircle size={16} />
-                    引用到对话
-                  </Button>
                   <Button variant="outline" onClick={() => insert(material)}>
                     <FileText size={16} />
-                    插入文稿
+                    插入正文
                   </Button>
-                  <Button variant="ghost" onClick={() => toggleReference(material)}>
-                    {project.materialIds.includes(material.id) ? '移除本篇引用' : '引用到本篇'}
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      patchProject(project.id, (p) => ({
+                        ...p,
+                        materialIds: [...new Set([...p.materialIds, material.id])],
+                      }))
+                      reference(material.title, material.body || material.url || material.title)
+                    }}
+                  >
+                    <MessageCircle size={16} />
+                    和助手讨论
                   </Button>
                 </div>
               </div>
@@ -435,11 +496,15 @@ export function MaterialsPage({ global = false }: { global?: boolean }) {
                   variant="outline"
                   size="default"
                 >
-                  {project.materialIds.includes(active.id) ? '移除本篇引用' : '引用到本篇'}
+                  {project.materialIds.includes(active.id) ? '移除本篇参考' : '用于这篇内容'}
                 </Button>
                 <Button
                   className="button secondary"
                   onClick={() => {
+                    patchProject(project.id, (p) => ({
+                      ...p,
+                      materialIds: [...new Set([...p.materialIds, active.id])],
+                    }))
                     reference(active.title, active.body || active.url || active.title)
                     setDetail(null)
                   }}
@@ -447,7 +512,7 @@ export function MaterialsPage({ global = false }: { global?: boolean }) {
                   size="default"
                 >
                   <MessageCircle size={15} />
-                  引用到对话
+                  和助手讨论
                 </Button>
                 <Button
                   className="button primary"
@@ -455,7 +520,7 @@ export function MaterialsPage({ global = false }: { global?: boolean }) {
                   variant="default"
                   size="default"
                 >
-                  插入文稿
+                  插入正文
                   <ArrowRight size={15} />
                 </Button>
               </div>
@@ -528,11 +593,9 @@ export function MaterialsPage({ global = false }: { global?: boolean }) {
             </div>
           </Field>
           <p className="small-meta">
-            引用此素材：
-            {state.projects
-              .filter((p) => !p.trashed && p.materialIds.includes(active.id))
-              .map((p) => p.title || '未命名内容')
-              .join('、') || '暂无项目引用'}
+            {activeReferrers.length
+              ? `被${activeReferrers.map((t) => `《${t}》`).join('、')}引用`
+              : '尚未被任何内容引用'}
           </p>
           {active.type === 'file' && (
             <Button
@@ -794,7 +857,11 @@ export function MaterialCapture() {
           >
             {loading ? '正在读取…' : file ? file.name : '点击选择，或把文件拖到这里'}
           </Button>
-          <small>单个文件不超过 1 MB，保存在当前设备</small>
+          <small>
+            {type === 'image'
+              ? '支持 PNG、JPG、WebP、GIF 格式，单个文件不超过 1 MB，保存在本机'
+              : '不限格式，单个文件不超过 1 MB，保存在本机'}
+          </small>
         </div>
       )}
       <Field label={type === 'text' ? '写下你的想法' : '摘录与备注（可选）'}>

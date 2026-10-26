@@ -24,6 +24,7 @@ test.beforeEach(async () => {
   })
   await page.setViewportSize({ width: 1480, height: 960 })
   await expect(page.getByLabel('文稿标题', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '展开 Agent', exact: true }).click()
 })
 test.afterEach(async ({}, info) => {
   try {
@@ -33,6 +34,16 @@ test.afterEach(async ({}, info) => {
     await app.close()
   }
 })
+
+async function tool(name: string) {
+  const local = page.getByRole('tablist', { name: '作品辅助内容' }).getByRole('tab', { name, exact: true })
+  if (await local.isVisible()) {
+    await local.click()
+    return
+  }
+  await page.getByRole('button', { name: '作品工具', exact: true }).click()
+  await page.getByRole('menuitem', { name, exact: true }).click()
+}
 
 test('tokens, keyboard tabs, typography sliders, dialog focus and resize persistence', async () => {
   await expect(page.locator('.title-input')).toHaveCSS('font-size', '30px')
@@ -120,8 +131,8 @@ test('tokens, keyboard tabs, typography sliders, dialog focus and resize persist
 
 test('artifact tabs keep mouse selection clean and keyboard focus visible', async () => {
   const tabs = page.getByRole('tablist', { name: '内容产物' })
-  const brief = tabs.getByRole('tab', { name: '创作方案', exact: true })
-  const article = tabs.getByRole('tab', { name: '文稿', exact: true })
+  const brief = tabs.getByRole('tab', { name: '文稿', exact: true })
+  const article = tabs.getByRole('tab', { name: '视频', exact: true })
   await brief.click()
   await expect(brief).toBeFocused()
   await expect(brief).toHaveAttribute('aria-selected', 'true')
@@ -143,7 +154,9 @@ test('artifact tabs keep mouse selection clean and keyboard focus visible', asyn
   await expect(article).toHaveCSS('outline-style', 'solid')
 
   await brief.click()
+  await tool('创作方案')
   await page.getByRole('textbox', { name: '方案选题', exact: true }).fill('整理我的创作方向')
+  await page.getByRole('button', { name: '关闭作品工具', exact: true }).click()
   await article.click()
   await expect(article).toBeFocused()
   await expect(article).toHaveCSS('outline-style', 'none')
@@ -162,10 +175,7 @@ test('form controls retain upstream typography and borders across business layou
   await expect(views.getByRole('tab', { name: '预览', exact: true })).toHaveAttribute('aria-selected', 'true')
   await expect(page.locator('.document-preview')).toBeVisible()
 
-  await page
-    .getByRole('tablist', { name: '内容产物' })
-    .getByRole('tab', { name: '创作方案', exact: true })
-    .click()
+  await tool('创作方案')
   const point = page.getByRole('textbox', { name: '核心观点', exact: true })
   await expect(point).toHaveCSS('font-weight', '400')
   await expect(point).toHaveAccessibleDescription('不是信息的堆砌，而是你想说的一句话。')
@@ -218,19 +228,13 @@ test('form controls retain upstream typography and borders across business layou
   const search = page.getByRole('textbox', { name: /^搜索热点/ })
   await search.focus()
   await expect(page.locator('.search-field')).toHaveCSS('outline-style', 'none')
-  await expect(page.getByRole('button', { name: '综合', exact: true })).toHaveAttribute(
-    'aria-pressed',
+  await expect(page.getByRole('tab', { name: '综合', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await page.getByRole('tab', { name: 'AI 科技', exact: true }).click()
+  await expect(page.getByRole('tab', { name: 'AI 科技', exact: true })).toHaveAttribute(
+    'aria-selected',
     'true',
   )
-  await page.getByRole('button', { name: 'AI 科技', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'AI 科技', exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  )
-  await expect(page.getByRole('button', { name: '综合', exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'false',
-  )
+  await expect(page.getByRole('tab', { name: '综合', exact: true })).toHaveAttribute('aria-selected', 'false')
 })
 
 test('conversation menus handle long labels, keyboard selection and focus recovery', async ({}, info) => {
@@ -251,6 +255,7 @@ test('conversation menus handle long labels, keyboard selection and focus recove
     localStorage.setItem(key, JSON.stringify(state))
   })
   await page.reload()
+  await page.getByRole('button', { name: '展开 Agent', exact: true }).click()
   const trigger = page.getByRole('button', { name: /^切换对话：/ })
   await trigger.click()
   const menu = page.getByRole('menu', { name: /^切换对话：/ })
@@ -296,10 +301,7 @@ test('conversation menus handle long labels, keyboard selection and focus recove
 })
 
 test('filters recover from empty results and keep search and expansion accessible', async () => {
-  await page
-    .getByRole('tablist', { name: '内容产物' })
-    .getByRole('tab', { name: '创作方案', exact: true })
-    .click()
+  await tool('创作方案')
   await page
     .locator('[data-slot="field-label"]')
     .filter({ hasText: /^选题$/ })
@@ -337,10 +339,7 @@ test('filters recover from empty results and keep search and expansion accessibl
     .getByRole('button', { name: /新建内容/ })
     .first()
     .click()
-  await page
-    .getByRole('tablist', { name: '内容产物' })
-    .getByRole('tab', { name: '素材', exact: true })
-    .click()
+  await tool('参考素材')
   await page.getByRole('button', { name: '查看全部素材', exact: true }).click()
   const allMaterials = page.getByRole('tablist', { name: '素材范围' }).getByRole('tab', { name: /^全部素材/ })
   await expect(allMaterials).toHaveAttribute('aria-selected', 'true')
@@ -365,6 +364,7 @@ test('filters recover from empty results and keep search and expansion accessibl
 })
 
 test('save failures offer a retry while successful saves remain a status', async () => {
+  await page.getByRole('tab', { name: '编辑', exact: true }).click()
   const status = page.getByRole('status', { name: '保存文稿状态' })
   await expect(status).toContainText('已保存')
   await expect(page.getByRole('button', { name: '保存文稿状态' })).toHaveCount(0)
@@ -429,7 +429,10 @@ test('unsent Agent drafts stay with their conversation and references preserve t
   const reference = await material.locator('span').innerText()
   await material.click()
   await expect(input).toHaveValue('这篇内容的要求还没有写完，请保留这段输入')
-  await sidebar.getByRole('button', { name: '创作方案 已确认', exact: true }).click()
+  await tool('创作方案')
+  await expect(page.getByLabel('核心观点', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '关闭作品工具', exact: true }).click()
+  await page.getByRole('button', { name: '展开 Agent', exact: true }).click()
   await expect(input).toHaveValue('这篇内容的要求还没有写完，请保留这段输入')
   await expect(page.locator('.context-chip')).toContainText(reference)
   await page.getByRole('button', { name: '新建对话', exact: true }).click()
@@ -463,7 +466,7 @@ test('unsent Agent drafts stay with their conversation and references preserve t
 })
 
 test('workspace survives responsive layout changes and long material dialogs stay usable', async ({}, info) => {
-  await page.getByRole('tab', { name: '素材', exact: true }).click()
+  await tool('参考素材')
   await page.locator('.work-area').evaluate((el) => el.setAttribute('data-review-identity', 'retained'))
   await page
     .locator('.material-card')
@@ -480,7 +483,7 @@ test('workspace survives responsive layout changes and long material dialogs sta
     await expect(detail).toHaveAttribute('id', identity!)
     await expect(detail).not.toHaveAttribute('aria-hidden', 'true')
     await expect(page.locator('.work-area')).toHaveAttribute('data-review-identity', 'retained')
-    await expect(detail.getByRole('button', { name: '插入文稿', exact: true })).toBeInViewport({ ratio: 1 })
+    await expect(detail.getByRole('button', { name: '插入正文', exact: true })).toBeInViewport({ ratio: 1 })
     expect(await detail.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
   }
   const title = detail.getByRole('textbox', { name: '标题', exact: true })
@@ -504,7 +507,7 @@ test('workspace survives responsive layout changes and long material dialogs sta
       .first()
       .getByRole('button', { name: /^查看素材：/ }),
   ).toBeFocused()
-  await page.getByRole('tab', { name: '创作方案', exact: true }).click()
+  await tool('创作方案')
   const point = page.getByRole('textbox', { name: '核心观点', exact: true })
   await point.fill('窗口缩放时仍在编辑的核心观点')
   await point.evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(2, 5))
@@ -538,7 +541,7 @@ test('responsive sheets, sources switch and local assets remain usable', async (
     .getByRole('button', { name: '内容', exact: true })
     .click()
   await expect(page.locator('.header-actions')).toBeInViewport({ ratio: 1 })
-  for (const name of ['发布准备', '更多工作区操作', '展开 Agent'])
+  for (const name of ['发布准备', '更多工作区操作（含设置）', '展开 Agent'])
     await expect(page.getByRole('button', { name, exact: true })).toBeInViewport({ ratio: 1 })
   await page.getByRole('button', { name: '展开 Agent', exact: true }).click()
   await expect(page.getByRole('dialog', { name: '创作 Agent', exact: true })).toBeVisible()
@@ -550,7 +553,7 @@ test('responsive sheets, sources switch and local assets remain usable', async (
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
 
-test('sidebar search, nested navigation, project actions and desktop/mobile shortcuts', async () => {
+test('sidebar project navigation, project actions and desktop/mobile shortcuts', async () => {
   const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
   const sidebar = page.getByRole('complementary', { name: '内容导航', exact: true })
   const search = page.getByRole('textbox', { name: '搜索内容', exact: true })
@@ -559,21 +562,8 @@ test('sidebar search, nested navigation, project actions and desktop/mobile shor
   ).toHaveCSS('height', '32px')
   expect(await sidebar.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
   const submenus = sidebar.locator('[data-slot="sidebar-menu-sub-button"]')
-  await expect(submenus.first()).toHaveCSS('height', '28px')
-  await expect(submenus.first()).toHaveCSS('text-align', 'left')
-  const parentIcon = await sidebar.locator('.project-file').first().boundingBox()
-  const childIcon = await submenus.first().locator('svg').boundingBox()
-  expect(childIcon!.x - parentIcon!.x).toBeGreaterThanOrEqual(12)
-  expect(childIcon!.x - parentIcon!.x).toBeLessThanOrEqual(18)
-  expect(
-    await submenus
-      .first()
-      .evaluate((element) =>
-        Math.abs(
-          element.getBoundingClientRect().width - element.parentElement!.getBoundingClientRect().width,
-        ),
-      ),
-  ).toBeLessThan(1)
+  await expect(submenus).toHaveCount(0)
+  await expect(page.getByRole('tablist', { name: '内容产物' }).getByRole('tab')).toHaveCount(2)
 
   await page.keyboard.press(`${modifier}+b`)
   await expect(sidebar).toHaveCount(0)
@@ -596,11 +586,13 @@ test('sidebar search, nested navigation, project actions and desktop/mobile shor
   await expect(sidebar.locator('.project-item').first()).toHaveAttribute('title', name)
   await expect(page.getByLabel('文稿标题', { exact: true })).toHaveValue('让灵感成为作品')
   expect(await sidebar.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
-  await sidebar.getByRole('button', { name: '创作方案 已确认', exact: true }).click()
+  await tool('创作方案')
   await expect(page.getByLabel('核心观点', { exact: true })).toBeVisible()
   await expect(page.locator('.workspace-page')).toHaveCSS('padding', '16px')
   await expect(page.locator('.form-grid')).toHaveCSS('gap', '12px')
   await expect(page.locator('.form-grid > .field').first()).toHaveCSS('margin-bottom', '0px')
+
+  await page.getByRole('button', { name: '关闭作品工具', exact: true }).click()
 
   await page.setViewportSize({ width: 390, height: 844 })
   await page.getByRole('button', { name: '展开内容库', exact: true }).click()

@@ -12,7 +12,7 @@ import { join, resolve } from 'node:path'
 
 let app: ElectronApplication, page: Page
 let errors: string[]
-const directory = 'docs/ux/research/creation'
+const directory = 'docs/ux/research/layout-fixed-2026-10-26'
 const idea = '少收集一点，给每周回顾留出时间'
 const note = '周五原始记录：我存了 12 个链接，只重读了 2 条。下周先重读，再决定要不要继续收藏。'
 const body = () => page.getByLabel('文稿正文', { exact: true })
@@ -79,7 +79,7 @@ test('prototype: same raw task, editable master and exact Markdown export with f
       })
     })
   }, destination)
-  await click(flow().getByRole('button', { name: '导出母稿 Markdown' }), '直接导出 Markdown')
+  await click(page.getByRole('button', { name: '导出当前文稿' }), '直接导出 Markdown')
   await expect
     .poll(() => app.evaluate(() => (globalThis as unknown as { creationDownload: string }).creationDownload))
     .toBe('completed')
@@ -90,7 +90,7 @@ test('prototype: same raw task, editable master and exact Markdown export with f
   expect(saved.projects.find((p: { id: string }) => p.id === saved.selectedProject).batches).toEqual([])
   const clicks = steps.filter((s) => s.action === 'click').length
   const inputOperations = steps.filter((s) => s.action === 'fill').length
-  const baseline = JSON.parse(readFileSync(join(directory, 'baseline.json'), 'utf8'))
+  const baseline = JSON.parse(readFileSync('docs/ux/research/creation/baseline-before.json', 'utf8'))
   expect(clicks + inputOperations).toBeLessThanOrEqual((baseline.clicks + baseline.inputOperations) * 0.7)
   writeFileSync(
     join(directory, 'prototype.json'),
@@ -143,21 +143,26 @@ test('direction changes produce reviewed candidates; manual edits block stale ad
   const original = await body().inputValue()
   await flow().getByRole('button', { name: '调整方向与素材' }).click()
   await input().fill('换个问题：重读比收藏重要吗？\n' + note)
-  await flow().getByRole('button', { name: '按新方向准备候选' }).click()
-  await flow().getByRole('button', { name: '比较原稿与候选' }).click()
+  await page.getByRole('button', { name: '按新方向准备候选' }).click()
+  const comparison = page.getByRole('region', { name: '原稿与候选对照', exact: true })
+  await expect(comparison).toBeVisible()
   await page.screenshot({ path: join(directory, 'prototype-candidate.png') })
+  await comparison.getByRole('button', { name: '返回正文继续编辑' }).click()
   await expect(body()).toHaveValue(original)
   await body().fill(original + '\n作者不想丢失的修改')
-  await expect(flow().getByRole('button', { name: '采用候选，保留原稿版本' })).toBeDisabled()
-  await expect(flow().getByRole('button', { name: '撤销这次整理' })).toHaveCount(0)
-  await flow().getByRole('button', { name: '按新方向准备候选' }).click()
   await flow().getByRole('button', { name: '比较原稿与候选' }).click()
-  await flow().getByRole('button', { name: '采用候选，保留原稿版本' }).click()
+  await expect(comparison.getByRole('button', { name: '采用候选，保留原稿版本' })).toBeDisabled()
+  await comparison.getByRole('button', { name: '返回正文继续编辑' }).click()
+  await expect(flow().getByRole('button', { name: '撤销这次整理' })).toHaveCount(0)
+  await flow().getByRole('button', { name: '调整方向与素材' }).click()
+  await page.getByRole('button', { name: '按新方向准备候选' }).click()
+  await comparison.getByRole('button', { name: '采用候选，保留原稿版本' }).click()
   await expect(body()).toHaveValue(/换个问题/)
   await flow().getByRole('button', { name: '撤销这次整理' }).click()
   await expect(body()).toHaveValue(original + '\n作者不想丢失的修改')
-  await flow().getByRole('button', { name: '按新方向准备候选' }).click()
-  await flow().getByRole('button', { name: '放弃候选，保留母稿' }).click()
+  await flow().getByRole('button', { name: '调整方向与素材' }).click()
+  await page.getByRole('button', { name: '按新方向准备候选' }).click()
+  await comparison.getByRole('button', { name: '放弃候选，保留母稿' }).click()
   await expect(body()).toHaveValue(original + '\n作者不想丢失的修改')
 })
 
@@ -169,18 +174,18 @@ test('stop, modify direction and reload keep raw inputs without accepting late r
   await flow().getByRole('button', { name: '整理成初稿', exact: true }).click()
   await flow().getByRole('button', { name: '停止整理' }).click()
   await page.clock.runFor(1200)
-  await expect(body()).toHaveValue('')
+  await expect(body()).toHaveCount(0)
   await expect(input()).toHaveValue(`${idea}\n${note}`)
   await flow().getByRole('button', { name: '继续整理', exact: true }).click()
   await input().fill('新的方向\n' + note)
   await page.clock.runFor(1200)
-  await expect(body()).toHaveValue('')
+  await expect(body()).toHaveCount(0)
   await flow().getByRole('button', { name: '整理成初稿', exact: true }).click()
   await page.clock.runFor(200)
   await page.reload()
   await expect(flow()).toContainText('上次整理被中断')
   await expect(input()).toHaveValue('新的方向\n' + note)
-  await expect(body()).toHaveValue('')
+  await expect(body()).toHaveCount(0)
   await flow().getByRole('button', { name: '继续整理', exact: true }).click()
   await page.clock.runFor(1200)
   await expect(body()).toHaveValue(/新的方向/)
@@ -195,7 +200,7 @@ test('small viewport keeps a keyboard accessible creation and export path', asyn
   await page.keyboard.press('Tab')
   await expect(flow().getByRole('button', { name: '整理成初稿', exact: true })).toBeFocused()
   await page.keyboard.press('Enter')
-  await expect(flow().getByRole('button', { name: '导出母稿 Markdown' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '导出当前文稿' })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.screenshot({ path: join(directory, 'prototype-mobile.png') })
 })

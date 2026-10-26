@@ -89,14 +89,13 @@
       "height": 992,
       "sidebar": 256,
       "editor": 838,
-      "agent": 384,
       "appearance": {
         "uiFontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
         "fieldControlWeights": [
           "400"
         ],
         "sidebarEdge": "0px",
-        "agentEdge": "0px"
+        "agentEdge": null
       },
       "spacing": {
         "page": {
@@ -105,16 +104,8 @@
           "margin": "0px"
         },
         "card": null,
-        "messages": {
-          "padding": "0px",
-          "gap": "16px",
-          "margin": "0px"
-        },
-        "agent": {
-          "padding": "16px",
-          "gap": "normal",
-          "margin": "0px"
-        },
+        "messages": null,
+        "agent": null,
         "form": {
           "padding": "0px",
           "gap": "12px",
@@ -140,12 +131,11 @@
       "height": 992,
       "sidebar": 256,
       "editor": 838,
-      "agent": 384,
       "appearance": {
         "uiFontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
         "fieldControlWeights": [],
         "sidebarEdge": "0px",
-        "agentEdge": "0px"
+        "agentEdge": null
       },
       "spacing": {
         "page": {
@@ -158,16 +148,8 @@
           "gap": "12px",
           "margin": "0px"
         },
-        "messages": {
-          "padding": "0px",
-          "gap": "16px",
-          "margin": "0px"
-        },
-        "agent": {
-          "padding": "16px",
-          "gap": "normal",
-          "margin": "0px"
-        },
+        "messages": null,
+        "agent": null,
         "form": null,
         "fieldMargins": []
       },
@@ -186,14 +168,13 @@
       "height": 992,
       "sidebar": 256,
       "editor": 838,
-      "agent": 384,
       "appearance": {
         "uiFontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
         "fieldControlWeights": [
           "400"
         ],
         "sidebarEdge": "0px",
-        "agentEdge": "0px"
+        "agentEdge": null
       },
       "spacing": {
         "page": {
@@ -206,16 +187,8 @@
           "gap": "12px",
           "margin": "0px"
         },
-        "messages": {
-          "padding": "0px",
-          "gap": "16px",
-          "margin": "0px"
-        },
-        "agent": {
-          "padding": "16px",
-          "gap": "normal",
-          "margin": "0px"
-        },
+        "messages": null,
+        "agent": null,
         "form": null,
         "fieldMargins": []
       },
@@ -369,13 +342,12 @@
       "width": 1480,
       "height": 992,
       "sidebar": 256,
-      "editor": 838,
-      "agent": 384,
+      "editor": 1223,
       "appearance": {
         "uiFontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
         "fieldControlWeights": [],
         "sidebarEdge": "0px",
-        "agentEdge": "0px"
+        "agentEdge": null
       },
       "spacing": {
         "page": {
@@ -384,16 +356,8 @@
           "margin": "0px"
         },
         "card": null,
-        "messages": {
-          "padding": "0px",
-          "gap": "16px",
-          "margin": "0px"
-        },
-        "agent": {
-          "padding": "16px",
-          "gap": "normal",
-          "margin": "0px"
-        },
+        "messages": null,
+        "agent": null,
         "form": null,
         "fieldMargins": []
       },
@@ -411,13 +375,12 @@
       "width": 1480,
       "height": 992,
       "sidebar": 256,
-      "editor": 838,
-      "agent": 384,
+      "editor": 1223,
       "appearance": {
         "uiFontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
         "fieldControlWeights": [],
         "sidebarEdge": "0px",
-        "agentEdge": "0px"
+        "agentEdge": null
       },
       "spacing": {
         "page": {
@@ -426,16 +389,8 @@
           "margin": "0px"
         },
         "card": null,
-        "messages": {
-          "padding": "0px",
-          "gap": "16px",
-          "margin": "0px"
-        },
-        "agent": {
-          "padding": "16px",
-          "gap": "normal",
-          "margin": "0px"
-        },
+        "messages": null,
+        "agent": null,
         "form": null,
         "fieldMargins": []
       },
@@ -625,27 +580,18 @@
       "width": 1100,
       "height": 820,
       "sidebar": 216,
-      "editor": 562,
-      "agent": 320,
+      "editor": 883,
       "appearance": {
         "uiFontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
         "fieldControlWeights": [],
         "sidebarEdge": "0px",
-        "agentEdge": "0px"
+        "agentEdge": null
       },
       "spacing": {
         "page": null,
         "card": null,
-        "messages": {
-          "padding": "0px",
-          "gap": "16px",
-          "margin": "0px"
-        },
-        "agent": {
-          "padding": "16px",
-          "gap": "normal",
-          "margin": "0px"
-        },
+        "messages": null,
+        "agent": null,
         "form": null,
         "fieldMargins": []
       },
@@ -1181,9 +1127,7 @@
       "agent": 384,
       "appearance": {
         "uiFontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
-        "fieldControlWeights": [
-          "400"
-        ],
+        "fieldControlWeights": [],
         "sidebarEdge": "0px",
         "agentEdge": "0px"
       },
@@ -1345,15 +1289,14 @@
       "width": 1480,
       "height": 992,
       "sidebar": 256,
-      "editor": 838,
-      "agent": 384,
+      "editor": 1223,
       "appearance": {
         "uiFontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
         "fieldControlWeights": [
           "400"
         ],
         "sidebarEdge": "0px",
-        "agentEdge": "0px"
+        "agentEdge": null
       },
       "spacing": {
         "page": {
@@ -1362,16 +1305,8 @@
           "margin": "0px"
         },
         "card": null,
-        "messages": {
-          "padding": "0px",
-          "gap": "16px",
-          "margin": "0px"
-        },
-        "agent": {
-          "padding": "16px",
-          "gap": "normal",
-          "margin": "0px"
-        },
+        "messages": null,
+        "agent": null,
         "form": null,
         "fieldMargins": []
       },
@@ -1390,13 +1325,12 @@
       "width": 1480,
       "height": 992,
       "sidebar": 256,
-      "editor": 838,
-      "agent": 384,
+      "editor": 1223,
       "appearance": {
         "uiFontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
         "fieldControlWeights": [],
         "sidebarEdge": "0px",
-        "agentEdge": "0px"
+        "agentEdge": null
       },
       "spacing": {
         "page": {
@@ -1405,16 +1339,8 @@
           "margin": "0px"
         },
         "card": null,
-        "messages": {
-          "padding": "0px",
-          "gap": "16px",
-          "margin": "0px"
-        },
-        "agent": {
-          "padding": "16px",
-          "gap": "normal",
-          "margin": "0px"
-        },
+        "messages": null,
+        "agent": null,
         "form": null,
         "fieldMargins": []
       },
@@ -1433,13 +1359,14 @@
       "width": 1480,
       "height": 992,
       "sidebar": 256,
-      "editor": 838,
-      "agent": 384,
+      "editor": 1223,
       "appearance": {
         "uiFontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
-        "fieldControlWeights": [],
+        "fieldControlWeights": [
+          "400"
+        ],
         "sidebarEdge": "0px",
-        "agentEdge": "0px"
+        "agentEdge": null
       },
       "spacing": {
         "page": {
@@ -1452,16 +1379,8 @@
           "gap": "12px",
           "margin": "0px"
         },
-        "messages": {
-          "padding": "0px",
-          "gap": "16px",
-          "margin": "0px"
-        },
-        "agent": {
-          "padding": "16px",
-          "gap": "normal",
-          "margin": "0px"
-        },
+        "messages": null,
+        "agent": null,
         "form": null,
         "fieldMargins": []
       },
@@ -1480,15 +1399,14 @@
       "width": 1480,
       "height": 992,
       "sidebar": 256,
-      "editor": 838,
-      "agent": 384,
+      "editor": 1223,
       "appearance": {
         "uiFontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
         "fieldControlWeights": [
           "400"
         ],
         "sidebarEdge": "0px",
-        "agentEdge": "0px"
+        "agentEdge": null
       },
       "spacing": {
         "page": {
@@ -1501,16 +1419,8 @@
           "gap": "12px",
           "margin": "0px"
         },
-        "messages": {
-          "padding": "0px",
-          "gap": "16px",
-          "margin": "0px"
-        },
-        "agent": {
-          "padding": "16px",
-          "gap": "normal",
-          "margin": "0px"
-        },
+        "messages": null,
+        "agent": null,
         "form": null,
         "fieldMargins": []
       },
@@ -1529,15 +1439,14 @@
       "width": 1480,
       "height": 992,
       "sidebar": 256,
-      "editor": 838,
-      "agent": 384,
+      "editor": 1223,
       "appearance": {
         "uiFontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
         "fieldControlWeights": [
           "400"
         ],
         "sidebarEdge": "0px",
-        "agentEdge": "0px"
+        "agentEdge": null
       },
       "spacing": {
         "page": {
@@ -1550,16 +1459,8 @@
           "gap": "12px",
           "margin": "0px"
         },
-        "messages": {
-          "padding": "0px",
-          "gap": "16px",
-          "margin": "0px"
-        },
-        "agent": {
-          "padding": "16px",
-          "gap": "normal",
-          "margin": "0px"
-        },
+        "messages": null,
+        "agent": null,
         "form": null,
         "fieldMargins": []
       },
@@ -1578,15 +1479,14 @@
       "width": 1480,
       "height": 992,
       "sidebar": 256,
-      "editor": 838,
-      "agent": 384,
+      "editor": 1223,
       "appearance": {
         "uiFontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
         "fieldControlWeights": [
           "400"
         ],
         "sidebarEdge": "0px",
-        "agentEdge": "0px"
+        "agentEdge": null
       },
       "spacing": {
         "page": {
@@ -1599,16 +1499,8 @@
           "gap": "12px",
           "margin": "0px"
         },
-        "messages": {
-          "padding": "0px",
-          "gap": "16px",
-          "margin": "0px"
-        },
-        "agent": {
-          "padding": "16px",
-          "gap": "normal",
-          "margin": "0px"
-        },
+        "messages": null,
+        "agent": null,
         "form": null,
         "fieldMargins": []
       },
@@ -1627,15 +1519,14 @@
       "width": 1480,
       "height": 992,
       "sidebar": 256,
-      "editor": 838,
-      "agent": 384,
+      "editor": 1223,
       "appearance": {
         "uiFontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
         "fieldControlWeights": [
           "400"
         ],
         "sidebarEdge": "0px",
-        "agentEdge": "0px"
+        "agentEdge": null
       },
       "spacing": {
         "page": {
@@ -1648,16 +1539,8 @@
           "gap": "12px",
           "margin": "0px"
         },
-        "messages": {
-          "padding": "0px",
-          "gap": "16px",
-          "margin": "0px"
-        },
-        "agent": {
-          "padding": "16px",
-          "gap": "normal",
-          "margin": "0px"
-        },
+        "messages": null,
+        "agent": null,
         "form": null,
         "fieldMargins": []
       },
@@ -1676,13 +1559,14 @@
       "width": 1480,
       "height": 992,
       "sidebar": 256,
-      "editor": 838,
-      "agent": 384,
+      "editor": 1223,
       "appearance": {
         "uiFontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
-        "fieldControlWeights": [],
+        "fieldControlWeights": [
+          "400"
+        ],
         "sidebarEdge": "0px",
-        "agentEdge": "0px"
+        "agentEdge": null
       },
       "spacing": {
         "page": {
@@ -1691,16 +1575,8 @@
           "margin": "0px"
         },
         "card": null,
-        "messages": {
-          "padding": "0px",
-          "gap": "16px",
-          "margin": "0px"
-        },
-        "agent": {
-          "padding": "16px",
-          "gap": "normal",
-          "margin": "0px"
-        },
+        "messages": null,
+        "agent": null,
         "form": null,
         "fieldMargins": []
       },
@@ -1775,13 +1651,12 @@
       "width": 1480,
       "height": 992,
       "sidebar": 256,
-      "editor": 838,
-      "agent": 384,
+      "editor": 1223,
       "appearance": {
         "uiFontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
         "fieldControlWeights": [],
         "sidebarEdge": "0px",
-        "agentEdge": "0px"
+        "agentEdge": null
       },
       "spacing": {
         "page": {
@@ -1794,16 +1669,8 @@
           "gap": "12px",
           "margin": "0px"
         },
-        "messages": {
-          "padding": "0px",
-          "gap": "16px",
-          "margin": "0px"
-        },
-        "agent": {
-          "padding": "16px",
-          "gap": "normal",
-          "margin": "0px"
-        },
+        "messages": null,
+        "agent": null,
         "form": null,
         "fieldMargins": []
       },
@@ -1822,13 +1689,12 @@
       "width": 1480,
       "height": 992,
       "sidebar": 256,
-      "editor": 838,
-      "agent": 384,
+      "editor": 1223,
       "appearance": {
         "uiFontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
         "fieldControlWeights": [],
         "sidebarEdge": "0px",
-        "agentEdge": "0px"
+        "agentEdge": null
       },
       "spacing": {
         "page": {
@@ -1837,16 +1703,8 @@
           "margin": "0px"
         },
         "card": null,
-        "messages": {
-          "padding": "0px",
-          "gap": "16px",
-          "margin": "0px"
-        },
-        "agent": {
-          "padding": "16px",
-          "gap": "normal",
-          "margin": "0px"
-        },
+        "messages": null,
+        "agent": null,
         "form": null,
         "fieldMargins": []
       },
@@ -1865,15 +1723,14 @@
       "width": 1480,
       "height": 992,
       "sidebar": 256,
-      "editor": 838,
-      "agent": 384,
+      "editor": 1223,
       "appearance": {
         "uiFontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
         "fieldControlWeights": [
           "400"
         ],
         "sidebarEdge": "0px",
-        "agentEdge": "0px"
+        "agentEdge": null
       },
       "spacing": {
         "page": {
@@ -1886,16 +1743,8 @@
           "gap": "12px",
           "margin": "0px"
         },
-        "messages": {
-          "padding": "0px",
-          "gap": "16px",
-          "margin": "0px"
-        },
-        "agent": {
-          "padding": "16px",
-          "gap": "normal",
-          "margin": "0px"
-        },
+        "messages": null,
+        "agent": null,
         "form": {
           "padding": "0px",
           "gap": "12px",
@@ -1921,15 +1770,14 @@
       "width": 1480,
       "height": 992,
       "sidebar": 256,
-      "editor": 838,
-      "agent": 384,
+      "editor": 1223,
       "appearance": {
         "uiFontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
         "fieldControlWeights": [
           "400"
         ],
         "sidebarEdge": "0px",
-        "agentEdge": "0px"
+        "agentEdge": null
       },
       "spacing": {
         "page": {
@@ -1938,16 +1786,8 @@
           "margin": "0px"
         },
         "card": null,
-        "messages": {
-          "padding": "0px",
-          "gap": "16px",
-          "margin": "0px"
-        },
-        "agent": {
-          "padding": "16px",
-          "gap": "normal",
-          "margin": "0px"
-        },
+        "messages": null,
+        "agent": null,
         "form": {
           "padding": "0px",
           "gap": "12px",
@@ -1973,13 +1813,12 @@
       "width": 1480,
       "height": 992,
       "sidebar": 256,
-      "editor": 838,
-      "agent": 384,
+      "editor": 1223,
       "appearance": {
         "uiFontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
         "fieldControlWeights": [],
         "sidebarEdge": "0px",
-        "agentEdge": "0px"
+        "agentEdge": null
       },
       "spacing": {
         "page": {
@@ -1988,16 +1827,8 @@
           "margin": "0px"
         },
         "card": null,
-        "messages": {
-          "padding": "0px",
-          "gap": "16px",
-          "margin": "0px"
-        },
-        "agent": {
-          "padding": "16px",
-          "gap": "normal",
-          "margin": "0px"
-        },
+        "messages": null,
+        "agent": null,
         "form": null,
         "fieldMargins": []
       },
@@ -2016,13 +1847,12 @@
       "width": 1480,
       "height": 992,
       "sidebar": 256,
-      "editor": 838,
-      "agent": 384,
+      "editor": 1223,
       "appearance": {
         "uiFontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
         "fieldControlWeights": [],
         "sidebarEdge": "0px",
-        "agentEdge": "0px"
+        "agentEdge": null
       },
       "spacing": {
         "page": {
@@ -2031,16 +1861,8 @@
           "margin": "0px"
         },
         "card": null,
-        "messages": {
-          "padding": "0px",
-          "gap": "16px",
-          "margin": "0px"
-        },
-        "agent": {
-          "padding": "16px",
-          "gap": "normal",
-          "margin": "0px"
-        },
+        "messages": null,
+        "agent": null,
         "form": null,
         "fieldMargins": []
       },
@@ -2059,29 +1881,20 @@
       "width": 1480,
       "height": 992,
       "sidebar": 256,
-      "editor": 838,
-      "agent": 384,
+      "editor": 1223,
       "appearance": {
         "uiFontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
         "fieldControlWeights": [
           "400"
         ],
         "sidebarEdge": "0px",
-        "agentEdge": "0px"
+        "agentEdge": null
       },
       "spacing": {
         "page": null,
         "card": null,
-        "messages": {
-          "padding": "0px",
-          "gap": "16px",
-          "margin": "0px"
-        },
-        "agent": {
-          "padding": "16px",
-          "gap": "normal",
-          "margin": "0px"
-        },
+        "messages": null,
+        "agent": null,
         "form": null,
         "fieldMargins": []
       },

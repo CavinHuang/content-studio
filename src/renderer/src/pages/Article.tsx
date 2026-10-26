@@ -7,7 +7,6 @@ import { Slider } from '@/components/ui/slider'
 import { NativeSelect } from '@/components/ui/native-select'
 import { Button } from '@/components/ui/button'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { createPortal } from 'react-dom'
 import {
   AlignLeft,
   Bold,
@@ -29,8 +28,18 @@ import {
   SlidersHorizontal,
   Sparkles,
   X,
+  Download,
 } from 'lucide-react'
-import { Badge, CheckOption, Field, IconButton, Markdown, Modal, PlatformMark } from '../components/ui'
+import {
+  Badge,
+  CheckOption,
+  download,
+  Field,
+  IconButton,
+  Markdown,
+  Modal,
+  PlatformMark,
+} from '../components/ui'
 import { useStudio } from '../studio/store'
 import {
   defaultTypography,
@@ -46,6 +55,7 @@ import { platformContent } from '../studio/mock'
 import { images } from '../studio/images'
 import { watchSuggestionReview } from '../studio/suggestion-review'
 import { CreationFlow } from '../components/CreationFlow'
+import { CreationComparison } from '../components/CreationComparison'
 export function PlatformDialog() {
   const { project, platformsOpen, setPlatformsOpen, generatePlatforms } = useStudio()
   const [chosen, setChosen] = useState<Platform[]>([])
@@ -143,6 +153,7 @@ export function ArticlePage() {
     retrySave,
     navigate,
     setCaptureOpen,
+    stopCreation,
   } = useStudio()
   const platform = project.activePlatform
   const draft = project.drafts[platform] ?? project.drafts.master ?? makeDraft(project.title)
@@ -165,10 +176,27 @@ export function ArticlePage() {
   const [history, setHistory] = useState(false)
   const [selectedVersion, setSelectedVersion] = useState(draft.versions[0]?.id)
   const [selection, setSelection] = useState('')
-  const [toolbarHost, setToolbarHost] = useState<HTMLElement | null>(null)
+  const [comparisonOpen, setComparisonOpen] = useState(false)
+  const starting =
+    platform === 'master' && !!project.creation && !draft.body.trim() && project.creation.mode !== 'manual'
+  const comparing = platform === 'master' && comparisonOpen && project.creation?.status === 'candidate'
+  const documentScroll = useRef<HTMLDivElement>(null)
+  const previousScroll = useRef(0)
+  function openComparison() {
+    previousScroll.current = documentScroll.current?.scrollTop ?? previousScroll.current
+    setComparisonOpen(true)
+  }
+  function closeComparison() {
+    setComparisonOpen(false)
+    requestAnimationFrame(() => {
+      if (documentScroll.current) documentScroll.current.scrollTop = previousScroll.current
+    })
+  }
   useEffect(() => {
-    setToolbarHost(document.getElementById('article-toolbar-slot'))
-  }, [])
+    if (project.creation?.status === 'candidate')
+      previousScroll.current = documentScroll.current?.scrollTop ?? previousScroll.current
+    setComparisonOpen(project.creation?.status === 'candidate')
+  }, [project.id, project.creation?.status, project.creation?.runId])
   const [candidate, setCandidate] = useState<{
     content: ReturnType<typeof platformContent>
     base: string
@@ -364,448 +392,522 @@ export function ArticlePage() {
       asChild
     >
       <div className="article-shell gap-0">
-        <div className="document-toolbar">
-          <TabsList className="platform-tabs shrink-0" aria-label="文稿平台">
-            {(['master', ...PLATFORMS.map((p) => p.id)] as Platform[])
-              .filter((id) => project.drafts[id])
-              .map((id) => (
-                <TabsTrigger
-                  key={id}
-                  aria-label={platformName(id)}
-                  className={cn(
-                    'platform-tab data-[state=active]:bg-accent data-[state=active]:text-accent-foreground',
-                    platform === id && 'active',
-                  )}
-                  value={id}
-                >
-                  {platformName(id)}
-                  {id !== 'master' && project.drafts[id]?.sourceBody !== project.drafts.master?.body && (
-                    <i className="update-dot" title="母稿已更新" />
-                  )}
-                </TabsTrigger>
-              ))}
-            <Button
-              className="add-platform"
-              aria-label="添加平台版本"
-              onClick={() => setPlatformsOpen(true)}
-              variant="ghost"
-              size="icon-sm"
-            >
-              <Plus size={14} />
-            </Button>
-          </TabsList>
-          <div className="editor-control-actions">
-            <Popover
-              open={typography}
-              onOpenChange={(open) => {
-                setTypography(open)
-                if (open) setPreview(true)
+        {!starting && (
+          <div className="document-toolbar">
+            <TabsList className="platform-tabs hidden min-w-0 md:flex" aria-label="文稿平台">
+              {(['master', ...PLATFORMS.map((p) => p.id)] as Platform[])
+                .filter((id) => project.drafts[id])
+                .map((id) => (
+                  <TabsTrigger
+                    key={id}
+                    aria-label={platformName(id)}
+                    className={cn(
+                      'platform-tab data-[state=active]:bg-accent data-[state=active]:text-accent-foreground',
+                      platform === id && 'active',
+                    )}
+                    value={id}
+                  >
+                    {platformName(id)}
+                    {id !== 'master' && project.drafts[id]?.sourceBody !== project.drafts.master?.body && (
+                      <i className="update-dot" title="母稿已更新" />
+                    )}
+                  </TabsTrigger>
+                ))}
+              <Button
+                className="add-platform"
+                aria-label="添加平台版本"
+                onClick={() => setPlatformsOpen(true)}
+                variant="ghost"
+                size="icon-sm"
+              >
+                <Plus size={14} />
+              </Button>
+            </TabsList>
+            <NativeSelect
+              className="w-auto md:hidden"
+              aria-label="当前文稿平台"
+              value={platform}
+              onChange={(e) => {
+                if (e.target.value === 'add') {
+                  setPlatformsOpen(true)
+                  return
+                }
+                patchProject(project.id, (p) => ({ ...p, activePlatform: e.target.value as Platform }))
               }}
             >
-              <PopoverTrigger asChild>
-                <Button
-                  className={cn(`text-button ${typography ? 'active' : ''}`, 'text-muted-foreground')}
-                  variant="ghost"
-                  size="sm"
-                >
-                  <SlidersHorizontal size={15} />
-                  排版
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="typography-popover" align="end" sideOffset={12}>
-                <div className="section-heading">
-                  <h3>当前{platformName(platform)}排版</h3>
-                  <IconButton icon={X} label="关闭排版" onClick={() => setTypography(false)} />
-                </div>
-                <div className="theme-options">
-                  {(
-                    [
-                      {
-                        id: 'forest',
-                        name: '林间',
-                        color: '#34583b',
-                      },
-                      {
-                        id: 'ink',
-                        name: '墨迹',
-                        color: '#3c454a',
-                      },
-                      {
-                        id: 'sunset',
-                        name: '日落',
-                        color: '#b46e45',
-                      },
-                    ] as const
-                  ).map((theme) => (
-                    <Button
-                      className={cn(
-                        draft.typography.theme === theme.id ? 'selected' : '',
-                        'h-auto justify-start whitespace-normal text-left',
-                      )}
-                      key={theme.id}
-                      onClick={() =>
-                        updateTypography({
-                          theme: theme.id,
-                        })
-                      }
-                      variant="ghost"
-                      size="default"
-                    >
-                      <i
-                        style={{
-                          background: theme.color,
-                        }}
-                      />
-                      <span className="theme-sample" style={{ color: theme.color }}>
-                        Aa
-                      </span>
-                      <span>{theme.name}</span>
-                      {draft.typography.theme === theme.id && <Check size={13} />}
-                    </Button>
-                  ))}
-                </div>
-                <div className="typography-fields">
-                  <Field label="字体">
-                    <NativeSelect
-                      value={draft.typography.font}
-                      onChange={(e) =>
-                        updateTypography({
-                          font: e.target.value as Typography['font'],
-                        })
-                      }
-                    >
-                      <option value="serif">宋体 · 书卷气</option>
-                      <option value="sans">黑体 · 清晰自然</option>
-                    </NativeSelect>
-                  </Field>
-                  <Field label={`字号 ${draft.typography.size}px`}>
-                    <Slider
-                      aria-label="正文字号"
-                      min={14}
-                      max={22}
-                      value={[draft.typography.size]}
-                      onValueChange={(e) =>
-                        updateTypography({
-                          size: +e[0]!,
-                        })
-                      }
-                    />
-                  </Field>
-                  <Field label={`行高 ${draft.typography.lineHeight}`}>
-                    <Slider
-                      aria-label="正文行高"
-                      min={1.4}
-                      max={2.4}
-                      step={0.05}
-                      value={[draft.typography.lineHeight]}
-                      onValueChange={(e) =>
-                        updateTypography({
-                          lineHeight: +e[0]!,
-                        })
-                      }
-                    />
-                  </Field>
-                  <Field label={`段间距 ${draft.typography.spacing}px`}>
-                    <Slider
-                      aria-label="段落间距"
-                      min={8}
-                      max={40}
-                      value={[draft.typography.spacing]}
-                      onValueChange={(e) =>
-                        updateTypography({
-                          spacing: +e[0]!,
-                        })
-                      }
-                    />
-                  </Field>
-                  <Field label={`页边距 ${draft.typography.padding}px`}>
-                    <Slider
-                      aria-label="文稿页边距"
-                      min={16}
-                      max={64}
-                      value={[draft.typography.padding]}
-                      onValueChange={(e) =>
-                        updateTypography({
-                          padding: +e[0]!,
-                        })
-                      }
-                    />
-                  </Field>
-                </div>
-                <div className="popover-footer">
+              {(['master', ...PLATFORMS.map((p) => p.id)] as Platform[])
+                .filter((id) => project.drafts[id])
+                .map((id) => (
+                  <option key={id} value={id}>
+                    {platformName(id)}
+                  </option>
+                ))}
+              <option value="add">＋ 新增平台版本…</option>
+            </NativeSelect>
+            {!comparing && viewSwitch}
+            <div className="editor-control-actions">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!draft.body.trim()}
+                aria-label="导出当前文稿"
+                onClick={() => {
+                  download(
+                    `${draft.title || '文稿'}-${platformName(platform)}.md`,
+                    `# ${draft.title}\n\n${draft.body}`,
+                  )
+                  notify(`已导出当前${platformName(platform)}，未执行发布。`)
+                }}
+              >
+                <Download size={15} />
+                导出{platformName(platform)}
+              </Button>
+              <Popover
+                open={typography}
+                onOpenChange={(open) => {
+                  setTypography(open)
+                  if (open) setPreview(true)
+                }}
+              >
+                <PopoverTrigger asChild>
                   <Button
-                    className="text-button text-muted-foreground"
-                    onClick={() =>
-                      patchDraft({
-                        typography: defaultTypography(),
-                      })
-                    }
+                    className={cn(`text-button ${typography ? 'active' : ''}`, 'text-muted-foreground')}
                     variant="ghost"
                     size="sm"
                   >
-                    <RotateCcw size={14} />
-                    恢复本版默认
+                    <SlidersHorizontal size={15} />
+                    排版
                   </Button>
+                </PopoverTrigger>
+                <PopoverContent className="typography-popover" align="end" sideOffset={12}>
+                  <div className="section-heading">
+                    <h3>当前{platformName(platform)}排版</h3>
+                    <IconButton icon={X} label="关闭排版" onClick={() => setTypography(false)} />
+                  </div>
+                  <div className="theme-options">
+                    {(
+                      [
+                        {
+                          id: 'forest',
+                          name: '林间',
+                          color: '#34583b',
+                        },
+                        {
+                          id: 'ink',
+                          name: '墨迹',
+                          color: '#3c454a',
+                        },
+                        {
+                          id: 'sunset',
+                          name: '日落',
+                          color: '#b46e45',
+                        },
+                      ] as const
+                    ).map((theme) => (
+                      <Button
+                        className={cn(
+                          draft.typography.theme === theme.id ? 'selected' : '',
+                          'h-auto justify-start whitespace-normal text-left',
+                        )}
+                        key={theme.id}
+                        onClick={() =>
+                          updateTypography({
+                            theme: theme.id,
+                          })
+                        }
+                        variant="ghost"
+                        size="default"
+                      >
+                        <i
+                          style={{
+                            background: theme.color,
+                          }}
+                        />
+                        <span className="theme-sample" style={{ color: theme.color }}>
+                          Aa
+                        </span>
+                        <span>{theme.name}</span>
+                        {draft.typography.theme === theme.id && <Check size={13} />}
+                      </Button>
+                    ))}
+                  </div>
+                  <div className="typography-fields">
+                    <Field label="字体">
+                      <NativeSelect
+                        value={draft.typography.font}
+                        onChange={(e) =>
+                          updateTypography({
+                            font: e.target.value as Typography['font'],
+                          })
+                        }
+                      >
+                        <option value="serif">宋体 · 书卷气</option>
+                        <option value="sans">黑体 · 清晰自然</option>
+                      </NativeSelect>
+                    </Field>
+                    <Field label={`字号 ${draft.typography.size}px`}>
+                      <Slider
+                        aria-label="正文字号"
+                        min={14}
+                        max={22}
+                        value={[draft.typography.size]}
+                        onValueChange={(e) =>
+                          updateTypography({
+                            size: +e[0]!,
+                          })
+                        }
+                      />
+                    </Field>
+                    <Field label={`行高 ${draft.typography.lineHeight}`}>
+                      <Slider
+                        aria-label="正文行高"
+                        min={1.4}
+                        max={2.4}
+                        step={0.05}
+                        value={[draft.typography.lineHeight]}
+                        onValueChange={(e) =>
+                          updateTypography({
+                            lineHeight: +e[0]!,
+                          })
+                        }
+                      />
+                    </Field>
+                    <Field label={`段间距 ${draft.typography.spacing}px`}>
+                      <Slider
+                        aria-label="段落间距"
+                        min={8}
+                        max={40}
+                        value={[draft.typography.spacing]}
+                        onValueChange={(e) =>
+                          updateTypography({
+                            spacing: +e[0]!,
+                          })
+                        }
+                      />
+                    </Field>
+                    <Field label={`页边距 ${draft.typography.padding}px`}>
+                      <Slider
+                        aria-label="文稿页边距"
+                        min={16}
+                        max={64}
+                        value={[draft.typography.padding]}
+                        onValueChange={(e) =>
+                          updateTypography({
+                            padding: +e[0]!,
+                          })
+                        }
+                      />
+                    </Field>
+                  </div>
+                  <div className="popover-footer">
+                    <Button
+                      className="text-button text-muted-foreground"
+                      onClick={() =>
+                        patchDraft({
+                          typography: defaultTypography(),
+                        })
+                      }
+                      variant="ghost"
+                      size="sm"
+                    >
+                      <RotateCcw size={14} />
+                      恢复本版默认
+                    </Button>
+                    <Button
+                      className="button primary small"
+                      onClick={() => {
+                        setTypography(false)
+                        notify('排版已保存到当前平台版本。')
+                      }}
+                      variant="default"
+                      size="sm"
+                    >
+                      完成
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <IconButton
+                icon={History}
+                label="版本历史"
+                onClick={() => {
+                  setHistory(true)
+                  setSelectedVersion(latest?.id)
+                }}
+              />
+              <IconButton
+                icon={Save}
+                label="保存当前版本"
+                onClick={() => {
+                  patchDraft({}, '手动保存版本')
+                  notify('已保存一个可恢复的版本快照。')
+                }}
+              />
+            </div>
+            {/* A4：动作按钮与保存状态之间加视觉分区，避免软盘被读成重复的保存指示（仅桌面档显示） */}
+            <span aria-hidden="true" className="h-5 w-px shrink-0 bg-border max-md:hidden" />
+            {saveState === '保存失败' ? (
+              <Button
+                className="document-save save-error"
+                variant="ghost"
+                size="sm"
+                onClick={retrySave}
+                aria-label="保存失败，重试保存"
+              >
+                <Clock3 className="text-destructive" />
+                保存失败 · 重试
+              </Button>
+            ) : preview ? (
+              <span className="document-save" role="status" aria-label="只读预览">
+                <Eye size={15} className="text-muted-foreground" />
+                只读预览
+              </span>
+            ) : (
+              <span className="document-save" role="status" aria-label="保存文稿状态">
+                {saveState === '已保存' ? (
+                  <Check size={15} className="text-success" />
+                ) : (
+                  <Clock3 size={15} className="text-muted-foreground" />
+                )}
+                {saveState}
+              </span>
+            )}
+          </div>
+        )}
+        <TabsContent value={platform} className="article-platform-pane">
+          {comparing ? (
+            <CreationComparison onClose={closeComparison} />
+          ) : (
+            <>
+              {platform === 'master' && project.creation && !starting && (
+                <CreationFlow variant="toolbar" onCompare={openComparison} />
+              )}
+              {platform !== 'master' && (
+                <div className="platform-draft-summary">
+                  <div>
+                    <PlatformMark platform={platform} />
+                    <strong>
+                      {platformName(platform)} ·{' '}
+                      {PLATFORMS.find((item) => item.id === platform)?.description.split(' · ')[0]}
+                    </strong>
+                    <Badge>
+                      {latest && (draft.body !== latest.body || draft.title !== latest.title)
+                        ? '有手动修改'
+                        : '独立版本'}
+                    </Badge>
+                  </div>
+                  <div>
+                    <span>基于母稿 v{draft.sourceVersion ?? 1} · 仅修改当前平台</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-button text-muted-foreground"
+                      onClick={() => patchProject(project.id, (p) => ({ ...p, activePlatform: 'master' }))}
+                    >
+                      查看母稿 <ChevronDown size={13} />
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {parentChanged && (
+                <div className="source-update">
+                  <span>母稿有更新，当前{platformName(platform)}版本保持独立。</span>
+                  <Button
+                    className="text-button text-muted-foreground"
+                    onClick={startCandidate}
+                    variant="ghost"
+                    size="sm"
+                  >
+                    预览重新适配
+                    <Sparkles size={13} />
+                  </Button>
+                </div>
+              )}
+
+              {!preview && !starting && (
+                <div className="format-toolbar" aria-label="Markdown 格式">
+                  <IconButton icon={Heading2} label="二级标题" onClick={() => format('## ')} />
+                  <IconButton icon={Bold} label="加粗" onClick={() => format('**', '**')} />
+                  <IconButton icon={Italic} label="强调" onClick={() => format('*', '*')} />
+                  <span />
+                  <IconButton icon={Quote} label="引用段落" onClick={() => format('> ')} />
+                  <IconButton icon={List} label="无序列表" onClick={() => format('- ')} />
+                  <div className="format-label">Markdown</div>
+                </div>
+              )}
+              <div
+                ref={documentScroll}
+                className="document-scroll"
+                onMouseUp={() => {
+                  if (preview) {
+                    const text = window.getSelection()?.toString().trim() ?? ''
+                    setSelection(text.slice(0, 2000))
+                  }
+                }}
+              >
+                <article
+                  className={`document article-document theme-${draft.typography.theme} ${!draft.body ? 'empty-document' : ''}`}
+                  style={style}
+                >
+                  {starting ? (
+                    <CreationFlow
+                      key={project.id}
+                      onCompare={openComparison}
+                      onManual={() => {
+                        stopCreation()
+                        patchProject(project.id, (p) => ({
+                          ...p,
+                          creation: { ...p.creation!, mode: 'manual' },
+                        }))
+                        setPreview(false)
+                        requestAnimationFrame(() => bodyRef.current?.focus())
+                      }}
+                    />
+                  ) : (
+                    <>
+                      <Input
+                        className="title-input h-auto rounded-none border-0 bg-transparent px-0 py-1 font-sans text-3xl font-semibold tracking-tight shadow-none placeholder:opacity-60 focus-visible:ring-0 md:text-3xl"
+                        aria-label="文稿标题"
+                        placeholder="未命名内容"
+                        value={draft.title}
+                        readOnly={preview}
+                        onChange={(e) =>
+                          patchDraft({
+                            title: e.target.value,
+                          })
+                        }
+                      />
+                      <div className="document-kicker">
+                        <span>
+                          {platformName(platform)}
+                          {platform !== 'master'
+                            ? ` · 基于母稿 v${draft.sourceVersion ?? 1}`
+                            : ' · 一点想法，慢慢成形'}
+                        </span>
+                        <span>{Math.ceil(draft.body.replace(/\s/g, '').length / 400)} 分钟阅读</span>
+                      </div>
+                      {platform === 'zhihu' && (
+                        <Field label="回答的问题">
+                          <Input
+                            aria-label="知乎问题"
+                            value={draft.question}
+                            readOnly={preview}
+                            placeholder="你想回答什么问题？"
+                            onChange={(e) =>
+                              patchDraft({
+                                question: e.target.value,
+                              })
+                            }
+                          />
+                        </Field>
+                      )}
+                      {preview ? (
+                        <div className="document-preview">
+                          <Markdown
+                            className="[font-size:var(--article-size)] [line-height:var(--article-leading)] [font-family:var(--article-font)]"
+                            body={draft.body || '写下第一句话，预览就会出现在这里。'}
+                            beforeBlock={(_block, index) =>
+                              suggestions
+                                .filter((suggestion) => suggestionAnchors.get(suggestion.id) === index)
+                                .map(renderSuggestion)
+                            }
+                            media={Object.fromEntries(
+                              state.materials
+                                .filter((m) => m.type === 'image')
+                                .map((m) => [m.id, m.data ?? images[m.image ?? 'room']!]),
+                            )}
+                          />
+                        </div>
+                      ) : (
+                        <Textarea
+                          ref={bodyRef}
+                          className="body-input rounded-none border-0 p-0 shadow-none focus-visible:ring-0 [font-size:var(--article-size)] [line-height:var(--article-leading)] [font-family:var(--article-font)]"
+                          aria-label="文稿正文"
+                          placeholder="开始写作，或先在右侧聊聊你的想法…"
+                          value={draft.body}
+                          onChange={(e) =>
+                            patchDraft({
+                              body: e.target.value,
+                            })
+                          }
+                          onSelect={(e) => {
+                            const el = e.currentTarget
+                            setSelection(el.value.slice(el.selectionStart, el.selectionEnd))
+                          }}
+                        />
+                      )}
+                      {platform !== 'master' && (
+                        <Field label={platform === 'redbook' ? '话题标签' : '标签 / 补充说明'}>
+                          <Input
+                            aria-label="平台话题"
+                            value={draft.tags}
+                            readOnly={preview}
+                            placeholder="添加适合这一平台的话题…"
+                            onChange={(e) =>
+                              patchDraft({
+                                tags: e.target.value,
+                              })
+                            }
+                          />
+                        </Field>
+                      )}
+                      {!draft.body && !project.creation && (
+                        <div className="empty-editor-actions">
+                          <Button variant="outline" onClick={() => setCaptureOpen(true)}>
+                            <Paperclip size={16} />
+                            添加素材
+                          </Button>
+                          <Button
+                            className="button secondary"
+                            onClick={() => reference('当前空白文稿', draft.title || '帮我梳理这次创作方向')}
+                            variant="outline"
+                            size="default"
+                          >
+                            <Sparkles size={15} />
+                            从一个想法开始
+                          </Button>
+                          <Button
+                            className="text-button text-muted-foreground"
+                            onClick={() => navigate('hotspots')}
+                            variant="ghost"
+                            size="sm"
+                          >
+                            从热点找选题 →
+                          </Button>
+                          <p>不必准备好一切，从一句话开始就好。</p>
+                        </div>
+                      )}
+                      {suggestions
+                        .filter((suggestion) => !preview || suggestionAnchors.get(suggestion.id) === -1)
+                        .map(renderSuggestion)}
+                      <div className="document-end">
+                        <span />
+                        留一点空白，让想法继续生长。
+                        <span />
+                      </div>
+                    </>
+                  )}
+                </article>
+              </div>
+              {selection && (
+                <div className="selection-action">
+                  <span>已选择 {selection.length} 字</span>
                   <Button
                     className="button primary small"
                     onClick={() => {
-                      setTypography(false)
-                      notify('排版已保存到当前平台版本。')
+                      reference('所选段落', selection)
+                      setSelection('')
                     }}
                     variant="default"
                     size="sm"
                   >
-                    完成
+                    <MessageCircle size={14} />
+                    交给 Agent
                   </Button>
-                </div>
-              </PopoverContent>
-            </Popover>
-            <IconButton
-              icon={History}
-              label="版本历史"
-              onClick={() => {
-                setHistory(true)
-                setSelectedVersion(latest?.id)
-              }}
-            />
-            <IconButton
-              icon={Save}
-              label="保存当前版本"
-              onClick={() => {
-                patchDraft({}, '手动保存版本')
-                notify('已保存一个可恢复的版本快照。')
-              }}
-            />
-          </div>
-          {saveState === '保存失败' ? (
-            <Button
-              className="document-save save-error"
-              variant="ghost"
-              size="sm"
-              onClick={retrySave}
-              aria-label="保存失败，重试保存"
-            >
-              <Clock3 className="text-destructive" />
-              保存失败 · 重试
-            </Button>
-          ) : (
-            <span className="document-save" role="status" aria-label="保存文稿状态">
-              {saveState === '已保存' ? (
-                <Check size={15} className="text-success" />
-              ) : (
-                <Clock3 size={15} className="text-muted-foreground" />
-              )}
-              {saveState}
-            </span>
-          )}
-        </div>
-        {toolbarHost
-          ? createPortal(<div className="article-header-controls">{viewSwitch}</div>, toolbarHost)
-          : viewSwitch}
-        <TabsContent value={platform} className="article-platform-pane">
-          {platform !== 'master' && (
-            <div className="platform-draft-summary">
-              <div>
-                <PlatformMark platform={platform} />
-                <strong>
-                  {platformName(platform)} ·{' '}
-                  {PLATFORMS.find((item) => item.id === platform)?.description.split(' · ')[0]}
-                </strong>
-                <Badge>
-                  {latest && (draft.body !== latest.body || draft.title !== latest.title)
-                    ? '有手动修改'
-                    : '独立版本'}
-                </Badge>
-              </div>
-              <div>
-                <span>基于母稿 v{draft.sourceVersion ?? 1} · 仅修改当前平台</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-button text-muted-foreground"
-                  onClick={() => patchProject(project.id, (p) => ({ ...p, activePlatform: 'master' }))}
-                >
-                  查看母稿 <ChevronDown size={13} />
-                </Button>
-              </div>
-            </div>
-          )}
-          {parentChanged && (
-            <div className="source-update">
-              <span>母稿有更新，当前{platformName(platform)}版本保持独立。</span>
-              <Button
-                className="text-button text-muted-foreground"
-                onClick={startCandidate}
-                variant="ghost"
-                size="sm"
-              >
-                预览重新适配
-                <Sparkles size={13} />
-              </Button>
-            </div>
-          )}
-
-          {!preview && (
-            <div className="format-toolbar" aria-label="Markdown 格式">
-              <IconButton icon={Heading2} label="二级标题" onClick={() => format('## ')} />
-              <IconButton icon={Bold} label="加粗" onClick={() => format('**', '**')} />
-              <IconButton icon={Italic} label="强调" onClick={() => format('*', '*')} />
-              <span />
-              <IconButton icon={Quote} label="引用段落" onClick={() => format('> ')} />
-              <IconButton icon={List} label="无序列表" onClick={() => format('- ')} />
-              <div className="format-label">Markdown</div>
-            </div>
-          )}
-          <div
-            className="document-scroll"
-            onMouseUp={() => {
-              if (preview) {
-                const text = window.getSelection()?.toString().trim() ?? ''
-                setSelection(text.slice(0, 2000))
-              }
-            }}
-          >
-            <article
-              className={`document article-document theme-${draft.typography.theme} ${!draft.body ? 'empty-document' : ''}`}
-              style={style}
-            >
-              {platform === 'master' && project.creation && <CreationFlow key={project.id} />}
-              <Input
-                className="title-input h-auto rounded-none border-0 bg-transparent px-0 py-1 font-sans text-3xl font-semibold tracking-tight shadow-none placeholder:opacity-60 focus-visible:ring-0 md:text-3xl"
-                aria-label="文稿标题"
-                placeholder="未命名内容"
-                value={draft.title}
-                onChange={(e) =>
-                  patchDraft({
-                    title: e.target.value,
-                  })
-                }
-              />
-              <div className="document-kicker">
-                <span>
-                  {platformName(platform)}
-                  {platform !== 'master'
-                    ? ` · 基于母稿 v${draft.sourceVersion ?? 1}`
-                    : ' · 一点想法，慢慢成形'}
-                </span>
-                <span>{Math.ceil(draft.body.replace(/\s/g, '').length / 400)} 分钟阅读</span>
-              </div>
-              {platform === 'zhihu' && (
-                <Field label="回答的问题">
-                  <Input
-                    aria-label="知乎问题"
-                    value={draft.question}
-                    placeholder="你想回答什么问题？"
-                    onChange={(e) =>
-                      patchDraft({
-                        question: e.target.value,
-                      })
-                    }
-                  />
-                </Field>
-              )}
-              {preview ? (
-                <div className="document-preview">
-                  <Markdown
-                    className="[font-size:var(--article-size)] [line-height:var(--article-leading)] [font-family:var(--article-font)]"
-                    body={draft.body || '写下第一句话，预览就会出现在这里。'}
-                    beforeBlock={(_block, index) =>
-                      suggestions
-                        .filter((suggestion) => suggestionAnchors.get(suggestion.id) === index)
-                        .map(renderSuggestion)
-                    }
-                    media={Object.fromEntries(
-                      state.materials
-                        .filter((m) => m.type === 'image')
-                        .map((m) => [m.id, m.data ?? images[m.image ?? 'room']!]),
-                    )}
-                  />
-                </div>
-              ) : (
-                <Textarea
-                  ref={bodyRef}
-                  className="body-input rounded-none border-0 p-0 shadow-none focus-visible:ring-0 [font-size:var(--article-size)] [line-height:var(--article-leading)] [font-family:var(--article-font)]"
-                  aria-label="文稿正文"
-                  placeholder="开始写作，或先在右侧聊聊你的想法…"
-                  value={draft.body}
-                  onChange={(e) =>
-                    patchDraft({
-                      body: e.target.value,
-                    })
-                  }
-                  onSelect={(e) => {
-                    const el = e.currentTarget
-                    setSelection(el.value.slice(el.selectionStart, el.selectionEnd))
-                  }}
-                />
-              )}
-              {platform !== 'master' && (
-                <Field label={platform === 'redbook' ? '话题标签' : '标签 / 补充说明'}>
-                  <Input
-                    aria-label="平台话题"
-                    value={draft.tags}
-                    placeholder="添加适合这一平台的话题…"
-                    onChange={(e) =>
-                      patchDraft({
-                        tags: e.target.value,
-                      })
-                    }
-                  />
-                </Field>
-              )}
-              {!draft.body && !project.creation && (
-                <div className="empty-editor-actions">
-                  <Button variant="outline" onClick={() => setCaptureOpen(true)}>
-                    <Paperclip size={16} />
-                    添加素材
-                  </Button>
-                  <Button
-                    className="button secondary"
-                    onClick={() => reference('当前空白文稿', draft.title || '帮我梳理这次创作方向')}
-                    variant="outline"
-                    size="default"
-                  >
-                    <Sparkles size={15} />
-                    从一个想法开始
-                  </Button>
-                  <Button
-                    className="text-button text-muted-foreground"
-                    onClick={() => navigate('hotspots')}
-                    variant="ghost"
-                    size="sm"
-                  >
-                    从热点找选题 →
-                  </Button>
-                  <p>不必准备好一切，从一句话开始就好。</p>
+                  <IconButton icon={X} label="清除段落选择" onClick={() => setSelection('')} />
                 </div>
               )}
-              {suggestions
-                .filter((suggestion) => !preview || suggestionAnchors.get(suggestion.id) === -1)
-                .map(renderSuggestion)}
-              <div className="document-end">
-                <span />
-                留一点空白，让想法继续生长。
-                <span />
-              </div>
-            </article>
-          </div>
-          {selection && (
-            <div className="selection-action">
-              <span>已选择 {selection.length} 字</span>
-              <Button
-                className="button primary small"
-                onClick={() => {
-                  reference('所选段落', selection)
-                  setSelection('')
-                }}
-                variant="default"
-                size="sm"
-              >
-                <MessageCircle size={14} />
-                交给 Agent
-              </Button>
-              <IconButton icon={X} label="清除段落选择" onClick={() => setSelection('')} />
-            </div>
+            </>
           )}
           <footer className="document-status">
             <span>

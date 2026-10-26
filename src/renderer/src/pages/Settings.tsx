@@ -97,9 +97,11 @@ export function SettingsPage() {
         <TabsContent value={tab} className="settings-content">
           {tab === 'AI 服务' && (
             <>
+              {/* E4：横幅所指的密钥输入默认折叠不可见，指引补「展开下方自定义连接」，
+                  分区名同步去掉「示意」二字，说明与可操作入口重新对上。 */}
               <div className="inline-alert orange">
                 <Sparkles size={16} />
-                演示模式：连接测试仅更新状态显示，不请求模型服务。密钥只留在本次输入框，不会保存。
+                演示模式：连接测试仅更新状态显示，不请求模型服务。展开下方「自定义连接」可填写密钥，只留在本次输入框，不会保存。
               </div>
               <div className="service-cards">
                 {(
@@ -186,7 +188,7 @@ export function SettingsPage() {
                 ))}
               </div>
               <details className="advanced-settings">
-                <summary>自定义连接示意</summary>
+                <summary>自定义连接</summary>
                 <div className="form-grid">
                   <Field label="服务地址（不保存）">
                     <Input placeholder="https://api.example.com/v1" />
@@ -246,6 +248,12 @@ export function SettingsPage() {
                       >
                         {item.name}
                       </CheckOption>
+                      {/* E6：抖音尚未接入工作台/任务体系，勾了也无法兑现，就地标注避免空许诺。 */}
+                      {item.id === 'douyin' && (
+                        <Badge className="ml-auto shrink-0" tone="neutral">
+                          即将支持
+                        </Badge>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -285,6 +293,7 @@ export function SettingsPage() {
                 <Field label="表达偏好">
                   <Textarea
                     rows={3}
+                    className="max-md:resize-none"
                     value={preferences.tone}
                     onChange={(e) =>
                       patch({
@@ -293,6 +302,14 @@ export function SettingsPage() {
                     }
                   />
                 </Field>
+                <p className="small-meta">偏好自动保存，仅为新创作提供默认建议，不改写已有内容。</p>
+              </div>
+              {/* E5：发送键行为与「表达」无关，拆出独立分组并写明作用域；
+                  G7：触屏没有 Shift/Ctrl/Cmd，该桌面键盘偏好整组仅在 ≥768px 档出现
+                  （与 use-mobile 的移动断点一致）。 */}
+              <div className="settings-section hidden md:block">
+                <h2>Agent 输入</h2>
+                <p>仅作用于创作 Agent 对话框的发送方式。</p>
                 <CheckOption
                   checked={preferences.enterToSend}
                   onChange={(value) =>
@@ -303,7 +320,6 @@ export function SettingsPage() {
                 >
                   Enter 发送，Shift+Enter 换行（取消后使用 Ctrl/Cmd+Enter 发送）
                 </CheckOption>
-                <p className="small-meta">偏好自动保存，仅为新创作提供默认建议，不改写已有内容。</p>
               </div>
             </>
           )}
@@ -464,7 +480,12 @@ export function SettingsPage() {
                     </div>
                   ))}
                 {!state.materials.some((m) => m.trashed) && !state.projects.some((p) => p.trashed) && (
-                  <p className="muted">回收站是空的，所有积累都好好待着。</p>
+                  // E3 空态两级规范：页面级（图标+标题+说明+CTA）之外，区块级保持单行文案，
+                  // 此处仅补一枚 14px 内联图标作视觉锚点，不再升级为完整空态结构。
+                  <p className="muted flex items-center gap-2" role="status">
+                    <Trash2 size={14} aria-hidden="true" />
+                    回收站是空的，所有积累都好好待着。
+                  </p>
                 )}
               </div>
               <div className="settings-section">

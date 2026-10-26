@@ -1,0 +1,41 @@
+{
+  "evidence": "isolated Electron; synthetic fixture; reproducible interaction audit; no human participant study",
+  "observations": [
+    {
+      "case": "video-tool-switch",
+      "activeMainTab": "视频",
+      "articleVisible": false
+    },
+    {
+      "case": "mobile-add-platform",
+      "addPlatformVisible": false,
+      "platformSelectVisible": true,
+      "addPlatformOptionAvailable": true
+    },
+    {
+      "case": "mobile-tools-close-focus",
+      "focusedControl": "作品工具"
+    },
+    {
+      "case": "creation-and-task-center",
+      "creationStatus": "ready",
+      "tasksForNewProject": 1
+    },
+    {
+      "case": "blocked-status-after-modal-close",
+      "storedStatus": "blocked",
+      "toolbarText": "调整方向与素材\n撤销这次整理\n这批文字超过本地演示的整理容量。请拆成较小的一批，原文和母稿会保留。",
+      "visibleCapacityError": true
+    },
+    {
+      "case": "plan-stages-candidate",
+      "bodyChanged": false,
+      "candidateReviewVisible": true,
+      "uniqueOriginalNoteRetainedInCurrentBody": true,
+      "uniqueOriginalNoteRetainedInCandidate": true,
+      "beforeRetainedInVersions": true,
+      "creationStatus": "candidate"
+    }
+  ],
+  "errors": []
+}
