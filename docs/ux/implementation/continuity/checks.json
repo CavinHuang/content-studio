@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-26",
+  "designSystem": "2.3",
+  "defaultPrimitiveStyleChanges": false,
+  "paletteChanges": false,
+  "verification": {
+    "fullRegressionPassed": 19,
+    "draftRecoverySupplement": "passed",
+    "devPreview": "passed",
+    "designBoundary": "passed",
+    "formatting": "passed"
+  },
+  "responsiveStressWidths": [
+    1480,
+    1099,
+    767,
+    390
+  ],
+  "draftLifetime": "Current application session; replacement of workspace data clears drafts.",
+  "runtimeErrors": [],
+  "layoutIssues": [],
+  "screenCount": 56,
+  "productionAssets": [
+    "./assets/index-NYBAnqA3.js",
+    "./assets/index-CaQMwKqT.css"
+  ],
+  "stressEvidence": [
+    "long-material-dialog.png"
+  ]
+}

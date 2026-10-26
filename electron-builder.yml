@@ -1,0 +1,22 @@
+appId: studio.content.desktop
+productName: Content Studio
+directories:
+  output: release
+files:
+  - out/**/*
+  - package.json
+extraResources:
+  - from: src/renderer/src/components/ui/LICENSE.md
+    to: licenses/shadcn-ui.md
+  - from: resources/icon.png
+    to: icon.png
+  - from: docs/ux
+    to: ux
+asar: true
+npmRebuild: false
+win:
+  icon: resources/icon.ico
+  target:
+    - target: portable
+      arch: [x64]
+  artifactName: Content-Studio-${version}-${arch}.${ext}

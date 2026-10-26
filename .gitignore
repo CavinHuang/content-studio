@@ -1,13 +1,11 @@
-# 运行时与本机环境产物，永不入库
 node_modules/
-.next/
-data/
+out/
+dist/
+release/
+playwright-report/
+test-results/
 .env
 .env.*
 !.env.example
-playwright-report/
-test-results/
-.vite/
-out/
-.superpowers/
 *.log
+.DS_Store

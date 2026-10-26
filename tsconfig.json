@@ -1,10 +1,21 @@
 {
   "compilerOptions": {
-    "target": "ES2022", "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "module": "ESNext", "moduleResolution": "bundler",
-    "jsx": "react-jsx", "strict": true, "noUncheckedIndexedAccess": true,
-    "skipLibCheck": true, "esModuleInterop": true, "isolatedModules": true,
-    "noEmit": true, "types": ["node", "vitest/globals", "@testing-library/jest-dom"]
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "paths": { "@/*": ["./src/renderer/src/*"] },
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "types": ["node", "vite/client"]
   },
-  "include": ["src", "tests", "forge.config.ts", "vite.main.config.ts", "vite.preload.config.ts", "vite.renderer.config.ts", "vitest.config.ts"]
+  "include": ["src", "tests", "config", "*.config.ts"]
 }

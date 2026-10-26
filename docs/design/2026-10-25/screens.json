@@ -1,0 +1,187 @@
+{
+  "version": "1.2",
+  "date": "2026-10-25",
+  "screens": [
+    {
+      "id": "style",
+      "file": "assets/00-visual-direction.png",
+      "source": "exec-b0fa96e0-2032-4600-8b23-95c9feab16f6.png",
+      "title": "温暖杂志风",
+      "category": "基础",
+      "description": "已确认的视觉方向：米白、沙色、墨绿和陶土色。",
+      "status": "既有设计"
+    },
+    {
+      "id": "hotspot-discovery",
+      "file": "assets/17-hotspot-discovery-v2.png",
+      "source": "exec-37bb85b6-5cec-4855-920f-ec77d3668caa.png",
+      "title": "热点发现",
+      "category": "热点",
+      "description": "按领域、来源类型及具体信息源浏览聚合话题，保留各源原文，支持从热点创作。",
+      "status": "多源更新",
+      "previousFile": "assets/17-hotspot-discovery.png"
+    },
+    {
+      "id": "hotspot-to-create",
+      "file": "assets/18-hotspot-to-create.png",
+      "source": "exec-bdb8ce1c-0dc6-45a5-840f-7188dac33950.png",
+      "title": "从热点发起创作",
+      "category": "热点",
+      "description": "查看来源、选择或改写角度，新建内容并带入所选来源，先确认创作方案。",
+      "status": "新增热点设计"
+    },
+    {
+      "id": "hotspot-source-management",
+      "file": "assets/19-hotspot-source-management.png",
+      "source": "exec-bb2f5828-54a3-4504-b952-e5bbd303eeb4.png",
+      "title": "热点信息源管理",
+      "category": "热点",
+      "description": "平台热榜、新闻资讯、RSS 和自定义来源独立配置与启停；来源状态和发布平台分别管理。",
+      "status": "新增多源设计"
+    },
+    {
+      "id": "new-content",
+      "file": "assets/01-new-content.png",
+      "source": "exec-6980ad82-92ed-458a-bc37-587cbd3d746a.png",
+      "title": "新建内容",
+      "category": "创作",
+      "description": "直接开写或与 Agent 对话开始，无必填主题表单。",
+      "status": "既有设计"
+    },
+    {
+      "id": "plan",
+      "file": "assets/02-creative-plan.png",
+      "source": "exec-90e0534b-aede-4ebc-b69f-cb84c179de30.png",
+      "title": "确认创作方案",
+      "category": "创作",
+      "description": "选题、观点和大纲可直接修改，确认后生成母稿。",
+      "status": "既有设计"
+    },
+    {
+      "id": "writing",
+      "file": "assets/03-writing-review.png",
+      "source": "exec-869bac80-705b-4fb3-a24a-b8efc5e0b773.png",
+      "title": "写作与修改确认",
+      "category": "创作",
+      "description": "原文与建议对照，采用、保留和撤销均有明确范围。",
+      "status": "既有设计"
+    },
+    {
+      "id": "platforms",
+      "file": "assets/04-platform-drafts.png",
+      "source": "exec-7e734108-d1e1-4cc9-91b2-ec8c0f674d73.png",
+      "title": "多平台独立版本",
+      "category": "创作",
+      "description": "母稿和五个平台版本分别保存，手动修改可保留。",
+      "status": "既有设计"
+    },
+    {
+      "id": "typography",
+      "file": "assets/05-typography.png",
+      "source": "exec-b05dc244-a419-485d-bab6-78cbe1398c82.png",
+      "title": "平台排版",
+      "category": "创作",
+      "description": "临时浮层调整样式，当前平台即时预览与保存。",
+      "status": "既有设计"
+    },
+    {
+      "id": "materials",
+      "file": "assets/06-material-library.png",
+      "source": "exec-7b525e2a-fbf0-469a-9c0a-b2ef9b15bfa3.png",
+      "title": "全局素材与项目引用",
+      "category": "素材",
+      "description": "本篇引用和全部素材分开，关联、对话引用和插入分别操作。",
+      "status": "既有设计"
+    },
+    {
+      "id": "capture",
+      "file": "assets/07-material-capture.png",
+      "source": "exec-3df23e4a-6f21-49f8-a604-8eff71c726fa.png",
+      "title": "收集素材",
+      "category": "素材",
+      "description": "文字、链接、文件与图片；可选择同时引用到当前内容。",
+      "status": "既有设计"
+    },
+    {
+      "id": "video-entry",
+      "file": "assets/08-video-entry.png",
+      "source": "exec-4f8e4971-25b0-4601-88cc-8558be86b9b6.png",
+      "title": "选择视频制作方式",
+      "category": "视频",
+      "description": "两种路线创建独立作品，可复用同一篇文稿和素材。",
+      "status": "本轮补齐"
+    },
+    {
+      "id": "material-video",
+      "file": "assets/09-material-video.png",
+      "source": "exec-41454c7f-eda7-45a0-8394-8f2496a5858b.png",
+      "title": "素材分镜模式",
+      "category": "视频",
+      "description": "以镜头卡片为核心，逐镜头调整图片、口播与字幕。",
+      "status": "既有设计"
+    },
+    {
+      "id": "voice",
+      "file": "assets/10-voice-subtitles.png",
+      "source": "exec-3d987d96-7dd2-40ed-9c1a-eafc06e80e31.png",
+      "title": "配音与字幕",
+      "category": "视频",
+      "description": "试听、文本校对和时间调整，按所选片段更新配音。",
+      "status": "既有设计"
+    },
+    {
+      "id": "code-video",
+      "file": "assets/11-agent-code-video.png",
+      "source": "exec-66231257-f878-4688-aaec-cfa88f6b76db.png",
+      "title": "Agent 代码创作模式",
+      "category": "视频",
+      "description": "预览与场景结构优先，候选版本先对比、再采用。",
+      "status": "既有设计"
+    },
+    {
+      "id": "export",
+      "file": "assets/12-export-recovery.png",
+      "source": "exec-8da79e51-6019-4c91-a6bd-0dfba9616e76.png",
+      "title": "视频导出与失败恢复",
+      "category": "视频",
+      "description": "明确失败范围、保留已采用作品，并区分上次成功成片。",
+      "status": "本轮补齐"
+    },
+    {
+      "id": "versions",
+      "file": "assets/13-version-restore.png",
+      "source": "exec-fa2f78c2-5116-4d10-84c0-4a6a8bc665f3.png",
+      "title": "版本对比与恢复",
+      "category": "辅助",
+      "description": "恢复旧版创建新版本，保留当前内容与来源历史。",
+      "status": "本轮补齐"
+    },
+    {
+      "id": "publish-selection",
+      "file": "assets/14-publish-selection.png",
+      "source": "exec-44a02544-c7f4-465e-ac53-31b5abdc01a6.png",
+      "title": "选择本次发布平台",
+      "category": "发布",
+      "description": "多选、全选、清空；只准备这次需要的平台。",
+      "status": "既有设计"
+    },
+    {
+      "id": "publish",
+      "file": "assets/15-publish-handoff.png",
+      "source": "exec-a6cf62b1-db49-4f11-a41a-5a32e0a2b0fc.png",
+      "title": "发布前预览与交付",
+      "category": "发布",
+      "description": "复制、下载、导出后手动发布，再分别记录状态和链接。",
+      "status": "既有设计"
+    },
+    {
+      "id": "mobile",
+      "file": "assets/16-mobile-companion.png",
+      "source": "exec-81660e56-0bc1-44cd-8855-c68f2c9b4720.png",
+      "title": "手机辅助",
+      "category": "辅助",
+      "description": "随手收集、查看任务、对话与轻改，保持单列体验。",
+      "status": "本轮补齐"
+    }
+  ]
+}

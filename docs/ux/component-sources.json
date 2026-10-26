@@ -1,0 +1,341 @@
+{
+  "date": "2026-10-25",
+  "license": "MIT",
+  "repository": "https://github.com/shadcn-ui/ui",
+  "components": [
+    {
+      "name": "button",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/button.json",
+      "dependencies": [
+        "cn",
+        "radix-ui"
+      ],
+      "modifications": [
+        "local import aliases",
+        "default type=button; upstream h-9 default size restored"
+      ]
+    },
+    {
+      "name": "input",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/input.json",
+      "dependencies": [
+        "cn"
+      ],
+      "modifications": [
+        "local import aliases"
+      ]
+    },
+    {
+      "name": "textarea",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/textarea.json",
+      "dependencies": [
+        "cn"
+      ],
+      "modifications": [
+        "local import aliases"
+      ]
+    },
+    {
+      "name": "badge",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/badge.json",
+      "dependencies": [
+        "cn",
+        "radix-ui"
+      ],
+      "modifications": [
+        "local import aliases"
+      ]
+    },
+    {
+      "name": "card",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/card.json",
+      "dependencies": [
+        "cn"
+      ],
+      "modifications": [
+        "local import aliases; upstream flex/gap-6/py-6/shadow-sm restored"
+      ]
+    },
+    {
+      "name": "dialog",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/dialog.json",
+      "dependencies": [
+        "cn",
+        "radix-ui"
+      ],
+      "modifications": [
+        "local import aliases"
+      ]
+    },
+    {
+      "name": "checkbox",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/checkbox.json",
+      "dependencies": [
+        "cn",
+        "radix-ui"
+      ],
+      "modifications": [
+        "local import aliases"
+      ]
+    },
+    {
+      "name": "switch",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/switch.json",
+      "dependencies": [
+        "cn",
+        "radix-ui"
+      ],
+      "modifications": [
+        "local import aliases"
+      ]
+    },
+    {
+      "name": "tabs",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/tabs.json",
+      "dependencies": [
+        "cn",
+        "radix-ui"
+      ],
+      "modifications": [
+        "local import aliases",
+        "line variant uses a single inset keyboard focus outline; no stacked border and ring",
+        "line tabs track pointer versus keyboard interaction to prevent Radix programmatic mouse focus from showing a keyboard outline"
+      ]
+    },
+    {
+      "name": "native-select",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/native-select.json",
+      "dependencies": [
+        "cn"
+      ],
+      "modifications": [
+        "local import aliases"
+      ]
+    },
+    {
+      "name": "slider",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/slider.json",
+      "dependencies": [
+        "cn",
+        "radix-ui"
+      ],
+      "modifications": [
+        "local import aliases",
+        "accessible label forwarded to slider thumb"
+      ]
+    },
+    {
+      "name": "dropdown-menu",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/dropdown-menu.json",
+      "dependencies": [
+        "cn",
+        "radix-ui"
+      ],
+      "modifications": [
+        "local import aliases"
+      ]
+    },
+    {
+      "name": "popover",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/popover.json",
+      "dependencies": [
+        "cn",
+        "radix-ui"
+      ],
+      "modifications": [
+        "local import aliases"
+      ]
+    },
+    {
+      "name": "tooltip",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/tooltip.json",
+      "dependencies": [
+        "cn",
+        "radix-ui"
+      ],
+      "modifications": [
+        "local import aliases",
+        "immediate close on blur to avoid capturing Escape from the parent layer"
+      ]
+    },
+    {
+      "name": "sheet",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/sheet.json",
+      "dependencies": [
+        "cn",
+        "radix-ui"
+      ],
+      "modifications": [
+        "local import aliases"
+      ]
+    },
+    {
+      "name": "resizable",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/resizable.json",
+      "dependencies": [
+        "cn",
+        "react-resizable-panels@^4"
+      ],
+      "modifications": [
+        "local import aliases"
+      ]
+    },
+    {
+      "name": "progress",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/progress.json",
+      "dependencies": [
+        "cn",
+        "radix-ui"
+      ],
+      "modifications": [
+        "local import aliases",
+        "value forwarded to Radix root, null for indeterminate"
+      ]
+    },
+    {
+      "name": "input-group",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/input-group.json",
+      "dependencies": [
+        "cn"
+      ],
+      "modifications": [
+        "local import aliases"
+      ]
+    },
+    {
+      "name": "message",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/message.json",
+      "dependencies": [
+        "cn"
+      ],
+      "modifications": [
+        "local import aliases"
+      ]
+    },
+    {
+      "name": "bubble",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/bubble.json",
+      "dependencies": [
+        "cn",
+        "radix-ui"
+      ],
+      "modifications": [
+        "local import aliases"
+      ]
+    },
+    {
+      "name": "message-scroller",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/message-scroller.json",
+      "dependencies": [
+        "cn",
+        "@shadcn/react"
+      ],
+      "modifications": [
+        "local import aliases",
+        "immediate message painting for Electron and sheet transitions"
+      ]
+    },
+    {
+      "name": "sonner",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/sonner.json",
+      "dependencies": [
+        "sonner",
+        "next-themes"
+      ],
+      "modifications": [
+        "local import aliases",
+        "fixed light theme, no Next.js dependency"
+      ]
+    },
+    {
+      "name": "label",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/label.json",
+      "dependencies": [
+        "cn",
+        "radix-ui"
+      ],
+      "modifications": [
+        "local import aliases"
+      ]
+    },
+    {
+      "name": "separator",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/separator.json",
+      "dependencies": [
+        "cn",
+        "radix-ui"
+      ],
+      "modifications": [
+        "local import aliases"
+      ]
+    },
+    {
+      "name": "scroll-area",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/scroll-area.json",
+      "dependencies": [
+        "cn",
+        "radix-ui"
+      ],
+      "modifications": [
+        "local import aliases"
+      ]
+    },
+    {
+      "name": "sidebar",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/sidebar.json",
+      "dependencies": [
+        "cn",
+        "radix-ui",
+        "class-variance-authority",
+        "lucide-react"
+      ],
+      "registryDependencies": [
+        "button",
+        "separator",
+        "sheet",
+        "tooltip",
+        "input",
+        "use-mobile",
+        "skeleton"
+      ],
+      "modifications": [
+        "local import aliases"
+      ]
+    },
+    {
+      "name": "skeleton",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/skeleton.json",
+      "dependencies": [
+        "cn"
+      ],
+      "registryDependencies": [],
+      "modifications": [
+        "local import aliases"
+      ]
+    },
+    {
+      "name": "use-mobile",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/use-mobile.json",
+      "dependencies": [],
+      "registryDependencies": [],
+      "modifications": [
+        "local import aliases"
+      ]
+    },
+    {
+      "name": "field",
+      "source": "https://ui.shadcn.com/r/styles/new-york-v4/field.json",
+      "dependencies": [
+        "cn",
+        "class-variance-authority"
+      ],
+      "registryDependencies": [
+        "label",
+        "separator"
+      ],
+      "modifications": [
+        "local import aliases; formatting only; upstream dimensions and typography preserved"
+      ]
+    }
+  ]
+}

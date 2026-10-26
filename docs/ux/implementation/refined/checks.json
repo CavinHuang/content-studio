@@ -1,0 +1,22 @@
+{
+  "date": "2026-10-25",
+  "designSystem": "2.3",
+  "cssLines": 4725,
+  "defaultPrimitiveSizeChanges": false,
+  "paletteChanges": false,
+  "screenCount": 56,
+  "runtimeErrors": [],
+  "layoutIssues": [],
+  "stressEvidence": [
+    "conversation-menu.png",
+    "material-picker.png"
+  ],
+  "verification": {
+    "fullRegressionPassed": 17,
+    "finalFocusSupplementPassed": 1,
+    "devPreview": "passed",
+    "offlineComparison": "passed",
+    "designBoundary": "passed",
+    "formatting": "passed"
+  }
+}

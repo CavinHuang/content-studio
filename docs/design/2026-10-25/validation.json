@@ -1,0 +1,17 @@
+{
+  "version": "1.2",
+  "screenCount": 20,
+  "promptSets": 15,
+  "pngsValidated": true,
+  "priorHotspotDesignPreserved": true,
+  "hotspotScreens": 3,
+  "sourceDialogValidated": true,
+  "responsiveWidths": [
+    1440,
+    1024,
+    768,
+    390,
+    320
+  ],
+  "pageErrors": []
+}

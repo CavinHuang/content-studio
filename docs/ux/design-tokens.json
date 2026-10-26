@@ -1,0 +1,65 @@
+{
+  "version": "2.3.0",
+  "color": {
+    "background": "#fffcf7",
+    "foreground": "#303729",
+    "card": "#fffefa",
+    "card-foreground": "#303729",
+    "popover": "#fffefa",
+    "popover-foreground": "#303729",
+    "primary": "#34583b",
+    "primary-foreground": "#fffefa",
+    "secondary": "#f2eee5",
+    "secondary-foreground": "#45513b",
+    "muted": "#eeeee5",
+    "muted-foreground": "#606b57",
+    "accent": "#f3e4d7",
+    "accent-foreground": "#99502f",
+    "destructive": "#a34439",
+    "destructive-foreground": "#fffefa",
+    "border": "#dddccf",
+    "input": "#c8cdbb",
+    "ring": "#34583b",
+    "sidebar": "#f2eee5",
+    "sidebar-foreground": "#303729",
+    "sidebar-primary": "#34583b",
+    "sidebar-primary-foreground": "#fffefa",
+    "sidebar-accent": "#e5e9db",
+    "sidebar-accent-foreground": "#34583b",
+    "sidebar-border": "#dddccf",
+    "sidebar-ring": "#34583b",
+    "agent": "#f6f5ed",
+    "brand-accent": "#99502f",
+    "success": "#426942",
+    "success-background": "#eaf1e2",
+    "warning": "#87571f",
+    "warning-background": "#f8ecd8"
+  },
+  "spacing": {
+    "page": "p-4",
+    "section": "gap-4",
+    "card": "p-3 gap-3",
+    "field": "gap-3",
+    "toolbar": "gap-2 px-4"
+  },
+  "radius": {
+    "base": "0.625rem",
+    "source": "https://ui.shadcn.com/docs/theming"
+  },
+  "layout": {
+    "navigation": "16rem",
+    "agent": "24rem",
+    "header": "3.5rem"
+  },
+  "foundation": "shadcn/ui new-york-v4 + Tailwind CSS 4 defaults; confirmed design palette",
+  "typography": {
+    "family": "font-sans",
+    "body": "text-sm",
+    "description": "text-sm text-muted-foreground",
+    "label": "text-sm font-medium",
+    "caption": "text-xs",
+    "page": "text-2xl font-semibold tracking-tight",
+    "articleTitle": "text-3xl font-semibold tracking-tight",
+    "section": "text-base font-medium"
+  }
+}

@@ -1,35 +1,84 @@
-import { app, BrowserWindow } from 'electron';
-import path from 'node:path';
-import { registerIpc, disposeAgent, disposePublish } from './ipc';
+import { app, BrowserWindow, ipcMain, Menu, nativeTheme, shell } from 'electron'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { DESKTOP_CHANNELS, type AppInfo } from '../shared/desktop'
 
-// @electron-forge/plugin-vite 8.x 以编译期 define 注入各渲染器 dev server URL
-// （vite.base.config.js getBuildDefine：开发为 '"http://localhost:port"' 字符串字面量，
-// 打包替换为 void 0，已实测 vite 对 undefined define 值做替换而非悬空标识符）。
-// 旧版 process.env.VITE_DEV_SERVER_URL 机制在本版插件不存在，dev 下恒走 loadFile
-// 导致 ERR_FILE_NOT_FOUND 白屏。
-declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
+let mainWindow: BrowserWindow | null = null
 
-const createWindow = () => {
-  const win = new BrowserWindow({
-    width: 1280, height: 800, minWidth: 960, minHeight: 640,
-    title: 'ContentDeck',
+function createWindow(): void {
+  mainWindow = new BrowserWindow({
+    title: 'Content Studio',
+    width: 1480,
+    height: 960,
+    minWidth: 960,
+    minHeight: 680,
+    show: false,
+    backgroundColor: '#fffcf7',
+    icon: app.isPackaged ? join(process.resourcesPath, 'icon.png') : join(__dirname, '../../resources/icon.png'),
+    autoHideMenuBar: true,
     webPreferences: {
-      preload: path.join(__dirname, '../preload/index.cjs'),
-      contextIsolation: true, nodeIntegration: false, sandbox: false,
+      preload: join(__dirname, '../preload/index.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
     },
-  });
-  if (!app.isPackaged && MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    void win.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
-  } else {
-    void win.loadFile(path.join(__dirname, '../renderer/main_window/index.html'));
-  }
-};
+  })
 
-app.whenReady().then(() => {
-  process.env.CONTENTDECK_USER_DATA ??= app.getPath('userData');
-  registerIpc();
-  createWindow();
-});
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
-// 会话存活时直接退出会触发 Windows libuv 断言（探针实测）；先 dispose 再退
-app.on('will-quit', () => { disposeAgent(); disposePublish(); });
+  const window = mainWindow
+  const developmentUrl = process.env.ELECTRON_RENDERER_URL
+  const rendererPath = join(__dirname, '../renderer/index.html')
+  const rendererUrl = pathToFileURL(rendererPath).href
+  const isAppUrl = (url: string): boolean => {
+    try {
+      return developmentUrl
+        ? new URL(url).origin === new URL(developmentUrl).origin
+        : url.split(/[?#]/)[0] === rendererUrl
+    } catch {
+      return false
+    }
+  }
+
+  window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  window.webContents.on('will-navigate', (event, url) => {
+    if (!isAppUrl(url)) event.preventDefault()
+  })
+
+  window.once('ready-to-show', () => {
+    if (process.env.STUDIO_SMOKE !== '1') window.show()
+  })
+  window.on('closed', () => { mainWindow = null })
+
+  if (developmentUrl && !app.isPackaged) void window.loadURL(developmentUrl)
+  else void window.loadFile(rendererPath)
+}
+
+app.setName('Content Studio')
+if (process.env.STUDIO_USER_DATA) app.setPath('userData', process.env.STUDIO_USER_DATA)
+
+void app.whenReady().then(() => {
+  nativeTheme.themeSource = 'light'
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    { label: '编辑', submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }] },
+    { label: '视图', submenu: [{ role: 'reload' }, { role: 'toggleDevTools' }, { type: 'separator' }, { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { role: 'togglefullscreen' }] },
+    { label: '窗口', submenu: [{ role: 'minimize' }, { role: 'close' }] },
+  ]))
+
+  ipcMain.handle(DESKTOP_CHANNELS.appInfo, (event): AppInfo => {
+    if (event.sender !== mainWindow?.webContents) throw new Error('Unknown window')
+    return { name: app.getName(), version: app.getVersion(), platform: process.platform, electron: process.versions.electron }
+  })
+  ipcMain.handle(DESKTOP_CHANNELS.openDesigns, async (event) => {
+    if (event.sender !== mainWindow?.webContents) throw new Error('Unknown window')
+    const folder = app.isPackaged ? join(process.resourcesPath, 'ux') : join(app.getAppPath(), 'docs/ux')
+    const file = join(folder, 'index.html')
+    if (!existsSync(file)) return { ok: false, message: '没有找到设计总览文件。' }
+    const error = await shell.openPath(file)
+    return error ? { ok: false, message: error } : { ok: true }
+  })
+
+  createWindow()
+  app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
+})
+
+app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })
