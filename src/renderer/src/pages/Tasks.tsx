@@ -108,9 +108,10 @@ export function TasksPage() {
               )}
             </div>
             <div className="task-content">
-              <div>
-                <h3>{task.title}</h3>
+              <div className="flex flex-nowrap items-center justify-between gap-2.5">
+                <h3 className="min-w-0">{task.title}</h3>
                 <Badge
+                  className="shrink-0"
                   tone={task.state === 'failed' ? 'red' : task.state === 'complete' ? 'green' : 'neutral'}
                 >
                   {labels[task.state]}

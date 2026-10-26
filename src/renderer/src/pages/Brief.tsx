@@ -223,7 +223,7 @@ export function BriefPage() {
           和 Agent 再聊聊
         </Button>
         <Button
-          className="button primary"
+          className={brief.confirmed ? 'button secondary' : 'button primary'}
           disabled={running || !brief.topic.trim() || !brief.point.trim() || !brief.outline.length}
           onClick={() => {
             if (!brief.outline.every((item) => item.trim())) {
@@ -232,11 +232,19 @@ export function BriefPage() {
             }
             generateArticle()
           }}
-          variant="default"
+          variant={brief.confirmed ? 'outline' : 'default'}
           size="default"
         >
-          <Check size={16} />
-          {running ? '正在生成示例母稿…' : '确认方案，生成母稿'}
+          {running ? (
+            '正在生成示例母稿…'
+          ) : brief.confirmed ? (
+            '重新生成母稿'
+          ) : (
+            <>
+              <Check size={16} />
+              确认方案，生成母稿
+            </>
+          )}
         </Button>
       </div>
     </section>

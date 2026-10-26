@@ -355,6 +355,43 @@ function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => 
     setShotHistory(false)
     notify(`已从 v${version.number} 恢复为新版本，恢复前的内容也已保存。`)
   }
+  function adoptVersion(version: VideoVersion) {
+    if (!version || version.number === video.adopted) return
+    // Adopting records a new snapshot (mock seed models adoption the same way), so the
+    // candidate itself stays in history and the adopted pointer never mutates a version.
+    const next: VideoVersion = {
+      ...version,
+      number: Math.max(0, ...video.versions.map((v) => v.number)) + 1,
+      label: `采用 · v${version.number}`,
+      at: now(),
+    }
+    patch({
+      versions: [...video.versions, next],
+      adopted: next.number,
+      candidate: undefined,
+    })
+    setPreviewNumber(next.number)
+    notify(`已采用 v${version.number}，保存为快照 v${next.number}；此前版本仍可回查。`)
+  }
+  function saveCodeVersion() {
+    if (!previewVersion) return
+    // Freeze what the preview shows (animation parameters) together with the live
+    // shots and export settings, mirroring the storyboard side's manual save.
+    const next: VideoVersion = {
+      ...snapshot(Math.max(0, ...video.versions.map((v) => v.number)) + 1, '手动保存当前版本'),
+      title: previewVersion.title,
+      color: previewVersion.color,
+      interval: previewVersion.interval,
+      sceneTitles: previewVersion.sceneTitles,
+    }
+    patch({
+      versions: [...video.versions, next],
+      adopted: next.number,
+      candidate: undefined,
+    })
+    setPreviewNumber(next.number)
+    notify(`已保存当前版本 v${next.number}，可从版本历史回查。`)
+  }
   function patchShot(id: string, value: Partial<Shot>) {
     const shots = video.shots.map((s) =>
       s.id === id
@@ -636,6 +673,14 @@ function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => 
                 <IconButton icon={Save} label="保存视频版本" onClick={() => saveShotVersion()} />
               </>
             )}
+            {video.mode === 'code' && (
+              <IconButton
+                icon={Save}
+                label="保存当前版本"
+                disabled={!previewVersion}
+                onClick={saveCodeVersion}
+              />
+            )}
             <IconButton icon={Settings2} label="视频全局设置" onClick={() => setSettings(true)} />
           </div>
         </div>
@@ -799,40 +844,57 @@ function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => 
                 </Button>
               </div>
               {video.confirmed && (
-                <p className="small-meta">重新准备预览前请保存当前版本。本演示复用三场景模板。</p>
+                <p className="small-meta">
+                  重新准备预览前，请先用上方工具条的「保存当前版本」保存。本演示复用三场景模板。
+                </p>
               )}
             </div>
           ) : (
             <>
               {video.mode === 'code' && tab === 'versions' ? (
                 <div className="video-version-list">
-                  {[...video.versions].reverse().map((version) => (
-                    <Card key={version.number} role="article" className="gap-3 p-3">
-                      <div className="version-art">Aa</div>
-                      <div>
-                        <h3>
-                          v{version.number} · {version.label}
-                        </h3>
-                        <p>
-                          {dateLabel(version.at)} · {version.interval.toFixed(1)} 秒间隔
-                        </p>
-                        <Badge tone={video.adopted === version.number ? 'green' : 'orange'}>
-                          {video.adopted === version.number ? '当前已采用' : '历史 / 候选'}
-                        </Badge>
-                      </div>
-                      <Button
-                        className="button secondary small"
-                        onClick={() => {
-                          setPreviewNumber(version.number)
-                          setTab('preview')
-                        }}
-                        variant="outline"
-                        size="sm"
-                      >
-                        预览此版
-                      </Button>
-                    </Card>
-                  ))}
+                  {[...video.versions].reverse().map((version) => {
+                    const isCurrent = video.adopted === version.number
+                    return (
+                      <Card key={version.number} role="article" className="flex-wrap gap-3 p-3">
+                        <div className="version-art">Aa</div>
+                        <div>
+                          <h3>
+                            v{version.number} · {version.label}
+                          </h3>
+                          <p>
+                            {dateLabel(version.at)} · {version.interval.toFixed(1)} 秒间隔
+                          </p>
+                          <Badge tone={isCurrent ? 'green' : 'orange'}>
+                            {isCurrent ? '当前已采用' : '历史 / 候选'}
+                          </Badge>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Button
+                            className="button secondary small"
+                            onClick={() => {
+                              setPreviewNumber(version.number)
+                              setTab('preview')
+                            }}
+                            variant="outline"
+                            size="sm"
+                          >
+                            预览此版
+                          </Button>
+                          {!isCurrent && (
+                            <Button
+                              className="button primary small"
+                              onClick={() => adoptVersion(version)}
+                              variant="default"
+                              size="sm"
+                            >
+                              采用此版
+                            </Button>
+                          )}
+                        </div>
+                      </Card>
+                    )
+                  })}
                 </div>
               ) : video.mode === 'storyboard' && tab === 'shots' ? (
                 <>
@@ -1278,6 +1340,16 @@ function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => 
                         <Badge tone={isCandidate ? 'orange' : 'green'}>
                           {isCandidate ? '正在预览，尚未采用' : '当前已采用'}
                         </Badge>
+                        {isCandidate && previewVersion && (
+                          <Button
+                            className="button primary small"
+                            onClick={() => adoptVersion(previewVersion)}
+                            variant="default"
+                            size="sm"
+                          >
+                            采用此版
+                          </Button>
+                        )}
                         <Button
                           className="text-button text-muted-foreground"
                           onClick={() => setCode(true)}
@@ -1392,22 +1464,6 @@ function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => 
                             size="sm"
                           >
                             保留已采用版
-                          </Button>
-                          <Button
-                            className="button primary small"
-                            onClick={() => {
-                              if (previewVersion) {
-                                patch({
-                                  adopted: previewVersion.number,
-                                  candidate: undefined,
-                                })
-                                notify(`已采用 v${previewVersion.number}，此前版本仍可回查。`)
-                              }
-                            }}
-                            variant="default"
-                            size="sm"
-                          >
-                            采用此版
                           </Button>
                         </div>
                       ) : (
@@ -1596,32 +1652,38 @@ function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => 
                 先保存当前版本
               </Button>
               <div className="video-version-list">
-                {[...video.versions].reverse().map((version) => (
-                  <Card key={version.number} role="article" className="gap-3 p-3">
-                    <div>
-                      <h3>
-                        v{version.number} · {version.label}
-                      </h3>
-                      <p>
-                        {dateLabel(version.at)} · {version.shots?.length ?? video.shots.length} 个镜头
-                      </p>
-                      <span className="small-meta">
-                        {version.shots
-                          ? version.shots.map((s) => s.title).join(' / ')
-                          : '初始示例记录，无恢复快照'}
-                      </span>
-                    </div>
-                    <Button
-                      className="button secondary small"
-                      disabled={!version.shots}
-                      onClick={() => restoreShots(version)}
-                      variant="outline"
-                      size="sm"
-                    >
-                      恢复为新版本
-                    </Button>
-                  </Card>
-                ))}
+                {[...video.versions].reverse().map((version) => {
+                  const isCurrent = video.adopted === version.number
+                  return (
+                    <Card key={version.number} role="article" className="gap-3 p-3">
+                      <div>
+                        <h3>
+                          v{version.number} · {version.label}
+                        </h3>
+                        <p>
+                          {dateLabel(version.at)} · {version.shots?.length ?? video.shots.length} 个镜头
+                        </p>
+                        <span className="small-meta">
+                          {version.shots
+                            ? version.shots.map((s) => s.title).join(' / ')
+                            : '初始示例记录，无恢复快照'}
+                        </span>
+                        {isCurrent && <Badge tone="green">当前版本</Badge>}
+                      </div>
+                      {!isCurrent && (
+                        <Button
+                          className="button secondary small"
+                          disabled={!version.shots}
+                          onClick={() => restoreShots(version)}
+                          variant="outline"
+                          size="sm"
+                        >
+                          恢复为新版本
+                        </Button>
+                      )}
+                    </Card>
+                  )
+                })}
               </div>
             </Modal>
           )}
