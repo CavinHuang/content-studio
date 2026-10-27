@@ -11,7 +11,11 @@ export interface SessionLike {
   waitForIdle(): Promise<void>
   dispose(): void
 }
-export type CreateSessionFn = (sessionKey: string, askUser: AskUserFn) => Promise<SessionLike>
+export type CreateSessionFn = (
+  sessionKey: string,
+  askUser: AskUserFn,
+  collectOverride?: CollectFn,
+) => Promise<SessionLike>
 
 export interface AgentServiceDeps {
   createSession: CreateSessionFn

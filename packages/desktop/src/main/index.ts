@@ -10,6 +10,7 @@ import { safeStorageCrypto } from './ai/crypto'
 import { createRealSessionFactory } from './ai/real-session'
 import { registerAiHandlers } from './ai/ipc'
 import { getModelConfig } from './ai/model-config'
+import { createPlatformRewriteExecutor, createMasterDraftExecutor } from './ai/generation-jobs'
 import type { CollectFn } from './ai/domain-tools'
 
 let mainWindow: BrowserWindow | null = null
@@ -103,16 +104,25 @@ void app.whenReady().then(() => {
     mainWindow?.webContents.send(AI_CHANNELS.event, event)
   }
   let collect: CollectFn = () => {}
+  const createSession = createRealSessionFactory({
+    userDataDir: () => app.getPath('userData'),
+    getConfig: () => getModelConfig(services.db, aiCrypto),
+    collect: (item) => collect(item),
+  })
   const agent = new AgentService({
-    createSession: createRealSessionFactory({
-      userDataDir: () => app.getPath('userData'),
-      getConfig: () => getModelConfig(services.db, aiCrypto),
-      collect: (item) => collect(item),
-    }),
+    createSession,
     emit: emitAi,
     hasModelConfig: () => getModelConfig(services.db, aiCrypto) !== null,
   })
   collect = agent.collect
+  // 生成任务执行器：payload.job 分派平台改写 / 方案→母稿候选（executor='main' 时生效）。
+  const jobDeps = { createSession, getConfig: () => getModelConfig(services.db, aiCrypto) }
+  services.runner.registerExecutor('agent', (task, ctx) => {
+    const job = (task.payload as { job?: string } | undefined)?.job
+    if (job === 'platforms') return createPlatformRewriteExecutor(jobDeps)(task, ctx)
+    if (job === 'master') return createMasterDraftExecutor(jobDeps)(task, ctx)
+    return Promise.resolve({ state: 'failed', detail: '未知的生成任务类型。' })
+  })
   registerAiHandlers(buildAiHandlers({ db: services.db, crypto: aiCrypto, agent }), guard)
   // 上一次会话中断的任务不允许保留假 running 状态。
   services.runner.recover()

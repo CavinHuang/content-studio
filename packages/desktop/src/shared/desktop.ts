@@ -34,6 +34,7 @@ export type TaskRecord = {
   payload?: unknown
   result?: unknown
   extra?: TaskExtra
+  executor?: 'main' | 'renderer'
 }
 export type TaskSettle = { state: 'complete' | 'failed' | 'stopped'; detail?: string; result?: unknown }
 export type TaskSubmitPayload = {

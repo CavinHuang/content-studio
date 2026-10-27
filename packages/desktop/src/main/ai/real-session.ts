@@ -76,7 +76,7 @@ export function createRealSessionFactory(
   deps: RealSessionFactoryDeps,
   createPiSession: CreatePiSession = buildCreatePiSession(),
 ) {
-  return async (sessionKey: string, askUser: AskUserFn): Promise<SessionLike> => {
+  return async (sessionKey: string, askUser: AskUserFn, collectOverride?: CollectFn): Promise<SessionLike> => {
     const config = deps.getConfig()
     if (!config) throw coded('尚未配置模型，请先在「设置 → AI 服务」中配置。', 'NO_MODEL_CONFIG')
     const userDataDir = deps.userDataDir()
@@ -94,7 +94,7 @@ export function createRealSessionFactory(
       modelsPath,
       config,
       askUser,
-      collect: deps.collect,
+      collect: collectOverride ?? deps.collect,
     })
     return {
       subscribe: (listener) => session.subscribe(listener as never),
