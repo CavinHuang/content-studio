@@ -900,6 +900,7 @@ export function SourcesPage() {
               <Badge className="source-kind">{source.type}</Badge>
               <div className="source-state">
                 <Badge
+                  className="whitespace-normal"
                   tone={
                     !source.enabled
                       ? 'neutral'
