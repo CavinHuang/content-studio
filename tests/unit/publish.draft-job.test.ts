@@ -10,7 +10,8 @@ import { migrate, openDatabase } from '../../packages/desktop/src/main/storage/d
 import { TaskRunner } from '../../packages/desktop/src/main/tasks/runner'
 import { TaskStore } from '../../packages/desktop/src/main/storage/taskStore'
 import { makePlaceholderCoverPng } from '../../packages/desktop/src/main/publish/cover'
-import { createWechatDraftExecutor } from '../../packages/desktop/src/main/publish/draft-job'
+import { PublishService } from '../../packages/desktop/src/main/publish/publish-service'
+import { createWechatPublishAdapter } from '../../packages/desktop/src/main/publish/draft-job'
 import type { TaskRecord } from '../../packages/desktop/src/shared/desktop'
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
@@ -135,14 +136,21 @@ function makeRunner(configured: boolean) {
     if (event.type === 'updated') events.push(event.task)
   })
   const creds = configured ? { appId: 'wx1234567890abcdef', secret: 'secret' } : null
-  runner.registerExecutor(
-    'publish',
-    createWechatDraftExecutor({
+  // 生产装配路径：公众号适配器（API 平台）经 PublishService 编排串行限速执行。
+  // openSession 若被调用即抛错——API 平台绝不开页面会话（usesSession 分流的可执行断言）。
+  const service = new PublishService({
+    openSession: () => Promise.reject(new Error('公众号为 API 平台，不应打开页面会话')),
+    minIntervalMs: 0,
+    sleep: async () => {},
+  })
+  service.register(
+    createWechatPublishAdapter({
       getConfig: () => creds,
       baseUrl: base,
     }),
   )
-  return { runner, events }
+  runner.registerExecutor('publish', service.createExecutor())
+  return { runner, events, service }
 }
 
 async function runToSettled(runner: TaskRunner, submit: Parameters<TaskRunner['submit']>[0]): Promise<TaskRecord> {
@@ -239,7 +247,7 @@ test('全链路：md→HTML、asset 图换 uploadimg URL、占位封面、draft/
   expect(settled.detail).toContain('公众号后台')
 })
 
-test('未配置凭证：任务如实失败，且不发出任何请求', async () => {
+test('未配置凭证：任务如实失败（凭证类），且不发出任何请求', async () => {
   resetCalls()
   const { runner } = makeRunner(false)
   const settled = await runToSettled(runner, {
@@ -252,6 +260,8 @@ test('未配置凭证：任务如实失败，且不发出任何请求', async ()
   })
   expect(settled.state).toBe('failed')
   expect(settled.detail).toContain('尚未配置公众号')
+  // 三分类：凭证失败 → credential，立即停下要求配置（不重试）
+  expect(settled.result).toMatchObject({ category: 'credential', code: 'NO_CONFIG' })
   expect(tokenCalls + materialCalls.length + uploadCalls.length + draftCalls.length).toBe(0)
 })
 
@@ -288,7 +298,7 @@ test('中途 40001：单次强刷后整链路仍完成', async () => {
   expect(materialCalls).toHaveLength(1)
 })
 
-test('draft/add 业务错误：任务失败并带错误码', async () => {
+test('draft/add 业务错误：任务失败并带错误码（永久类，不重试）', async () => {
   resetCalls()
   failDraftWith = 45009
   const { runner } = makeRunner(true)
@@ -302,21 +312,47 @@ test('draft/add 业务错误：任务失败并带错误码', async () => {
   })
   expect(settled.state).toBe('failed')
   expect(settled.detail).toContain('45009')
+  expect(settled.result).toMatchObject({ category: 'permanent' })
 })
 
-test('网络异常：失败信息不伪装成功', async () => {
+test('draft/add 凭证类错误（40125）：凭证分类停下并给白名单提示，不自动重试', async () => {
+  resetCalls()
+  failDraftWith = 40125
+  const { runner } = makeRunner(true)
+  const settled = await runToSettled(runner, {
+    kind: 'publish',
+    executor: 'main',
+    title: '存入公众号草稿箱',
+    detail: '…',
+    projectId: 'p1',
+    payload: { platform: 'wechat', title: '让灵感成为作品', body: '只有正文。' },
+  })
+  expect(settled.state).toBe('failed')
+  expect(settled.detail).toContain('40125')
+  expect(settled.detail).toContain('IP 白名单')
+  expect(settled.result).toMatchObject({ category: 'credential' })
+  // 凭证失败不重试：draft/add 只被请求一次（首次即失败）
+  expect(draftCalls).toHaveLength(0)
+})
+
+test('网络异常：按瞬态自动重试 3 次后如实失败，不伪装成功', async () => {
   resetCalls()
   const dbPath = join(mkdtempSync(join(tmpdir(), 'studio-pub-')), 'studio.db')
   db = openDatabase(dbPath)
   migrate(db)
   const runner = new TaskRunner(new TaskStore(db), () => {})
-  runner.registerExecutor(
-    'publish',
-    createWechatDraftExecutor({
+  const service = new PublishService({
+    openSession: () => Promise.reject(new Error('公众号为 API 平台，不应打开页面会话')),
+    minIntervalMs: 0,
+    sleep: async () => {},
+  })
+  service.register(
+    createWechatPublishAdapter({
       getConfig: () => ({ appId: 'wx1234567890abcdef', secret: 'secret' }),
       baseUrl: 'http://127.0.0.1:1', // 不可达端口
     }),
   )
+  runner.registerExecutor('publish', service.createExecutor())
   const settled = await runToSettled(runner, {
     kind: 'publish',
     executor: 'main',
@@ -327,4 +363,7 @@ test('网络异常：失败信息不伪装成功', async () => {
   })
   expect(settled.state).toBe('failed')
   expect(settled.detail).toContain('无法连接')
+  // 三分类：网络问题 → transient，默认自动重试 2 次后停下
+  expect(settled.detail).toContain('已自动重试 2 次')
+  expect(settled.result).toMatchObject({ category: 'transient' })
 })

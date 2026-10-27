@@ -18,11 +18,12 @@ import { buildDiscoveryHandlers } from './discovery/handlers'
 import { registerDiscoveryHandlers } from './discovery/ipc'
 import { SourceScheduler } from './discovery/scheduler'
 import { getWechatConfig } from './publish/wechat-config'
-import { createWechatDraftExecutor } from './publish/draft-job'
+import { createWechatPublishAdapter } from './publish/draft-job'
+import { PublishService } from './publish/publish-service'
 import { buildPublishHandlers } from './publish/handlers'
 import { registerPublishHandlers } from './publish/ipc'
 import { buildRedbookHandlers } from './publish/redbook/handlers'
-import { createRedbookInjectExecutor } from './publish/redbook/inject-job'
+import { createRedbookPublishAdapter } from './publish/redbook/inject-job'
 import { resolveRedbookEditorConfig } from './publish/redbook/policy'
 import { createRedbookService } from './publish/redbook/service'
 import { RedbookSession } from './publish/redbook/session'
@@ -156,13 +157,9 @@ void app.whenReady().then(() => {
   const scheduler = new SourceScheduler({ store: discoveryStore, runner: services.runner })
   scheduler.start()
   app.on('will-quit', () => scheduler.stop())
-  // 公众号发布链装配：safeStorage 凭证 + 存草稿执行器（kind 'publish' / executor 'main'）+ IPC。
+  // 公众号发布链装配：safeStorage 凭证 + 存草稿适配器（API 平台，不开页面会话）+ IPC。
   // STUDIO_WECHAT_API_BASE：e2e/本地 stub 钩子，覆盖官方 baseUrl（生产不设即走官方地址）。
   const publishBaseUrl = process.env.STUDIO_WECHAT_API_BASE || undefined
-  const wechatExecutor = createWechatDraftExecutor({
-    getConfig: () => getWechatConfig(services.db, aiCrypto),
-    ...(publishBaseUrl ? { baseUrl: publishBaseUrl } : {}),
-  })
   // 小红书平台会话装配：persist:redbook partition 登录态由平台写入（应用不落明文）；
   // 注入只填草稿绝不点发布（inject-job 铁律）。STUDIO_REDBOOK_EDITOR_URL：e2e/本地联调显式覆盖编辑器地址。
   const redbookConfig = resolveRedbookEditorConfig(process.env.STUDIO_REDBOOK_EDITOR_URL)
@@ -171,13 +168,26 @@ void app.whenReady().then(() => {
     getWindow: () => mainWindow,
     appName: app.name,
   })
-  const redbookExecutor = createRedbookInjectExecutor(redbookSession)
-  // kind 'publish' 按 payload.platform 分派：redbook=平台注入，缺省=公众号草稿。
-  services.runner.registerExecutor('publish', (task, ctx) =>
-    (task.payload as { platform?: string } | undefined)?.platform === 'redbook'
-      ? redbookExecutor(task, ctx)
-      : wechatExecutor(task, ctx),
+  // 发布编排（spec P4）：平台间串行限速（默认 15s，env STUDIO_PUBLISH_MIN_INTERVAL_MS 可调）＋
+  // 失败三分类（瞬态自动重试/凭证停下要求配置/永久如实上报）；usesSession 分流——
+  // 页面会话平台（小红书）执行前开平台页，API 平台（公众号）绝不开页面。
+  const publishService = new PublishService({
+    openSession: async (platform) => {
+      if (platform !== 'redbook')
+        throw new Error(`平台「${platform}」没有页面会话（API 平台不开页面）。`)
+      // 注入需要用户可见的平台页（右半屏）：扫码登录、检查草稿都在这里完成。
+      await redbookSession.open(true)
+      return redbookSession
+    },
+  })
+  publishService.register(
+    createWechatPublishAdapter({
+      getConfig: () => getWechatConfig(services.db, aiCrypto),
+      ...(publishBaseUrl ? { baseUrl: publishBaseUrl } : {}),
+    }),
   )
+  publishService.register(createRedbookPublishAdapter())
+  services.runner.registerExecutor('publish', publishService.createExecutor())
   registerPublishHandlers(
     buildPublishHandlers({
       db: services.db,
