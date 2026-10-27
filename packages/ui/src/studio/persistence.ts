@@ -14,10 +14,18 @@ import type {
   TaskExtra,
   TaskRecord,
   TaskSettle,
+  WechatConfigInput,
+  WechatConfigView,
+  WechatDraftInput,
+  WechatDraftResult,
+  WechatHtmlResult,
+  WechatProbeResult,
 } from '../../../desktop/src/shared/desktop'
 
 export type { AiEvent }
 export type { DiscoverySnapshot }
+export type { WechatConfigView }
+export { KEEP_WECHAT_SECRET } from '../../../desktop/src/shared/desktop'
 import type { StudioState, Task } from './types'
 
 export const WORKSPACE_KEY = 'content-studio.mock-workspace.v2'
@@ -54,12 +62,24 @@ export type DiscoveryBridge = {
   onEvent(listener: (event: DiscoveryEvent) => void): () => void
 }
 
+/** 公众号发布桥：凭证（脱敏）、连接探测、md→HTML 渲染与存草稿任务；本地降级模式为 null。 */
+export type PublishBridge = {
+  configGet(): Promise<WechatConfigView | null>
+  configSave(input: WechatConfigInput): Promise<WechatConfigView>
+  configClear(): Promise<{ ok: boolean }>
+  canInject(): Promise<WechatProbeResult>
+  renderHtml(body: string): Promise<WechatHtmlResult>
+  saveDraft(input: WechatDraftInput): Promise<WechatDraftResult>
+}
+
 export type Persistence = {
   mode: 'desktop' | 'local'
   /** dev:web 无桌面桥，AI 通道不存在（走本地演示路径）。 */
   ai: AiBridge | null
   /** dev:web 无桌面桥，热点域走本地演示数据（不发起网络请求）。 */
   discovery: DiscoveryBridge | null
+  /** dev:web 无桌面桥，公众号草稿箱不可用（复制/下载演示交付保留）。 */
+  publish: PublishBridge | null
   load(): Promise<{ workspace: StudioState | null }>
   save(state: StudioState): Promise<{ ok: boolean }>
   taskList(): Promise<Task[]>
@@ -80,6 +100,7 @@ function toTask(record: TaskRecord): Task {
     at: record.at,
   }
   if (record.executor) task.executor = record.executor
+  if (record.error !== undefined) task.error = record.error
   if (record.payload !== undefined) task.payload = record.payload
   if (record.extra?.version !== undefined) task.version = record.extra.version
   if (record.extra?.videoId !== undefined) task.videoId = record.extra.videoId
@@ -116,6 +137,14 @@ export function createDesktopPersistence(desktop: DesktopAPI): Persistence {
       sourceRefresh: (id) => desktop.discoverySourceRefresh(id),
       refreshAll: () => desktop.discoveryRefreshAll(),
       onEvent: (listener) => desktop.onDiscoveryEvent(listener),
+    },
+    publish: {
+      configGet: () => desktop.publishConfigGet(),
+      configSave: (input) => desktop.publishConfigSave(input),
+      configClear: () => desktop.publishConfigClear(),
+      canInject: () => desktop.publishCanInject(),
+      renderHtml: (body) => desktop.publishRenderHtml(body),
+      saveDraft: (input) => desktop.publishSaveDraft(input),
     },
     async load() {
       const result = await desktop.dbLoad()
@@ -256,6 +285,7 @@ export function createLocalPersistence(): Persistence {
     mode: 'local',
     ai: null,
     discovery: null,
+    publish: null,
     async load() {
       try {
         const saved = JSON.parse(localStorage.getItem(WORKSPACE_KEY) ?? 'null') as StudioState | null

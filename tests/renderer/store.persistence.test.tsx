@@ -27,6 +27,7 @@ function fakePersistence(workspace: StudioState | null) {
     mode: 'local',
     ai: null,
     discovery: null,
+    publish: null,
     async load() {
       return { workspace }
     },

@@ -3,6 +3,7 @@ import {
   AI_CHANNELS,
   DESKTOP_CHANNELS,
   DISCOVERY_CHANNELS,
+  PUBLISH_CHANNELS,
   type AiConfigInput,
   type AiConfigView,
   type AiEvent,
@@ -12,6 +13,7 @@ import {
   type DiscoveryEvent,
   type DiscoverySourceInput,
   type TaskEvent,
+  type WechatConfigInput,
 } from '../shared/desktop'
 
 const desktop: DesktopAPI = {
@@ -51,6 +53,13 @@ const desktop: DesktopAPI = {
     ipcRenderer.on(DISCOVERY_CHANNELS.event, handler)
     return () => ipcRenderer.removeListener(DISCOVERY_CHANNELS.event, handler)
   },
+  publishConfigGet: () => ipcRenderer.invoke(PUBLISH_CHANNELS.configGet),
+  publishConfigSave: (input: WechatConfigInput) => ipcRenderer.invoke(PUBLISH_CHANNELS.configSave, input),
+  publishConfigClear: () => ipcRenderer.invoke(PUBLISH_CHANNELS.configClear),
+  publishCanInject: () => ipcRenderer.invoke(PUBLISH_CHANNELS.canInject),
+  publishRenderHtml: (body: string) => ipcRenderer.invoke(PUBLISH_CHANNELS.renderHtml, body),
+  publishSaveDraft: (input: Parameters<DesktopAPI['publishSaveDraft']>[0]) =>
+    ipcRenderer.invoke(PUBLISH_CHANNELS.saveDraft, input),
 }
 
 contextBridge.exposeInMainWorld('desktop', desktop)

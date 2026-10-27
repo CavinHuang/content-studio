@@ -133,11 +133,20 @@ export function TasksPage() {
               <span className="small-meta">
                 {task.kind === 'source'
                   ? '热点来源 · '
-                  : `《${state.projects.find((p) => p.id === task.projectId)?.title || '未命名内容'}》 · `}
+                  : task.kind === 'publish'
+                    ? '公众号草稿箱 · '
+                    : `《${state.projects.find((p) => p.id === task.projectId)?.title || '未命名内容'}》 · `}
                 {dateLabel(task.at)}
                 {task.version ? ` · 固定采用 v${task.version}` : ''}
-                {task.kind === 'source' ? ' · 来源刷新' : ' · 本机演示'}
+                {task.kind === 'source'
+                  ? ' · 来源刷新'
+                  : task.kind === 'publish'
+                    ? ' · 官方草稿箱'
+                    : ' · 本机演示'}
               </span>
+              {task.error && task.state === 'failed' && task.error !== task.detail && (
+                <p className="small-meta text-destructive">{task.error}</p>
+              )}
               {task.state === 'running' && (
                 <div
                   className="mt-4 h-[3px] overflow-hidden rounded-full bg-success-background"
@@ -170,8 +179,12 @@ export function TasksPage() {
                     variant="ghost"
                     size="sm"
                   >
-                      <RefreshCw size={14} />
-                      {task.kind === 'creation' ? '继续整理' : task.kind === 'source' ? '重试' : '重试演示'}
+                    <RefreshCw size={14} />
+                    {task.kind === 'creation'
+                      ? '继续整理'
+                      : task.kind === 'source' || task.kind === 'publish'
+                        ? '重试'
+                        : '重试演示'}
                     </Button>
                 ) : (
                   task.kind === 'export' && (

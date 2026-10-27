@@ -7,6 +7,8 @@ import type {
   TaskRecord,
   TaskSettle,
   TaskSubmitPayload,
+  WechatConfigInput,
+  WechatConfigView,
 } from '../../packages/desktop/src/shared/desktop'
 import { seedState } from '../../packages/ui/src/studio/mock'
 import {
@@ -131,6 +133,24 @@ class FakeBridge implements DesktopAPI {
   discoverySourceRefresh: DesktopAPI['discoverySourceRefresh'] = async () => ({ ok: true, taskId: 't1' })
   discoveryRefreshAll: DesktopAPI['discoveryRefreshAll'] = async () => ({ ok: true, taskId: 't2' })
   onDiscoveryEvent: DesktopAPI['onDiscoveryEvent'] = (_listener: (event: DiscoveryEvent) => void) => () => {}
+  // 公众号发布通道桩：记录调用并回放最小视图。
+  savedWechat: WechatConfigInput[] = []
+  wechatView: WechatConfigView | null = null
+  publishConfigGet: DesktopAPI['publishConfigGet'] = async function (this: FakeBridge) {
+    return this.wechatView
+  }
+  publishConfigSave: DesktopAPI['publishConfigSave'] = async function (this: FakeBridge, input) {
+    this.savedWechat.push(input)
+    this.wechatView = { appId: input.appId, hasSecret: true, secretTail: input.secret.slice(-4) }
+    return this.wechatView
+  }
+  publishConfigClear: DesktopAPI['publishConfigClear'] = async function (this: FakeBridge) {
+    this.wechatView = null
+    return { ok: true }
+  }
+  publishCanInject: DesktopAPI['publishCanInject'] = async () => ({ ok: true, message: 'stub' })
+  publishRenderHtml: DesktopAPI['publishRenderHtml'] = async () => ({ ok: true, html: '<p>stub</p>' })
+  publishSaveDraft: DesktopAPI['publishSaveDraft'] = async () => ({ ok: true, taskId: 't3' })
   private emit(event: TaskEvent) {
     for (const listener of this.listeners) listener(event)
   }
@@ -252,4 +272,24 @@ test('desktop 模式：discovery 桥映射保存/删除/刷新，local 模式为
   const off = discovery.onEvent(() => {})
   expect(typeof off).toBe('function')
   off()
+})
+
+test('desktop 模式：publish 桥映射配置/探测/渲染/存草稿，local 模式为 null', async () => {
+  const bridge = new FakeBridge()
+  const desktop = createDesktopPersistence(bridge)
+  const publish = desktop.publish!
+  expect(createLocalPersistence().publish).toBeNull()
+  expect(await publish.configGet()).toBeNull()
+  const view = await publish.configSave({ appId: 'wx1234567890abcdef', secret: 'secret-9999' })
+  expect(view).toMatchObject({ appId: 'wx1234567890abcdef', hasSecret: true, secretTail: '9999' })
+  expect(bridge.savedWechat).toHaveLength(1)
+  expect(await publish.configGet()).toEqual(view)
+  expect(await publish.canInject()).toMatchObject({ ok: true })
+  expect(await publish.renderHtml('# 标题')).toMatchObject({ ok: true, html: '<p>stub</p>' })
+  expect(await publish.saveDraft({ projectId: 'p1', title: '标题', body: '正文' })).toMatchObject({
+    ok: true,
+    taskId: 't3',
+  })
+  await publish.configClear()
+  expect(await publish.configGet()).toBeNull()
 })

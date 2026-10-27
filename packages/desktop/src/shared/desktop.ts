@@ -167,6 +167,40 @@ export type DiscoverySnapshot = {
 export type DiscoveryEvent = { type: 'snapshot'; snapshot: DiscoverySnapshot }
 export type DiscoveryRefreshResult = { ok: boolean; taskId?: string; message?: string }
 
+export const PUBLISH_CHANNELS = {
+  configGet: 'studio:publish:config:get',
+  configSave: 'studio:publish:config:save',
+  configClear: 'studio:publish:config:clear',
+  canInject: 'studio:publish:can-inject',
+  renderHtml: 'studio:publish:render-html',
+  saveDraft: 'studio:publish:save-draft',
+} as const
+
+/** 渲染端回显不出密钥：未改 secret 就保存时传该占位，沿用已存值。 */
+export const KEEP_WECHAT_SECRET = '__KEEP_WECHAT_SECRET__'
+
+export type WechatConfigInput = { appId: string; secret: string }
+export type WechatConfigView = {
+  appId: string
+  hasSecret: boolean
+  secretTail: string
+  /** safeStorage 不可用时的明文降级警示（Linux 常见）。 */
+  plain?: boolean
+}
+export type WechatProbeResult = { ok: boolean; code?: string; message: string }
+export type WechatHtmlResult = { ok: boolean; html?: string; message?: string }
+/** 存草稿任务入参：assets 为正文 asset: 图片快照（素材 id → data URL），随批次冻结。 */
+export type WechatDraftInput = {
+  projectId: string
+  batchId?: string
+  title: string
+  body: string
+  digest?: string
+  author?: string
+  assets?: Record<string, string>
+}
+export type WechatDraftResult = { ok: boolean; taskId?: string; code?: string; message?: string }
+
 export interface DesktopAPI {
   getAppInfo(): Promise<AppInfo>
   openDesigns(): Promise<{ ok: boolean; message?: string }>
@@ -192,4 +226,10 @@ export interface DesktopAPI {
   discoverySourceRefresh(id: string): Promise<DiscoveryRefreshResult>
   discoveryRefreshAll(): Promise<DiscoveryRefreshResult>
   onDiscoveryEvent(listener: (event: DiscoveryEvent) => void): () => void
+  publishConfigGet(): Promise<WechatConfigView | null>
+  publishConfigSave(input: WechatConfigInput): Promise<WechatConfigView>
+  publishConfigClear(): Promise<{ ok: boolean }>
+  publishCanInject(): Promise<WechatProbeResult>
+  publishRenderHtml(body: string): Promise<WechatHtmlResult>
+  publishSaveDraft(input: WechatDraftInput): Promise<WechatDraftResult>
 }

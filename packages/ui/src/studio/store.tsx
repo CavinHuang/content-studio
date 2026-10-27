@@ -22,6 +22,7 @@ import {
   WORKSPACE_KEY,
   type DiscoverySnapshot,
   type Persistence,
+  type WechatConfigView,
 } from './persistence'
 import {
   applyCreation,
@@ -215,6 +216,23 @@ export type Store = {
   saveAiConfig: (input: { name?: string; baseUrl: string; apiKey: string; modelId: string }) => Promise<{ ok: boolean; message: string }>
   testAiConnection: (baseUrl: string, apiKey: string, modelId: string) => Promise<{ ok: boolean; message: string; latencyMs?: number } | null>
   clearAiConfig: () => Promise<void>
+  /** 公众号发布桥是否可用（dev:web 本地降级为 false，复制/下载演示交付保留）。 */
+  publishAvailable: boolean
+  /** 公众号凭证脱敏视图；null = 未配置或桥不可用。 */
+  wechatConfig: WechatConfigView | null
+  wechatReady: boolean
+  refreshWechatConfig: () => void
+  saveWechatConfig: (input: { appId: string; secret: string }) => Promise<{ ok: boolean; message: string }>
+  clearWechatConfig: () => Promise<void>
+  probeWechat: () => Promise<{ ok: boolean; message: string } | null>
+  renderWechatHtml: (body: string) => Promise<string | null>
+  saveWechatDraft: (input: {
+    batchId?: string
+    title: string
+    body: string
+    digest?: string
+    assets?: Record<string, string>
+  }) => Promise<{ ok: boolean; message: string }>
   reference: (label: string, text: string) => void
   saveSource: (input: SourceInput) => Promise<boolean>
   deleteSource: (id: string) => Promise<void>
@@ -253,6 +271,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   const [aiBusy, setAiBusy] = useState(false)
   const [aiAsk, setAiAsk] = useState<{ questionId: string; question: string; options?: string[] } | null>(null)
   const [angleBusy, setAngleBusy] = useState<Record<string, boolean>>({})
+  const [wechatConfig, setWechatConfig] = useState<WechatConfigView | null>(null)
   // 会话键 → 流式目标（并发 1，一键一运行足够）。
   const aiRuns = useRef(new Map<string, AiRunTarget>())
   // AI 建议角度的一次性会话：按会话键累积增量文本，run_end 时解析为候选角度。
@@ -423,6 +442,23 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     if (!ai) return
     void ai.configGet().then((view) => setAiReady(Boolean(view)))
     return ai.onEvent((event) => handleAiEvent(event))
+  }, [persistence])
+  // 公众号发布桥：启动时拉取脱敏配置视图（未配置/本地降级均按 null 处理）。
+  useEffect(() => {
+    const publish = persistence.publish
+    if (!publish) return
+    let cancelled = false
+    void publish
+      .configGet()
+      .then((view) => {
+        if (!cancelled) setWechatConfig(view)
+      })
+      .catch(() => {
+        if (!cancelled) setWechatConfig(null)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [persistence])
   function mutateAiMessage(
     target: AiRunTarget,
@@ -755,7 +791,9 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           ? '已重新发起来源刷新，可在任务列表查看进度；失败会保留旧缓存。'
           : target.kind === 'agent'
             ? '已重新发起生成任务，原失败记录保留。'
-            : '已创建一次演示重试，原失败记录保留。视频仍需单独导出文件。',
+            : target.kind === 'publish'
+              ? '已重新发起存草稿任务，原失败记录保留。'
+              : '已创建一次演示重试，原失败记录保留。视频仍需单独导出文件。',
       )
     }
   }
@@ -1203,6 +1241,69 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     await persistence.ai?.configClear()
     setAiReady(false)
   }
+  // —— 公众号发布链动作：桌面模式走主进程（凭证/探测/存草稿任务），本地降级保留演示交付 ——
+  function refreshWechatConfig() {
+    const publish = persistence.publish
+    if (!publish) return
+    void publish
+      .configGet()
+      .then((view) => setWechatConfig(view))
+      .catch(() => setWechatConfig(null))
+  }
+  async function saveWechatConfig(input: { appId: string; secret: string }) {
+    const publish = persistence.publish
+    if (!publish) return { ok: false, message: '浏览器预览不支持公众号配置，请在桌面应用中配置。' }
+    try {
+      const view = await publish.configSave(input)
+      setWechatConfig(view)
+      return { ok: true, message: '公众号配置已保存。' }
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : '保存失败，请重试。' }
+    }
+  }
+  async function clearWechatConfig() {
+    await persistence.publish?.configClear()
+    setWechatConfig(null)
+    notify('已清除公众号配置；本机不再保留凭证。')
+  }
+  function probeWechat(): Promise<{ ok: boolean; message: string } | null> {
+    const publish = persistence.publish
+    if (!publish) return Promise.resolve(null)
+    return publish
+      .canInject()
+      .catch(() => ({ ok: false, message: '检测失败，请稍后重试。' }) as { ok: boolean; message: string })
+  }
+  /** md → 公众号正文 HTML（主进程纯转换）；本地降级返回 null，由调用方回退 DOM 富文本。 */
+  async function renderWechatHtml(body: string) {
+    const publish = persistence.publish
+    if (!publish) return null
+    try {
+      const result = await publish.renderHtml(body)
+      return result.ok && result.html ? result.html : null
+    } catch {
+      return null
+    }
+  }
+  /** 存入草稿箱：任务系统驱动（kind 'publish' / executor 'main'），进度与失败如实回传。 */
+  async function saveWechatDraft(input: {
+    batchId?: string
+    title: string
+    body: string
+    digest?: string
+    assets?: Record<string, string>
+  }): Promise<{ ok: boolean; message: string }> {
+    const publish = persistence.publish
+    if (!publish) return { ok: false, message: '浏览器预览不支持草稿箱，请使用桌面应用或继续复制交付。' }
+    const result = await publish
+      .saveDraft({ projectId: project.id, ...input })
+      .catch(() => ({ ok: false as const, message: '存草稿任务创建失败，请重试。' }))
+    const outcome = {
+      ok: result.ok,
+      message: result.message ?? (result.ok ? '已创建存草稿任务。' : '存草稿任务创建失败。'),
+    }
+    notify(outcome.message)
+    return outcome
+  }
   /** pi 对话：先落用户消息与空回复占位，再发送；事件按会话键回流（并发 1，一键一运行）。 */
   function sendAiMessage(text: string): void {
     const ai = persistence.ai
@@ -1571,6 +1672,15 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         saveAiConfig,
         testAiConnection,
         clearAiConfig,
+        publishAvailable: persistence.publish !== null,
+        wechatConfig,
+        wechatReady: Boolean(wechatConfig?.appId && wechatConfig.hasSecret),
+        refreshWechatConfig,
+        saveWechatConfig,
+        clearWechatConfig,
+        probeWechat,
+        renderWechatHtml,
+        saveWechatDraft,
         reference,
         saveSource,
         deleteSource,

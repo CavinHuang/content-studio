@@ -37,7 +37,8 @@ test('迁移阶梯：v3 的 discovery 两表在 v4 补齐 refreshMinutes 列', (
   db = openDatabase(join(mkdtempSync(join(tmpdir(), 'studio-db-')), 'studio.db'))
   migrate(db)
   expect(db.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: DB_VERSION })
-  expect(DB_VERSION).toBe(4)
+  // v5：P4 公众号凭证表（wechat_config）随发布链加入阶梯。
+  expect(DB_VERSION).toBe(5)
   expect(
     db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'discovery_%' ORDER BY name").all(),
   ).toEqual([{ name: 'discovery_articles' }, { name: 'discovery_sources' }])

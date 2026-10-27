@@ -15,9 +15,12 @@ import {
   FileCheck2,
   History,
   Info,
+  KeyRound,
   Link2,
   Plus,
   Send,
+  Settings2,
+  ShieldCheck,
   TriangleAlert,
   X,
 } from 'lucide-react'
@@ -34,6 +37,7 @@ import {
   PlatformMark,
 } from '../components/ui'
 import { useStudio } from '../studio/store'
+import { KEEP_WECHAT_SECRET } from '../studio/persistence'
 import {
   dateLabel,
   now,
@@ -41,12 +45,41 @@ import {
   PLATFORMS,
   uid,
   type Batch,
+  type Material,
   type Platform,
   type PublishItem,
 } from '../studio/types'
+
+/** 收集正文 asset: 图片引用对应的素材数据快照（data URL），随批次冻结进任务 payload。 */
+function collectAssetImages(body: string, materials: Material[]): Record<string, string> {
+  const assets: Record<string, string> = {}
+  for (const match of body.matchAll(/!\[[^\]]*\]\(asset:([^)]+)\)/g)) {
+    const id = match[1]!
+    if (assets[id]) continue
+    const material = materials.find((m) => m.id === id && !m.trashed)
+    const dataUrl = material?.type === 'image' ? material.data : undefined
+    if (dataUrl?.startsWith('data:image/')) assets[id] = dataUrl
+  }
+  return assets
+}
 export function PublishPage() {
   const pageRef = useRef<HTMLElement>(null)
-  const { project, patchProject, state, notify, navigate, setPlatformsOpen } = useStudio()
+  const {
+    project,
+    patchProject,
+    state,
+    notify,
+    navigate,
+    setPlatformsOpen,
+    publishAvailable,
+    wechatConfig,
+    wechatReady,
+    saveWechatConfig,
+    clearWechatConfig,
+    probeWechat,
+    renderWechatHtml,
+    saveWechatDraft,
+  } = useStudio()
   const [selected, setSelected] = useState<Platform[]>([])
   const [videoId, setVideoId] = useState('')
   const [batchId, setBatchId] = useState<string | null>(null)
@@ -56,6 +89,13 @@ export function PublishPage() {
     [confirmed, setConfirmed] = useState(false),
     [error, setError] = useState('')
   const [showHistory, setShowHistory] = useState(false)
+  const [wechatFormOpen, setWechatFormOpen] = useState(false)
+  const [appIdInput, setAppIdInput] = useState('')
+  const [secretInput, setSecretInput] = useState('')
+  const [savingConfig, setSavingConfig] = useState(false)
+  const [probing, setProbing] = useState(false)
+  const [probeMessage, setProbeMessage] = useState('')
+  const settledNoticeRef = useRef('')
   useEffect(() => {
     pageRef.current?.scrollTo({ top: 0 })
   }, [batchId])
@@ -63,6 +103,29 @@ export function PublishPage() {
   const current = batch?.items.find((item) => item.platform === currentPlatform) ?? batch?.items[0]
   const adoptedVideos = project.videos.filter((v) => v.confirmed && v.adopted)
   const video = project.videos.find((v) => v.id === videoId)
+  // 本批次公众号存草稿任务（kind 'publish' / executor 'main'）：进度与结果如实展示。
+  const draftTask =
+    current?.platform === 'wechat'
+      ? state.tasks.find(
+          (task) =>
+            task.kind === 'publish' &&
+            task.executor === 'main' &&
+            (task.payload as { batchId?: string } | undefined)?.batchId === batch?.id,
+        )
+      : undefined
+  useEffect(() => {
+    if (!draftTask || draftTask.state === 'running' || settledNoticeRef.current === draftTask.id) return
+    settledNoticeRef.current = draftTask.id
+    if (draftTask.state === 'complete') notify('已存入公众号草稿箱；正式发布请在公众号后台完成。')
+    else if (draftTask.state === 'failed')
+      notify(`存入草稿箱失败：${draftTask.error ?? draftTask.detail}`)
+  }, [draftTask, notify])
+  useEffect(() => {
+    if (!wechatFormOpen) return
+    setAppIdInput(wechatConfig?.appId ?? appIdInput)
+    setSecretInput('')
+    setProbeMessage('')
+  }, [wechatFormOpen]) // eslint-disable-line react-hooks/exhaustive-deps
   const ready = (platform: Platform) =>
     platform === 'douyin'
       ? !!project.drafts[platform]?.body.trim() || !!video?.adopted
@@ -176,12 +239,16 @@ export function PublishPage() {
   async function copy(rich = false) {
     if (!current?.snapshot.body) return
     if (rich) {
+      // 公众号富文本：优先用主进程 md→公众号 HTML 的转换结果（干净无脚本）；
+      // 本地降级（无桌面桥）回退到预览区 DOM，演示复制路径保留。
+      const wechatHtml = await renderWechatHtml(current.snapshot.body)
       try {
         const element = document.querySelector('.publish-document')
-        if (!element || typeof ClipboardItem === 'undefined') throw new Error()
+        const html = wechatHtml ?? element?.innerHTML
+        if (!html || typeof ClipboardItem === 'undefined') throw new Error()
         await navigator.clipboard.write([
           new ClipboardItem({
-            'text/html': new Blob([element.innerHTML], {
+            'text/html': new Blob([html], {
               type: 'text/html',
             }),
             'text/plain': new Blob([`${current.snapshot.title}\n\n${current.snapshot.body}`], {
@@ -189,7 +256,11 @@ export function PublishPage() {
             }),
           }),
         ])
-        notify('富文本已复制，请到公众号编辑器粘贴并检查实际排版。')
+        notify(
+          wechatHtml
+            ? '已复制公众号格式富文本，请到公众号编辑器粘贴并检查排版。'
+            : '富文本已复制，请到公众号编辑器粘贴并检查实际排版。',
+        )
         return
       } catch {
         notify(
@@ -205,6 +276,36 @@ export function PublishPage() {
         ? '已复制。请到对应平台手动发布，完成后再记录。'
         : '复制失败，请下载文稿后复制。',
     )
+  }
+  async function saveWechat() {
+    setSavingConfig(true)
+    const result = await saveWechatConfig({
+      appId: appIdInput,
+      secret: secretInput.trim() ? secretInput : KEEP_WECHAT_SECRET,
+    })
+    setSavingConfig(false)
+    notify(result.message)
+    if (result.ok) {
+      setWechatFormOpen(false)
+      setSecretInput('')
+    }
+  }
+  async function probeConnection() {
+    setProbing(true)
+    setProbeMessage('')
+    const result = await probeWechat()
+    setProbing(false)
+    if (result) setProbeMessage(result.message)
+  }
+  async function submitWechatDraft() {
+    if (!batch || !current?.snapshot.body) return
+    const assets = collectAssetImages(current.snapshot.body, state.materials)
+    await saveWechatDraft({
+      batchId: batch.id,
+      title: current.snapshot.title,
+      body: current.snapshot.body,
+      assets,
+    })
   }
   function markPublished() {
     if (!marking || !confirmed) return
@@ -560,6 +661,161 @@ export function PublishPage() {
                       </Button>
                     )}
                   </div>
+                  {current.platform === 'wechat' && (
+                    <section
+                      aria-label="公众号草稿箱"
+                      className="mt-3 grid gap-2 rounded-xl border bg-card p-4"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="flex items-center gap-1.5 text-sm font-medium">
+                          <Send size={15} />
+                          公众号 · 官方草稿箱
+                        </span>
+                        <Badge tone={wechatReady ? 'green' : 'orange'}>
+                          {wechatReady ? '已配置' : publishAvailable ? '未配置' : '浏览器预览'}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        只存入草稿箱，不会替你发布；正式发布请在公众号后台完成。凭证只保存在本机。
+                      </p>
+                      {!publishAvailable ? (
+                        <p className="small-meta">
+                          浏览器预览不支持草稿箱；可继续使用复制富文本与下载文稿完成人工交付。
+                        </p>
+                      ) : wechatFormOpen ? (
+                        <div className="grid gap-3">
+                          <div className="inline-alert orange">
+                            <TriangleAlert size={16} />
+                            调用公众号接口需要先把本机出口 IP 加入公众号后台的 IP 白名单，请在保存前确认。
+                          </div>
+                          <Field label="AppID">
+                            <Input
+                              aria-label="公众号 AppID"
+                              value={appIdInput}
+                              onChange={(event) => setAppIdInput(event.target.value)}
+                              placeholder="wx 开头的公众号 AppID"
+                            />
+                          </Field>
+                          <Field label="AppSecret">
+                            <Input
+                              aria-label="公众号 AppSecret"
+                              type="password"
+                              value={secretInput}
+                              onChange={(event) => setSecretInput(event.target.value)}
+                              placeholder={
+                                wechatConfig?.hasSecret ? '未修改时留空，沿用已保存密钥' : '在公众号后台的开发设置中获取'
+                              }
+                            />
+                          </Field>
+                          {wechatConfig?.plain && (
+                            <p className="form-error">本机未启用加密存储，密钥将以明文保存在本机。</p>
+                          )}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              disabled={savingConfig || !appIdInput.trim()}
+                              onClick={() => void saveWechat()}
+                              variant="default"
+                              size="sm"
+                            >
+                              <KeyRound size={14} />
+                              {savingConfig ? '正在保存…' : '保存配置'}
+                            </Button>
+                            <Button
+                              disabled={probing || !wechatReady}
+                              onClick={() => void probeConnection()}
+                              variant="outline"
+                              size="sm"
+                            >
+                              <ShieldCheck size={14} />
+                              {probing ? '正在检测…' : '检测连接'}
+                            </Button>
+                            <Button
+                              className=" text-muted-foreground"
+                              onClick={() => setWechatFormOpen(false)}
+                              variant="ghost"
+                              size="sm"
+                            >
+                              收起
+                            </Button>
+                            {wechatConfig?.hasSecret && (
+                              <Button
+                                className=" text-muted-foreground"
+                                onClick={() => {
+                                  setWechatFormOpen(false)
+                                  void clearWechatConfig()
+                                }}
+                                variant="ghost"
+                                size="sm"
+                              >
+                                清除本机凭证
+                              </Button>
+                            )}
+                          </div>
+                          {probeMessage && <p className="small-meta">{probeMessage}</p>}
+                        </div>
+                      ) : wechatReady ? (
+                        <div className="grid gap-2">
+                          <p className="small-meta">
+                            已配置 {wechatConfig?.appId}
+                            {wechatConfig?.secretTail ? `（密钥尾号 ${wechatConfig.secretTail}）` : ''}
+                            {wechatConfig?.plain ? ' · 本机未启用加密存储' : ''}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              disabled={!current.snapshot.body || draftTask?.state === 'running'}
+                              onClick={() => void submitWechatDraft()}
+                              variant="default"
+                              size="sm"
+                            >
+                              <Send size={14} />
+                              {draftTask?.state === 'running' ? '正在存入草稿箱…' : '存入草稿箱'}
+                            </Button>
+                            <Button
+                              disabled={probing}
+                              onClick={() => void probeConnection()}
+                              variant="outline"
+                              size="sm"
+                            >
+                              <ShieldCheck size={14} />
+                              {probing ? '正在检测…' : '检测连接'}
+                            </Button>
+                            <Button
+                              className=" text-muted-foreground"
+                              onClick={() => setWechatFormOpen(true)}
+                              variant="ghost"
+                              size="sm"
+                            >
+                              <Settings2 size={14} />
+                              修改配置
+                            </Button>
+                          </div>
+                          {draftTask && (
+                            <p
+                              className={cn(
+                                'small-meta',
+                                draftTask.state === 'failed' && 'text-destructive',
+                              )}
+                            >
+                              {draftTask.state === 'complete'
+                                ? '已存入草稿箱；正式发布请在公众号后台完成。'
+                                : draftTask.state === 'failed'
+                                  ? `存入失败：${draftTask.error ?? draftTask.detail}`
+                                  : draftTask.detail}
+                            </p>
+                          )}
+                          {probeMessage && <p className="small-meta">{probeMessage}</p>}
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button onClick={() => setWechatFormOpen(true)} variant="outline" size="sm">
+                            <Settings2 size={14} />
+                            配置公众号，启用草稿箱
+                          </Button>
+                          <span className="small-meta">不配置也可以用复制富文本与下载文稿交付。</span>
+                        </div>
+                      )}
+                    </section>
+                  )}
                   {current.link && (
                     <div className="published-link">
                       <Link2 size={14} />

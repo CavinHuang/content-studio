@@ -17,6 +17,10 @@ import { DiscoveryService } from './discovery/service'
 import { buildDiscoveryHandlers } from './discovery/handlers'
 import { registerDiscoveryHandlers } from './discovery/ipc'
 import { SourceScheduler } from './discovery/scheduler'
+import { getWechatConfig } from './publish/wechat-config'
+import { createWechatDraftExecutor } from './publish/draft-job'
+import { buildPublishHandlers } from './publish/handlers'
+import { registerPublishHandlers } from './publish/ipc'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -147,6 +151,25 @@ void app.whenReady().then(() => {
   const scheduler = new SourceScheduler({ store: discoveryStore, runner: services.runner })
   scheduler.start()
   app.on('will-quit', () => scheduler.stop())
+  // 公众号发布链装配：safeStorage 凭证 + 存草稿执行器（kind 'publish' / executor 'main'）+ IPC。
+  // STUDIO_WECHAT_API_BASE：e2e/本地 stub 钩子，覆盖官方 baseUrl（生产不设即走官方地址）。
+  const publishBaseUrl = process.env.STUDIO_WECHAT_API_BASE || undefined
+  services.runner.registerExecutor(
+    'publish',
+    createWechatDraftExecutor({
+      getConfig: () => getWechatConfig(services.db, aiCrypto),
+      ...(publishBaseUrl ? { baseUrl: publishBaseUrl } : {}),
+    }),
+  )
+  registerPublishHandlers(
+    buildPublishHandlers({
+      db: services.db,
+      crypto: aiCrypto,
+      runner: services.runner,
+      ...(publishBaseUrl ? { baseUrl: publishBaseUrl } : {}),
+    }),
+    guard,
+  )
   // 上一次会话中断的任务不允许保留假 running 状态。
   services.runner.recover()
   ipcMain.handle(DESKTOP_CHANNELS.dbLoad, (event) => {

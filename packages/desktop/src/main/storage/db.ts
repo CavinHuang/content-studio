@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 
-export const DB_VERSION = 4
+export const DB_VERSION = 5
 
 export function openDatabase(path: string): DatabaseSync {
   const db = new DatabaseSync(path)
@@ -91,6 +91,19 @@ export function migrate(db: DatabaseSync): void {
     db.exec(`
       ALTER TABLE tasks ADD COLUMN executor TEXT;
       ALTER TABLE discovery_sources ADD COLUMN refreshMinutes INTEGER NOT NULL DEFAULT 0;
+    `)
+  }
+  if (current < 5) {
+    // P4 公众号凭证：照 ai_config 模式，secret 经 safeStorage 加密存 BLOB，
+    // plain=1 表示 safeStorage 不可用时的明文降级（视图层警示）。
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS wechat_config (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        appId TEXT NOT NULL,
+        secretEnc BLOB,
+        plain INTEGER NOT NULL DEFAULT 0,
+        updated TEXT NOT NULL
+      );
     `)
   }
   db.exec(`PRAGMA user_version = ${DB_VERSION}`)

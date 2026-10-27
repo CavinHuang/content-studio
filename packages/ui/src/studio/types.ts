@@ -205,7 +205,7 @@ export type Task = {
   detail: string
   projectId: string
   state: 'queued' | 'running' | 'failed' | 'stopped' | 'complete'
-  kind: 'agent' | 'export' | 'source' | 'creation'
+  kind: 'agent' | 'export' | 'source' | 'creation' | 'publish'
   at: string
   version?: number
   videoId?: string
@@ -213,6 +213,8 @@ export type Task = {
   executor?: 'main' | 'renderer'
   payload?: unknown
   result?: unknown
+  /** 主进程执行器如实回传的失败原因（kind 'publish' 等真实任务）。 */
+  error?: string
 }
 export type Preferences = {
   platforms: Platform[]
