@@ -808,7 +808,9 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           : target.kind === 'agent'
             ? '已重新发起生成任务，原失败记录保留。'
             : target.kind === 'publish'
-              ? '已重新发起存草稿任务，原失败记录保留。'
+              ? (target.payload as { platform?: unknown } | undefined)?.platform === 'redbook'
+                ? '已重新发起小红书草稿注入任务，原失败记录保留。'
+                : '已重新发起存草稿任务，原失败记录保留。'
               : '已创建一次演示重试，原失败记录保留。视频仍需单独导出文件。',
       )
     }

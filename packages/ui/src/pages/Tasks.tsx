@@ -24,6 +24,14 @@ const labels = {
   stopped: '已停止',
   complete: '已完成',
 }
+/**
+ * kind 'publish' 自 a3aeeaa 起跨平台共用：公众号存草稿与小红书注入都以该 kind 入任务中心。
+ * 平台归属只能看 payload.platform（'redbook' = 小红书网页会话注入；
+ * 其余含未标注的历史任务一律视为公众号，与主进程 platformOfTask 的缺省一致）。
+ */
+function isRedbookPublish(task: Task) {
+  return (task.payload as { platform?: unknown } | undefined)?.platform === 'redbook'
+}
 export function TasksPage() {
   const { state, controlTask, selectProject, patchProject, notify, navigate } = useStudio()
   const [filter, setFilter] = useState('all')
@@ -134,14 +142,18 @@ export function TasksPage() {
                 {task.kind === 'source'
                   ? '热点来源 · '
                   : task.kind === 'publish'
-                    ? '公众号草稿箱 · '
+                    ? isRedbookPublish(task)
+                      ? '小红书 · '
+                      : '公众号草稿箱 · '
                     : `《${state.projects.find((p) => p.id === task.projectId)?.title || '未命名内容'}》 · `}
                 {dateLabel(task.at)}
                 {task.version ? ` · 固定采用 v${task.version}` : ''}
                 {task.kind === 'source'
                   ? ' · 来源刷新'
                   : task.kind === 'publish'
-                    ? ' · 官方草稿箱'
+                    ? isRedbookPublish(task)
+                      ? ' · 平台草稿注入'
+                      : ' · 官方草稿箱'
                     : ' · 本机演示'}
               </span>
               {task.error && task.state === 'failed' && task.error !== task.detail && (
