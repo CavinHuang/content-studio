@@ -32,7 +32,7 @@
 | 实际文件 | Markdown、SRT、制作清单 JSON、发布批次 JSON、项目与全量备份 JSON |
 | 发布 | 人工交付与用户标记；不自动发布，不将复制 / 导出视为发布 |
 | 排版 | 安全 React Markdown 预览与独立样式；尚未实际集成 doocs/md |
-| 数据 | localStorage；无云同步。密钥示意输入不保存、不发送 |
+| 数据 | 应用数据目录内的本机 SQLite（studio.db）；任务由主进程状态机管理，支持停止、重试与重启降级；无云同步。密钥示意输入不保存、不发送 |
 
 四张场景配图为本仓库原创 SVG，Lucide 图标本地打包，字体采用 Tailwind / shadcn 默认 font-sans 系统栈。没有运行时外链图片、图标或字体依赖。
 

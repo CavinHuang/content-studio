@@ -80,9 +80,9 @@ test('plan entry shares raw context and stages a candidate before replacing an a
   await expect
     .poll(() =>
       page.evaluate((original) => {
-        const s = JSON.parse(localStorage.getItem('content-studio.mock-workspace.v2')!)
-        const p = s.projects.find((p: { id: string }) => p.id === s.selectedProject)
-        return p.drafts.master.versions.some((v: { body: string }) => v.body === original)
+        const s = window.__studio!.get()
+        const p = s.projects.find((p) => p.id === s.selectedProject)!
+        return p.drafts.master!.versions.some((v) => v.body === original)
       }, original),
     )
     .toBe(true)

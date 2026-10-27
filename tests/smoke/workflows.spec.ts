@@ -293,7 +293,7 @@ test('real downloads contain the fixed draft, current subtitles and a restorable
     .poll(() => app.evaluate(() => (globalThis as unknown as { studioDownload: string }).studioDownload))
     .toBe('completed')
   const data = JSON.parse(readFileSync(backup, 'utf8'))
-  expect(data.schema).toBe(2)
+  expect(data.schema).toBe(3)
   expect(data.projects).toHaveLength(3)
   expect(data.projects[0].drafts.master.body).toContain('先留住那些不起眼的念头')
   expect(data.discoveryConversations).toHaveLength(1)

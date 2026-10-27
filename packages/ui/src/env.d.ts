@@ -10,6 +10,8 @@ declare global {
       get(): StudioState
       replace(next: StudioState): void
       save(): Promise<void>
+      /** 让下一次防抖保存确定性失败一次（验证重试入口）。 */
+      __failNextSave(): void
     }
   }
 }

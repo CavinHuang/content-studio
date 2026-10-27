@@ -2,6 +2,7 @@ import { test, expect, _electron as electron, type ElectronApplication, type Pag
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { StudioState } from '../../packages/ui/src/studio/types'
 
 let app: ElectronApplication, page: Page
 let errors: string[]
@@ -119,9 +120,7 @@ test('tokens, keyboard tabs, typography sliders, dialog focus and resize persist
     .toBeGreaterThan(before)
   const after = await page.locator('.sidebar').evaluate((el) => el.getBoundingClientRect().width)
   await expect
-    .poll(() =>
-      page.evaluate(() => JSON.parse(localStorage.getItem('content-studio.mock-workspace.v2')!).layout.left),
-    )
+    .poll(() => page.evaluate(() => window.__studio!.get().layout.left))
     .toBeCloseTo(after, 0)
   await page.reload()
   await expect
@@ -239,21 +238,21 @@ test('form controls retain upstream typography and borders across business layou
 
 test('conversation menus handle long labels, keyboard selection and focus recovery', async ({}, info) => {
   await expect
-    .poll(() => page.evaluate(() => localStorage.getItem('content-studio.mock-workspace.v2')))
-    .not.toBeNull()
-  await page.addInitScript(() => {
-    const key = 'content-studio.mock-workspace.v2',
-      state = JSON.parse(localStorage.getItem(key)!)
-    const project = state.projects.find((p: { id: string }) => p.id === state.selectedProject)
-    project.conversations[0].title = '这是一段用于验证长会话标题不会撑破菜单的文字'.repeat(5)
+    .poll(() => page.evaluate(() => window.__studio?.get().selectedProject))
+    .toBeTruthy()
+  await page.evaluate(() => {
+    const state = JSON.parse(JSON.stringify(window.__studio!.get())) as StudioState
+    const project = state.projects.find((p) => p.id === state.selectedProject)!
+    project.conversations[0]!.title = '这是一段用于验证长会话标题不会撑破菜单的文字'.repeat(5)
     project.conversations = [
-      project.conversations[0],
+      project.conversations[0]!,
       { id: 'keyboard-conversation', title: '键盘切换测试', messages: [] },
     ]
-    const material = state.materials.find((m: { id: string }) => project.materialIds.includes(m.id))
+    const material = state.materials.find((m) => project.materialIds.includes(m.id))!
     material.title = '这是一份用于验证素材选择器宽度与省略显示的长标题'.repeat(5)
-    localStorage.setItem(key, JSON.stringify(state))
+    window.__studio!.replace(state)
   })
+  await page.evaluate(() => window.__studio!.save())
   await page.reload()
   await page.getByRole('button', { name: '展开 Agent', exact: true }).click()
   const trigger = page.getByRole('button', { name: /^切换对话：/ })
@@ -368,24 +367,12 @@ test('save failures offer a retry while successful saves remain a status', async
   const status = page.getByRole('status', { name: '保存文稿状态' })
   await expect(status).toContainText('已保存')
   await expect(page.getByRole('button', { name: '保存文稿状态' })).toHaveCount(0)
-  await page.evaluate(() => {
-    const original = Storage.prototype.setItem
-    Storage.prototype.setItem = function (key, value) {
-      if (key === 'content-studio.mock-workspace.v2') {
-        Storage.prototype.setItem = original
-        throw new DOMException('Test storage quota', 'QuotaExceededError')
-      }
-      original.call(this, key, value)
-    }
-  })
+  await page.evaluate(() => window.__studio!.__failNextSave())
   await page.getByRole('textbox', { name: '文稿标题', exact: true }).fill('保存恢复验证')
   await page.getByRole('button', { name: '保存失败，重试保存', exact: true }).click()
   await expect(status).toContainText('已保存')
   expect(
-    await page.evaluate(
-      () =>
-        JSON.parse(localStorage.getItem('content-studio.mock-workspace.v2')!).projects[0].drafts.master.title,
-    ),
+    await page.evaluate(() => window.__studio!.get().projects[0]!.drafts.master!.title),
   ).toBe('保存恢复验证')
 })
 

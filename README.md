@@ -37,7 +37,7 @@ pnpm dev
 | `pnpm build` | 检查并构建主进程、preload 和 React 渲染端 |
 | `pnpm start` | 运行构建后的 Electron 应用 |
 | `pnpm test:smoke` | 构建并验证实际 Electron 窗口、核心工作流、键盘与响应式交互 |
-| `pnpm ux:capture` | 构建后拍摄 55 个页面、弹窗与空态，并更新离线设计对照页 |
+| `pnpm ux:capture` | 构建后拍摄 56 个页面、弹窗与空态，并更新离线设计对照页 |
 | `pnpm package:dir` | 生成未打包的桌面分发目录 |
 | `pnpm package:win` | 构建 Windows 便携版 |
 
@@ -71,7 +71,7 @@ resources/       应用图标的 SVG 源文件、PNG 与 Windows ICO
 
 所有 AI 回复、热点、来源状态、语音和导出任务都是明确标识的本地演示。**没有实时采集、真实模型请求、音频合成、MP4 渲染、云端同步或自动发布**。动画是本地组件预览，视频导出只演示任务状态，实际可下载制作清单 JSON 与字幕 SRT。Markdown 排版为 React 预览组件，尚未实际集成 doocs/md。公众号富文本复制仍需在平台编辑器检查兼容性。
 
-工作区暂存于当前设备的 localStorage；图片/文件单个不超过 1 MB，空间不足会保留内存中的编辑并提示备份。密钥示意输入不会保存或发送。全量备份可通过「设置 → 数据与导出」恢复，重新载入示例前也会提醒备份。
+工作区数据保存在应用数据目录内的本机 SQLite 数据库（studio.db）：项目、文稿版本、素材、任务与设置在重启后完整恢复，任务状态由主进程统一管理并支持停止、重试与重启降级。浏览器预览（`pnpm dev:web`）降级使用 localStorage。图片/文件单个不超过 1 MB。密钥示意输入不会保存或发送。全量备份可通过「设置 → 数据与导出」恢复，重新载入示例前也会提醒备份。
 
 Electron 使用上下文隔离、沙盒与受限 preload API；React 渲染进程不直接访问 Node.js。运行时输出在 `out/`，打包输出在 `release/`，均不纳入版本控制。
 

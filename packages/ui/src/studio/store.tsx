@@ -231,7 +231,15 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     })
   }
   const clearAgentDrafts = () => setAgentDrafts({})
+  const failNextSaveRef = useRef(false)
   const saveNow = useCallback(async () => {
+    if (failNextSaveRef.current) {
+      // 测试注入的一次性失败：验证重试入口与状态反馈，不写权威存储。
+      failNextSaveRef.current = false
+      setSaveState('保存失败')
+      notify('本机保存失败，已保留当前内容；请重试或到「设置 → 数据与导出」备份。')
+      return
+    }
     const result = await persistence.save(stateRef.current)
     if (result.ok) {
       setSaveState('已保存')
@@ -285,6 +293,9 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           get: () => stateRef.current,
           replace: (next) => setState(next),
           save: () => saveNowRef.current!(),
+          __failNextSave: () => {
+            failNextSaveRef.current = true
+          },
         }
       }
     })()
