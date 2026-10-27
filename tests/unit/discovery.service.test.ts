@@ -161,6 +161,71 @@ test('任务系统接线：refreshAll 走 kind source / executor main，进度�
   expect(snap.sources.find((s) => s.id === bad.id)).toMatchObject({ status: 'failed' })
 })
 
+test('定时刷新批次：payload.sourceIds 只刷到期来源，任务事件与结果携带 executor', async () => {
+  const { store, service } = makeService()
+  service.ensureSeeded()
+  const due = store.saveSource({ name: '到期来源', type: 'RSS', category: '综合', enabled: true, url: `${base}/feed.xml`, refreshMinutes: 30 })
+  store.saveSource({ name: '未到期来源', type: 'RSS', category: '综合', enabled: true, url: `${base}/feed.xml`, refreshMinutes: 30 })
+  const events: Array<{ type: string; task?: { id: string; executor?: string } }> = []
+  const runner = new TaskRunner(new TaskStore(db!), (event) => {
+    if (event.type === 'updated') events.push({ type: event.type, task: event.task })
+  })
+  runner.registerExecutor('source', service.createTaskExecutor())
+  const task = runner.submit({
+    kind: 'source',
+    title: '定时刷新热点来源',
+    detail: '正在按计划刷新 1 个到期来源…',
+    projectId: 'discovery',
+    executor: 'main',
+    payload: { sourceIds: [due.id], scheduled: true },
+  })
+  await new Promise<void>((resolve) => {
+    const timer = setInterval(() => {
+      const current = runner.get(task.id)
+      if (current && current.state !== 'running') {
+        clearInterval(timer)
+        resolve()
+      }
+    }, 25)
+  })
+  const settled = runner.get(task.id)!
+  expect(settled).toMatchObject({ state: 'complete', executor: 'main' })
+  expect(settled.detail).toContain('已更新 1 个来源')
+  expect(settled.result).toEqual({ updated: 1, failed: [] })
+  // 未列入批次的来源保持原状态（未被顺带刷新）
+  expect(service.snapshot().sources.find((s) => s.name === '未到期来源')).toMatchObject({ status: 'unconfigured' })
+  // 首个 updated 事件（emit 前重读）就携带 executor，渲染端接管判定据此放行
+  expect(events[0]).toMatchObject({ type: 'updated', task: { id: task.id, executor: 'main' } })
+})
+
+test('定时批次目标全部失效：如实说明无事可做，不算失败也不伪装刷新成功', async () => {
+  const { store, service } = makeService()
+  service.ensureSeeded()
+  const target = store.saveSource({ name: '随后停用', type: 'RSS', category: '综合', enabled: true, url: `${base}/feed.xml`, refreshMinutes: 30 })
+  store.saveSource({ id: target.id, name: '随后停用', type: 'RSS', category: '综合', enabled: false, url: `${base}/feed.xml` })
+  const runner = new TaskRunner(new TaskStore(db!), () => {})
+  runner.registerExecutor('source', service.createTaskExecutor())
+  const task = runner.submit({
+    kind: 'source',
+    title: '定时刷新热点来源',
+    detail: '正在按计划刷新…',
+    projectId: 'discovery',
+    executor: 'main',
+    payload: { sourceIds: [target.id], scheduled: true },
+  })
+  await new Promise<void>((resolve) => {
+    const timer = setInterval(() => {
+      const current = runner.get(task.id)
+      if (current && current.state !== 'running') {
+        clearInterval(timer)
+        resolve()
+      }
+    }, 25)
+  })
+  expect(runner.get(task.id)).toMatchObject({ state: 'complete' })
+  expect(runner.get(task.id)!.detail).toContain('没有需要定时刷新的来源')
+})
+
 test('未配置地址的来源刷新被拒绝并如实说明', async () => {
   const { store, service } = makeService()
   service.ensureSeeded()

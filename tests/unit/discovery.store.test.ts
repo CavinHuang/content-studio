@@ -33,14 +33,28 @@ const entry = (over: Partial<UpsertEntry> = {}): UpsertEntry => ({
   ...over,
 })
 
-test('迁移升 v3：discovery_sources / discovery_articles 两表落地', () => {
+test('迁移阶梯：v3 的 discovery 两表在 v4 补齐 refreshMinutes 列', () => {
   db = openDatabase(join(mkdtempSync(join(tmpdir(), 'studio-db-')), 'studio.db'))
   migrate(db)
   expect(db.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: DB_VERSION })
-  expect(DB_VERSION).toBe(3)
+  expect(DB_VERSION).toBe(4)
   expect(
     db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'discovery_%' ORDER BY name").all(),
   ).toEqual([{ name: 'discovery_articles' }, { name: 'discovery_sources' }])
+  expect(
+    db.prepare("SELECT name FROM pragma_table_info('discovery_sources') WHERE name = 'refreshMinutes'").all(),
+  ).toEqual([{ name: 'refreshMinutes' }])
+})
+
+test('refreshMinutes 保存与缺省沿用：编辑不带该字段时保留原定时间隔', () => {
+  const store = makeStore()
+  const saved = store.saveSource({ name: '定时来源', type: 'RSS', category: '综合', enabled: true, url: 'https://example.com/feed', refreshMinutes: 30 })
+  expect(saved).toMatchObject({ refreshMinutes: 30 })
+  // 启停开关等局部保存不带 refreshMinutes：沿用原值
+  const toggled = store.saveSource({ id: saved.id, name: '定时来源', type: 'RSS', category: '综合', enabled: false, url: 'https://example.com/feed' })
+  expect(toggled).toMatchObject({ enabled: false, refreshMinutes: 30 })
+  // 显式改回手动
+  expect(store.saveSource({ id: saved.id, name: '定时来源', type: 'RSS', category: '综合', enabled: true, url: 'https://example.com/feed', refreshMinutes: 0 })!.refreshMinutes).toBeUndefined()
 })
 
 test('内置来源 seed 幂等；用户新建与编辑走同一保存路径', () => {

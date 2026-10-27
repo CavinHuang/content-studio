@@ -174,6 +174,8 @@ export type Source = {
   url: string
   /** 内置示例来源（确定性演示数据）；未配置真实来源时承担热点域演示。 */
   builtin?: boolean
+  /** 自动刷新间隔（分钟）；0 或缺省 = 仅手动刷新。 */
+  refreshMinutes?: number
 }
 export type SourceArticle = {
   id: string

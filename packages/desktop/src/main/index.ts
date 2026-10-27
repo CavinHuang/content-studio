@@ -16,6 +16,7 @@ import { DiscoveryStore } from './discovery/store'
 import { DiscoveryService } from './discovery/service'
 import { buildDiscoveryHandlers } from './discovery/handlers'
 import { registerDiscoveryHandlers } from './discovery/ipc'
+import { SourceScheduler } from './discovery/scheduler'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -142,6 +143,10 @@ void app.whenReady().then(() => {
     buildDiscoveryHandlers({ store: discoveryStore, service: discovery, runner: services.runner }),
     guard,
   )
+  // 可配置定时刷新：默认全部来源为手动（refreshMinutes 0），演示路径不受影响。
+  const scheduler = new SourceScheduler({ store: discoveryStore, runner: services.runner })
+  scheduler.start()
+  app.on('will-quit', () => scheduler.stop())
   // 上一次会话中断的任务不允许保留假 running 状态。
   services.runner.recover()
   ipcMain.handle(DESKTOP_CHANNELS.dbLoad, (event) => {

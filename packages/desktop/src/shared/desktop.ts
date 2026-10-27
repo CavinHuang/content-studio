@@ -122,6 +122,8 @@ export type DiscoverySource = {
   url: string
   /** 内置示例来源：确定性演示数据；未配置真实来源时承担热点域演示（演示保留策略）。 */
   builtin?: boolean
+  /** 自动刷新间隔（分钟）；0 或缺省 = 仅手动刷新。主进程调度器按此到期提交刷新任务。 */
+  refreshMinutes?: number
 }
 export type DiscoverySourceInput = {
   id?: string
@@ -130,6 +132,8 @@ export type DiscoverySourceInput = {
   category: string
   enabled: boolean
   url: string
+  /** 自动刷新间隔（分钟）；0 = 仅手动。编辑时缺省表示沿用原值。 */
+  refreshMinutes?: number
 }
 /** 聚合后的原文：同一规范化 URL 多源收录合并，sourceIds 保留全部收录方。 */
 export type DiscoveryArticle = {

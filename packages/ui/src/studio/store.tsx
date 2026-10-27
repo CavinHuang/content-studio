@@ -230,6 +230,8 @@ export type SourceInput = {
   category: string
   enabled: boolean
   url: string
+  /** 自动刷新间隔（分钟）；0 = 仅手动。编辑时缺省表示沿用原值（桌面模式）。 */
+  refreshMinutes?: number
 }
 const StudioContext = createContext<Store | null>(null)
 export function StudioProvider({ children }: { children: ReactNode }) {
@@ -748,7 +750,13 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       notify('任务已停止，已完成内容仍然保留。')
     } else {
       void persistence.taskControl(id, 'retry')
-      notify('已创建一次演示重试，原失败记录保留。视频仍需单独导出文件。')
+      notify(
+        target.kind === 'source'
+          ? '已重新发起来源刷新，可在任务列表查看进度；失败会保留旧缓存。'
+          : target.kind === 'agent'
+            ? '已重新发起生成任务，原失败记录保留。'
+            : '已创建一次演示重试，原失败记录保留。视频仍需单独导出文件。',
+      )
     }
   }
   function newProject() {

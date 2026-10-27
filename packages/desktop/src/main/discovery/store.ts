@@ -58,6 +58,7 @@ type SourceRow = {
   updated: string
   url: string
   builtin: number
+  refreshMinutes: number
 }
 
 type ArticleRow = {
@@ -77,7 +78,7 @@ type ArticleRow = {
   updatedAt: string
 }
 
-const SOURCE_COLUMNS = 'id, name, type, category, enabled, status, updated, url, builtin'
+const SOURCE_COLUMNS = 'id, name, type, category, enabled, status, updated, url, builtin, refreshMinutes'
 
 function toSource(row: SourceRow): DiscoverySource {
   const source: DiscoverySource = {
@@ -91,6 +92,7 @@ function toSource(row: SourceRow): DiscoverySource {
     url: row.url,
   }
   if (row.builtin === 1) source.builtin = true
+  if (row.refreshMinutes > 0) source.refreshMinutes = row.refreshMinutes
   return source
 }
 
@@ -134,7 +136,7 @@ export class DiscoveryStore {
   /** 内置示例来源注册：OR IGNORE，不覆盖用户改名/启停等改动；按传入顺序稳定排列。 */
   seedBuiltin(sources: DiscoverySource[]): void {
     const statement = this.db.prepare(
-      `INSERT INTO discovery_sources (${SOURCE_COLUMNS}, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ` +
+      `INSERT INTO discovery_sources (${SOURCE_COLUMNS}, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ` +
         'ON CONFLICT(id) DO NOTHING',
     )
     sources.forEach((source, index) => {
@@ -148,6 +150,7 @@ export class DiscoveryStore {
         source.updated,
         source.url,
         source.builtin ? 1 : 0,
+        source.refreshMinutes ?? 0,
         `0:${String(index).padStart(4, '0')}`,
       )
     })
@@ -162,11 +165,13 @@ export class DiscoveryStore {
     const id = existing?.id ?? randomUUID()
     // 状态推演：无地址 → 未配置；地址未变 → 保留原状态；地址已变 → 从未抓取过，回到未配置。
     const status = !url ? 'unconfigured' : existing && existing.url === url ? existing.status : 'unconfigured'
+    // 定时间隔缺省沿用原值（启停开关等局部保存不带该字段）；负数与 NaN 一律归零。
+    const refreshMinutes = Math.max(0, Math.floor(input.refreshMinutes ?? existing?.refreshMinutes ?? 0)) || 0
     this.db
       .prepare(
-        `INSERT INTO discovery_sources (${SOURCE_COLUMNS}, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ` +
+        `INSERT INTO discovery_sources (${SOURCE_COLUMNS}, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ` +
           'ON CONFLICT(id) DO UPDATE SET name = excluded.name, type = excluded.type, category = excluded.category, ' +
-          'enabled = excluded.enabled, url = excluded.url, status = excluded.status',
+          'enabled = excluded.enabled, url = excluded.url, status = excluded.status, refreshMinutes = excluded.refreshMinutes',
       )
       .run(
         id,
@@ -178,6 +183,7 @@ export class DiscoveryStore {
         existing?.updated ?? '',
         url,
         existing?.builtin ? 1 : 0,
+        refreshMinutes,
         existing ? `0:${id}` : `1:${id}`,
       )
     return this.getSource(id)!

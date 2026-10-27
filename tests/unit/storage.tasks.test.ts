@@ -52,6 +52,23 @@ test('patch 局部更新且未给字段保留原值', () => {
   expect(store.patch('missing', { state: 'failed' })).toBeNull()
 })
 
+test('executor 落库往返：insert/get/list/patch 都携带（P3 阻断项 1 根因）', () => {
+  const store = makeStore()
+  store.insert(record({ id: 'main-task', executor: 'main' }))
+  store.insert(record({ id: 'local-task', at: '2026-10-27T12:00:00.000Z' }))
+  expect(store.get('main-task')).toMatchObject({ executor: 'main' })
+  // list（事件 emit 前的重读路径）同样携带，渲染端接管判定据此放行主进程任务
+  const listed = store.list()
+  expect(listed.find((t) => t.id === 'main-task')).toMatchObject({ executor: 'main' })
+  expect(listed.find((t) => t.id === 'local-task')!.executor).toBeUndefined()
+  // patch 其它字段不得丢 executor；补写 executor 也生效
+  expect(store.patch('main-task', { state: 'failed', error: 'boom' })).toMatchObject({
+    executor: 'main',
+    state: 'failed',
+  })
+  expect(store.patch('local-task', { executor: 'main' })).toMatchObject({ executor: 'main' })
+})
+
 test('stopActive 只降级 queued/running，其余记录不动', () => {
   const store = makeStore()
   store.insert(record({ id: 'run', state: 'running' }))

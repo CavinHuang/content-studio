@@ -15,10 +15,11 @@ type TaskRow = {
   payloadJson: string | null
   resultJson: string | null
   extraJson: string | null
+  executor: string | null
 }
 
 const COLUMNS =
-  'id, title, detail, projectId, kind, state, at, updated, progress, error, payloadJson, resultJson, extraJson'
+  'id, title, detail, projectId, kind, state, at, updated, progress, error, payloadJson, resultJson, extraJson, executor'
 
 function toRecord(row: TaskRow): TaskRecord {
   const record: TaskRecord = {
@@ -36,6 +37,7 @@ function toRecord(row: TaskRow): TaskRecord {
   if (row.payloadJson) record.payload = JSON.parse(row.payloadJson)
   if (row.resultJson) record.result = JSON.parse(row.resultJson)
   if (row.extraJson) record.extra = JSON.parse(row.extraJson)
+  if (row.executor) record.executor = row.executor as TaskRecord['executor']
   return record
 }
 
@@ -55,7 +57,7 @@ export class TaskStore {
   insert(record: TaskRecord): void {
     this.db
       .prepare(
-        `INSERT INTO tasks (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO tasks (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         record.id,
@@ -71,6 +73,7 @@ export class TaskStore {
         record.payload === undefined ? null : JSON.stringify(record.payload),
         record.result === undefined ? null : JSON.stringify(record.result),
         record.extra === undefined ? null : JSON.stringify(record.extra),
+        record.executor ?? null,
       )
   }
 
@@ -81,7 +84,7 @@ export class TaskStore {
     this.db
       .prepare(
         'UPDATE tasks SET title = ?, detail = ?, state = ?, updated = ?, progress = ?, error = ?, ' +
-          'payloadJson = ?, resultJson = ?, extraJson = ? WHERE id = ?',
+          'payloadJson = ?, resultJson = ?, extraJson = ?, executor = ? WHERE id = ?',
       )
       .run(
         next.title,
@@ -93,6 +96,7 @@ export class TaskStore {
         next.payload === undefined ? null : JSON.stringify(next.payload),
         next.result === undefined ? null : JSON.stringify(next.result),
         next.extra === undefined ? null : JSON.stringify(next.extra),
+        next.executor ?? null,
         id,
       )
     return this.get(id)

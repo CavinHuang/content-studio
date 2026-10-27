@@ -743,6 +743,18 @@ function TopicDetail({
     </>
   )
 }
+/** 自动刷新间隔选项（分钟）；0 = 仅手动刷新（默认，演示路径不受影响）。 */
+const REFRESH_OPTIONS: Array<{ value: number; label: string }> = [
+  { value: 0, label: '手动刷新' },
+  { value: 15, label: '每 15 分钟' },
+  { value: 30, label: '每 30 分钟' },
+  { value: 60, label: '每小时' },
+  { value: 180, label: '每 3 小时' },
+  { value: 1440, label: '每天' },
+]
+function refreshLabel(minutes: number): string {
+  return REFRESH_OPTIONS.find((option) => option.value === minutes)?.label ?? `每 ${minutes} 分钟`
+}
 export function SourcesPage() {
   const { state, navigate, notify, saveSource, deleteSource, refreshSource } = useStudio()
   const [type, setType] = useState('全部类型')
@@ -757,8 +769,12 @@ export function SourcesPage() {
   function updatingOf(source: Source): boolean {
     return state.tasks.some((t) => {
       if (t.kind !== 'source' || t.state !== 'running') return false
-      const payload = (t.payload ?? {}) as { sourceId?: string; all?: boolean }
-      return payload.all === true || payload.sourceId === source.id
+      const payload = (t.payload ?? {}) as { sourceId?: string; sourceIds?: string[]; all?: boolean }
+      return (
+        payload.all === true ||
+        payload.sourceId === source.id ||
+        (payload.sourceIds ?? []).includes(source.id)
+      )
     })
   }
   function refresh(source: Source) {
@@ -783,6 +799,7 @@ export function SourcesPage() {
       category: editing.category,
       enabled: editing.enabled,
       url: editing.url,
+      refreshMinutes: editing.refreshMinutes ?? 0,
     })
     setSaving(false)
     if (ok) setEditing(null)
@@ -814,6 +831,7 @@ export function SourcesPage() {
                 status: 'unconfigured',
                 updated: '',
                 url: '',
+                refreshMinutes: 0,
               })
             }}
             variant="default"
@@ -874,7 +892,8 @@ export function SourcesPage() {
                   <h3>{source.name}</h3>
                 </div>
                 <p>
-                  {source.category} ·{' '}
+                  {source.category}
+                  {source.refreshMinutes ? ` · ${refreshLabel(source.refreshMinutes)}` : ''} ·{' '}
                   {source.updated ? `最近成功：${dateLabel(source.updated)}` : '还没有成功更新'}
                 </p>
               </div>
@@ -1058,6 +1077,26 @@ export function SourcesPage() {
                 })
               }
             />
+          </Field>
+          <Field
+            label="更新频率"
+            hint={editing.refreshMinutes ? '应用打开时，由本机按计划自动发起刷新。' : undefined}
+          >
+            <NativeSelect
+              value={String(editing.refreshMinutes ?? 0)}
+              onChange={(e) =>
+                setEditing({
+                  ...editing,
+                  refreshMinutes: Number(e.target.value),
+                })
+              }
+            >
+              {REFRESH_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </NativeSelect>
           </Field>
           {error && (
             <p className="form-error" role="alert">

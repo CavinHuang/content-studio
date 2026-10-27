@@ -96,6 +96,9 @@ export class TaskRunner {
   settle(id: string, settle: TaskSettle): TaskRecord | null {
     const current = this.store.get(id)
     if (!current || current.state !== 'running') return null
+    // 主进程执行器任务只由执行器结算；渲染端兜底 settle 一律拒绝，
+    // 否则真实抓取/生成结果会被 1 秒演示兜底伪结算丢弃（P3 阻断项根因之一）。
+    if (current.executor === 'main') return null
     const fields: Partial<TaskRecord> = {
       state: settle.state,
       detail: settle.detail ?? (settle.state === 'complete' ? '本地任务已完成；未调用外部服务。' : current.detail),
@@ -117,6 +120,8 @@ export class TaskRunner {
       this.emit({ type: 'updated', task: updated })
       return { ok: true }
     }
+    // 重试克隆携带 executor：主进程执行器任务重试后仍由执行器驱动，
+    // 否则克隆永远无人执行、再被渲染端兜底伪结算为「已完成」。
     const clone = this.submit({
       kind: current.kind,
       title: current.title,
@@ -124,6 +129,7 @@ export class TaskRunner {
       projectId: current.projectId,
       payload: current.payload,
       extra: current.extra,
+      ...(current.executor !== undefined ? { executor: current.executor } : {}),
     })
     this.emit({ type: 'updated', task: clone })
     return { ok: true }

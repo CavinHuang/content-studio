@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 
-export const DB_VERSION = 3
+export const DB_VERSION = 4
 
 export function openDatabase(path: string): DatabaseSync {
   const db = new DatabaseSync(path)
@@ -82,6 +82,15 @@ export function migrate(db: DatabaseSync): void {
         updatedAt TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_discovery_articles_collected ON discovery_articles (collectedAt DESC);
+    `)
+  }
+  if (current < 4) {
+    // executor 落库：主进程执行器任务（P2 生成 / P3 来源刷新）经事件重读后必须携带
+    // executor，否则渲染端兜底会把它伪结算成「演示任务已完成」。
+    // refreshMinutes：P3 可配置定时刷新（0 = 仅手动）。
+    db.exec(`
+      ALTER TABLE tasks ADD COLUMN executor TEXT;
+      ALTER TABLE discovery_sources ADD COLUMN refreshMinutes INTEGER NOT NULL DEFAULT 0;
     `)
   }
   db.exec(`PRAGMA user_version = ${DB_VERSION}`)

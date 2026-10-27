@@ -149,13 +149,26 @@ export class DiscoveryService {
       if (this.refreshing) return { state: 'failed', detail: '已有来源刷新任务在运行，请等待完成后再试。' }
       this.refreshing = true
       try {
-        const payload = (task.payload ?? {}) as { sourceId?: string; all?: boolean }
+        const payload = (task.payload ?? {}) as {
+          sourceId?: string
+          sourceIds?: string[]
+          scheduled?: boolean
+        }
+        const listed = this.deps.store.listSources()
         const targets = payload.sourceId
           ? [this.deps.store.getSource(payload.sourceId)].filter((s): s is DiscoverySource => Boolean(s))
-          : this.deps
-              .store.listSources()
-              .filter((source) => source.enabled && source.url.trim())
-        if (!targets.length) return { state: 'failed', detail: '没有可刷新的来源：请先启用并配置来源地址。' }
+          : payload.sourceIds?.length
+            ? listed.filter(
+                (source) =>
+                  payload.sourceIds!.includes(source.id) && source.enabled && source.url.trim(),
+              )
+            : listed.filter((source) => source.enabled && source.url.trim())
+        if (!targets.length) {
+          // 定时批次目标在提交后全部被停用/删除：无事可做，不是失败，不伪装成刷新成功。
+          if (payload.scheduled)
+            return { state: 'complete', detail: '没有需要定时刷新的来源（已停用或移除）。', result: { updated: 0, failed: [] } }
+          return { state: 'failed', detail: '没有可刷新的来源：请先启用并配置来源地址。' }
+        }
         const failed: string[] = []
         let updated = 0
         for (const source of targets) {
