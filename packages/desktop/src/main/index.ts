@@ -66,7 +66,13 @@ void app.whenReady().then(() => {
 
   ipcMain.handle(DESKTOP_CHANNELS.appInfo, (event): AppInfo => {
     if (event.sender !== mainWindow?.webContents) throw new Error('Unknown window')
-    return { name: app.getName(), version: app.getVersion(), platform: process.platform, electron: process.versions.electron }
+    return {
+      name: app.getName(),
+      version: app.getVersion(),
+      platform: process.platform,
+      electron: process.versions.electron,
+      smoke: process.env.STUDIO_SMOKE === '1',
+    }
   })
   ipcMain.handle(DESKTOP_CHANNELS.openDesigns, async (event) => {
     if (event.sender !== mainWindow?.webContents) throw new Error('Unknown window')
