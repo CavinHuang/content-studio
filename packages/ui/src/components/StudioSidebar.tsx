@@ -218,7 +218,7 @@ export function StudioSidebar({
         </SidebarMenu>
         <div className="flex min-w-0 items-center gap-2 px-2 text-xs text-muted-foreground">
           <span className="size-1.5 shrink-0 rounded-full bg-primary" />
-          <span className="min-w-0 flex-1 truncate">本机工作区 · Mock 演示</span>
+          <span className="min-w-0 flex-1 truncate">本机工作区</span>
           <Button variant="ghost" size="icon-xs" aria-label="打开设计总览" onClick={onOpenDesigns}>
             <CircleHelp />
           </Button>

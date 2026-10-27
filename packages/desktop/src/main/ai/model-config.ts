@@ -63,6 +63,11 @@ export function getModelConfig(db: DatabaseSync, crypto: Crypto): ModelConfig | 
   }
 }
 
+/** safeStorage 不可用而明文降级存储时为 true（供脱敏视图下发警示）。 */
+export function getModelConfigPlain(db: DatabaseSync): boolean {
+  return rowOf(db)?.plain === 1
+}
+
 export function setModelConfig(db: DatabaseSync, crypto: Crypto, input: AiConfigInput): ModelConfig {
   // 渲染端回显不出明文 key：未改 key 就保存时传 KEEP_API_KEY，沿用旧 key。
   const apiKey = input.apiKey === KEEP_API_KEY ? getModelConfig(db, crypto)?.apiKey ?? '' : input.apiKey
@@ -105,18 +110,23 @@ export function sessionDirFor(userDataDir: string, sessionKey: string): string {
   return path.join(userDataDir, 'pi-sessions', sessionKey.replace(/[^a-zA-Z0-9_-]/g, '-'))
 }
 
-/** 生成 pi ModelRuntime 可用的 models.json（探针实证：必须显式传路径，apiKey 支持字面量）。 */
+/**
+ * 生成 pi ModelRuntime 可用的 models.json（探针实证：必须显式传路径）。
+ * 铁律「密钥不落明文」：apiKey 只写 $NAME 环境变量插值占位（pi 文档 models.md 支持），
+ * 真实 key 经进程环境变量注入，仅存于内存；磁盘上不出现明文副本。
+ */
 export async function writePiModelsJson(userDataDir: string, config: ModelConfig): Promise<string> {
   const dir = piAgentDir(userDataDir)
   await mkdir(dir, { recursive: true })
   const file = path.join(dir, 'models.json')
+  process.env.STUDIO_AI_API_KEY = config.apiKey
   const doc = {
     providers: {
       [config.providerId]: {
         name: config.name ?? '自定义模型',
         baseUrl: config.baseUrl,
         api: 'openai-completions',
-        apiKey: config.apiKey,
+        apiKey: '$STUDIO_AI_API_KEY',
         models: [{ id: config.modelId, name: config.modelId, contextWindow: 128000, maxTokens: 16384 }],
       },
     },

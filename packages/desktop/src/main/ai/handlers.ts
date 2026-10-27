@@ -2,7 +2,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { KEEP_API_KEY } from '../../shared/desktop'
 import type { AiConfigInput, AiConfigView, AiSendResult, AiTestResult } from '../../shared/desktop'
 import { AgentService } from './agent-service'
-import { clearModelConfig, getModelConfig, modelConfigView, setModelConfig, type Crypto } from './model-config'
+import { clearModelConfig, getModelConfig, getModelConfigPlain, modelConfigView, setModelConfig, type Crypto } from './model-config'
 
 /** 真实连接测试：GET <baseUrl>/models（OpenAI 兼容），10 秒超时。 */
 export async function testOpenAiEndpoint(
@@ -46,11 +46,11 @@ export interface AiHandlerDeps {
 export function buildAiHandlers(deps: AiHandlerDeps) {
   return {
     configGet(): AiConfigView | null {
-      return modelConfigView(getModelConfig(deps.db, deps.crypto), false)
+      return modelConfigView(getModelConfig(deps.db, deps.crypto), getModelConfigPlain(deps.db))
     },
     configSet(input: AiConfigInput): AiConfigView {
       setModelConfig(deps.db, deps.crypto, input)
-      return modelConfigView(getModelConfig(deps.db, deps.crypto), false)!
+      return modelConfigView(getModelConfig(deps.db, deps.crypto), getModelConfigPlain(deps.db))!
     },
     configClear(): { ok: boolean } {
       clearModelConfig(deps.db)

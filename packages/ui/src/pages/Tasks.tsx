@@ -59,8 +59,8 @@ export function TasksPage() {
     <section className="workspace-page">
       <PageTitle
         title="作品，正在慢慢成形。"
-        description="查看本机演示任务。失败或已停止，都不会抹掉已经完成的内容。"
-        actions={<Badge tone="orange">Mock · 任务中心</Badge>}
+        description="查看本机任务。失败或已停止，都不会抹掉已经完成的内容。"
+        actions={<Badge tone="green">任务中心</Badge>}
       />
       {/* F3 页首统计统一版式：复用热点页 40 的行内式 source-stats 块，
           替换原先居中分栏带竖分隔线的卡片式，两域共用同一 CSS 版式。 */}

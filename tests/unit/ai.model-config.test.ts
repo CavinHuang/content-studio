@@ -68,12 +68,17 @@ test('校验失败带错误码', () => {
   expect(() => validateModelConfig({ baseUrl: 'http://x', apiKey: '', modelId: 'm' })).toThrowError(/Key/)
 })
 
-test('models.json 写入正确路径与结构；sessionKey 安全化', async () => {
+test('models.json 写入正确路径与结构；apiKey 走环境变量插值不落明文；sessionKey 安全化', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'studio-ai-ud-'))
-  const config = validateModelConfig({ baseUrl: 'http://127.0.0.1:9/v1', apiKey: 'k', modelId: 'm' })
+  const config = validateModelConfig({ baseUrl: 'http://127.0.0.1:9/v1', apiKey: 'sk-secret-xyz', modelId: 'm' })
   const file = await writePiModelsJson(dir, config)
   expect(file).toBe(join(piAgentDir(dir), 'models.json'))
-  const doc = JSON.parse(readFileSync(file, 'utf8')) as { providers: Record<string, unknown> }
+  const raw = readFileSync(file, 'utf8')
+  const doc = JSON.parse(raw) as { providers: Record<string, { apiKey: string }> }
   expect(Object.keys(doc.providers)).toEqual(['content-studio'])
+  expect(doc.providers['content-studio']!.apiKey).toBe('$STUDIO_AI_API_KEY')
+  expect(raw).not.toContain('sk-secret-xyz')
+  expect(process.env.STUDIO_AI_API_KEY).toBe('sk-secret-xyz')
+  delete process.env.STUDIO_AI_API_KEY
   expect(sessionDirFor(dir, 'p:abc-123')).toBe(join(dir, 'pi-sessions', 'p-abc-123'))
 })

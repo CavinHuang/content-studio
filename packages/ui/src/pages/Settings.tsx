@@ -57,12 +57,14 @@ export function SettingsPage() {
   const [aiSaving, setAiSaving] = useState(false)
   const [aiTesting, setAiTesting] = useState(false)
   const [aiTestMessage, setAiTestMessage] = useState('')
+  const [aiPlain, setAiPlain] = useState(false)
   useEffect(() => {
     void window.desktop?.aiConfigGet().then((view) => {
       if (view) {
         setAiBaseUrl(view.baseUrl)
         setAiModelId(view.modelId)
         setAiKeyTail(view.apiKeyTail)
+        setAiPlain(Boolean(view.plain))
       }
     })
   }, [])
@@ -254,6 +256,11 @@ export function SettingsPage() {
                   )}
                 </div>
                 {aiTestMessage && <p className="service-note">{aiTestMessage}</p>}
+                {aiPlain && (
+                  <p className="form-error" role="alert">
+                    本机未启用加密存储，密钥将以明文保存在本机。
+                  </p>
+                )}
               </Card>
               <Card className="service-card gap-3 p-3" role="article">
                 <div className="service-heading mb-0">
@@ -371,6 +378,11 @@ export function SettingsPage() {
                     ? '已启用语音服务：分镜「更新所选镜头配音」生成真实音频并按音频时长回填镜头。'
                     : '未配置语音服务：视频配音保持本地演示，不影响其他功能。'}
                 </p>
+                {ttsConfig?.plain && (
+                  <p className="form-error" role="alert">
+                    本机未启用加密存储，密钥将以明文保存在本机。
+                  </p>
+                )}
               </Card>
               <div className="settings-section">
                 <h2>其他服务</h2>
