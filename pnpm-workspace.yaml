@@ -6,5 +6,7 @@ allowBuilds:
   esbuild: true
   '@swc/core': true
   electron-winstaller: false
+  '@google/genai': false
+  protobufjs: false
 
 nodeLinker: hoisted
