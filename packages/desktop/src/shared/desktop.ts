@@ -36,6 +36,14 @@ export type TaskRecord = {
   extra?: TaskExtra
 }
 export type TaskSettle = { state: 'complete' | 'failed' | 'stopped'; detail?: string; result?: unknown }
+export type TaskSubmitPayload = {
+  kind: string
+  title: string
+  detail: string
+  projectId: string
+  payload?: unknown
+  extra?: TaskExtra
+}
 export type TaskEvent = { type: 'snapshot'; tasks: TaskRecord[] } | { type: 'updated'; task: TaskRecord }
 export type DbLoadResult = { exists: boolean; workspace: unknown }
 export type DbSaveResult = { ok: boolean; at?: string; message?: string }
@@ -46,14 +54,7 @@ export interface DesktopAPI {
   dbLoad(): Promise<DbLoadResult>
   dbSave(workspace: unknown): Promise<DbSaveResult>
   taskList(): Promise<TaskRecord[]>
-  taskSubmit(input: {
-    kind: string
-    title: string
-    detail: string
-    projectId: string
-    payload?: unknown
-    extra?: TaskExtra
-  }): Promise<TaskRecord>
+  taskSubmit(input: TaskSubmitPayload): Promise<TaskRecord>
   taskSettle(id: string, settle: TaskSettle): Promise<TaskRecord | null>
   taskControl(id: string, action: 'stop' | 'retry'): Promise<{ ok: boolean }>
   onTaskEvent(listener: (event: TaskEvent) => void): () => void

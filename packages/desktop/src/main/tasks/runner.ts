@@ -1,15 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import type { TaskEvent, TaskRecord, TaskSettle } from '../../shared/desktop'
+import type { TaskEvent, TaskRecord, TaskSettle, TaskSubmitPayload } from '../../shared/desktop'
 import type { TaskStore } from '../storage/taskStore'
 
-export type TaskSubmitInput = {
-  kind: string
-  title: string
-  detail: string
-  projectId: string
-  payload?: unknown
-  extra?: TaskRecord['extra']
-}
+export type TaskSubmitInput = TaskSubmitPayload
 
 /**
  * P1 语义：submit 直接落 running（queued 保留给 P2 主进程执行器的并发限制）；
