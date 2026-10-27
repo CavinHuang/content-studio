@@ -589,20 +589,9 @@ function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => 
     setExportStatus(true)
     notify('演示任务已加入任务中心，可在那里停止或检查结果。')
   }
-  const { setState } = useStudio()
+  const { failTask } = useStudio()
   function patchFailure(id: string) {
-    setState((s) => ({
-      ...s,
-      tasks: s.tasks.map((t) =>
-        t.id === id && t.state === 'running'
-          ? {
-              ...t,
-              state: 'failed',
-              detail: '模拟失败：配乐资源不可用。作品与之前的输出快照均已保留。',
-            }
-          : t,
-      ),
-    }))
+    failTask(id, '模拟失败：配乐资源不可用。作品与之前的输出快照均已保留。')
   }
   const codeSnippet = `// Mock composition — read-only illustration
 const composition = {

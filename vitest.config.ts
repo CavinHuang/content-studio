@@ -5,7 +5,7 @@ export default defineConfig({
     globals: true,
     projects: [
       { test: { name: 'unit', environment: 'node', include: ['tests/unit/**/*.test.ts'] } },
-      { test: { name: 'renderer', environment: 'jsdom', include: ['tests/renderer/**/*.test.ts'] } },
+      { test: { name: 'renderer', environment: 'jsdom', include: ['tests/renderer/**/*.test.{ts,tsx}'] } },
     ],
   },
 })

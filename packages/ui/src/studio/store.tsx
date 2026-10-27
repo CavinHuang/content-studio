@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type Dispatch,
@@ -10,6 +11,12 @@ import {
   type SetStateAction,
 } from 'react'
 import { makeProject, platformContent, seedState, topics } from './mock'
+import {
+  resolvePersistence,
+  taskFromRecord,
+  WORKSPACE_KEY,
+  type Persistence,
+} from './persistence'
 import {
   applyCreation,
   beginCreation,
@@ -35,12 +42,13 @@ import {
   type Topic,
 } from './types'
 
-const KEY = 'content-studio.mock-workspace.v2'
+const KEY = WORKSPACE_KEY
 function readState(): StudioState {
   try {
     const saved = JSON.parse(localStorage.getItem(KEY) ?? 'null') as StudioState | null
     if (
-      saved?.schema === 2 &&
+      typeof saved?.schema === 'number' &&
+      saved.schema >= 2 &&
       Array.isArray(saved.projects) &&
       saved.projects.length &&
       Array.isArray(saved.materials) &&
@@ -51,6 +59,7 @@ function readState(): StudioState {
       const fallback = seedState()
       return {
         ...saved,
+        schema: 3,
         projects: saved.projects.map((project) => ({
           ...project,
           creation: recoverCreation(project.creation),
@@ -79,11 +88,14 @@ function readState(): StudioState {
             : (saved.layout ?? fallback.layout),
         discoveryConversations: saved.discoveryConversations ?? fallback.discoveryConversations,
         activeDiscovery: saved.activeDiscovery ?? fallback.activeDiscovery,
-        tasks: saved.tasks.map((t) =>
-          ['running', 'queued'].includes(t.state)
-            ? { ...t, state: 'stopped', detail: '应用已重新打开。演示任务已停止，可重新运行。' }
-            : t,
-        ),
+        // 主进程任务不随文档迁移；creation 任务由渲染端编排，随文档保留。
+        tasks: saved.tasks
+          .filter((t) => t.kind === 'creation')
+          .map((t) =>
+            ['running', 'queued'].includes(t.state)
+              ? { ...t, state: 'stopped', detail: '应用已重新打开。演示任务已停止，可重新运行。' }
+              : t,
+          ),
       }
     }
     const seeded = seedState()
@@ -109,8 +121,31 @@ function readState(): StudioState {
 }
 
 type ContextReference = { label: string; text: string; platform?: Platform }
+
+// DB 工作区只由本版本写入；重启后恢复 creation 流程并降级其中的活动任务。
+function adoptWorkspace(workspace: StudioState): StudioState {
+  return {
+    ...workspace,
+    projects: workspace.projects.map((project) => ({
+      ...project,
+      creation: recoverCreation(project.creation),
+    })),
+    tasks: workspace.tasks.map((t) =>
+      t.kind === 'creation' && ['running', 'queued'].includes(t.state)
+        ? { ...t, state: 'stopped', detail: '应用已重新打开。演示任务已停止，可重新运行。' }
+        : t,
+    ),
+  }
+}
+
+// 主进程/本地任务列表与文档内 creation 任务按 id 去重合并（新→旧）。
+function mergeTaskLists(mainTasks: Task[], current: Task[]): Task[] {
+  const seen = new Set(mainTasks.map((t) => t.id))
+  const creation = current.filter((t) => t.kind === 'creation' && !seen.has(t.id))
+  return [...mainTasks, ...creation].sort((a, b) => (a.at < b.at ? 1 : -1))
+}
 type AgentDraft = { composer: string; context: ContextReference | null }
-type Store = {
+export type Store = {
   state: StudioState
   setState: Dispatch<SetStateAction<StudioState>>
   project: Project
@@ -150,11 +185,13 @@ type Store = {
     extra?: Partial<Task>,
   ) => string
   controlTask: (id: string, action: 'stop' | 'retry') => void
+  failTask: (id: string, detail: string) => void
   reference: (label: string, text: string) => void
 }
 const StudioContext = createContext<Store | null>(null)
 export function StudioProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState(readState)
+  const [state, setState] = useState<StudioState>(seedState)
+  const [ready, setReady] = useState(false)
   const [notice, notify] = useState('')
   const [saveState, setSaveState] = useState('已保存')
   const [captureOpen, setCaptureOpen] = useState(false)
@@ -164,6 +201,9 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   const creationTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
   const stateRef = useRef(state)
   stateRef.current = state
+  const persistence = useMemo(() => resolvePersistence(), [])
+  const startedRuns = useRef(new Set<string>())
+  const saveNowRef = useRef<(() => Promise<void>) | undefined>(undefined)
   const project =
     state.projects.find((p) => p.id === state.selectedProject && !p.trashed) ??
     state.projects.find((p) => !p.trashed) ??
@@ -191,25 +231,98 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     })
   }
   const clearAgentDrafts = () => setAgentDrafts({})
-  const retrySave = useCallback(() => {
-    try {
-      localStorage.setItem(KEY, JSON.stringify(stateRef.current))
+  const saveNow = useCallback(async () => {
+    const result = await persistence.save(stateRef.current)
+    if (result.ok) {
       setSaveState('已保存')
-    } catch {
+    } else {
       setSaveState('保存失败')
-      notify('本机空间不足，请在「设置 → 数据与导出」备份当前内容后再重试。')
+      notify('本机保存失败，已保留当前内容；请重试或到「设置 → 数据与导出」备份。')
     }
-  }, [])
+  }, [persistence])
+  saveNowRef.current = saveNow
+  const retrySave = useCallback(() => {
+    void saveNow()
+  }, [saveNow])
+  // 启动：权威存储载入；空库时用 localStorage/旧键引导（readState）并回写建立基线。
   useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const { workspace } = await persistence.load()
+      if (cancelled) return
+      if (workspace) {
+        setState(adoptWorkspace(workspace))
+      } else {
+        const bootstrap = readState()
+        setState(bootstrap)
+        void persistence.save(bootstrap)
+        // 空库引导：种子演示任务登记进任务引擎，保持任务中心首次演示内容。
+        for (const seed of bootstrap.tasks) {
+          if (seed.kind === 'creation') continue
+          startedRuns.current.add(seed.id)
+          await persistence.taskSubmit({
+            id: seed.id,
+            kind: seed.kind,
+            title: seed.title,
+            detail: seed.detail,
+            projectId: seed.projectId,
+            extra: { version: seed.version, videoId: seed.videoId, snapshot: seed.snapshot },
+          })
+          await persistence.taskSettle(seed.id, {
+            state: seed.state === 'complete' ? 'complete' : 'failed',
+            detail: seed.detail,
+          })
+        }
+      }
+      const tasks = await persistence.taskList()
+      if (cancelled) return
+      setState((s) => ({ ...s, tasks: mergeTaskLists(tasks, s.tasks) }))
+      setReady(true)
+      const info = await window.desktop?.getAppInfo().catch(() => undefined)
+      if (!cancelled && (import.meta.env.DEV || info?.smoke)) {
+        // 测试/开发调试钩子：e2e 用它读写工作区，不再依赖 localStorage 断言。
+        window.__studio = {
+          get: () => stateRef.current,
+          replace: (next) => setState(next),
+          save: () => saveNowRef.current!(),
+        }
+      }
+    })()
+    const off = persistence.onTasks((event) => {
+      if (event.type === 'snapshot') {
+        setState((s) => ({ ...s, tasks: mergeTaskLists(event.tasks.map(taskFromRecord), s.tasks) }))
+        return
+      }
+      const task = taskFromRecord(event.task)
+      setState((s) => ({
+        ...s,
+        tasks: s.tasks.some((t) => t.id === task.id)
+          ? s.tasks.map((t) => (t.id === task.id ? task : t))
+          : [task, ...s.tasks],
+      }))
+      // 重试克隆等未登记的运行任务由本地执行器兜底完成。
+      if (task.state === 'running' && !startedRuns.current.has(task.id)) {
+        startedRuns.current.add(task.id)
+        scheduleCompletion(task.id)
+      }
+    })
+    return () => {
+      cancelled = true
+      off()
+      delete window.__studio
+    }
+  }, [persistence])
+  useEffect(() => {
+    if (!ready) return
     setSaveState('保存中')
-    const timer = setTimeout(retrySave, 180)
-    const flush = () => retrySave()
+    const timer = setTimeout(() => void saveNow(), 180)
+    const flush = () => void saveNow()
     window.addEventListener('pagehide', flush)
     return () => {
       clearTimeout(timer)
       window.removeEventListener('pagehide', flush)
     }
-  }, [state, retrySave])
+  }, [state, ready, saveNow])
   useEffect(() => {
     if (!notice) return
     const timer = setTimeout(() => notify(''), 5500)
@@ -279,38 +392,66 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       }
     })
   }
+  function scheduleCompletion(id: string, complete?: (s: StudioState) => StudioState) {
+    const timer = setTimeout(() => {
+      timers.current.delete(timer)
+      // 结算被拒（已停止/已失败）时不再套用状态变换，避免覆盖用户操作。
+      void persistence.taskSettle(id, { state: 'complete', detail: '演示任务已完成；未调用外部服务。' }).then(
+        (applied) => {
+          if (applied && complete) setState(complete)
+        },
+      )
+    }, 1000)
+    timers.current.add(timer)
+  }
   function task(
     title: string,
     detail: string,
     kind: Task['kind'],
-    complete?: (s: StudioState) => StudioState,
+    complete?: (state: StudioState) => StudioState,
     extra: Partial<Task> = {},
   ) {
     const id = uid()
+    startedRuns.current.add(id)
     setState((s) => ({
       ...s,
       tasks: [
-        { id, title, detail, projectId: project.id, state: 'running', kind, at: now(), ...extra },
+        {
+          id,
+          title,
+          detail,
+          projectId: project.id,
+          state: 'running',
+          kind,
+          at: now(),
+          ...extra,
+        },
         ...s.tasks,
       ],
     }))
-    const timer = setTimeout(() => {
-      timers.current.delete(timer)
-      setState((s) => {
-        if (s.tasks.find((t) => t.id === id)?.state !== 'running') return s
-        const result = complete ? complete(s) : s
-        return {
-          ...result,
-          tasks: result.tasks.map((t) =>
-            t.id === id && t.state === 'running'
-              ? { ...t, state: 'complete', detail: '演示任务已完成；未调用外部服务。' }
-              : t,
-          ),
-        }
+    void persistence
+      .taskSubmit({
+        id,
+        kind,
+        title,
+        detail,
+        projectId: project.id,
+        extra: { version: extra.version, videoId: extra.videoId, snapshot: extra.snapshot },
       })
-    }, 1000)
-    timers.current.add(timer)
+      .then((task) => {
+        if (!task) return
+        setState((s) => ({
+          ...s,
+          tasks: s.tasks.some((t) => t.id === task.id)
+            ? s.tasks.map((t) => (t.id === task.id && t.state === 'running' ? task : t))
+            : [task, ...s.tasks],
+        }))
+      })
+    scheduleCompletion(id, complete)
     return id
+  }
+  function failTask(id: string, detail: string) {
+    void persistence.taskSettle(id, { state: 'failed', detail })
   }
   function controlTask(id: string, action: 'stop' | 'retry') {
     const target = state.tasks.find((t) => t.id === id)
@@ -331,20 +472,10 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       return
     }
     if (action === 'stop') {
-      setState((s) => ({
-        ...s,
-        tasks: s.tasks.map((t) =>
-          t.id === id ? { ...t, state: 'stopped', detail: '已停止演示，之前的文稿与作品保持可用。' } : t,
-        ),
-      }))
+      void persistence.taskControl(id, 'stop')
       notify('任务已停止，已完成内容仍然保留。')
     } else {
-      task(target.title, '正在重试当前任务（演示）…', target.kind, undefined, {
-        projectId: target.projectId,
-        videoId: target.videoId,
-        version: target.version,
-        snapshot: target.snapshot,
-      })
+      void persistence.taskControl(id, 'retry')
       notify('已创建一次演示重试，原失败记录保留。视频仍需单独导出文件。')
     }
   }
@@ -781,6 +912,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           : '已保留原文。',
     )
   }
+  if (!ready) return null
   return (
     <StudioContext.Provider
       value={{
@@ -817,6 +949,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         resolveSuggestion,
         task,
         controlTask,
+        failTask,
         reference,
       }}
     >

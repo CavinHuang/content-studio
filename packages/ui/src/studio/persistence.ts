@@ -10,6 +10,7 @@ import type { StudioState, Task } from './types'
 export const WORKSPACE_KEY = 'content-studio.mock-workspace.v2'
 
 export type TaskSubmitInput = {
+  id?: string
   kind: Task['kind']
   title: string
   detail: string
@@ -24,7 +25,7 @@ export type Persistence = {
   save(state: StudioState): Promise<{ ok: boolean }>
   taskList(): Promise<Task[]>
   taskSubmit(input: TaskSubmitInput): Promise<Task | null>
-  taskSettle(id: string, settle: TaskSettle): Promise<void>
+  taskSettle(id: string, settle: TaskSettle): Promise<boolean>
   taskControl(id: string, action: 'stop' | 'retry'): Promise<void>
   onTasks(callback: (event: TaskEvent) => void): () => void
 }
@@ -45,6 +46,8 @@ function toTask(record: TaskRecord): Task {
   return task
 }
 
+export const taskFromRecord = toTask
+
 function isWorkspace(value: unknown): value is StudioState {
   if (typeof value !== 'object' || value === null) return false
   const candidate = value as Partial<StudioState>
@@ -60,8 +63,11 @@ export function createDesktopPersistence(desktop: DesktopAPI): Persistence {
       return { workspace: result.exists && isWorkspace(result.workspace) ? result.workspace : null }
     },
     async save(state) {
-      // 任务不随文档保存（tasks 由 taskList/taskEvent 提供权威镜像）。
-      const result = await desktop.dbSave({ ...state, tasks: [] })
+      // creation 任务由渲染端编排，随文档保存；其余任务权威在主进程任务表。
+      const result = await desktop.dbSave({
+        ...state,
+        tasks: state.tasks.filter((task) => task.kind === 'creation'),
+      })
       return { ok: result.ok }
     },
     async taskList() {
@@ -69,6 +75,7 @@ export function createDesktopPersistence(desktop: DesktopAPI): Persistence {
     },
     async taskSubmit(input) {
       const record = await desktop.taskSubmit({
+        id: input.id,
         kind: input.kind,
         title: input.title,
         detail: input.detail,
@@ -79,7 +86,8 @@ export function createDesktopPersistence(desktop: DesktopAPI): Persistence {
       return toTask(record)
     },
     async taskSettle(id, settle) {
-      await desktop.taskSettle(id, settle)
+      const record = await desktop.taskSettle(id, settle)
+      return record !== null
     },
     async taskControl(id, action) {
       await desktop.taskControl(id, action)
@@ -119,7 +127,7 @@ class LocalTasks {
   submit(input: TaskSubmitInput): TaskRecord {
     const at = new Date().toISOString()
     const record: TaskRecord = {
-      id: crypto.randomUUID(),
+      id: input.id ?? crypto.randomUUID(),
       title: input.title,
       detail: input.detail,
       projectId: input.projectId,
@@ -213,7 +221,7 @@ export function createLocalPersistence(): Persistence {
       return toTask(tasks.submit(input))
     },
     async taskSettle(id, settle) {
-      tasks.settle(id, settle)
+      return tasks.settle(id, settle) !== null
     },
     async taskControl(id, action) {
       tasks.control(id, action)

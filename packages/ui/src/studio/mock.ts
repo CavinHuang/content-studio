@@ -474,7 +474,7 @@ export function seedState(): StudioState {
   third.brief = { ...makeBrief(third.title), point: '不追求读得更多，而是让一本书留下一个可以实践的想法。' }
   const discoveryId = uid()
   return {
-    schema: 2,
+    schema: 3,
     projects: [first, second, third],
     selectedProject: first.id,
     page: 'article',

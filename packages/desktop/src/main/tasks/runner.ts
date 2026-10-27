@@ -26,7 +26,7 @@ export class TaskRunner {
   submit(input: TaskSubmitInput): TaskRecord {
     const at = new Date().toISOString()
     const record: TaskRecord = {
-      id: randomUUID(),
+      id: input.id ?? randomUUID(),
       title: input.title,
       detail: input.detail,
       projectId: input.projectId,

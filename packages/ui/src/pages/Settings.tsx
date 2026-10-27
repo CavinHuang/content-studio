@@ -548,16 +548,18 @@ export function SettingsPage() {
                   </Button>
                   <Button
                     onClick={() => {
-                      try {
-                        localStorage.setItem('content-studio.mock-workspace.v2', JSON.stringify(imported))
-                        clearAgentDrafts()
-                        setState({
-                          ...imported,
-                          projects: imported.projects.map((p) => ({
-                            ...p,
-                            creation: recoverCreation(p.creation),
-                          })),
-                          tasks: imported.tasks.map((t) =>
+                      clearAgentDrafts()
+                      setState({
+                        ...imported,
+                        schema: 3,
+                        projects: imported.projects.map((p) => ({
+                          ...p,
+                          creation: recoverCreation(p.creation),
+                        })),
+                        // 任务历史不随备份恢复；creation 任务随文档保留并停止在途状态。
+                        tasks: imported.tasks
+                          .filter((t) => t.kind === 'creation')
+                          .map((t) =>
                             ['running', 'queued'].includes(t.state)
                               ? {
                                   ...t,
@@ -565,13 +567,9 @@ export function SettingsPage() {
                                 }
                               : t,
                           ),
-                        })
-                        setImported(null)
-                        notify('备份已恢复；未完成的演示任务已停止。')
-                      } catch {
-                        setImportError('本机空间不足，无法载入此备份。')
-                        setImported(null)
-                      }
+                      })
+                      setImported(null)
+                      notify('备份已恢复；未完成的演示任务已停止。')
                     }}
                     variant="default"
                     size="default"
@@ -593,7 +591,7 @@ function validBackup(value: unknown): value is StudioState {
   if (!value || typeof value !== 'object') return false
   const s = value as StudioState
   return (
-    s.schema === 2 &&
+    ((s.schema as number) === 2 || s.schema === 3) &&
     Array.isArray(s.projects) &&
     s.projects.length > 0 &&
     s.projects.some((p) => !p.trashed) &&

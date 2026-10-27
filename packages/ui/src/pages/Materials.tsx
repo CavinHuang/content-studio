@@ -694,12 +694,7 @@ export function MaterialCapture() {
           )
         : state.projects,
     }
-    try {
-      localStorage.setItem('content-studio.mock-workspace.v2', JSON.stringify(next))
-    } catch {
-      setError('本机存储空间不足。请使用小于 1 MB 的文件，或先备份并整理素材。')
-      return
-    }
+    // 保存经由工作区防抖持久化；空间不足时由全局保存状态提示并保留内容。
     setState(next)
     setCaptureOpen(false)
     notify(linkProject ? '素材已保存，并引用到当前内容。' : '素材已保存到全局素材库。')

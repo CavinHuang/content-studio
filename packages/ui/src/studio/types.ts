@@ -217,7 +217,7 @@ export type Preferences = {
   connection: Record<string, boolean>
 }
 export type StudioState = {
-  schema: 2
+  schema: 3
   projects: Project[]
   selectedProject: string
   page: Page

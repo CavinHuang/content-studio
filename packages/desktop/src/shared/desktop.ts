@@ -37,6 +37,7 @@ export type TaskRecord = {
 }
 export type TaskSettle = { state: 'complete' | 'failed' | 'stopped'; detail?: string; result?: unknown }
 export type TaskSubmitPayload = {
+  id?: string
   kind: string
   title: string
   detail: string
