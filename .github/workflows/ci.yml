@@ -1,0 +1,41 @@
+# CI 恢复（2026-10-28，收官）：沿用旧 CI 的 xvfb e2e 模式（docs/superpowers/ref/code/ci-old.yml），
+# 按当前 pnpm workspace 重写：typecheck + design:check + vitest + build + Playwright 真窗口冒烟。
+# 旧文件用 npm（npm ci / cache: npm），本仓库已切 pnpm（packageManager: pnpm@11.25.0，
+# nodeLinker hoisted，构建脚本裁决见 pnpm-workspace.yaml allowBuilds）。
+name: CI
+on:
+  push: { branches: [main] }
+  pull_request: { branches: [main] }
+permissions: { contents: read }
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      # 先装 pnpm（action-setup 读 package.json 的 packageManager 字段），
+      # setup-node 的 pnpm 缓存依赖 pnpm 已在 PATH 上。
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v7
+        with: { node-version: 22.19.0, cache: pnpm }
+      # Electron 二进制较大且 install 时按 allowBuilds 裁决下载，单独缓存：
+      - name: Electron 二进制缓存
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/electron
+          key: electron-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: pnpm install（锁件安装）
+        run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm design:check
+      - run: pnpm test
+      - name: smoke（xvfb 真窗口，含 build）
+        run: |
+          sudo apt-get update && sudo apt-get install -y xvfb
+          # 沙箱预案（沿用旧 CI 边界注释）：若冒烟报 Chromium 沙箱错误（"No usable sandbox" /
+          # SUID sandbox 不可用），取消下一行注释对 Electron 关闭沙箱——仅限 CI 容器，
+          # 本地开发与发布产物绝不关闭沙箱：
+          # export ELECTRON_DISABLE_SANDBOX=1
+          # test:smoke = pnpm build && playwright test：构建主进程/preload/渲染端后，
+          # 以 _electron.launch 拉起真窗口跑 tests/smoke（workers=1，无需下载浏览器）。
+          xvfb-run -a pnpm test:smoke
