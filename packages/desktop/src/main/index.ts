@@ -2,8 +2,15 @@ import { app, BrowserWindow, ipcMain, Menu, nativeTheme, shell, type IpcMainInvo
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { DESKTOP_CHANNELS, type AppInfo } from '../shared/desktop'
+import { AI_CHANNELS, DESKTOP_CHANNELS, type AppInfo, type AiEvent } from '../shared/desktop'
 import { initServices } from './services'
+import { AgentService } from './ai/agent-service'
+import { buildAiHandlers } from './ai/handlers'
+import { safeStorageCrypto } from './ai/crypto'
+import { createRealSessionFactory } from './ai/real-session'
+import { registerAiHandlers } from './ai/ipc'
+import { getModelConfig } from './ai/model-config'
+import type { CollectFn } from './ai/domain-tools'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -87,11 +94,28 @@ void app.whenReady().then(() => {
   const services = initServices(join(app.getPath('userData'), 'studio.db'), (event) => {
     mainWindow?.webContents.send(DESKTOP_CHANNELS.taskEvent, event)
   })
-  // 上一次会话中断的任务不允许保留假 running 状态。
-  services.runner.recover()
   const guard = (event: IpcMainInvokeEvent): void => {
     if (event.sender !== mainWindow?.webContents) throw new Error('Unknown window')
   }
+  // AI 服务装配：safeStorage 加密配置 + pi 会话工厂 + 并发 1 编排（产出回调晚绑定）。
+  const aiCrypto = safeStorageCrypto()
+  const emitAi = (event: AiEvent): void => {
+    mainWindow?.webContents.send(AI_CHANNELS.event, event)
+  }
+  let collect: CollectFn = () => {}
+  const agent = new AgentService({
+    createSession: createRealSessionFactory({
+      userDataDir: () => app.getPath('userData'),
+      getConfig: () => getModelConfig(services.db, aiCrypto),
+      collect: (item) => collect(item),
+    }),
+    emit: emitAi,
+    hasModelConfig: () => getModelConfig(services.db, aiCrypto) !== null,
+  })
+  collect = agent.collect
+  registerAiHandlers(buildAiHandlers({ db: services.db, crypto: aiCrypto, agent }), guard)
+  // 上一次会话中断的任务不允许保留假 running 状态。
+  services.runner.recover()
   ipcMain.handle(DESKTOP_CHANNELS.dbLoad, (event) => {
     guard(event)
     return services.api.dbLoad()

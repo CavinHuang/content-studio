@@ -86,6 +86,17 @@ class FakeBridge implements DesktopAPI {
       this.listeners = this.listeners.filter((item) => item !== listener)
     }
   }
+  // AI 通道桩（persistence 测试不覆盖 AI 行为）。
+  aiConfigGet: DesktopAPI['aiConfigGet'] = async () => null
+  aiConfigSet: DesktopAPI['aiConfigSet'] = async () => {
+    throw new Error('not implemented')
+  }
+  aiConfigClear: DesktopAPI['aiConfigClear'] = async () => ({ ok: true })
+  aiTest: DesktopAPI['aiTest'] = async () => ({ ok: true, message: 'stub' })
+  aiSend: DesktopAPI['aiSend'] = async () => ({ ok: false, code: 'STUB' })
+  aiCancel: DesktopAPI['aiCancel'] = async () => ({ ok: true })
+  aiAnswer: DesktopAPI['aiAnswer'] = async () => ({ ok: true })
+  onAiEvent: DesktopAPI['onAiEvent'] = () => () => {}
   private emit(event: TaskEvent) {
     for (const listener of this.listeners) listener(event)
   }

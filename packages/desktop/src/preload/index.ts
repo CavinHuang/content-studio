@@ -1,5 +1,15 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { DESKTOP_CHANNELS, type DesktopAPI, type TaskEvent } from '../shared/desktop'
+import {
+  AI_CHANNELS,
+  DESKTOP_CHANNELS,
+  type AiConfigInput,
+  type AiConfigView,
+  type AiEvent,
+  type AiSendResult,
+  type AiTestResult,
+  type DesktopAPI,
+  type TaskEvent,
+} from '../shared/desktop'
 
 const desktop: DesktopAPI = {
   getAppInfo: () => ipcRenderer.invoke(DESKTOP_CHANNELS.appInfo),
@@ -14,6 +24,18 @@ const desktop: DesktopAPI = {
     const handler = (_event: unknown, payload: TaskEvent) => listener(payload)
     ipcRenderer.on(DESKTOP_CHANNELS.taskEvent, handler)
     return () => ipcRenderer.removeListener(DESKTOP_CHANNELS.taskEvent, handler)
+  },
+  aiConfigGet: () => ipcRenderer.invoke(AI_CHANNELS.configGet),
+  aiConfigSet: (input: AiConfigInput) => ipcRenderer.invoke(AI_CHANNELS.configSet, input),
+  aiConfigClear: () => ipcRenderer.invoke(AI_CHANNELS.configClear),
+  aiTest: (baseUrl, apiKey, modelId) => ipcRenderer.invoke(AI_CHANNELS.test, baseUrl, apiKey, modelId),
+  aiSend: (sessionKey, text) => ipcRenderer.invoke(AI_CHANNELS.send, sessionKey, text),
+  aiCancel: (sessionKey) => ipcRenderer.invoke(AI_CHANNELS.cancel, sessionKey),
+  aiAnswer: (questionId, answer) => ipcRenderer.invoke(AI_CHANNELS.answer, questionId, answer),
+  onAiEvent: (listener: (event: AiEvent) => void) => {
+    const handler = (_event: unknown, payload: AiEvent) => listener(payload)
+    ipcRenderer.on(AI_CHANNELS.event, handler)
+    return () => ipcRenderer.removeListener(AI_CHANNELS.event, handler)
   },
 }
 

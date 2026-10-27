@@ -106,4 +106,12 @@ export interface DesktopAPI {
   taskSettle(id: string, settle: TaskSettle): Promise<TaskRecord | null>
   taskControl(id: string, action: 'stop' | 'retry'): Promise<{ ok: boolean }>
   onTaskEvent(listener: (event: TaskEvent) => void): () => void
+  aiConfigGet(): Promise<AiConfigView | null>
+  aiConfigSet(input: AiConfigInput): Promise<AiConfigView>
+  aiConfigClear(): Promise<{ ok: boolean }>
+  aiTest(baseUrl: string, apiKey: string, modelId: string): Promise<AiTestResult>
+  aiSend(sessionKey: string, text: string): Promise<AiSendResult>
+  aiCancel(sessionKey: string): Promise<{ ok: boolean }>
+  aiAnswer(questionId: string, answer: string): Promise<{ ok: boolean }>
+  onAiEvent(listener: (event: AiEvent) => void): () => void
 }

@@ -43,5 +43,5 @@ export function initServices(dbPath: string, emit?: (event: TaskEvent) => void) 
     taskSettle: (id, settle) => runner.settle(id, settle),
     taskControl: (id, action) => runner.control(id, action),
   }
-  return { workspace, runner, api, close: () => db.close() }
+  return { workspace, runner, api, db, close: () => db.close() }
 }
