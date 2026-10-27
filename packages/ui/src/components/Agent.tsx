@@ -5,13 +5,15 @@ import {
   ChevronRight,
   Copy,
   FileText,
+  HelpCircle,
   Leaf,
   Paperclip,
   Plus,
   RefreshCw,
+  Send,
+  Square,
   SquarePen,
   X,
-  Send,
 } from 'lucide-react'
 import { Brand, copyText, IconButton } from './ui'
 import { Button } from './ui/button'
@@ -54,6 +56,10 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
     context,
     setContext,
     sendMessage,
+    aiBusy,
+    aiAsk,
+    answerAsk,
+    cancelAi,
     reference,
     navigate,
     setPlatformsOpen,
@@ -73,6 +79,7 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
     conversations[0]!
   const busy =
     project.creation?.status === 'running' ||
+    aiBusy ||
     state.tasks.some(
       (t) => t.title === 'Agent 正在整理建议' && t.projectId === project.id && t.state === 'running',
     )
@@ -338,6 +345,23 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
         </MessageScroller>
       </MessageScrollerProvider>
       <div className="composer-area">
+        {aiAsk && (
+          <div className="context-chip agent-ask" role="group" aria-label="Agent 问询">
+            <HelpCircle size={12} />
+            <span>{aiAsk.question}</span>
+            {(aiAsk.options ?? []).map((option) => (
+              <Button
+                key={option}
+                size="sm"
+                variant="outline"
+                onClick={() => answerAsk(option)}
+                aria-label={`回答：${option}`}
+              >
+                {option}
+              </Button>
+            ))}
+          </div>
+        )}
         <InputGroup aria-label="发送创作指令">
           <InputGroupAddon align="block-start">
             <div className="context-chip">
@@ -456,6 +480,15 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
                   </PopoverContent>
                 </Popover>
               </div>
+              {aiBusy && (
+                <InputGroupButton
+                  size="icon-sm"
+                  aria-label="停止当前对话"
+                  onClick={cancelAi}
+                >
+                  <Square size={15} />
+                </InputGroupButton>
+              )}
               <InputGroupButton
                 variant="default"
                 size="icon-sm"
