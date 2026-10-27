@@ -13,7 +13,7 @@ import {
   X,
   Send,
 } from 'lucide-react'
-import { Badge, Brand, copyText, IconButton } from './ui'
+import { Brand, copyText, IconButton } from './ui'
 import { Button } from './ui/button'
 import { Bubble, BubbleContent } from './ui/bubble'
 import { Message, MessageContent, MessageHeader } from './ui/message'
@@ -117,7 +117,7 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
           <DropdownMenu open={threadMenu} onOpenChange={setThreadMenu}>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" aria-label={`切换对话：${thread.title}`} title={thread.title}>
-                <span className="thread-title">会话</span>
+                <span className="">会话</span>
                 <ChevronDown size={14} />
               </Button>
             </DropdownMenuTrigger>
@@ -189,7 +189,6 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
                   <div className="welcome-leaf">
                     <Leaf size={27} strokeWidth={1.5} />
                   </div>
-                  <div className="page-eyebrow">A THOUGHTFUL CREATIVE PARTNER</div>
                   <h2>这次想创作什么？</h2>
                   <p>
                     一个想法、一段记录、一份没写完的草稿，
@@ -237,24 +236,21 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
                         <MessageContent>
                           <MessageHeader className="order-last flex w-full items-center justify-end gap-2 px-0 text-xs">
                             {message.role === 'assistant' && (
-                              <span className="message-copy-action">
-                                <Button
-                                  variant="ghost"
-                                  size="xs"
-                                  className="copy-message"
-                                  aria-label="复制 Agent 回复"
-                                  onClick={() =>
-                                    void copyText(message.text).then((ok) =>
-                                      notify(ok ? '已复制回复。' : '剪贴板暂不可用。'),
-                                    )
-                                  }
-                                >
-                                  <Copy size={12} />
-                                  复制
-                                </Button>
-                              </span>
+                              <Button
+                                variant="ghost"
+                                size="xs"
+                                className="mr-auto"
+                                aria-label="复制 Agent 回复"
+                                onClick={() =>
+                                  void copyText(message.text).then((ok) =>
+                                    notify(ok ? '已复制回复。' : '剪贴板暂不可用。'),
+                                  )
+                                }
+                              >
+                                <Copy size={12} />
+                                复制
+                              </Button>
                             )}
-                            <strong>{message.role === 'assistant' ? '创作 Agent' : '我'}</strong>
                             <span>
                               {new Date(message.at).toLocaleTimeString('zh-CN', {
                                 hour: '2-digit',
@@ -459,10 +455,6 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
                     </Button>
                   </PopoverContent>
                 </Popover>
-                <span className="agent-model">
-                  <i />
-                  创作助手
-                </span>
               </div>
               <InputGroupButton
                 variant="default"

@@ -55,7 +55,7 @@ export function IconButton({
         <Button
           variant="ghost"
           size="icon"
-          className={`icon-button ${className}`}
+          className={className}
           type="button"
           aria-label={label}
           {...buttonProps}
@@ -107,13 +107,11 @@ export function PlatformMark({ platform }: { platform: Platform }) {
   )
 }
 export function PageTitle({
-  eyebrow,
   title,
   description,
   actions,
   back,
 }: {
-  eyebrow?: string
   title: string
   description?: string
   actions?: ReactNode
@@ -122,19 +120,13 @@ export function PageTitle({
   return (
     <div className="page-title-block">
       {back && (
-        <Button
-          className="text-button back-link text-muted-foreground"
-          onClick={back}
-          variant="ghost"
-          size="sm"
-        >
+        <Button className="back-link text-muted-foreground" onClick={back} variant="ghost" size="sm">
           <ArrowLeft size={15} />
           返回
         </Button>
       )}
       <div className="page-title-row">
         <div>
-          {eyebrow && <div className="page-eyebrow">{eyebrow}</div>}
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
           {description && <p className="page-description">{description}</p>}
         </div>
@@ -158,6 +150,7 @@ export function SearchBox({
 }) {
   const ownInput = useRef<HTMLInputElement>(null)
   const input = inputRef ?? ownInput
+  // className 无样式职责：design-system.spec.ts 以 .search-field 作定位锚
   return (
     <InputGroup className="search-field">
       <InputGroupAddon>
@@ -306,10 +299,7 @@ export function Modal({
       }}
     >
       <DialogContent
-        className={cn(
-          'studio-dialog flex max-h-[90dvh] flex-col gap-4 overflow-hidden p-6 sm:max-w-lg',
-          wide && 'studio-dialog-wide sm:max-w-4xl',
-        )}
+        className={cn('flex max-h-[90dvh] flex-col overflow-hidden', wide && 'sm:max-w-4xl')}
         showCloseButton={false}
         onCloseAutoFocus={(event) => {
           if (previousFocus.current) {
@@ -334,10 +324,8 @@ export function Modal({
         >
           <X size={17} />
         </Button>
-        <div
-          ref={trackScrollArea}
-          className="modal-scroll min-h-0 scroll-py-1 overflow-y-auto [overflow-wrap:anywhere]"
-        >
+        {/* modal-scroll 无样式职责：design-system.spec.ts 以它锚定长弹窗滚动容器 */}
+        <div ref={trackScrollArea} className="modal-scroll min-h-0 scroll-py-1 overflow-y-auto [overflow-wrap:anywhere]">
           <DialogHeader className="pr-8">
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription className={description ? undefined : 'sr-only'}>

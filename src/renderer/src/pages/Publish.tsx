@@ -232,7 +232,7 @@ export function PublishPage() {
       </div>
       {/* B13：返回统一「返回 + 目的地」格式（批次视图回步骤一，选择视图回文稿页） */}
       <Button
-        className="text-button back-link text-muted-foreground"
+        className=" back-link text-muted-foreground"
         onClick={() => (batch ? setBatchId(null) : navigate('article'))}
         variant="ghost"
         size="sm"
@@ -241,7 +241,6 @@ export function PublishPage() {
         {batch ? '返回选择平台' : '返回文稿'}
       </Button>
       <PageTitle
-        eyebrow="A GOOD IDEA DESERVES TO BE SHARED"
         title={batch ? '最后看一眼，再分享。' : '这次发布到哪里？'}
         description={
           batch
@@ -249,26 +248,21 @@ export function PublishPage() {
             : '只选这次需要的平台。已准备的其他版本会一直留着。'
         }
         actions={
-          <Button
-            className="button secondary"
-            onClick={() => setShowHistory(true)}
-            variant="outline"
-            size="default"
-          >
+          <Button onClick={() => setShowHistory(true)} variant="outline" size="default">
             <History size={15} />
             发布记录 {project.batches.length}
           </Button>
         }
       />
       <div className="publish-stepper">
-        <span className={cn(!batch ? 'active text-foreground' : 'done text-muted-foreground')}>
+        <span className={cn(!batch ? 'text-foreground' : 'done text-muted-foreground')}>
           <i className={cn(!batch && 'bg-primary text-primary-foreground', batch && 'text-primary')}>
             {batch ? <Check size={13} /> : '1'}
           </i>
           选择平台
         </span>
         <div className={batch ? 'border-primary' : ''} />
-        <span className={cn(batch ? 'active text-foreground' : 'text-muted-foreground')}>
+        <span className={cn(batch ? 'text-foreground' : 'text-muted-foreground')}>
           <i className={cn(batch && 'bg-primary text-primary-foreground')}>2</i>
           预览与交付
         </span>
@@ -283,7 +277,7 @@ export function PublishPage() {
             <h2>本次发布的平台</h2>
             <div className="button-row">
               <Button
-                className="text-button text-muted-foreground"
+                className=" text-muted-foreground"
                 onClick={() => setSelected(PLATFORMS.map((p) => p.id))}
                 variant="ghost"
                 size="sm"
@@ -295,7 +289,7 @@ export function PublishPage() {
                 ·
               </span>
               <Button
-                className="text-button text-muted-foreground"
+                className=" text-muted-foreground"
                 onClick={() => setSelected([])}
                 variant="ghost"
                 size="sm"
@@ -330,7 +324,7 @@ export function PublishPage() {
                 {!ready(platform.id) && (
                   // C7：「准备版本」右对齐到徽标列下方，保持各卡行结构一致
                   <Button
-                    className="text-button text-muted-foreground col-start-2 justify-self-end"
+                    className=" text-muted-foreground col-start-2 justify-self-end"
                     onClick={() => setPlatformsOpen(true)}
                     variant="ghost"
                     size="sm"
@@ -377,13 +371,7 @@ export function PublishPage() {
               {/* C10：与平台选择弹窗统一摘要句式「已选 N 个平台 · M 个已就绪」 */}
               已选 <strong>{selected.length}</strong> 个平台 · {selected.filter(ready).length} 个已就绪
             </span>
-            <Button
-              className="button primary"
-              disabled={!selected.length}
-              onClick={start}
-              variant="default"
-              size="default"
-            >
+            <Button disabled={!selected.length} onClick={start} variant="default" size="default">
               继续，预览所选平台
               <ArrowRight size={16} />
             </Button>
@@ -401,7 +389,7 @@ export function PublishPage() {
               批次 {batch.id.slice(0, 6)} · {dateLabel(batch.at)}
             </span>
             <Button
-              className="text-button text-muted-foreground"
+              className=" text-muted-foreground"
               onClick={() => {
                 setBatchId(null)
                 setSelected([])
@@ -479,7 +467,7 @@ export function PublishPage() {
                             <span>串文 {index + 1}</span>
                             <Markdown body={post} />
                             <Button
-                              className="text-button text-muted-foreground"
+                              className=" text-muted-foreground"
                               onClick={() =>
                                 void copyText(post).then((ok) =>
                                   notify(ok ? `已复制第 ${index + 1} 段。` : '复制失败，请下载串文。'),
@@ -514,7 +502,6 @@ export function PublishPage() {
                   </div>
                   <div className="handoff-actions">
                     <Button
-                      className="button secondary"
                       disabled={!current.snapshot.body}
                       onClick={() => void copy(current.platform === 'wechat')}
                       variant="outline"
@@ -524,7 +511,6 @@ export function PublishPage() {
                       {current.platform === 'wechat' ? '复制富文本' : '复制正文'}
                     </Button>
                     <Button
-                      className="button secondary"
                       onClick={() => {
                         download(
                           `${current.snapshot.title}-${platformName(current.platform)}.md`,
@@ -544,7 +530,7 @@ export function PublishPage() {
                     </Button>
                     {current.status === 'published' ? (
                       <Button
-                        className="text-button text-muted-foreground"
+                        className=" text-muted-foreground"
                         onClick={() => {
                           patchItem(current.platform, {
                             status: 'preparing',
@@ -560,7 +546,6 @@ export function PublishPage() {
                       </Button>
                     ) : (
                       <Button
-                        className="button primary"
                         onClick={() => {
                           setMarking(current.platform)
                           setLink('')
@@ -588,12 +573,7 @@ export function PublishPage() {
                   title={`${platformName(current.platform)}还缺少内容`}
                   description="其他已就绪平台可以继续交付。补齐此平台内容后，再创建新批次以固定新快照。"
                 >
-                  <Button
-                    className="button secondary"
-                    onClick={() => setPlatformsOpen(true)}
-                    variant="outline"
-                    size="default"
-                  >
+                  <Button onClick={() => setPlatformsOpen(true)} variant="outline" size="default">
                     准备平台版本
                   </Button>
                 </Empty>
@@ -609,7 +589,6 @@ export function PublishPage() {
                 .join('、') || '暂无可交付内容'}
             </span>
             <Button
-              className="button secondary"
               disabled={!batch.items.some(isItemReady)}
               onClick={exportBatch}
               variant="outline"
@@ -629,24 +608,13 @@ export function PublishPage() {
           onClose={() => setMarking(null)}
           footer={
             <>
-              <span className="muted sm:mr-auto">
+              <span className="text-muted-foreground sm:mr-auto">
                 {confirmed ? '已确认手动完成发布，可以保存记录。' : '勾选确认后可保存'}
               </span>
-              <Button
-                className="button secondary"
-                onClick={() => setMarking(null)}
-                variant="outline"
-                size="default"
-              >
+              <Button onClick={() => setMarking(null)} variant="outline" size="default">
                 取消
               </Button>
-              <Button
-                className="button primary"
-                disabled={!confirmed}
-                onClick={markPublished}
-                variant="default"
-                size="default"
-              >
+              <Button disabled={!confirmed} onClick={markPublished} variant="default" size="default">
                 保存发布记录
               </Button>
             </>
@@ -671,7 +639,7 @@ export function PublishPage() {
           {project.batches.length ? (
             project.batches.map((item) => (
               <Button
-                className="publish-history-item h-auto justify-start whitespace-normal text-left"
+                className="publish-history-item h-auto justify-start whitespace-normal"
                 key={item.id}
                 onClick={() => {
                   setBatchId(item.id)
@@ -687,11 +655,7 @@ export function PublishPage() {
                     {dateLabel(item.at)} · {item.items.map((i) => platformName(i.platform)).join(' / ')}
                   </span>
                 </div>
-                <Badge
-                  tone={
-                    item.items.every((i) => i.status === 'published') ? 'green' : 'neutral'
-                  }
-                >
+                <Badge tone={item.items.every((i) => i.status === 'published') ? 'green' : 'neutral'}>
                   已记录 {item.items.filter((i) => i.status === 'published').length} / {item.items.length}
                 </Badge>
                 <ArrowRight size={16} />

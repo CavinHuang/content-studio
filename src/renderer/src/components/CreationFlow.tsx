@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { RotateCcw, Sparkles, Square } from 'lucide-react'
 import { Button } from './ui/button'
 import { Textarea } from './ui/textarea'
-import { Badge, Field, Modal } from './ui'
+import { Badge, Field, Modal, PageTitle } from './ui'
 import { creationSnapshot } from '../studio/creation'
 import { useStudio } from '../studio/store'
 
@@ -102,11 +102,11 @@ export function CreationFlow({
   if (variant === 'start')
     return (
       <section className="grid gap-4 py-4 text-sm" aria-label="从想法到母稿" aria-busy={running}>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold">这次想写什么</h1>
-          <Badge tone="orange">整理演示</Badge>
-        </div>
-        <p className="text-muted-foreground">先放下你的想法，下一步直接在正文继续。</p>
+        <PageTitle
+          title="这次想写什么"
+          description="先放下你的想法，下一步直接在正文继续。"
+          actions={<Badge tone="orange">整理演示</Badge>}
+        />
         {fields}
       </section>
     )

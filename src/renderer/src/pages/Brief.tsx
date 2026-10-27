@@ -41,7 +41,6 @@ export function BriefPage({ embedded = false }: { embedded?: boolean }) {
     <section className="workspace-page brief-page">
       {!embedded && (
         <PageTitle
-          eyebrow="A LITTLE CLARITY, BEFORE YOU CREATE"
           title="这篇内容怎么写"
           description="先把方向和结构定下来，再开始写作。"
           actions={
@@ -61,7 +60,7 @@ export function BriefPage({ embedded = false }: { embedded?: boolean }) {
       )}
       {project.source && (
         <Button
-          className="source-origin h-auto justify-start whitespace-normal text-left"
+          className="source-origin h-auto justify-start whitespace-normal"
           onClick={() =>
             setState((s) => ({
               ...s,
@@ -167,7 +166,6 @@ export function BriefPage({ embedded = false }: { embedded?: boolean }) {
               }
             />
             <Button
-              className="icon-button"
               aria-label={`上移段落 ${i + 1}`}
               disabled={i === 0}
               onClick={() => move(i, i - 1)}
@@ -177,7 +175,6 @@ export function BriefPage({ embedded = false }: { embedded?: boolean }) {
               <ArrowUp size={14} />
             </Button>
             <Button
-              className="icon-button"
               aria-label={`下移段落 ${i + 1}`}
               disabled={i === brief.outline.length - 1}
               onClick={() => move(i, i + 1)}
@@ -187,7 +184,6 @@ export function BriefPage({ embedded = false }: { embedded?: boolean }) {
               <ArrowDown size={14} />
             </Button>
             <Button
-              className="icon-button"
               aria-label={`删除段落 ${i + 1}`}
               onClick={() =>
                 patch({
@@ -203,7 +199,7 @@ export function BriefPage({ embedded = false }: { embedded?: boolean }) {
         ))}
       </div>
       <Button
-        className="text-button add-outline text-muted-foreground"
+        className=" add-outline text-muted-foreground"
         onClick={() =>
           patch({
             outline: [...brief.outline, '新的段落'],
@@ -221,17 +217,15 @@ export function BriefPage({ embedded = false }: { embedded?: boolean }) {
           <span>方案属于你，Agent 帮你把想法理清。</span>
         </div>
         <Button
-          className="button secondary"
           onClick={() =>
             reference('当前创作方案', `${brief.topic}\n${brief.point}\n${brief.outline.join('\n')}`)
           }
           variant="outline"
-          size="default"
         >
           和 Agent 再聊聊
         </Button>
         <Button
-          className={brief.confirmed ? 'button secondary' : 'button primary'}
+          className="ml-auto max-md:ml-0"
           disabled={running || !brief.topic.trim() || !brief.point.trim() || !brief.outline.length}
           onClick={() => {
             if (!brief.outline.every((item) => item.trim())) {
@@ -241,7 +235,6 @@ export function BriefPage({ embedded = false }: { embedded?: boolean }) {
             generateArticle()
           }}
           variant={brief.confirmed ? 'outline' : 'default'}
-          size="default"
         >
           {running ? (
             '正在生成示例母稿…'

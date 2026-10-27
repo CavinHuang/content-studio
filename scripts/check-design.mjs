@@ -54,6 +54,14 @@ assert(
   !/!important|font-size:\s*\d|font:\s*\d|--font-ui|--density-/.test(layout),
   'Do not add custom type or competing density overrides',
 )
+// 样式冗余清扫防回流（2026-10-27）：以下类名在全仓 CSS 中零定义、规则已删除。
+// capture/audit 脚本依赖的定位锚类（agent-thread-bar、chat-artifact）与活类不在禁列。
+assert(
+  !/\.(?:page-eyebrow|task-overview|task-count|push-right|header-more|conversation-date|article-header-controls|muted|danger-text|green-text|theme-ink|theme-sunset|theme-forest|source-card|task-card|service-card|indeterminate-progress)\s*\{/.test(
+    layout,
+  ),
+  'workspace.css: rules removed by the style-redundancy sweep must not return',
+)
 assert(
   !/\.(?:sidebar-brand|sidebar-actions|sidebar-bottom|global-nav|project-item|project-children)\b/.test(
     layout,
@@ -113,6 +121,18 @@ for (const file of files) {
     )
   }
   assert(!/variant="unstyled"|size="unset"/.test(source), `${file}: obsolete variants`)
+  assert(
+    !/ className=\{?[`"'][^`"']*\b(?:button (?:primary|secondary|danger)(?: small)?|button small|text-button|danger-text|green-text|icon-button|bookmarked|studio-dialog-wide?|video-library|materials-page|settings-page|tasks-page|thread-title|copy-message|version-copy|article-document|editor-view-switch|page-eyebrow)\b/.test(
+      source,
+    ),
+    `${file}: undefined legacy marker class re-introduced (style-redundancy sweep)`,
+  )
+}
+// 无样式、但被 design-system.spec.ts 用作定位锚的钩子类必须保留。
+{
+  const composition = await readFile(`${root}/components/ui.tsx`, 'utf8')
+  assert(composition.includes('search-field'), 'ui.tsx: .search-field is a smoke-test locator hook')
+  assert(composition.includes('modal-scroll'), 'ui.tsx: .modal-scroll is a smoke-test locator hook')
 }
 // Copy gates from the v2.3 word table (docs/ux/DESIGN-SYSTEM.md N1/N4, UX-FIX-PLAN §1 门禁扩展).
 // Covers every page, panel component, App shell and studio data module.

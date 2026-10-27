@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Slider } from '@/components/ui/slider'
 import { NativeSelect } from '@/components/ui/native-select'
 import { Button } from '@/components/ui/button'
+import { SegmentedControl } from '@/components/ui'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import {
   AlignLeft,
@@ -70,17 +71,11 @@ export function PlatformDialog() {
       onClose={() => setPlatformsOpen(false)}
       footer={
         <>
-          <span className="muted sm:mr-auto">已选 {chosen.length} 个平台</span>
-          <Button
-            className="button secondary"
-            onClick={() => setPlatformsOpen(false)}
-            variant="outline"
-            size="default"
-          >
+          <span className="text-muted-foreground sm:mr-auto">已选 {chosen.length} 个平台</span>
+          <Button onClick={() => setPlatformsOpen(false)} variant="outline" size="default">
             取消
           </Button>
           <Button
-            className="button primary"
             disabled={!chosen.length || !project.drafts.master?.body.trim()}
             onClick={() => generatePlatforms(chosen)}
             variant="default"
@@ -96,7 +91,7 @@ export function PlatformDialog() {
         <span>独立版本，各自保存</span>
         <div className="button-row">
           <Button
-            className="text-button text-muted-foreground"
+            className=" text-muted-foreground"
             onClick={() => setChosen(PLATFORMS.filter((p) => !project.drafts[p.id]).map((p) => p.id))}
             variant="ghost"
             size="sm"
@@ -107,12 +102,7 @@ export function PlatformDialog() {
           <span aria-hidden className="text-muted-foreground">
             ·
           </span>
-          <Button
-            className="text-button text-muted-foreground"
-            onClick={() => setChosen([])}
-            variant="ghost"
-            size="sm"
-          >
+          <Button className=" text-muted-foreground" onClick={() => setChosen([])} variant="ghost" size="sm">
             清空
           </Button>
         </div>
@@ -285,7 +275,7 @@ export function ArticlePage() {
       aria-label="Agent 修改建议"
     >
       <Button
-        className="suggestion-summary h-auto justify-start whitespace-normal text-left w-full justify-start"
+        className="suggestion-summary h-auto justify-start whitespace-normal"
         variant="ghost"
         size="default"
         aria-label="展开或收起修改建议"
@@ -333,7 +323,6 @@ export function ArticlePage() {
           {suggestion.status === 'pending' ? (
             <>
               <Button
-                className="button primary"
                 disabled={draft.body !== suggestion.baseBody}
                 onClick={() => resolveSuggestion(suggestion.id, 'accept')}
                 variant="default"
@@ -343,7 +332,6 @@ export function ArticlePage() {
                 采用修改
               </Button>
               <Button
-                className="button secondary"
                 onClick={() => resolveSuggestion(suggestion.id, 'reject')}
                 variant="outline"
                 size="default"
@@ -353,7 +341,7 @@ export function ArticlePage() {
             </>
           ) : (
             <Button
-              className="text-button text-muted-foreground"
+              className=" text-muted-foreground"
               onClick={() => resolveSuggestion(suggestion.id, 'undo')}
               variant="ghost"
               size="sm"
@@ -367,12 +355,15 @@ export function ArticlePage() {
     </section>
   )
   const viewSwitch = (
-    <Tabs value={preview ? 'preview' : 'edit'} onValueChange={(value) => setPreview(value === 'preview')}>
-      <TabsList className="editor-view-switch" aria-label="文稿视图">
-        <TabsTrigger value="edit">编辑</TabsTrigger>
-        <TabsTrigger value="preview">预览</TabsTrigger>
-      </TabsList>
-    </Tabs>
+    <SegmentedControl
+      value={preview ? 'preview' : 'edit'}
+      onValueChange={(value) => setPreview(value === 'preview')}
+      options={[
+        { value: 'edit', label: '编辑' },
+        { value: 'preview', label: '预览' },
+      ]}
+      label="文稿视图"
+    />
   )
   const blocks = draft.body.split(/\n\s*\n/)
   const suggestionAnchors = new Map(
@@ -474,11 +465,7 @@ export function ArticlePage() {
                 }}
               >
                 <PopoverTrigger asChild>
-                  <Button
-                    className={cn(`text-button ${typography ? 'active' : ''}`, 'text-muted-foreground')}
-                    variant="ghost"
-                    size="sm"
-                  >
+                  <Button className="text-muted-foreground" variant="ghost" size="sm">
                     <SlidersHorizontal size={15} />
                     排版
                   </Button>
@@ -509,10 +496,7 @@ export function ArticlePage() {
                       ] as const
                     ).map((theme) => (
                       <Button
-                        className={cn(
-                          draft.typography.theme === theme.id ? 'selected' : '',
-                          'h-auto justify-start whitespace-normal text-left',
-                        )}
+                        className="h-auto justify-start whitespace-normal text-left"
                         key={theme.id}
                         onClick={() =>
                           updateTypography({
@@ -522,11 +506,6 @@ export function ArticlePage() {
                         variant="ghost"
                         size="default"
                       >
-                        <i
-                          style={{
-                            background: theme.color,
-                          }}
-                        />
                         <span className="theme-sample" style={{ color: theme.color }}>
                           Aa
                         </span>
@@ -605,7 +584,7 @@ export function ArticlePage() {
                   </div>
                   <div className="popover-footer">
                     <Button
-                      className="text-button text-muted-foreground"
+                      className=" text-muted-foreground"
                       onClick={() =>
                         patchDraft({
                           typography: defaultTypography(),
@@ -618,7 +597,6 @@ export function ArticlePage() {
                       恢复本版默认
                     </Button>
                     <Button
-                      className="button primary small"
                       onClick={() => {
                         setTypography(false)
                         notify('排版已保存到当前平台版本。')
@@ -705,7 +683,7 @@ export function ArticlePage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-button text-muted-foreground"
+                      className=" text-muted-foreground"
                       onClick={() => patchProject(project.id, (p) => ({ ...p, activePlatform: 'master' }))}
                     >
                       查看母稿 <ChevronDown size={13} />
@@ -717,7 +695,7 @@ export function ArticlePage() {
                 <div className="source-update">
                   <span>母稿有更新，当前{platformName(platform)}版本保持独立。</span>
                   <Button
-                    className="text-button text-muted-foreground"
+                    className=" text-muted-foreground"
                     onClick={startCandidate}
                     variant="ghost"
                     size="sm"
@@ -749,10 +727,7 @@ export function ArticlePage() {
                   }
                 }}
               >
-                <article
-                  className={`document article-document theme-${draft.typography.theme} ${!draft.body ? 'empty-document' : ''}`}
-                  style={style}
-                >
+                <article className={`document ${!draft.body ? 'empty-document' : ''}`} style={style}>
                   {starting ? (
                     <CreationFlow
                       key={project.id}
@@ -770,7 +745,7 @@ export function ArticlePage() {
                   ) : (
                     <>
                       <Input
-                        className="title-input h-auto rounded-none border-0 bg-transparent px-0 py-1 font-sans text-3xl font-semibold tracking-tight shadow-none placeholder:opacity-60 focus-visible:ring-0 md:text-3xl"
+                        className="title-input h-auto rounded-none border-0 px-0 font-sans text-3xl md:text-3xl shadow-none placeholder:opacity-60 focus-visible:ring-0"
                         aria-label="文稿标题"
                         placeholder="未命名内容"
                         value={draft.title}
@@ -860,7 +835,6 @@ export function ArticlePage() {
                             添加素材
                           </Button>
                           <Button
-                            className="button secondary"
                             onClick={() => reference('当前空白文稿', draft.title || '帮我梳理这次创作方向')}
                             variant="outline"
                             size="default"
@@ -869,7 +843,7 @@ export function ArticlePage() {
                             从一个想法开始
                           </Button>
                           <Button
-                            className="text-button text-muted-foreground"
+                            className=" text-muted-foreground"
                             onClick={() => navigate('hotspots')}
                             variant="ghost"
                             size="sm"
@@ -895,7 +869,6 @@ export function ArticlePage() {
                 <div className="selection-action">
                   <span>已选择 {selection.length} 字</span>
                   <Button
-                    className="button primary small"
                     onClick={() => {
                       reference('所选段落', selection)
                       setSelection('')
@@ -925,17 +898,13 @@ export function ArticlePage() {
               onClose={() => setHistory(false)}
               footer={
                 <>
-                  <span className="muted sm:mr-auto">共 {draft.versions.length} 个修订版本</span>
-                  <Button
-                    className="button secondary"
-                    onClick={() => setHistory(false)}
-                    variant="outline"
-                    size="default"
-                  >
+                  <span className="text-muted-foreground sm:mr-auto">
+                    共 {draft.versions.length} 个修订版本
+                  </span>
+                  <Button onClick={() => setHistory(false)} variant="outline" size="default">
                     取消
                   </Button>
                   <Button
-                    className="button primary"
                     disabled={!selectedHistory}
                     onClick={() => {
                       if (selectedHistory) {
@@ -1004,16 +973,10 @@ export function ArticlePage() {
               onClose={() => setCandidate(null)}
               footer={
                 <>
-                  <Button
-                    className="button secondary"
-                    onClick={() => setCandidate(null)}
-                    variant="outline"
-                    size="default"
-                  >
+                  <Button onClick={() => setCandidate(null)} variant="outline" size="default">
                     保留当前稿
                   </Button>
                   <Button
-                    className="button primary"
                     disabled={draft.body !== candidate.base}
                     onClick={() => {
                       patchDraft(
@@ -1059,7 +1022,7 @@ export function ArticlePage() {
 function VersionText({ body, other, kind }: { body: string; other: string; kind: 'added' | 'removed' }) {
   const otherBlocks = new Set(other.split(/\n\s*\n/).map((block) => block.trim()))
   return (
-    <div className="version-copy">
+    <div className="">
       {(body || '这一版本还没有正文。').split(/\n\s*\n/).map((block, index) => (
         <div
           key={index}

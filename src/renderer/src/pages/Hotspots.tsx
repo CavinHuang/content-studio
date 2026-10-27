@@ -136,37 +136,30 @@ export function HotspotsPage() {
       ) : (
         <>
           <PageTitle
-            eyebrow="A GOOD STORY STARTS WITH CURIOSITY"
             title="从热点，找到你的表达。"
             description="汇集多个来源，再找到属于你的创作角度。"
             actions={
               <div className="discovery-header-actions">
                 <Badge tone="orange">示例话题 · 非实时</Badge>
                 <div className="discovery-actions">
-                  <Button
-                    className="button secondary"
-                    onClick={() => navigate('sources')}
-                    variant="outline"
-                    size="default"
-                  >
+                  <Button onClick={() => navigate('sources')} variant="outline" size="default">
                     <Settings2 size={15} />
                     来源管理
                   </Button>
                   <Button
-                    className={`button ${filters.saved ? 'peach-button' : 'secondary'}`}
+                    aria-pressed={filters.saved}
                     onClick={() =>
                       filter({
                         saved: !filters.saved,
                       })
                     }
-                    variant="outline"
+                    variant={filters.saved ? 'secondary' : 'outline'}
                     size="default"
                   >
                     <Bookmark size={15} fill={filters.saved ? 'currentColor' : 'none'} />
                     收藏 {state.bookmarks.length}
                   </Button>
                   <Button
-                    className="button secondary"
                     disabled={state.tasks.some((t) => t.kind === 'source' && t.state === 'running')}
                     onClick={refresh}
                     variant="outline"
@@ -297,7 +290,7 @@ export function HotspotsPage() {
               return (
                 <Card className="topic-card gap-3 p-3 flex-row" key={topic.id} role="article">
                   <Button
-                    className="topic-image h-auto justify-start overflow-hidden p-0 whitespace-normal text-left"
+                    className="topic-image h-auto justify-start whitespace-normal text-left"
                     onClick={() => openTopic(topic)}
                     aria-label={`查看热点：${topic.title}`}
                     variant="ghost"
@@ -337,21 +330,20 @@ export function HotspotsPage() {
                       ))}
                     </div>
                     <div className="topic-card-footer">
-                      {related.length > 0 ? (
+                      {related.length > 0 && (
                         <Button
-                          className="text-button green-text text-primary"
+                          className="text-primary"
                           onClick={() => setShowRelated(topic.id)}
                           variant="ghost"
                           size="sm"
                         >
                           已创作 {related.length} 篇<ChevronRight size={13} />
                         </Button>
-                      ) : (
-                        <span className="small-meta">选一个角度，慢慢展开</span>
                       )}
                       <div>
                         <Button
-                          className={`icon-button ${state.bookmarks.includes(topic.id) ? 'bookmarked' : ''}`}
+                          aria-pressed={state.bookmarks.includes(topic.id)}
+                          className={state.bookmarks.includes(topic.id) ? 'text-primary' : undefined}
                           aria-label={`${state.bookmarks.includes(topic.id) ? '取消收藏' : '收藏'}热点：${topic.title}`}
                           onClick={() => bookmark(topic.id)}
                           variant="ghost"
@@ -362,12 +354,7 @@ export function HotspotsPage() {
                             fill={state.bookmarks.includes(topic.id) ? 'currentColor' : 'none'}
                           />
                         </Button>
-                        <Button
-                          className="button primary small"
-                          onClick={() => openTopic(topic)}
-                          variant="default"
-                          size="sm"
-                        >
+                        <Button onClick={() => openTopic(topic)} variant="default" size="sm">
                           查看与创作
                           <ArrowRight size={14} />
                         </Button>
@@ -384,7 +371,6 @@ export function HotspotsPage() {
               description="换个关键词，或放宽领域、来源与时间条件。"
             >
               <Button
-                className="button secondary"
                 onClick={() =>
                   filter({
                     query: '',
@@ -430,7 +416,6 @@ export function HotspotsPage() {
           </p>
           <div className="button-row">
             <Button
-              className="button secondary"
               onClick={() => {
                 const material = {
                   id: uid(),
@@ -459,7 +444,6 @@ export function HotspotsPage() {
               保存为素材
             </Button>
             <Button
-              className="button primary"
               onClick={() => {
                 reference(original.title, original.body || original.url)
                 setOriginal(null)
@@ -538,12 +522,7 @@ function TopicDetail({
   const chosen = topic.articles.filter((a) => draft.articleIds.includes(a.id))
   return (
     <>
-      <Button
-        className="text-button back-link text-muted-foreground"
-        onClick={onBack}
-        variant="ghost"
-        size="sm"
-      >
+      <Button className=" back-link text-muted-foreground" onClick={onBack} variant="ghost" size="sm">
         <ArrowLeft size={15} />
         返回热点发现
       </Button>
@@ -608,7 +587,7 @@ function TopicDetail({
                 </span>
               </CheckOption>
               <Button
-                className="text-button text-muted-foreground"
+                className=" text-muted-foreground"
                 onClick={() => onOriginal(article)}
                 variant="ghost"
                 size="sm"
@@ -671,7 +650,7 @@ function TopicDetail({
           }
         />
       </Field>
-      <div className="topic-create-footer sticky bottom-0 z-10 -mx-4 -mb-4 rounded-none border-x-0 border-b-0 px-4 pb-4">
+      <div className="topic-create-footer">
         <p>
           <Layers size={15} />
           带入 {chosen.length} 篇原文，来自 {new Set(chosen.flatMap((a) => a.sourceIds)).size} 个来源
@@ -679,7 +658,6 @@ function TopicDetail({
         </p>
         <div>
           <Button
-            className="button secondary"
             onClick={() =>
               reference(
                 `热点角度：${topic.title}`,
@@ -692,7 +670,6 @@ function TopicDetail({
             和 Agent 讨论
           </Button>
           <Button
-            className="button primary"
             disabled={!draft.angle.trim() || !chosen.length}
             onClick={onCreate}
             variant="default"
@@ -766,7 +743,7 @@ export function SourcesPage() {
   return (
     <section className="workspace-page sources-page">
       <Button
-        className="text-button back-link text-muted-foreground"
+        className=" back-link text-muted-foreground"
         onClick={() => navigate('hotspots')}
         variant="ghost"
         size="sm"
@@ -775,12 +752,10 @@ export function SourcesPage() {
         返回热点发现
       </Button>
       <PageTitle
-        eyebrow="YOUR INFORMATION, YOUR PERSPECTIVE"
         title="热点来源"
         description="管理热榜、新闻与订阅。来源与最终发布平台，分别设置。"
         actions={
           <Button
-            className="button primary"
             onClick={() => {
               setError('')
               setEditing({
@@ -889,7 +864,7 @@ export function SourcesPage() {
                   }
                 />
                 <Button
-                  className="text-button text-muted-foreground"
+                  className=" text-muted-foreground"
                   disabled={!source.enabled || busy || source.status === 'unconfigured'}
                   onClick={() => refresh(source)}
                   variant="ghost"
@@ -898,7 +873,7 @@ export function SourcesPage() {
                   {source.status === 'failed' ? '重试' : '刷新'}
                 </Button>
                 <Button
-                  className="text-button text-muted-foreground"
+                  className=" text-muted-foreground"
                   onClick={() => {
                     setError('')
                     setEditing({
@@ -928,22 +903,13 @@ export function SourcesPage() {
           onClose={() => setEditing(null)}
           footer={
             <>
-              {!canSaveSource && <span className="muted sm:mr-auto">还缺：来源名称与来源地址</span>}
-              <Button
-                className="button secondary"
-                onClick={() => setEditing(null)}
-                variant="outline"
-                size="default"
-              >
+              {!canSaveSource && (
+                <span className="text-muted-foreground sm:mr-auto">还缺：来源名称与来源地址</span>
+              )}
+              <Button onClick={() => setEditing(null)} variant="outline" size="default">
                 取消
               </Button>
-              <Button
-                className="button primary"
-                disabled={!canSaveSource}
-                onClick={save}
-                variant="default"
-                size="default"
-              >
+              <Button disabled={!canSaveSource} onClick={save} variant="default" size="default">
                 保存来源
               </Button>
             </>
@@ -1013,7 +979,9 @@ export function SourcesPage() {
               {error}
             </p>
           )}
-          <p className="muted">保存后来源显示「未配置 · 待接入」：接入实际来源服务后才会获取内容。</p>
+          <p className="text-muted-foreground">
+            保存后来源显示「未配置 · 待接入」：接入实际来源服务后才会获取内容。
+          </p>
         </Modal>
       )}
     </section>

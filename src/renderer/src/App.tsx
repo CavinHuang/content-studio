@@ -278,7 +278,7 @@ function Workbench() {
   )
   const workspace = (
     <Tabs value={mainPage} onValueChange={(value) => navigate(value as Artifact)} className="gap-0" asChild>
-      <main className={`work-area gap-0 ${!projectPage ? 'global-work-area' : ''}`}>
+      <main className={`work-area ${!projectPage ? 'global-work-area' : ''}`}>
         <header className="work-header">
           {!sidebarOpen && <SidebarTrigger aria-label="展开内容库" />}
           {projectPage && state.page !== 'publish' ? (
@@ -290,10 +290,7 @@ function Workbench() {
                 ].map((tab) => (
                   <TabsTrigger
                     key={tab.id}
-                    className={cn(
-                      'data-[state=active]:after:bg-brand-accent [&[data-state=active]_svg]:text-brand-accent',
-                      mainPage === tab.id && 'active',
-                    )}
+                    className="data-[state=active]:after:bg-brand-accent [&[data-state=active]_svg]:text-brand-accent"
                     value={tab.id}
                   >
                     <tab.icon size={17} className="hidden md:block" />
@@ -364,7 +361,6 @@ function Workbench() {
             )}
             {projectPage && state.page !== 'publish' && hasContent && (
               <Button
-                className="button primary publish-entry"
                 onClick={() => navigate('publish')}
                 aria-label="发布准备"
                 variant="outline"
@@ -439,7 +435,7 @@ function Workbench() {
         </Tabs>
         <IconButton icon={X} label="关闭作品工具" onClick={closePanel} />
       </header>
-      <div className="min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 flex-col">
         {state.page === 'plan' ? (
           <BriefPage embedded />
         ) : (
@@ -562,7 +558,7 @@ function Workbench() {
             与桌面侧栏的选中机制对应。 */}
         <Button
           className={cn(
-            state.page === 'library' ? 'active text-primary' : 'text-muted-foreground',
+            state.page === 'library' ? 'text-primary' : 'text-muted-foreground',
             'h-auto justify-start whitespace-normal text-left',
           )}
           onClick={() => setCaptureOpen(true)}
@@ -576,7 +572,7 @@ function Workbench() {
         </Button>
         <Button
           className={cn(
-            projectPage ? 'active text-primary' : 'text-muted-foreground',
+            projectPage ? 'text-primary' : 'text-muted-foreground',
             'h-auto justify-start whitespace-normal text-left',
           )}
           onClick={() => go(project.activeTab)}
@@ -588,7 +584,7 @@ function Workbench() {
         </Button>
         <Button
           className={cn(
-            state.page === 'tasks' ? 'active text-primary' : 'text-muted-foreground',
+            state.page === 'tasks' ? 'text-primary' : 'text-muted-foreground',
             'h-auto justify-start whitespace-normal text-left',
           )}
           onClick={() => go('tasks')}
@@ -613,22 +609,17 @@ function Workbench() {
           footer={
             trash ? (
               <>
-                <Button
-                  className="button secondary"
-                  onClick={() => setTrash(false)}
-                  variant="outline"
-                  size="default"
-                >
+                <Button onClick={() => setTrash(false)} variant="outline" size="default">
                   返回
                 </Button>
-                <Button className="button danger" onClick={trashProject} variant="destructive" size="default">
+                <Button onClick={trashProject} variant="destructive" size="default">
                   移入回收站
                 </Button>
               </>
             ) : (
               <>
                 <Button
-                  className="text-button danger-text text-destructive"
+                  className=" text-destructive"
                   onClick={() => setTrash(true)}
                   variant="ghost"
                   size="sm"
@@ -637,7 +628,6 @@ function Workbench() {
                   移入回收站
                 </Button>
                 <Button
-                  className="button primary"
                   disabled={!renamed.trim()}
                   onClick={() => {
                     patchProject(editing.id, (p) => ({

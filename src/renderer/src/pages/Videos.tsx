@@ -39,16 +39,7 @@ import {
   Volume2,
   X,
 } from 'lucide-react'
-import {
-  Badge,
-  copyText,
-  download,
-  Empty,
-  Field,
-  IconButton,
-  Modal,
-  PageTitle,
-} from '../components/ui'
+import { Badge, copyText, download, Empty, Field, IconButton, Modal, PageTitle } from '../components/ui'
 import { useStudio } from '../studio/store'
 import { makeVideo } from '../studio/mock'
 import { images } from '../studio/images'
@@ -112,18 +103,12 @@ export function VideosPage() {
   return (
     <>
       {!selected ? (
-        <section className="workspace-page video-library">
+        <section className="workspace-page">
           <PageTitle
-            eyebrow="FROM WORDS TO SOMETHING YOU CAN SEE"
             title="这次想怎样制作视频？"
             description="每种方式都会创建独立的视频作品。"
             actions={
-              <Button
-                className="button primary"
-                onClick={() => setCreate(true)}
-                variant="default"
-                size="default"
-              >
+              <Button onClick={() => setCreate(true)} variant="default" size="default">
                 <Plus size={15} />
                 新建视频作品
               </Button>
@@ -131,7 +116,7 @@ export function VideosPage() {
           />
           <div className="video-route-grid">
             <Button
-              className="video-route h-auto justify-start whitespace-normal text-left grid h-auto gap-3 rounded-xl border p-3"
+              className="video-route h-auto justify-start whitespace-normal grid gap-3 rounded-xl p-3"
               onClick={() => createVideo('storyboard', 'master')}
               variant="ghost"
               size="default"
@@ -141,16 +126,14 @@ export function VideosPage() {
                 <img src={images.notebook} alt="素材卡片示意" />
                 <Clapperboard size={24} />
               </div>
-              <span className="page-eyebrow">STORYBOARD</span>
-              <h2>素材分镜</h2>
-              <p>脚本、图片与声音，逐个镜头编排。</p>
+              <h2>素材分镜</h2> <p>脚本、图片与声音，逐个镜头编排。</p>
               <span className="inline-flex items-center gap-2 text-sm font-medium">
                 开始编排镜头
                 <ArrowRight size={15} />
               </span>
             </Button>
             <Button
-              className="video-route h-auto justify-start whitespace-normal text-left grid h-auto gap-3 rounded-xl border p-3"
+              className="video-route h-auto justify-start whitespace-normal grid gap-3 rounded-xl p-3"
               onClick={() => createVideo('code', 'master')}
               variant="ghost"
               size="default"
@@ -161,7 +144,6 @@ export function VideosPage() {
                 <Sparkles size={26} />
                 <div>记录 → 整理 → 表达</div>
               </div>
-              <span className="page-eyebrow">AGENT CREATIVE</span>
               <h2>Agent 代码创作</h2>
               <p>描述动画意图，通过预览与对话调整。</p>
               <span className="inline-flex items-center gap-2 text-sm font-medium">
@@ -177,7 +159,7 @@ export function VideosPage() {
           <div className="video-work-list">
             {project.videos.map((video) => (
               <Button
-                className="video-work-card h-auto justify-start whitespace-normal text-left flex h-auto w-full gap-3 rounded-xl border p-3"
+                className="video-work-card h-auto justify-start whitespace-normal flex gap-3 rounded-xl p-3"
                 key={video.id}
                 onClick={() =>
                   patchProject(project.id, (p) => ({
@@ -234,20 +216,15 @@ export function VideosPage() {
           onClose={() => setCreate(false)}
           footer={
             <>
-              <span className="muted sm:mr-auto">
+              <span className="text-muted-foreground sm:mr-auto">
                 {mode
                   ? `将创建「${mode === 'code' ? 'Agent 代码创作' : '素材分镜'}」独立作品`
                   : '还缺：选择一种制作方式'}
               </span>
-              <Button
-                className="button secondary"
-                onClick={() => setCreate(false)}
-                variant="outline"
-                size="default"
-              >
+              <Button onClick={() => setCreate(false)} variant="outline" size="default">
                 取消
               </Button>
-              <Button className="button primary" disabled={!mode} onClick={add} variant="default" size="default">
+              <Button disabled={!mode} onClick={add} variant="default" size="default">
                 新建视频作品
                 <Plus size={15} />
               </Button>
@@ -680,11 +657,11 @@ const composition = {
     >
       <section className={`workspace-page video-workspace ${exportStatus ? 'export-status-open' : ''}`}>
         <div className="video-breadcrumb">
-          <Button className="text-button text-muted-foreground" onClick={onBack} variant="ghost" size="sm">
+          <Button className=" text-muted-foreground" onClick={onBack} variant="ghost" size="sm">
             <ArrowLeft size={14} />
             所有视频
           </Button>
-          <Button className="text-button text-muted-foreground" onClick={onNew} variant="ghost" size="sm">
+          <Button className=" text-muted-foreground" onClick={onNew} variant="ghost" size="sm">
             <Plus size={14} />
             新建视频作品
           </Button>
@@ -693,7 +670,7 @@ const composition = {
           <div>
             {/* D15：产物标题对齐文稿形态——无框大标题（点按即改），不再用通栏输入框。 */}
             <Input
-              className="title-input h-auto rounded-none border-0 bg-transparent px-0 py-1 font-sans text-3xl font-semibold tracking-tight shadow-none placeholder:opacity-60 focus-visible:ring-0 md:text-3xl"
+              className="title-input h-auto rounded-none border-0 px-0 text-3xl md:text-3xl shadow-none placeholder:opacity-60 focus-visible:ring-0"
               aria-label="视频作品名称"
               value={video.title}
               onChange={(e) =>
@@ -720,11 +697,10 @@ const composition = {
           </Badge>
         </div>
         <div className="video-tabs min-w-0 flex-wrap gap-2">
-          <TabsList className="category-tabs max-w-full" variant="line" aria-label="视频制作步骤">
+          <TabsList className="max-w-full" variant="line" aria-label="视频制作步骤">
             {labels.map((label) => (
               <TabsTrigger
                 key={label.id}
-                className={tab === label.id ? 'active' : ''}
                 value={label.id}
                 // D19：导出子页激活时其宿主页签被「视频导出」面板取代，禁用并以半透明弱化，
                 // 返回主路径只保留面板内的「返回作品预览」。
@@ -755,7 +731,7 @@ const composition = {
         {exportStatus && (
           <section className="export-recovery-panel" aria-label="视频导出状态">
             <Button
-              className="text-button text-muted-foreground"
+              className=" text-muted-foreground"
               variant="ghost"
               size="sm"
               onClick={() => setExportStatus(false)}
@@ -901,7 +877,6 @@ const composition = {
               </div>
               <div className="button-row">
                 <Button
-                  className="button secondary"
                   onClick={() => reference('视频创作说明', video.brief)}
                   variant="outline"
                   size="default"
@@ -909,18 +884,13 @@ const composition = {
                   和 Agent 调整
                 </Button>
                 <Button
-                  className="button primary"
                   disabled={running || !video.brief.trim()}
                   onClick={generatePreview}
                   variant="default"
                   size="default"
                 >
                   <Sparkles size={15} />
-                  {running
-                    ? '准备预览中…'
-                    : video.confirmed
-                      ? '按说明新建预览'
-                      : '确认说明，生成示例预览'}
+                  {running ? '准备预览中…' : video.confirmed ? '按说明新建预览' : '确认说明，生成示例预览'}
                 </Button>
               </div>
               {video.confirmed && (
@@ -938,7 +908,11 @@ const composition = {
                     return (
                       // D4/D14：版本卡压成横向紧凑行（缩略靠左、信息居中、操作靠右），内容一律左对齐，
                       // 覆盖 Card 默认 flex-col + 居中造成的中央大片空白。
-                      <Card key={version.number} role="article" className="flex-row flex-wrap items-center gap-3 p-3">
+                      <Card
+                        key={version.number}
+                        role="article"
+                        className="flex-row flex-wrap items-center gap-3 p-3"
+                      >
                         {/* D14：缩略占位由千篇一律的「Aa」改为版本号 + 该版强调色，行内可辨识差异。 */}
                         <div className="version-art" style={{ color: version.color }}>
                           v{version.number}
@@ -957,7 +931,6 @@ const composition = {
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
                           <Button
-                            className="button secondary small"
                             onClick={() => {
                               setPreviewNumber(version.number)
                               setTab('preview')
@@ -968,12 +941,7 @@ const composition = {
                             预览此版
                           </Button>
                           {!isCurrent && (
-                            <Button
-                              className="button primary small"
-                              onClick={() => adoptVersion(version)}
-                              variant="default"
-                              size="sm"
-                            >
+                            <Button onClick={() => adoptVersion(version)} variant="default" size="sm">
                               采用此版
                             </Button>
                           )}
@@ -986,12 +954,7 @@ const composition = {
                 <>
                   <div className="section-heading">
                     <span>{video.shots.length} 个镜头 · 拖动排序</span>
-                    <Button
-                      className="text-button text-muted-foreground"
-                      onClick={addShot}
-                      variant="ghost"
-                      size="sm"
-                    >
+                    <Button className=" text-muted-foreground" onClick={addShot} variant="ghost" size="sm">
                       <Plus size={15} />
                       添加镜头
                     </Button>
@@ -1138,7 +1101,7 @@ const composition = {
                                 秒
                               </label>
                               <Button
-                                className="text-button text-muted-foreground"
+                                className=" text-muted-foreground"
                                 onClick={() =>
                                   reference(
                                     `视频「${video.title}」· 镜头 ${index + 1}`,
@@ -1157,12 +1120,7 @@ const composition = {
                       </Card>
                     ))}
                   </div>
-                  <Button
-                    className="button secondary wide-button"
-                    onClick={addShot}
-                    variant="outline"
-                    size="default"
-                  >
+                  <Button className="wide-button" onClick={addShot} variant="outline" size="default">
                     <Plus size={16} />
                     再加一个镜头
                   </Button>
@@ -1207,7 +1165,6 @@ const composition = {
                       </NativeSelect>
                     </Field>
                     <Button
-                      className="button secondary"
                       onClick={() => notify('试听交互演示：尚未连接语音服务，本次不会播放真实配音。')}
                       variant="outline"
                       size="default"
@@ -1356,7 +1313,6 @@ const composition = {
                   </div>
                   <div className="button-row">
                     <Button
-                      className="button secondary"
                       onClick={() => {
                         const srt = video.shots
                           .map((s, i) => `${i + 1}\n${srtTime(s.start)} --> ${srtTime(s.end)}\n${s.subtitle}`)
@@ -1371,7 +1327,6 @@ const composition = {
                       导出 SRT
                     </Button>
                     <Button
-                      className="button primary"
                       disabled={running}
                       onClick={() => {
                         const projectId = project.id,
@@ -1444,17 +1399,12 @@ const composition = {
                           {isCandidate ? '正在预览，尚未采用' : '当前已采用'}
                         </Badge>
                         {isCandidate && previewVersion && (
-                          <Button
-                            className="button primary small"
-                            onClick={() => adoptVersion(previewVersion)}
-                            variant="default"
-                            size="sm"
-                          >
+                          <Button onClick={() => adoptVersion(previewVersion)} variant="default" size="sm">
                             采用此版
                           </Button>
                         )}
                         <Button
-                          className="text-button text-muted-foreground"
+                          className=" text-muted-foreground"
                           onClick={() => setCode(true)}
                           variant="ghost"
                           size="sm"
@@ -1514,16 +1464,11 @@ const composition = {
                         {/* D13：与弹窗标题统一叫「可调参数」，实现术语「声明的」不再外露。 */}
                         <strong>场景 0{video.selectedScene + 1} · 可调参数</strong>
                       </div>
-                      <Button
-                        className="button secondary small"
-                        onClick={() => setParameters(true)}
-                        variant="outline"
-                        size="sm"
-                      >
+                      <Button onClick={() => setParameters(true)} variant="outline" size="sm">
                         调整文案与颜色
                       </Button>
                       <Button
-                        className="text-button text-muted-foreground"
+                        className=" text-muted-foreground"
                         onClick={() =>
                           reference(
                             `动画「${video.title}」· 场景 ${video.selectedScene + 1}`,
@@ -1542,12 +1487,7 @@ const composition = {
                       <Field label={`当前镜头 · ${shot.title}`}>
                         <p className="text-sm leading-relaxed">{shot.subtitle || '（暂无字幕）'}</p>
                       </Field>
-                      <Button
-                        className="button secondary small"
-                        onClick={() => setTab('shots')}
-                        variant="outline"
-                        size="sm"
-                      >
+                      <Button onClick={() => setTab('shots')} variant="outline" size="sm">
                         编辑镜头
                       </Button>
                     </div>
@@ -1561,7 +1501,6 @@ const composition = {
                       {isCandidate ? (
                         <div className="button-row">
                           <Button
-                            className="button secondary small"
                             onClick={() => {
                               patch({
                                 candidate: undefined,
@@ -1575,12 +1514,7 @@ const composition = {
                           </Button>
                         </div>
                       ) : (
-                        <Button
-                          className="button secondary small"
-                          onClick={candidateVersion}
-                          variant="outline"
-                          size="sm"
-                        >
+                        <Button onClick={candidateVersion} variant="outline" size="sm">
                           <Sparkles size={14} />
                           演示生成候选
                         </Button>
@@ -1598,7 +1532,6 @@ const composition = {
               onClose={() => setSettings(false)}
               footer={
                 <Button
-                  className="button primary"
                   onClick={() => {
                     setSettings(false)
                     notify('设置已保存到当前视频作品。')
@@ -1678,12 +1611,12 @@ const composition = {
               onClose={() => setExporting(false)}
               footer={
                 <>
-                  <Button className="button secondary" onClick={exportManifest} variant="outline" size="default">
+                  <Button onClick={exportManifest} variant="outline" size="default">
                     {/* D22：弹窗内同样补下载图标，与状态页/底栏一致。 */}
                     <Download size={15} />
                     下载制作清单
                   </Button>
-                  <Button className="button primary" onClick={() => simulateExport()} variant="default" size="default">
+                  <Button onClick={() => simulateExport()} variant="default" size="default">
                     {/* D21：主按钮以用户任务命名，演示属性交由说明区交代。 */}
                     开始导出（演示）
                   </Button>
@@ -1700,13 +1633,12 @@ const composition = {
                 </div>
               </div>
               <div className="inline-alert orange">
-                演示只运行任务状态，不生成 MP4。可以下载包含脚本、镜头和设置的制作清单，SRT
-                从字幕页单独导出。
+                演示只运行任务状态，不生成 MP4。可以下载包含脚本、镜头和设置的制作清单，SRT 从字幕页单独导出。
               </div>
               {/* D20：演练入口是演示功能不是危险操作，改链接样式（下划线 + 中性色 + 警示图标），
               destructive 红只留给真实危险操作。 */}
               <Button
-                className="text-button text-muted-foreground underline underline-offset-2"
+                className=" text-muted-foreground underline underline-offset-2"
                 onClick={() => simulateExport(true)}
                 variant="ghost"
                 size="sm"
@@ -1722,12 +1654,7 @@ const composition = {
               description="恢复会创建新版本，并保留恢复前的编辑。"
               onClose={() => setShotHistory(false)}
             >
-              <Button
-                className="button secondary"
-                onClick={() => saveShotVersion()}
-                variant="outline"
-                size="default"
-              >
+              <Button onClick={() => saveShotVersion()} variant="outline" size="default">
                 <Save size={15} />
                 先保存当前版本
               </Button>
@@ -1736,7 +1663,11 @@ const composition = {
                   const isCurrent = video.adopted === version.number
                   return (
                     // D4：版本卡改左对齐横向行（信息居中占满、按钮靠右），替换默认 flex-col + 居中。
-                    <Card key={version.number} role="article" className="flex-row flex-wrap items-center gap-3 p-3">
+                    <Card
+                      key={version.number}
+                      role="article"
+                      className="flex-row flex-wrap items-center gap-3 p-3"
+                    >
                       <div className="min-w-0 flex-1">
                         <h3>
                           v{version.number} · {version.label}
@@ -1757,7 +1688,6 @@ const composition = {
                       </div>
                       {!isCurrent && (
                         <Button
-                          className="button secondary small"
                           disabled={!version.shots}
                           onClick={() => restoreShots(version)}
                           variant="outline"
@@ -1804,7 +1734,6 @@ const composition = {
               footer={
                 <>
                   <Button
-                    className="button secondary"
                     onClick={() =>
                       void copyText(codeSnippet).then((ok) =>
                         notify(ok ? '已复制动画代码。' : '复制失败，请在代码视图手动选择后复制。'),
@@ -1816,12 +1745,7 @@ const composition = {
                     <Copy size={15} />
                     复制代码
                   </Button>
-                  <Button
-                    className="button secondary"
-                    onClick={() => setCode(false)}
-                    variant="outline"
-                    size="default"
-                  >
+                  <Button onClick={() => setCode(false)} variant="outline" size="default">
                     关闭
                   </Button>
                 </>
@@ -1841,12 +1765,11 @@ const composition = {
                 ? `上次演示快照 v${video.lastExport.version}${video.lastExport.version !== video.adopted ? ' · 未包含最新修改' : ''}`
                 : '预览不等于已导出文件'}
             </span>
-            <Button className="button secondary" onClick={exportManifest} variant="outline" size="default">
+            <Button onClick={exportManifest} variant="outline" size="default">
               <Download size={15} />
               制作清单
             </Button>
             <Button
-              className={exportPrimary ? 'button primary' : 'button secondary'}
               disabled={!video.confirmed || running}
               onClick={() => {
                 if (video.mode === 'storyboard') saveShotVersion('导出前分镜快照')
@@ -1886,16 +1809,15 @@ function ParameterDialog({
       onClose={onClose}
       footer={
         <>
-          <span className="muted sm:mr-auto">
+          <span className="text-muted-foreground sm:mr-auto">
             {!title.trim() || !scene.trim()
               ? `还缺：${[!title.trim() && '画面主标题', !scene.trim() && '场景名称'].filter(Boolean).join('、')}`
               : '保存后形成候选版本，不影响当前已采用版本'}
           </span>
-          <Button className="button secondary" onClick={onClose} variant="outline" size="default">
+          <Button onClick={onClose} variant="outline" size="default">
             取消
           </Button>
           <Button
-            className="button primary"
             disabled={!title.trim() || !scene.trim()}
             onClick={() =>
               onSave({
@@ -1990,7 +1912,7 @@ function VideoPlayer({
         className={`video-stage ${video.ratio === '16:9' ? 'landscape' : video.ratio === '1:1' ? 'square' : ''}`}
       >
         <div
-          className={`video-canvas ${video.mode} ${playing ? 'playing' : ''} scene-${index}`}
+          className={`video-canvas ${video.mode} ${playing ? 'playing' : ''}`}
           style={
             {
               '--accent-video': version?.color ?? '#34583b',

@@ -1,6 +1,5 @@
 import { cn } from '@/lib/utils'
 import { Card } from '@/components/ui/card'
-import { Progress } from '@/components/ui/progress'
 import { Button } from '@/components/ui/button'
 import { useRef, useState } from 'react'
 import {
@@ -45,9 +44,8 @@ export function TasksPage() {
       task.state === filter,
   )
   return (
-    <section className="workspace-page tasks-page">
+    <section className="workspace-page">
       <PageTitle
-        eyebrow="GOOD THINGS TAKE A LITTLE TIME"
         title="作品，正在慢慢成形。"
         description="查看本机演示任务。失败或已停止，都不会抹掉已经完成的内容。"
         actions={<Badge tone="orange">Mock · 任务中心</Badge>}
@@ -134,12 +132,18 @@ export function TasksPage() {
                 {task.version ? ` · 固定采用 v${task.version}` : ''} · 本机演示
               </span>
               {task.state === 'running' && (
-                <Progress className="indeterminate-progress" aria-label="任务进行中" />
+                <div
+                  className="mt-4 h-[3px] overflow-hidden rounded-full bg-success-background"
+                  role="progressbar"
+                  aria-label="任务进行中"
+                >
+                  <div className="h-full w-2/5 rounded-full bg-input [animation:progress-slide_1.4s_ease-in-out_infinite]" />
+                </div>
               )}
               <div className="task-actions">
                 {task.state === 'running' ? (
                   <Button
-                    className="text-button text-muted-foreground"
+                    className=" text-muted-foreground"
                     onClick={() => controlTask(task.id, 'stop')}
                     variant="ghost"
                     size="sm"
@@ -149,7 +153,7 @@ export function TasksPage() {
                   </Button>
                 ) : ['failed', 'stopped'].includes(task.state) && !needsInput(task) ? (
                   <Button
-                    className="text-button text-muted-foreground"
+                    className=" text-muted-foreground"
                     onClick={() => controlTask(task.id, 'retry')}
                     disabled={
                       task.kind === 'creation' &&
@@ -165,7 +169,7 @@ export function TasksPage() {
                 ) : (
                   task.kind === 'export' && (
                     <Button
-                      className="text-button text-muted-foreground"
+                      className=" text-muted-foreground"
                       onClick={() => {
                         const video = task.snapshot
                         if (!video) {
@@ -196,7 +200,7 @@ export function TasksPage() {
                   )
                 )}
                 <Button
-                  className="text-button text-muted-foreground"
+                  className=" text-muted-foreground"
                   disabled={!state.projects.some((p) => p.id === task.projectId && !p.trashed)}
                   onClick={() => viewTask(task)}
                   variant="ghost"

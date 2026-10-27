@@ -73,7 +73,7 @@ export function StudioSidebar({
     <Sidebar
       collapsible="none"
       className="sidebar min-h-0 md:max-[1100px]:border-r md:max-[1100px]:border-sidebar-border"
-      style={{ width: compact ? 256 : '100%', flexShrink: 0 }}
+      style={{ flexShrink: 0, width: compact ? 256 : '100%' }}
       role="complementary"
       aria-label="内容导航"
     >

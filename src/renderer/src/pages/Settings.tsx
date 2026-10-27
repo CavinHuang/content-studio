@@ -80,16 +80,15 @@ export function SettingsPage() {
   }
   return (
     <Tabs value={tab} onValueChange={setTab} className="gap-0" asChild>
-      <section className="workspace-page settings-page">
+      <section className="workspace-page">
         <PageTitle
           back={() => navigate(project.activeTab)}
-          eyebrow="A WORKSPACE THAT FEELS LIKE YOU"
           title="找到你的创作节奏。"
           description="服务、偏好与积累，都在这里慢慢安顿。"
         />
         <TabsList className="settings-tabs" variant="line" aria-label="设置分类">
           {['AI 服务', '创作偏好', '数据与导出'].map((item) => (
-            <TabsTrigger className={tab === item ? 'active' : ''} key={item} value={item}>
+            <TabsTrigger key={item} value={item}>
               {item}
             </TabsTrigger>
           ))}
@@ -163,7 +162,6 @@ export function SettingsPage() {
                         </NativeSelect>
                       </Field>
                       <Button
-                        className="button secondary"
                         disabled={!!testing}
                         onClick={() => {
                           setTesting(service.id)
@@ -207,7 +205,6 @@ export function SettingsPage() {
                       placeholder="输入用于查看遮挡效果的示例值"
                     />
                     <Button
-                      className="icon-button"
                       aria-label={showKey ? '隐藏密钥' : '显示密钥'}
                       onClick={() => setShowKey(!showKey)}
                       variant="ghost"
@@ -356,12 +353,11 @@ export function SettingsPage() {
                 <h2>带走一份安心</h2>
                 <p>备份包含内容、平台版本、素材、视频配置、对话和发布记录，不包含密钥。</p>
                 <div className="button-row">
-                  <Button className="button primary" onClick={backup} variant="default" size="default">
+                  <Button onClick={backup} variant="default" size="default">
                     <ArrowDownToLine size={15} />
                     导出全部备份
                   </Button>
                   <Button
-                    className="button secondary"
                     onClick={() => {
                       download(
                         `${project.title || '未命名内容'}-项目-${new Date().toISOString().slice(0, 10)}.json`,
@@ -423,7 +419,7 @@ export function SettingsPage() {
                         <small>内容项目</small>
                       </span>
                       <Button
-                        className="text-button text-muted-foreground"
+                        className=" text-muted-foreground"
                         onClick={() => {
                           setState((s) => ({
                             ...s,
@@ -456,7 +452,7 @@ export function SettingsPage() {
                         <small>原素材 · 保留项目关联</small>
                       </span>
                       <Button
-                        className="text-button text-muted-foreground"
+                        className=" text-muted-foreground"
                         onClick={() => {
                           setState((s) => ({
                             ...s,
@@ -482,7 +478,7 @@ export function SettingsPage() {
                 {!state.materials.some((m) => m.trashed) && !state.projects.some((p) => p.trashed) && (
                   // E3 空态两级规范：页面级（图标+标题+说明+CTA）之外，区块级保持单行文案，
                   // 此处仅补一枚 14px 内联图标作视觉锚点，不再升级为完整空态结构。
-                  <p className="muted flex items-center gap-2" role="status">
+                  <p className="text-muted-foreground flex items-center gap-2" role="status">
                     <Trash2 size={14} aria-hidden="true" />
                     回收站是空的，所有积累都好好待着。
                   </p>
@@ -491,12 +487,7 @@ export function SettingsPage() {
               <div className="settings-section">
                 <h2>演示工作区</h2>
                 <p>重新载入最初的示例会替换当前本机数据。建议先导出备份。</p>
-                <Button
-                  className="button secondary"
-                  onClick={() => setReset(true)}
-                  variant="outline"
-                  size="default"
-                >
+                <Button onClick={() => setReset(true)} variant="outline" size="default">
                   <RefreshCw size={15} />
                   重新载入示例
                 </Button>
@@ -515,7 +506,6 @@ export function SettingsPage() {
               footer={
                 <>
                   <Button
-                    className="button secondary"
                     onClick={() => {
                       backup()
                       setReset(false)
@@ -525,16 +515,10 @@ export function SettingsPage() {
                   >
                     导出备份并取消
                   </Button>
-                  <Button
-                    className="button secondary"
-                    onClick={() => setReset(false)}
-                    variant="outline"
-                    size="default"
-                  >
+                  <Button onClick={() => setReset(false)} variant="outline" size="default">
                     取消
                   </Button>
                   <Button
-                    className="button danger"
                     onClick={() => {
                       setState(seedState())
                       clearAgentDrafts()
@@ -559,11 +543,10 @@ export function SettingsPage() {
               onClose={() => setImported(null)}
               footer={
                 <>
-                  <Button className="button secondary" onClick={backup} variant="outline" size="default">
+                  <Button onClick={backup} variant="outline" size="default">
                     备份当前工作区
                   </Button>
                   <Button
-                    className="button primary"
                     onClick={() => {
                       try {
                         localStorage.setItem('content-studio.mock-workspace.v2', JSON.stringify(imported))

@@ -177,10 +177,9 @@ export function MaterialsPage({
     notify('已插入当前平台稿末尾，并保存一个可恢复版本。')
   }
   return (
-    <section className="workspace-page materials-page">
+    <section className="workspace-page">
       {!embedded && (
         <PageTitle
-          eyebrow={global ? 'YOUR GROWING COLLECTION' : 'A FEW THINGS TO BUILD ON'}
           title={global ? '给灵感，一个落脚的地方。' : '给这篇内容找素材'}
           description={
             global
@@ -188,12 +187,7 @@ export function MaterialsPage({
               : `当前内容：${project.title || '未命名内容'}`
           }
           actions={
-            <Button
-              className="button primary"
-              onClick={() => setCaptureOpen(true)}
-              variant="default"
-              size="default"
-            >
+            <Button onClick={() => setCaptureOpen(true)}>
               <Plus size={15} />
               收集素材
             </Button>
@@ -254,7 +248,7 @@ export function MaterialsPage({
             <span className="small-meta flex min-w-0 items-center gap-2">
               <span className="min-w-0 truncate">当前文稿：{project.title || '未命名内容'}</span>
               <Button
-                className="text-button h-auto shrink-0 p-0 text-primary"
+                className=" h-auto shrink-0 p-0 text-primary"
                 onClick={() => navigate('article')}
                 variant="ghost"
                 size="sm"
@@ -330,18 +324,12 @@ export function MaterialsPage({
               </Button>
               <div className="material-card-body">
                 <Button
-                  className="material-title h-auto p-0 justify-start whitespace-normal text-left"
+                  className="material-title h-auto p-0 justify-start whitespace-normal"
                   onClick={() => setDetail(material.id)}
                   variant="ghost"
-                  size="default"
                 >
                   {material.title}
                 </Button>
-                <div className="tag-row">
-                  {material.tags.map((t) => (
-                    <span key={t}>{t}</span>
-                  ))}
-                </div>
                 <div className="material-row-meta">
                   {info.name} ·{' '}
                   {material.type === 'link'
@@ -350,14 +338,11 @@ export function MaterialsPage({
                   {related.length ? ` · 被 ${related.length} 篇内容引用` : ''}
                 </div>
                 <div className="material-card-footer">
-                  <span>
-                    {material.readState === 'link-only' ? '仅链接' : dateLabel(material.at)}
-                    {related.length ? ` · ${related.length} 篇引用` : ''}
-                  </span>
                   <Button
                     className={cn(
-                      `text-button ${project.materialIds.includes(material.id) ? 'green-text' : ''}`,
-                      'text-muted-foreground',
+                      project.materialIds.includes(material.id)
+                        ? 'text-primary disabled:text-primary!'
+                        : 'text-muted-foreground',
                     )}
                     onClick={() => toggleReference(material)}
                     disabled={project.materialIds.includes(material.id)}
@@ -450,12 +435,7 @@ export function MaterialsPage({
                   查看全部素材
                 </Button>
               )}
-              <Button
-                className="button secondary"
-                onClick={() => setCaptureOpen(true)}
-                variant="outline"
-                size="default"
-              >
+              <Button onClick={() => setCaptureOpen(true)} variant="outline">
                 <Plus size={15} />
                 收集第一份素材
               </Button>
@@ -472,7 +452,7 @@ export function MaterialsPage({
           footer={
             <>
               <Button
-                className="text-button danger-text text-destructive sm:mr-auto"
+                className=" text-destructive sm:mr-auto"
                 onClick={() => setDeleteId(active.id)}
                 variant="ghost"
                 size="sm"
@@ -480,7 +460,7 @@ export function MaterialsPage({
                 <Trash2 size={15} />
                 删除原素材
               </Button>
-              <span className="muted inline-flex items-center gap-1.5" aria-live="polite">
+              <span className="text-muted-foreground inline-flex items-center gap-1.5" aria-live="polite">
                 <span>更改自动保存</span>
                 {savedFlash && (
                   <span className="inline-flex items-center gap-1 text-success">
@@ -490,16 +470,10 @@ export function MaterialsPage({
                 )}
               </span>
               <div className="button-row">
-                <Button
-                  className="button secondary"
-                  onClick={() => toggleReference(active)}
-                  variant="outline"
-                  size="default"
-                >
+                <Button onClick={() => toggleReference(active)} variant="outline">
                   {project.materialIds.includes(active.id) ? '移除本篇参考' : '用于这篇内容'}
                 </Button>
                 <Button
-                  className="button secondary"
                   onClick={() => {
                     patchProject(project.id, (p) => ({
                       ...p,
@@ -509,17 +483,11 @@ export function MaterialsPage({
                     setDetail(null)
                   }}
                   variant="outline"
-                  size="default"
                 >
                   <MessageCircle size={15} />
                   和助手讨论
                 </Button>
-                <Button
-                  className="button primary"
-                  onClick={() => insert(active)}
-                  variant="default"
-                  size="default"
-                >
+                <Button onClick={() => insert(active)}>
                   插入正文
                   <ArrowRight size={15} />
                 </Button>
@@ -599,7 +567,6 @@ export function MaterialsPage({
           </p>
           {active.type === 'file' && (
             <Button
-              className="button secondary"
               onClick={() => {
                 if (active.data) {
                   const a = document.createElement('a')
@@ -609,7 +576,6 @@ export function MaterialsPage({
                 } else download(active.fileName ?? `${active.title}.txt`, active.body)
               }}
               variant="outline"
-              size="default"
             >
               <ArrowDownToLine size={15} />
               下载文件
@@ -624,16 +590,10 @@ export function MaterialsPage({
           onClose={() => setDeleteId(null)}
           footer={
             <>
-              <Button
-                className="button secondary"
-                onClick={() => setDeleteId(null)}
-                variant="outline"
-                size="default"
-              >
+              <Button onClick={() => setDeleteId(null)} variant="outline">
                 取消
               </Button>
               <Button
-                className="button danger"
                 onClick={() => {
                   setState((s) => ({
                     ...s,
@@ -651,7 +611,6 @@ export function MaterialsPage({
                   notify('已移入回收站，可在设置的数据与导出中恢复。')
                 }}
                 variant="destructive"
-                size="default"
               >
                 移入回收站
               </Button>
@@ -782,20 +741,14 @@ export function MaterialCapture() {
       onClose={() => setCaptureOpen(false)}
       footer={
         <>
-          <span className="muted sm:mr-auto">
+          <span className="text-muted-foreground sm:mr-auto">
             {!valid && !loading
               ? `还缺：${
                   type === 'text' ? '一段想法或摘录' : type === 'link' ? '原始链接地址' : '选择要保存的文件'
                 }`
               : '保存在本机 · 演示存储'}
           </span>
-          <Button
-            className="button primary"
-            disabled={!valid || loading}
-            onClick={save}
-            variant="default"
-            size="default"
-          >
+          <Button disabled={!valid || loading} onClick={save}>
             {linkProject ? '保存并引用' : '保存素材'}
           </Button>
         </>
@@ -850,7 +803,7 @@ export function MaterialCapture() {
           />
           {file && type === 'image' ? <img src={file.data} alt="待保存图片预览" /> : <Upload size={29} />}
           <Button
-            className="text-button text-muted-foreground"
+            className=" text-muted-foreground"
             onClick={() => inputRef.current?.click()}
             variant="ghost"
             size="sm"
