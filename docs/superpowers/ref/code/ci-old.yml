@@ -1,0 +1,35 @@
+# 【历史资产参考件——旧 CI 配置（xvfb e2e 模式）】
+# 来源提交：8c90905 的父提交（8c90905^，即 2026-10-26 保全重置基线之前的最后版本）
+# 原路径：.github/workflows/ci.yml
+# 提取方式：git show 8c90905^:.github/workflows/ci.yml（2026-10-27 提取，内容未改动）
+# 说明：属重置前旧历史的配置，仅供 P3/P4/P5 阶段恢复 CI-e2e 时参考，不参与当前构建。
+# 注意：该文件使用 npm（npm ci / cache: npm），当前仓库已切 pnpm workspace——恢复时需换 pnpm 动作与缓存键，xvfb 安装与运行方式可沿用。
+name: CI
+on:
+  push: { branches: [main] }
+  pull_request: { branches: [main] }
+permissions: { contents: read }
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: 22.19.0, cache: npm }
+      # 仓库不带 .npmrc（镜像约定属本机环境，见 README「依赖与网络」）：
+      # CI 显式走 npm 官方源，锁件 resolved 也已指向 registry.npmjs.org。
+      - name: npm ci（显式官方源）
+        run: npm ci
+        env:
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org
+      - run: npm run typecheck
+      - run: npm test
+      - name: e2e (xvfb)
+        run: |
+          sudo apt-get update && sudo apt-get install -y xvfb
+          # 沙箱预案：若 e2e 报 Chromium 沙箱错误（"No usable sandbox" / SUID sandbox
+          # 不可用），取消下一行注释对 Electron 关闭沙箱——仅限 CI 容器，
+          # 本地开发与发布产物绝不关闭沙箱：
+          # export ELECTRON_DISABLE_SANDBOX=1
+          xvfb-run -a npm run e2e
