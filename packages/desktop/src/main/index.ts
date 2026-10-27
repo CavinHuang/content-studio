@@ -1,8 +1,9 @@
-import { app, BrowserWindow, ipcMain, Menu, nativeTheme, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, nativeTheme, shell, type IpcMainInvokeEvent } from 'electron'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { DESKTOP_CHANNELS, type AppInfo } from '../shared/desktop'
+import { initServices } from './services'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -81,6 +82,39 @@ void app.whenReady().then(() => {
     if (!existsSync(file)) return { ok: false, message: '没有找到设计总览文件。' }
     const error = await shell.openPath(file)
     return error ? { ok: false, message: error } : { ok: true }
+  })
+
+  const services = initServices(join(app.getPath('userData'), 'studio.db'), (event) => {
+    mainWindow?.webContents.send(DESKTOP_CHANNELS.taskEvent, event)
+  })
+  // 上一次会话中断的任务不允许保留假 running 状态。
+  services.runner.recover()
+  const guard = (event: IpcMainInvokeEvent): void => {
+    if (event.sender !== mainWindow?.webContents) throw new Error('Unknown window')
+  }
+  ipcMain.handle(DESKTOP_CHANNELS.dbLoad, (event) => {
+    guard(event)
+    return services.api.dbLoad()
+  })
+  ipcMain.handle(DESKTOP_CHANNELS.dbSave, (event, doc: unknown) => {
+    guard(event)
+    return services.api.dbSave(doc)
+  })
+  ipcMain.handle(DESKTOP_CHANNELS.taskList, (event) => {
+    guard(event)
+    return services.api.taskList()
+  })
+  ipcMain.handle(DESKTOP_CHANNELS.taskSubmit, (event, input: Parameters<typeof services.api.taskSubmit>[0]) => {
+    guard(event)
+    return services.api.taskSubmit(input)
+  })
+  ipcMain.handle(DESKTOP_CHANNELS.taskSettle, (event, id: string, settle: Parameters<typeof services.api.taskSettle>[1]) => {
+    guard(event)
+    return services.api.taskSettle(id, settle)
+  })
+  ipcMain.handle(DESKTOP_CHANNELS.taskControl, (event, id: string, action: 'stop' | 'retry') => {
+    guard(event)
+    return services.api.taskControl(id, action)
   })
 
   createWindow()
