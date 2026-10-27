@@ -25,6 +25,7 @@ function fakePersistence(workspace: StudioState | null) {
   let tasks: Task[] = []
   const persistence: Persistence = {
     mode: 'local',
+    ai: null,
     async load() {
       return { workspace }
     },

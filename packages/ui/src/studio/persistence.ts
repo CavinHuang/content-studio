@@ -1,4 +1,9 @@
 import type {
+  AiConfigInput,
+  AiConfigView,
+  AiEvent,
+  AiSendResult,
+  AiTestResult,
   DesktopAPI,
   TaskEvent,
   TaskExtra,
@@ -19,8 +24,21 @@ export type TaskSubmitInput = {
   extra?: TaskExtra
 }
 
+export type AiBridge = {
+  configGet(): Promise<AiConfigView | null>
+  configSet(input: AiConfigInput): Promise<AiConfigView>
+  configClear(): Promise<{ ok: boolean }>
+  test(baseUrl: string, apiKey: string, modelId: string): Promise<AiTestResult>
+  send(sessionKey: string, text: string): Promise<AiSendResult>
+  cancel(sessionKey: string): Promise<{ ok: boolean }>
+  answer(questionId: string, answer: string): Promise<{ ok: boolean }>
+  onEvent(listener: (event: AiEvent) => void): () => void
+}
+
 export type Persistence = {
   mode: 'desktop' | 'local'
+  /** dev:web 无桌面桥，AI 通道不存在（走本地演示路径）。 */
+  ai: AiBridge | null
   load(): Promise<{ workspace: StudioState | null }>
   save(state: StudioState): Promise<{ ok: boolean }>
   taskList(): Promise<Task[]>
@@ -40,6 +58,7 @@ function toTask(record: TaskRecord): Task {
     kind: record.kind as Task['kind'],
     at: record.at,
   }
+  if (record.executor) task.executor = record.executor
   if (record.extra?.version !== undefined) task.version = record.extra.version
   if (record.extra?.videoId !== undefined) task.videoId = record.extra.videoId
   if (record.extra?.snapshot !== undefined) task.snapshot = record.extra.snapshot as Task['snapshot']
@@ -58,6 +77,16 @@ function isWorkspace(value: unknown): value is StudioState {
 export function createDesktopPersistence(desktop: DesktopAPI): Persistence {
   return {
     mode: 'desktop',
+    ai: {
+      configGet: () => desktop.aiConfigGet(),
+      configSet: (input) => desktop.aiConfigSet(input),
+      configClear: () => desktop.aiConfigClear(),
+      test: (baseUrl, apiKey, modelId) => desktop.aiTest(baseUrl, apiKey, modelId),
+      send: (sessionKey, text) => desktop.aiSend(sessionKey, text),
+      cancel: (sessionKey) => desktop.aiCancel(sessionKey),
+      answer: (questionId, answer) => desktop.aiAnswer(questionId, answer),
+      onEvent: (listener) => desktop.onAiEvent(listener),
+    },
     async load() {
       const result = await desktop.dbLoad()
       return { workspace: result.exists && isWorkspace(result.workspace) ? result.workspace : null }
@@ -191,6 +220,7 @@ export function createLocalPersistence(): Persistence {
   const tasks = new LocalTasks()
   return {
     mode: 'local',
+    ai: null,
     async load() {
       try {
         const saved = JSON.parse(localStorage.getItem(WORKSPACE_KEY) ?? 'null') as StudioState | null

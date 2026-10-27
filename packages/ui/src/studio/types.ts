@@ -206,6 +206,7 @@ export type Task = {
   version?: number
   videoId?: string
   snapshot?: Video
+  executor?: 'main' | 'renderer'
 }
 export type Preferences = {
   platforms: Platform[]
