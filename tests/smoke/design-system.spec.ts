@@ -144,7 +144,11 @@ test('artifact tabs keep mouse selection clean and keyboard focus visible', asyn
   await expect(article).toHaveAttribute('aria-selected', 'true')
   await expect(article).toHaveCSS('outline-style', 'solid')
   await expect
-    .poll(() => article.evaluate((element) => parseFloat(getComputedStyle(element).outlineOffset)))
+    .poll(
+      () => article.evaluate((element) => parseFloat(getComputedStyle(element).outlineOffset)),
+      // 高负载下焦点样式重算可能滞后；给足确定性窗口（曾在本机满载时超 5 秒）。
+      { timeout: 15_000 },
+    )
     .toBeLessThan(0)
   await page.keyboard.press('Tab')
   await expect(article).not.toBeFocused()
