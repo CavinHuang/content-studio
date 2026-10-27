@@ -207,6 +207,8 @@ export type Task = {
   videoId?: string
   snapshot?: Video
   executor?: 'main' | 'renderer'
+  payload?: unknown
+  result?: unknown
 }
 export type Preferences = {
   platforms: Platform[]

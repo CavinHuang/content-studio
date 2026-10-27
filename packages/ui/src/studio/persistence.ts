@@ -22,6 +22,7 @@ export type TaskSubmitInput = {
   projectId: string
   payload?: unknown
   extra?: TaskExtra
+  executor?: 'main' | 'renderer'
 }
 
 export type AiBridge = {
@@ -111,6 +112,7 @@ export function createDesktopPersistence(desktop: DesktopAPI): Persistence {
         projectId: input.projectId,
         payload: input.payload,
         extra: input.extra,
+        executor: input.executor,
       })
       return toTask(record)
     },
@@ -165,6 +167,7 @@ class LocalTasks {
       at,
       updated: at,
     }
+    if (input.executor) record.executor = input.executor
     if (input.payload !== undefined) record.payload = input.payload
     if (input.extra !== undefined) record.extra = input.extra
     this.tasks = [record, ...this.tasks]

@@ -29,18 +29,23 @@ import {
 import {
   makeDraft,
   now,
+  platformName,
   uid,
   versioned,
   type Artifact,
+  type Conversation,
+  type CreationFlow,
   type Draft,
   type Material,
   type Page,
   type Platform,
   type Project,
   type StudioState,
+  type Suggestion,
   type Task,
   type Topic,
 } from './types'
+import type { AiEvent } from '../../../desktop/src/shared/desktop'
 
 const KEY = WORKSPACE_KEY
 function readState(): StudioState {
@@ -145,6 +150,7 @@ function mergeTaskLists(mainTasks: Task[], current: Task[]): Task[] {
   return [...mainTasks, ...creation].sort((a, b) => (a.at < b.at ? 1 : -1))
 }
 type AgentDraft = { composer: string; context: ContextReference | null }
+type AiRunTarget = { discovery: boolean; projectId: string; conversationId: string; messageId: string }
 export type Store = {
   state: StudioState
   setState: Dispatch<SetStateAction<StudioState>>
@@ -186,6 +192,12 @@ export type Store = {
   ) => string
   controlTask: (id: string, action: 'stop' | 'retry') => void
   failTask: (id: string, detail: string) => void
+  aiReady: boolean
+  aiBusy: boolean
+  aiAsk: { questionId: string; question: string; options?: string[] } | null
+  answerAsk: (answer: string) => void
+  cancelAi: () => void
+  refreshAiConfig: () => void
   reference: (label: string, text: string) => void
 }
 const StudioContext = createContext<Store | null>(null)
@@ -204,6 +216,11 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   const persistence = useMemo(() => resolvePersistence(), [])
   const startedRuns = useRef(new Set<string>())
   const saveNowRef = useRef<(() => Promise<void>) | undefined>(undefined)
+  const [aiReady, setAiReady] = useState(false)
+  const [aiBusy, setAiBusy] = useState(false)
+  const [aiAsk, setAiAsk] = useState<{ questionId: string; question: string; options?: string[] } | null>(null)
+  // 会话键 → 流式目标（并发 1，一键一运行足够）。
+  const aiRuns = useRef(new Map<string, AiRunTarget>())
   const project =
     state.projects.find((p) => p.id === state.selectedProject && !p.trashed) ??
     state.projects.find((p) => !p.trashed) ??
@@ -311,10 +328,17 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           ? s.tasks.map((t) => (t.id === task.id ? task : t))
           : [task, ...s.tasks],
       }))
-      // 重试克隆等未登记的运行任务由本地执行器兜底完成。
-      if (task.state === 'running' && !startedRuns.current.has(task.id)) {
+      // 渲染端兜底只接管未登记的本地任务；主进程执行器任务（AI 生成）由其自行结算。
+      if (
+        task.state === 'running' &&
+        task.executor !== 'main' &&
+        !startedRuns.current.has(task.id)
+      ) {
         startedRuns.current.add(task.id)
         scheduleCompletion(task.id)
+      }
+      if (task.executor === 'main' && task.kind === 'agent' && (task.state === 'complete' || task.state === 'failed')) {
+        applyGenerationOutcome(task)
       }
     })
     return () => {
@@ -334,6 +358,149 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('pagehide', flush)
     }
   }, [state, ready, saveNow])
+  // AI 服务：配置就绪探测 + 事件订阅（流式/建议/问询/候选，按会话键路由）。
+  useEffect(() => {
+    const ai = persistence.ai
+    if (!ai) return
+    void ai.configGet().then((view) => setAiReady(Boolean(view)))
+    return ai.onEvent((event) => handleAiEvent(event))
+  }, [persistence])
+  function mutateAiMessage(
+    target: AiRunTarget,
+    mutate: (text: string) => { text?: string; suggestion?: Suggestion },
+  ): void {
+    setState((s) => {
+      const mapConversation = (c: Conversation) =>
+        c.id === target.conversationId
+          ? {
+              ...c,
+              messages: c.messages.map((m) => {
+                if (m.id !== target.messageId) return m
+                const next = mutate(m.text)
+                return {
+                  ...m,
+                  ...(next.text !== undefined ? { text: next.text } : {}),
+                  ...(next.suggestion ? { suggestion: next.suggestion } : {}),
+                }
+              }),
+            }
+          : c
+      if (target.discovery)
+        return { ...s, discoveryConversations: s.discoveryConversations.map(mapConversation) }
+      return {
+        ...s,
+        projects: s.projects.map((p) =>
+          p.id === target.projectId ? { ...p, conversations: p.conversations.map(mapConversation) } : p,
+        ),
+      }
+    })
+  }
+  function handleAiEvent(event: AiEvent): void {
+    if (event.type === 'run_start') {
+      setAiBusy(true)
+      return
+    }
+    if (event.type === 'delta') {
+      const target = aiRuns.current.get(event.sessionKey)
+      if (target) mutateAiMessage(target, (text) => ({ text: text + event.text }))
+      return
+    }
+    if (event.type === 'ask') {
+      setAiAsk({ questionId: event.questionId, question: event.question, options: event.options })
+      return
+    }
+    if (event.type === 'suggestion') {
+      const target = aiRuns.current.get(event.sessionKey)
+      if (!target || target.discovery) return
+      const platform = event.suggestion.platform as Platform
+      const draftBody = stateRef.current.projects
+        .find((p) => p.id === target.projectId)
+        ?.drafts[platform]?.body
+      if (draftBody === undefined) return
+      const suggestion: Suggestion = {
+        id: uid(),
+        platform,
+        original: event.suggestion.original,
+        replacement: event.suggestion.replacement,
+        baseBody: draftBody,
+        status: 'pending',
+      }
+      mutateAiMessage(target, () => ({ suggestion }))
+      return
+    }
+    if (event.type === 'draft') {
+      const target = aiRuns.current.get(event.sessionKey)
+      if (target && !target.discovery) applyMasterCandidate(target.projectId, event.draft.title, event.draft.body)
+      return
+    }
+    if (event.type !== 'run_end') return
+    setAiBusy(false)
+    setAiAsk(null)
+    const target = aiRuns.current.get(event.sessionKey)
+    aiRuns.current.delete(event.sessionKey)
+    if (target && !event.ok)
+      mutateAiMessage(target, (text) => ({
+        text: text || `（对话出错了：${event.error ?? '未知错误'}）`,
+      }))
+  }
+  function applyMasterCandidate(projectId: string, title: string, body: string): void {
+    setState((s) => {
+      const current = s.projects.find((p) => p.id === projectId)
+      if (!current) return s
+      const master = current.drafts.master ?? makeDraft(current.title)
+      const creation: CreationFlow = {
+        ...(current.creation ?? { input: '', status: 'idle' as const }),
+        source: 'plan',
+        status: 'candidate',
+        candidate: { title, body, baseTitle: master.title, baseBody: master.body },
+        snapshot: creationSnapshot(s, current),
+        message: 'AI 已生成母稿候选；比较后采用，现有正文保留。',
+      }
+      return syncCreationTask(
+        {
+          ...s,
+          projects: s.projects.map((p) =>
+            p.id === projectId ? { ...p, creation, updated: now() } : p,
+          ),
+        },
+        projectId,
+      )
+    })
+    notify('母稿候选已生成，可在文稿页比较后采用。')
+  }
+  function applyGenerationOutcome(task: Task): void {
+    const payload = task.payload as { job?: string } | undefined
+    if (payload?.job === 'platforms' && task.state === 'complete') {
+      const result = task.result as
+        | { drafts?: Record<string, { title: string; body: string }> }
+        | undefined
+      if (!result?.drafts || !Object.keys(result.drafts).length) return
+      setState((s) => ({
+        ...s,
+        projects: s.projects.map((p) => {
+          if (p.id !== task.projectId) return p
+          const drafts = { ...p.drafts }
+          const master = p.drafts.master
+          for (const [platform, content] of Object.entries(result.drafts!)) {
+            const key = platform as Platform
+            if (drafts[key]) continue
+            drafts[key] = {
+              ...makeDraft(content.title, content.body, 'AI 适配'),
+              sourceBody: master?.body,
+              sourceVersion: master?.versions.at(-1)?.number ?? 1,
+            }
+          }
+          return { ...p, drafts, updated: now() }
+        }),
+      }))
+      notify('平台版本已生成；已有平台稿不会被覆盖。')
+      return
+    }
+    if (payload?.job === 'master' && task.state === 'complete') {
+      const draft = task.result as { title: string; body: string } | undefined
+      if (draft) applyMasterCandidate(task.projectId, draft.title, draft.body)
+    }
+  }
   useEffect(() => {
     if (!notice) return
     const timer = setTimeout(() => notify(''), 5500)
@@ -632,6 +799,61 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   }
   function generateArticle() {
     const id = project.id
+    if (aiReady && persistence.ai && project.brief.confirmed) {
+      setState((s) => ({
+        ...s,
+        page: 'article',
+        projects: s.projects.map((p) =>
+          p.id === id ? { ...p, activeTab: 'article', activePlatform: 'master' } : p,
+        ),
+      }))
+      const taskId = uid()
+      startedRuns.current.add(taskId)
+      const briefText = [
+        project.brief.topic && `主题：${project.brief.topic}`,
+        project.brief.point && `核心观点：${project.brief.point}`,
+        project.brief.audience && `写给：${project.brief.audience}`,
+        project.brief.tone && `表达：${project.brief.tone}`,
+        project.brief.length && `篇幅建议：${project.brief.length}`,
+        project.brief.outline.length &&
+          `大纲：\n${project.brief.outline.map((line, index) => `${index + 1}. ${line}`).join('\n')}`,
+      ]
+        .filter(Boolean)
+        .join('\n')
+      const materialsText = project.materialIds
+        .flatMap((mid) => state.materials.filter((m) => m.id === mid && !m.trashed))
+        .map((m) => `【${m.title}】\n${m.body.slice(0, 800)}`)
+        .join('\n\n')
+      const detail = '正在按方案生成候选，现有母稿保留。'
+      setState((s) => ({
+        ...s,
+        tasks: [
+          { id: taskId, title: '按方案生成母稿候选', detail, projectId: id, state: 'running', kind: 'agent', executor: 'main', at: now() },
+          ...s.tasks,
+        ],
+      }))
+      void persistence
+        .taskSubmit({
+          id: taskId,
+          kind: 'agent',
+          executor: 'main',
+          title: '按方案生成母稿候选',
+          detail,
+          projectId: id,
+          payload: { job: 'master', briefText, materialsText: materialsText || undefined },
+        })
+        .then((submitted) => {
+          if (!submitted) return
+          setState((s) => ({
+            ...s,
+            tasks: s.tasks.map((t) =>
+              t.id === taskId && t.state === 'running' ? { ...submitted, executor: 'main' } : t,
+            ),
+          }))
+        })
+      notify('正在按方案生成母稿候选；现有正文保留，生成后可比较采用。')
+      return
+    }
     setState((s) => {
       const started = beginCreation(s, id, 'plan').state
       return {
@@ -653,6 +875,53 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     const master = structuredClone(project.drafts.master ?? makeDraft(project.title))
     if (!master.body.trim()) {
       notify('请先写一些母稿内容，再创建平台版本。')
+      return
+    }
+    if (aiReady && persistence.ai) {
+      const todo = platforms.filter((p) => !project.drafts[p])
+      if (!todo.length) {
+        notify('所选平台都已有版本；已有内容不会被覆盖。')
+        setPlatformsOpen(false)
+        return
+      }
+      const taskId = uid()
+      startedRuns.current.add(taskId)
+      const detail = `正在为 ${todo.length} 个平台生成版本…`
+      setState((s) => ({
+        ...s,
+        tasks: [
+          { id: taskId, title: '准备平台版本', detail, projectId: id, state: 'running', kind: 'agent', executor: 'main', at: now() },
+          ...s.tasks,
+        ],
+      }))
+      void persistence
+        .taskSubmit({
+          id: taskId,
+          kind: 'agent',
+          executor: 'main',
+          title: '准备平台版本',
+          detail,
+          projectId: id,
+          payload: {
+            job: 'platforms',
+            platforms: todo,
+            masterTitle: master.title,
+            masterBody: master.body,
+            skip: platforms.filter((p) => project.drafts[p]),
+            tone: state.preferences.tone,
+          },
+        })
+        .then((submitted) => {
+          if (!submitted) return
+          setState((s) => ({
+            ...s,
+            tasks: s.tasks.map((t) =>
+              t.id === taskId && t.state === 'running' ? { ...submitted, executor: 'main' } : t,
+            ),
+          }))
+        })
+      setPlatformsOpen(false)
+      notify(`正在为 ${todo.length} 个平台生成版本；已有平台稿会保留。`)
       return
     }
     const originals = Object.fromEntries(platforms.map((p) => [p, project.drafts[p]?.body]))
@@ -683,9 +952,101 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     setComposer((current) => (current.trim() ? current : '请结合这段内容，帮我继续梳理。'))
     window.dispatchEvent(new Event('studio:open-agent'))
   }
+  function answerAsk(answer: string) {
+    if (!aiAsk) return
+    void persistence.ai?.answer(aiAsk.questionId, answer)
+    setAiAsk(null)
+  }
+  function cancelAi() {
+    for (const key of [...aiRuns.current.keys()]) void persistence.ai?.cancel(key)
+  }
+  function refreshAiConfig() {
+    void persistence.ai?.configGet().then((view) => setAiReady(Boolean(view)))
+  }
+  /** pi 对话：先落用户消息与空回复占位，再发送；事件按会话键回流（并发 1，一键一运行）。 */
+  function sendAiMessage(text: string): void {
+    const ai = persistence.ai
+    if (!ai) return
+    const discovery = ['hotspots', 'sources'].includes(state.page)
+    const conversationId = discovery ? state.activeDiscovery : project.activeConversation
+    const messageId = uid()
+    const target: AiRunTarget = {
+      discovery,
+      projectId: discovery ? '' : project.id,
+      conversationId,
+      messageId,
+    }
+    const blocks: string[] = []
+    if (discovery) {
+      const topic = topics.find((t) => t.id === state.selectedTopic)
+      const angle = topic ? state.topicDrafts[topic.id]?.angle : undefined
+      if (topic) blocks.push(`当前热点：${topic.title}${angle ? `\n角度：${angle}` : ''}`)
+    } else {
+      const draft = project.drafts[project.activePlatform] ?? project.drafts.master
+      if (draft?.body.trim())
+        blocks.push(
+          `当前文稿（${platformName(project.activePlatform)}）片段：\n${draft.body.slice(0, 1500)}`,
+        )
+      if (project.creation?.input?.trim())
+        blocks.push(`原始记录：\n${project.creation.input.slice(0, 1200)}`)
+      if (context) blocks.push(`引用（${context.label}）：\n${context.text.slice(0, 800)}`)
+      if (project.brief.point.trim()) blocks.push(`核心观点：${project.brief.point}`)
+    }
+    const prompt = [...blocks, text].join('\n\n')
+    const sessionKey = discovery ? `d:${conversationId}` : `p:${project.id}`
+    const userMessage = {
+      id: uid(),
+      role: 'user' as const,
+      text: context ? `引用：${context.label}\n「${context.text}」\n\n${text}` : text,
+      at: now(),
+    }
+    const placeholder = { id: messageId, role: 'assistant' as const, text: '', at: now() }
+    if (discovery) {
+      setState((s) => ({
+        ...s,
+        discoveryConversations: s.discoveryConversations.map((c) =>
+          c.id === conversationId ? { ...c, messages: [...c.messages, userMessage, placeholder] } : c,
+        ),
+      }))
+    } else {
+      patchProject(project.id, (p) => ({
+        ...p,
+        conversations: p.conversations.map((c) =>
+          c.id === conversationId
+            ? {
+                ...c,
+                title: c.messages.length ? c.title : text.slice(0, 14),
+                messages: [...c.messages, userMessage, placeholder],
+              }
+            : c,
+        ),
+      }))
+    }
+    setComposer('')
+    setContext(null)
+    setAiBusy(true)
+    aiRuns.current.set(sessionKey, target)
+    void ai.send(sessionKey, prompt).then((result) => {
+      if (result.ok) return
+      aiRuns.current.delete(sessionKey)
+      setAiBusy(false)
+      const message =
+        result.code === 'NO_MODEL_CONFIG'
+          ? '尚未配置模型，请到「设置 → AI 服务」配置。'
+          : result.code === 'AGENT_BUSY'
+            ? '已有对话在运行，请等待完成或先取消。'
+            : (result.message ?? '发送失败。')
+      mutateAiMessage(target, () => ({ text: `（${message}）` }))
+      notify(message)
+    })
+  }
   function sendMessage() {
     const text = composer.trim()
     if (!text) return
+    if (aiReady && persistence.ai) {
+      sendAiMessage(text)
+      return
+    }
     if (['hotspots', 'sources'].includes(state.page)) {
       const threadId = state.activeDiscovery
       const topic = topics.find((t) => t.id === state.selectedTopic)
@@ -961,6 +1322,12 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         task,
         controlTask,
         failTask,
+        aiReady,
+        aiBusy,
+        aiAsk,
+        answerAsk,
+        cancelAi,
+        refreshAiConfig,
         reference,
       }}
     >

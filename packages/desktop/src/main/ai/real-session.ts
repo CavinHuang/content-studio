@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { ModelConfig } from '../../shared/desktop'
 import { piAgentDir, sessionDirFor, writePiModelsJson } from './model-config'
@@ -68,6 +68,31 @@ export function buildCreatePiSession(): CreatePiSession {
   }
 }
 
+/** pi 以 cwd 的 AGENTS.md 承载系统提示——写入内容助手人设，替代默认编码助手。 */
+async function ensureWorkspacePrompt(cwd: string): Promise<void> {
+  const file = path.join(cwd, 'AGENTS.md')
+  const prompt = [
+    '# 角色',
+    '你是「Content Studio」的中文内容创作助手，服务于独立创作者。',
+    '',
+    '# 铁律',
+    '- 不虚构事实；只依据对话中提供的材料与上下文。',
+    '- 不替作者编造观点或经历；作者没写的经验不要补写。',
+    '- 对文稿的修改建议必须经 write_suggestion 工具提交（original 必须逐字来自正文）。',
+    '- 完整初稿/改写稿必须经 write_master_draft 工具提交候选；绝不声称已直接修改正文。',
+    '- 拿不准创作方向、取舍或事实时，先用 ask_user 问作者。',
+    '',
+    '# 风格',
+    '- 简体中文；简明、具体、有观点但不越界；先给判断再给理由。',
+    '- 回复保持简短；大段产出走工具，不刷屏。',
+  ].join('\n')
+  try {
+    await writeFile(file, prompt, 'utf8')
+  } catch {
+    // 已存在或不可写时沿用现状；不阻塞会话创建。
+  }
+}
+
 /**
  * 真实 pi 会话工厂：sessionKey（'p:<项目>'/'d:<发现>'/'gen:<任务>'）绑定独立会话目录，
  * continueRecent 续聊；cwd 为统一 ai-workspace（状态模型无文件库，上下文由渲染端注入 prompt）。
@@ -82,6 +107,7 @@ export function createRealSessionFactory(
     const userDataDir = deps.userDataDir()
     const cwd = path.join(userDataDir, 'ai-workspace')
     await mkdir(cwd, { recursive: true })
+    await ensureWorkspacePrompt(cwd)
     const sessionDir = sessionDirFor(userDataDir, sessionKey)
     await mkdir(sessionDir, { recursive: true })
     const agentDir = piAgentDir(userDataDir)
