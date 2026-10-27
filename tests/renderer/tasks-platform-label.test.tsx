@@ -53,6 +53,7 @@ async function mount(tasks: Task[]) {
     ai: null,
     discovery: null,
     publish: null,
+    video: null,
     async load() {
       return { workspace: makeState(tasks) }
     },

@@ -226,6 +226,49 @@ export type RedbookDraftInput = {
 }
 export type RedbookDraftResult = { ok: boolean; taskId?: string; code?: string; message?: string }
 
+export const VIDEO_CHANNELS = {
+  exportOpenFolder: 'studio:video:export:open-folder',
+  ttsConfigGet: 'studio:video:tts:config:get',
+  ttsConfigSet: 'studio:video:tts:config:set',
+  ttsConfigClear: 'studio:video:tts:config:clear',
+  mediaRead: 'studio:video:media:read',
+} as const
+
+/** P5 视频导出任务入参：分镜按已采用版本与素材快照冻结后随任务提交（§12 快照语义）。 */
+export type VideoExportShot = {
+  id: string
+  title: string
+  subtitle?: string
+  /** 图片 data URL（内置插画或素材图）；缺省为纯文字分镜。 */
+  image?: string
+  /** 分镜时长（毫秒）。 */
+  durationMs: number
+}
+export type VideoExportPayload = {
+  videoId: string
+  version: number
+  title: string
+  fps: number
+  width: number
+  height: number
+  shots: VideoExportShot[]
+}
+/** 语音服务配置（OpenAI 兼容 /audio/speech）：可与模型服务同 provider，也可独立。 */
+export type TtsConfigInput = { baseUrl: string; apiKey: string; modelId: string; voice: string }
+export type TtsConfigView = {
+  baseUrl: string
+  modelId: string
+  voice: string
+  hasKey: boolean
+  apiKeyTail: string
+  /** safeStorage 不可用时的明文降级警示（Linux 常见）。 */
+  plain?: boolean
+}
+export type ExportFolderResult = { ok: boolean; message?: string }
+/** 配音音频读取：data 为音频字节（mp3），渲染端用 Blob 播放并用 Audio 解码测时长。 */
+export type VideoMediaView = { ok: true; mime: string; data: Uint8Array } | { ok: false; message: string }
+
+
 export interface DesktopAPI {
   getAppInfo(): Promise<AppInfo>
   openDesigns(): Promise<{ ok: boolean; message?: string }>
@@ -260,4 +303,9 @@ export interface DesktopAPI {
   publishRedbookOpenSession(): Promise<RedbookSessionView>
   publishRedbookLoginState(): Promise<RedbookSessionView>
   publishRedbookInjectDraft(input: RedbookDraftInput): Promise<RedbookDraftResult>
+  videoExportOpenFolder(): Promise<ExportFolderResult>
+  ttsConfigGet(): Promise<TtsConfigView | null>
+  ttsConfigSet(input: TtsConfigInput): Promise<TtsConfigView>
+  ttsConfigClear(): Promise<{ ok: boolean }>
+  videoMediaRead(mediaId: string): Promise<VideoMediaView>
 }

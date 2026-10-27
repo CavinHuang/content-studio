@@ -22,6 +22,8 @@ import {
   WORKSPACE_KEY,
   type DiscoverySnapshot,
   type Persistence,
+  type TtsConfigView,
+  type VideoMediaView,
   type WechatConfigView,
 } from './persistence'
 import {
@@ -205,8 +207,27 @@ export type Store = {
     complete?: (state: StudioState) => StudioState,
     extra?: Partial<Task>,
   ) => string
+  /** 主进程执行器任务（P5 视频导出/配音等）：提交后由主进程驱动进度与结算。 */
+  submitMainTask: (input: {
+    kind: Task['kind']
+    title: string
+    detail: string
+    payload?: unknown
+    extra?: Partial<Task>
+  }) => string
   controlTask: (id: string, action: 'stop' | 'retry') => void
   failTask: (id: string, detail: string) => void
+  /** P5 视频桥是否可用（dev:web 本地降级为 false，导出/配音保留演示文案）。 */
+  videoAvailable: boolean
+  ttsReady: boolean
+  ttsConfig: TtsConfigView | null
+  refreshTtsConfig: () => void
+  saveTtsConfig: (input: { baseUrl: string; apiKey: string; modelId: string; voice: string }) => Promise<{ ok: boolean; message: string }>
+  clearTtsConfig: () => Promise<void>
+  /** 打开本机导出文件夹（userData/exports）。 */
+  openExportsFolder: () => Promise<void>
+  /** 读取配音音频字节（渲染端 Blob 播放 + Audio 解码测时长）；本地降级返回 null。 */
+  readVideoMedia: (mediaId: string) => Promise<VideoMediaView | null>
   aiReady: boolean
   aiBusy: boolean
   aiAsk: { questionId: string; question: string; options?: string[] } | null
@@ -285,6 +306,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   const [aiAsk, setAiAsk] = useState<{ questionId: string; question: string; options?: string[] } | null>(null)
   const [angleBusy, setAngleBusy] = useState<Record<string, boolean>>({})
   const [wechatConfig, setWechatConfig] = useState<WechatConfigView | null>(null)
+  const [ttsConfig, setTtsConfig] = useState<TtsConfigView | null>(null)
   const [redbookLogin, setRedbookLogin] = useState<{ state: 'unknown' | 'loggedIn' | 'notLoggedIn'; message?: string }>(
     { state: 'unknown' },
   )
@@ -471,6 +493,23 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => {
         if (!cancelled) setWechatConfig(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [persistence])
+  // P5 视频桥：启动时拉取语音服务脱敏视图（未配置/本地降级均按 null 处理）。
+  useEffect(() => {
+    const video = persistence.video
+    if (!video) return
+    let cancelled = false
+    void video
+      .ttsConfigGet()
+      .then((view) => {
+        if (!cancelled) setTtsConfig(view)
+      })
+      .catch(() => {
+        if (!cancelled) setTtsConfig(null)
       })
     return () => {
       cancelled = true
@@ -776,6 +815,55 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     scheduleCompletion(id, complete)
     return id
   }
+  /** 主进程执行器任务：本地列表先落 running 占位，提交后由主进程真实驱动（进度/结算）。 */
+  function submitMainTask(input: {
+    kind: Task['kind']
+    title: string
+    detail: string
+    payload?: unknown
+    extra?: Partial<Task>
+  }) {
+    const id = uid()
+    startedRuns.current.add(id)
+    setState((s) => ({
+      ...s,
+      tasks: [
+        {
+          id,
+          title: input.title,
+          detail: input.detail,
+          projectId: project.id,
+          state: 'running',
+          kind: input.kind,
+          at: now(),
+          executor: 'main',
+          ...(input.extra ?? {}),
+        },
+        ...s.tasks,
+      ],
+    }))
+    void persistence
+      .taskSubmit({
+        id,
+        kind: input.kind,
+        executor: 'main',
+        title: input.title,
+        detail: input.detail,
+        projectId: project.id,
+        payload: input.payload,
+        extra: { version: input.extra?.version, videoId: input.extra?.videoId, snapshot: input.extra?.snapshot },
+      })
+      .then((task) => {
+        if (!task) return
+        setState((s) => ({
+          ...s,
+          tasks: s.tasks.some((t) => t.id === task.id)
+            ? s.tasks.map((t) => (t.id === task.id && t.state === 'running' ? { ...task, executor: 'main' } : t))
+            : [task, ...s.tasks],
+        }))
+      })
+    return id
+  }
   function failTask(id: string, detail: string) {
     void persistence.taskSettle(id, { state: 'failed', detail })
   }
@@ -811,7 +899,11 @@ export function StudioProvider({ children }: { children: ReactNode }) {
               ? (target.payload as { platform?: unknown } | undefined)?.platform === 'redbook'
                 ? '已重新发起小红书草稿注入任务，原失败记录保留。'
                 : '已重新发起存草稿任务，原失败记录保留。'
-              : '已创建一次演示重试，原失败记录保留。视频仍需单独导出文件。',
+              : target.kind === 'export'
+                ? '已重新发起视频导出任务，原失败记录保留。'
+                : target.kind === 'voice'
+                  ? '已重新发起配音生成，原失败记录保留。'
+                  : '已创建一次演示重试，原失败记录保留。',
       )
     }
   }
@@ -1370,6 +1462,49 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     notify(outcome.message)
     return outcome
   }
+  // —— P5 视频域动作：语音服务配置、导出文件夹、配音媒体读取 ——
+  function refreshTtsConfig() {
+    const video = persistence.video
+    if (!video) return
+    void video
+      .ttsConfigGet()
+      .then((view) => setTtsConfig(view))
+      .catch(() => setTtsConfig(null))
+  }
+  async function saveTtsConfig(input: { baseUrl: string; apiKey: string; modelId: string; voice: string }) {
+    const video = persistence.video
+    if (!video) return { ok: false, message: '浏览器预览不支持语音服务配置，请在桌面应用中配置。' }
+    try {
+      const view = await video.ttsConfigSet(input)
+      setTtsConfig(view)
+      return { ok: true, message: '语音服务配置已保存。' }
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : '保存失败，请重试。' }
+    }
+  }
+  async function clearTtsConfig() {
+    await persistence.video?.ttsConfigClear()
+    setTtsConfig(null)
+    notify('已清除语音服务配置；视频配音回到本地演示。')
+  }
+  async function openExportsFolder() {
+    const video = persistence.video
+    if (!video) {
+      notify('浏览器预览不支持打开导出文件夹，请使用桌面应用导出。')
+      return
+    }
+    const result = await video.openExportsFolder().catch(() => ({ ok: false as const, message: '打开失败。' }))
+    if (!result.ok) notify(result.message ?? '打开导出文件夹失败，请稍后重试。')
+  }
+  async function readVideoMedia(mediaId: string) {
+    const video = persistence.video
+    if (!video) return null
+    try {
+      return await video.readMedia(mediaId)
+    } catch {
+      return null
+    }
+  }
   /** pi 对话：先落用户消息与空回复占位，再发送；事件按会话键回流（并发 1，一键一运行）。 */
   function sendAiMessage(text: string): void {
     const ai = persistence.ai
@@ -1727,8 +1862,17 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         sendMessage,
         resolveSuggestion,
         task,
+        submitMainTask,
         controlTask,
         failTask,
+        videoAvailable: persistence.video !== null,
+        ttsReady: Boolean(ttsConfig?.baseUrl && ttsConfig?.modelId && ttsConfig?.voice && ttsConfig.hasKey),
+        ttsConfig,
+        refreshTtsConfig,
+        saveTtsConfig,
+        clearTtsConfig,
+        openExportsFolder,
+        readVideoMedia,
         aiReady,
         aiBusy,
         aiAsk,

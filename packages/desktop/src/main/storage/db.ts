@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 
-export const DB_VERSION = 5
+export const DB_VERSION = 6
 
 export function openDatabase(path: string): DatabaseSync {
   const db = new DatabaseSync(path)
@@ -101,6 +101,20 @@ export function migrate(db: DatabaseSync): void {
         id INTEGER PRIMARY KEY CHECK (id = 1),
         appId TEXT NOT NULL,
         secretEnc BLOB,
+        plain INTEGER NOT NULL DEFAULT 0,
+        updated TEXT NOT NULL
+      );
+    `)
+  }
+  if (current < 6) {
+    // P5 语音服务配置：照 ai_config/wechat_config 模式，key 经 safeStorage 加密存 BLOB。
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS tts_config (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        baseUrl TEXT NOT NULL,
+        modelId TEXT NOT NULL,
+        voice TEXT NOT NULL,
+        apiKeyEnc BLOB,
         plain INTEGER NOT NULL DEFAULT 0,
         updated TEXT NOT NULL
       );

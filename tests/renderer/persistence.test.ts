@@ -7,6 +7,7 @@ import type {
   TaskRecord,
   TaskSettle,
   TaskSubmitPayload,
+  TtsConfigView,
   WechatConfigInput,
   WechatConfigView,
 } from '../../packages/desktop/src/shared/desktop'
@@ -165,6 +166,38 @@ class FakeBridge implements DesktopAPI {
     this.redbookCalls.push('inject')
     return { ok: true, taskId: 't4' }
   }
+  // P5 视频通道桩：语音配置（脱敏视图）、导出文件夹、配音媒体读取。
+  savedTts: Array<Parameters<DesktopAPI['ttsConfigSet']>[0]> = []
+  ttsView: TtsConfigView | null = null
+  ttsConfigGet: DesktopAPI['ttsConfigGet'] = async function (this: FakeBridge) {
+    return this.ttsView
+  }
+  ttsConfigSet: DesktopAPI['ttsConfigSet'] = async function (this: FakeBridge, input) {
+    this.savedTts.push(input)
+    const view: TtsConfigView = {
+      baseUrl: input.baseUrl,
+      modelId: input.modelId,
+      voice: input.voice,
+      hasKey: true,
+      apiKeyTail: input.apiKey.slice(-4),
+    }
+    this.ttsView = view
+    return view
+  }
+  ttsConfigClear: DesktopAPI['ttsConfigClear'] = async function (this: FakeBridge) {
+    this.ttsView = null
+    return { ok: true }
+  }
+  exportFolderCalls: string[] = []
+  videoExportOpenFolder: DesktopAPI['videoExportOpenFolder'] = async function (this: FakeBridge) {
+    this.exportFolderCalls.push('open')
+    return { ok: true }
+  }
+  videoMediaRead: DesktopAPI['videoMediaRead'] = async (mediaId: string) => ({
+    ok: true as const,
+    mime: 'audio/mpeg',
+    data: new Uint8Array([1, 2, 3, mediaId.length]),
+  })
   private emit(event: TaskEvent) {
     for (const listener of this.listeners) listener(event)
   }
@@ -325,4 +358,23 @@ test('desktop 模式：publish 桥映射小红书会话三通道，local 模式�
     publish.redbookInjectDraft({ projectId: 'p1', title: '标题', body: '正文', tags: '#话题' }),
   ).resolves.toMatchObject({ ok: true, taskId: 't4' })
   expect(bridge.redbookCalls).toEqual(['login', 'open', 'inject'])
+})
+
+test('desktop 模式：video 桥映射语音配置/导出文件夹/媒体读取，local 模式为 null', async () => {
+  const bridge = new FakeBridge()
+  const desktop = createDesktopPersistence(bridge)
+  const video = desktop.video!
+  expect(createLocalPersistence().video).toBeNull()
+  expect(await video.ttsConfigGet()).toBeNull()
+  const view = await video.ttsConfigSet({ baseUrl: 'http://127.0.0.1:9/v1', apiKey: 'sk-voice-8888', modelId: 'tts', voice: 'alloy' })
+  expect(view).toMatchObject({ baseUrl: 'http://127.0.0.1:9/v1', voice: 'alloy', hasKey: true, apiKeyTail: '8888' })
+  expect(bridge.savedTts).toHaveLength(1)
+  await video.ttsConfigClear()
+  expect(await video.ttsConfigGet()).toBeNull()
+  await expect(video.openExportsFolder()).resolves.toEqual({ ok: true })
+  expect(bridge.exportFolderCalls).toEqual(['open'])
+  await expect(video.readMedia('01234567-89ab-cdef-0123-456789abcdef')).resolves.toMatchObject({
+    ok: true,
+    mime: 'audio/mpeg',
+  })
 })

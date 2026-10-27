@@ -60,6 +60,8 @@ export type Shot = {
   end: number
   image: string
   voiceDirty: boolean
+  /** P5 语音配音：已生成音频的引用（音频文件存主进程媒体目录，时长已回填 seconds）。 */
+  voiceAudio?: { mediaId: string; bytes: number; at: string }
 }
 export type VideoVersion = {
   number: number
@@ -205,7 +207,7 @@ export type Task = {
   detail: string
   projectId: string
   state: 'queued' | 'running' | 'failed' | 'stopped' | 'complete'
-  kind: 'agent' | 'export' | 'source' | 'creation' | 'publish'
+  kind: 'agent' | 'export' | 'source' | 'creation' | 'publish' | 'voice'
   at: string
   version?: number
   videoId?: string
@@ -213,6 +215,8 @@ export type Task = {
   executor?: 'main' | 'renderer'
   payload?: unknown
   result?: unknown
+  /** 主进程执行器上报的真实进度（如「已渲染 N/总帧」；无伪百分比）。 */
+  progress?: string
   /** 主进程执行器如实回传的失败原因（kind 'publish' 等真实任务）。 */
   error?: string
 }

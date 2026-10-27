@@ -27,6 +27,11 @@ import { createRedbookPublishAdapter } from './publish/redbook/inject-job'
 import { resolveRedbookEditorConfig } from './publish/redbook/policy'
 import { createRedbookService } from './publish/redbook/service'
 import { RedbookSession } from './publish/redbook/session'
+import { createExportExecutor } from './render/export-job'
+import { buildVideoHandlers } from './render/handlers'
+import { registerVideoHandlers } from './render/ipc'
+import { createVoiceExecutor } from './render/tts-job'
+import { getTtsConfig } from './render/tts-config'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -199,6 +204,35 @@ void app.whenReady().then(() => {
     guard,
   )
   app.on('will-quit', () => redbookSession.close())
+  // P5 视频链装配：Remotion 真实导出（kind 'export'）+ 语音配音（kind 'voice'）走任务系统。
+  // STUDIO_RENDER_ENTRY：e2e/联调显式覆盖组合入口路径（缺省为应用目录内 remotion/index.tsx；
+  // 入口缺失时执行器如实失败——精简安装包不含渲染组件的诚实降级）。
+  // STUDIO_TTS_API_BASE：e2e/本地 stub 钩子，覆盖语音服务官方地址（生产不设即走配置地址）。
+  const renderEntry = process.env.STUDIO_RENDER_ENTRY || join(app.getAppPath(), 'remotion', 'index.tsx')
+  const exportsDir = () => join(app.getPath('userData'), 'exports')
+  const mediaDir = () => join(app.getPath('userData'), 'media')
+  services.runner.registerExecutor(
+    'export',
+    createExportExecutor({ entryPoint: () => renderEntry, exportsDir }),
+  )
+  services.runner.registerExecutor(
+    'voice',
+    createVoiceExecutor({
+      getConfig: () => getTtsConfig(services.db, aiCrypto),
+      mediaDir,
+      ...(process.env.STUDIO_TTS_API_BASE ? { baseUrl: process.env.STUDIO_TTS_API_BASE } : {}),
+    }),
+  )
+  registerVideoHandlers(
+    buildVideoHandlers({
+      db: services.db,
+      crypto: aiCrypto,
+      exportsDir,
+      mediaDir,
+      openPath: (path) => shell.openPath(path),
+    }),
+    guard,
+  )
   // 上一次会话中断的任务不允许保留假 running 状态。
   services.runner.recover()
   ipcMain.handle(DESKTOP_CHANNELS.dbLoad, (event) => {

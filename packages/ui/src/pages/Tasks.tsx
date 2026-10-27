@@ -154,7 +154,11 @@ export function TasksPage() {
                     ? isRedbookPublish(task)
                       ? ' · 平台草稿注入'
                       : ' · 官方草稿箱'
-                    : ' · 本机演示'}
+                    : task.kind === 'export'
+                      ? ' · 视频导出'
+                      : task.kind === 'voice'
+                        ? ' · 语音配音'
+                        : ' · 本机演示'}
               </span>
               {task.error && task.state === 'failed' && task.error !== task.detail && (
                 <p className="small-meta text-destructive">{task.error}</p>
@@ -194,7 +198,7 @@ export function TasksPage() {
                     <RefreshCw size={14} />
                     {task.kind === 'creation'
                       ? '继续整理'
-                      : task.kind === 'source' || task.kind === 'publish'
+                      : task.kind === 'source' || task.kind === 'publish' || task.kind === 'export' || task.kind === 'voice'
                         ? '重试'
                         : '重试演示'}
                     </Button>
@@ -205,15 +209,14 @@ export function TasksPage() {
                       onClick={() => {
                         const video = task.snapshot
                         if (!video) {
-                          notify('这条历史演示没有完整快照，请从视频工作区重新导出制作清单。')
+                          notify('这条任务没有完整快照，请从视频工作区重新导出制作清单。')
                           return
                         }
                         download(
-                          `${video.title}-演示任务-${new Date().toISOString().slice(0, 10)}.json`,
+                          `${video.title}-制作清单-${new Date().toISOString().slice(0, 10)}.json`,
                           JSON.stringify(
                             {
-                              mock: true,
-                              note: '制作清单，未生成 MP4。',
+                              note: '视频制作清单（脚本、镜头与设置快照）；MP4 成片见导出目录。',
                               task,
                               video,
                             },

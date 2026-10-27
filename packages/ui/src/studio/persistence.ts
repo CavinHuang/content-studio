@@ -10,6 +10,7 @@ import type {
   DiscoverySnapshot,
   DiscoverySource,
   DiscoverySourceInput,
+  ExportFolderResult,
   TaskEvent,
   TaskExtra,
   TaskRecord,
@@ -17,6 +18,9 @@ import type {
   RedbookDraftInput,
   RedbookDraftResult,
   RedbookSessionView,
+  TtsConfigInput,
+  TtsConfigView,
+  VideoMediaView,
   WechatConfigInput,
   WechatConfigView,
   WechatDraftInput,
@@ -28,6 +32,8 @@ import type {
 export type { AiEvent }
 export type { DiscoverySnapshot }
 export type { WechatConfigView }
+export type { TtsConfigView }
+export type { VideoMediaView }
 export { KEEP_WECHAT_SECRET } from '../../../desktop/src/shared/desktop'
 import type { StudioState, Task } from './types'
 
@@ -81,6 +87,15 @@ export type PublishBridge = {
   redbookInjectDraft(input: RedbookDraftInput): Promise<RedbookDraftResult>
 }
 
+/** P5 视频桥：语音服务配置（脱敏）、导出文件夹、配音媒体读取；本地降级模式为 null。 */
+export type VideoBridge = {
+  ttsConfigGet(): Promise<TtsConfigView | null>
+  ttsConfigSet(input: TtsConfigInput): Promise<TtsConfigView>
+  ttsConfigClear(): Promise<{ ok: boolean }>
+  openExportsFolder(): Promise<ExportFolderResult>
+  readMedia(mediaId: string): Promise<VideoMediaView>
+}
+
 export type Persistence = {
   mode: 'desktop' | 'local'
   /** dev:web 无桌面桥，AI 通道不存在（走本地演示路径）。 */
@@ -89,6 +104,8 @@ export type Persistence = {
   discovery: DiscoveryBridge | null
   /** dev:web 无桌面桥，公众号草稿箱不可用（复制/下载演示交付保留）。 */
   publish: PublishBridge | null
+  /** dev:web 无桌面桥，视频导出/语音配音不可用（本地演示保留）。 */
+  video: VideoBridge | null
   load(): Promise<{ workspace: StudioState | null }>
   save(state: StudioState): Promise<{ ok: boolean }>
   taskList(): Promise<Task[]>
@@ -111,6 +128,8 @@ function toTask(record: TaskRecord): Task {
   if (record.executor) task.executor = record.executor
   if (record.error !== undefined) task.error = record.error
   if (record.payload !== undefined) task.payload = record.payload
+  if (record.progress !== undefined) task.progress = record.progress
+  if (record.result !== undefined) task.result = record.result
   if (record.extra?.version !== undefined) task.version = record.extra.version
   if (record.extra?.videoId !== undefined) task.videoId = record.extra.videoId
   if (record.extra?.snapshot !== undefined) task.snapshot = record.extra.snapshot as Task['snapshot']
@@ -157,6 +176,13 @@ export function createDesktopPersistence(desktop: DesktopAPI): Persistence {
       redbookOpenSession: () => desktop.publishRedbookOpenSession(),
       redbookLoginState: () => desktop.publishRedbookLoginState(),
       redbookInjectDraft: (input) => desktop.publishRedbookInjectDraft(input),
+    },
+    video: {
+      ttsConfigGet: () => desktop.ttsConfigGet(),
+      ttsConfigSet: (input) => desktop.ttsConfigSet(input),
+      ttsConfigClear: () => desktop.ttsConfigClear(),
+      openExportsFolder: () => desktop.videoExportOpenFolder(),
+      readMedia: (mediaId) => desktop.videoMediaRead(mediaId),
     },
     async load() {
       const result = await desktop.dbLoad()
@@ -298,6 +324,7 @@ export function createLocalPersistence(): Persistence {
     ai: null,
     discovery: null,
     publish: null,
+    video: null,
     async load() {
       try {
         const saved = JSON.parse(localStorage.getItem(WORKSPACE_KEY) ?? 'null') as StudioState | null

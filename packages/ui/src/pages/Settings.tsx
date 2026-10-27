@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input'
 import { NativeSelect } from '@/components/ui/native-select'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ArrowDownToLine,
   ArrowLeft,
@@ -29,6 +29,7 @@ import { useStudio } from '../studio/store'
 import { seedState } from '../studio/mock'
 import { recoverCreation } from '../studio/creation'
 import { PLATFORMS, type Platform, type StudioState } from '../studio/types'
+
 export function SettingsPage() {
   const {
     state,
@@ -42,6 +43,10 @@ export function SettingsPage() {
     saveAiConfig,
     testAiConnection,
     clearAiConfig,
+    ttsReady,
+    ttsConfig,
+    saveTtsConfig,
+    clearTtsConfig,
   } = useStudio()
   const [tab, setTab] = useState('AI 服务')
   const [aiBaseUrl, setAiBaseUrl] = useState('')
@@ -61,6 +66,23 @@ export function SettingsPage() {
       }
     })
   }, [])
+  // 语音服务（P5）：字段随脱敏视图回填一次（key 只显尾号，不回显明文）。
+  const [ttsBaseUrl, setTtsBaseUrl] = useState('')
+  const [ttsModelId, setTtsModelId] = useState('')
+  const [ttsVoice, setTtsVoice] = useState('')
+  const [ttsKey, setTtsKey] = useState('')
+  const [ttsKeyTail, setTtsKeyTail] = useState('')
+  const [showTtsKey, setShowTtsKey] = useState(false)
+  const [ttsSaving, setTtsSaving] = useState(false)
+  const ttsPrefilled = useRef(false)
+  useEffect(() => {
+    if (!ttsConfig || ttsPrefilled.current) return
+    ttsPrefilled.current = true
+    setTtsBaseUrl(ttsConfig.baseUrl)
+    setTtsModelId(ttsConfig.modelId)
+    setTtsVoice(ttsConfig.voice)
+    setTtsKeyTail(ttsConfig.apiKeyTail)
+  }, [ttsConfig])
   const [reset, setReset] = useState(false)
   const [imported, setImported] = useState<StudioState | null>(null)
   const [importError, setImportError] = useState('')
@@ -233,9 +255,126 @@ export function SettingsPage() {
                 </div>
                 {aiTestMessage && <p className="service-note">{aiTestMessage}</p>}
               </Card>
+              <Card className="service-card gap-3 p-3" role="article">
+                <div className="service-heading mb-0">
+                  <span className="service-icon">
+                    <Mic size={22} />
+                  </span>
+                  <div>
+                    <h3>语音服务</h3>
+                    <p>OpenAI 兼容语音接口（audio/speech）；视频分镜配音用，可与模型服务同 provider</p>
+                  </div>
+                  <Badge tone={ttsReady ? 'green' : 'neutral'}>{ttsReady ? '已配置' : '未配置'}</Badge>
+                </div>
+                <div className="form-grid">
+                  <Field label="服务地址">
+                    <Input
+                      placeholder="https://api.example.com/v1"
+                      value={ttsBaseUrl}
+                      onChange={(e) => setTtsBaseUrl(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="模型 ID">
+                    <Input
+                      placeholder="tts-model"
+                      value={ttsModelId}
+                      onChange={(e) => setTtsModelId(e.target.value)}
+                    />
+                  </Field>
+                </div>
+                {aiBaseUrl && ttsBaseUrl !== aiBaseUrl && (
+                  <Button
+                    className=" text-muted-foreground"
+                    onClick={() => {
+                      setTtsBaseUrl(aiBaseUrl)
+                      notify('已沿用模型服务的地址；语音服务可与模型服务同 provider。')
+                    }}
+                    variant="ghost"
+                    size="sm"
+                  >
+                    沿用模型服务地址（同 provider）
+                  </Button>
+                )}
+                <div className="form-grid">
+                  <Field label="音色">
+                    <Input
+                      placeholder="alloy"
+                      value={ttsVoice}
+                      onChange={(e) => setTtsVoice(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="API Key（加密保存在本机，不会在界面回显）">
+                    <div className="secret-field">
+                      <Input
+                        autoComplete="off"
+                        type={showTtsKey ? 'text' : 'password'}
+                        value={ttsKey}
+                        onChange={(e) => setTtsKey(e.target.value)}
+                        placeholder={ttsKeyTail ? `已保存，尾号 ${ttsKeyTail}；留空则沿用` : 'sk-…'}
+                      />
+                      <Button
+                        aria-label={showTtsKey ? '隐藏密钥' : '显示密钥'}
+                        onClick={() => setShowTtsKey(!showTtsKey)}
+                        variant="ghost"
+                        size="icon"
+                      >
+                        {showTtsKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </Button>
+                    </div>
+                  </Field>
+                </div>
+                <div className="service-controls">
+                  <Button
+                    disabled={
+                      ttsSaving ||
+                      !ttsBaseUrl.trim() ||
+                      !ttsModelId.trim() ||
+                      !ttsVoice.trim() ||
+                      (!ttsKey.trim() && !ttsKeyTail)
+                    }
+                    onClick={async () => {
+                      setTtsSaving(true)
+                      const result = await saveTtsConfig({
+                        baseUrl: ttsBaseUrl,
+                        modelId: ttsModelId,
+                        voice: ttsVoice,
+                        apiKey: ttsKey.trim() ? ttsKey : '__KEEP__',
+                      })
+                      setTtsSaving(false)
+                      setTtsKey('')
+                      notify(result.message)
+                    }}
+                    size="default"
+                  >
+                    {ttsSaving ? '保存中…' : '保存配置'}
+                  </Button>
+                  {ttsReady && (
+                    <Button
+                      variant="ghost"
+                      size="default"
+                      onClick={async () => {
+                        await clearTtsConfig()
+                        setTtsKeyTail('')
+                        setTtsKey('')
+                        setTtsBaseUrl('')
+                        setTtsModelId('')
+                        setTtsVoice('')
+                        ttsPrefilled.current = false
+                      }}
+                    >
+                      清除配置
+                    </Button>
+                  )}
+                </div>
+                <p className="service-note">
+                  {ttsReady
+                    ? '已启用语音服务：分镜「更新所选镜头配音」生成真实音频并按音频时长回填镜头。'
+                    : '未配置语音服务：视频配音保持本地演示，不影响其他功能。'}
+                </p>
+              </Card>
               <div className="settings-section">
                 <h2>其他服务</h2>
-                <p>图片与视觉、配音与声音服务尚未接入；相关界面仍为本地演示，接入后将在此处配置。</p>
+                <p>图片与视觉服务尚未接入；相关界面仍为本地演示，接入后将在此处配置。</p>
               </div>
             </>
           )}

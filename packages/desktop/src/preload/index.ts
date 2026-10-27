@@ -4,6 +4,7 @@ import {
   DESKTOP_CHANNELS,
   DISCOVERY_CHANNELS,
   PUBLISH_CHANNELS,
+  VIDEO_CHANNELS,
   type AiConfigInput,
   type AiConfigView,
   type AiEvent,
@@ -13,6 +14,7 @@ import {
   type DiscoveryEvent,
   type DiscoverySourceInput,
   type TaskEvent,
+  type TtsConfigInput,
   type WechatConfigInput,
 } from '../shared/desktop'
 
@@ -64,6 +66,11 @@ const desktop: DesktopAPI = {
   publishRedbookLoginState: () => ipcRenderer.invoke(PUBLISH_CHANNELS.redbookLoginState),
   publishRedbookInjectDraft: (input: Parameters<DesktopAPI['publishRedbookInjectDraft']>[0]) =>
     ipcRenderer.invoke(PUBLISH_CHANNELS.redbookInjectDraft, input),
+  videoExportOpenFolder: () => ipcRenderer.invoke(VIDEO_CHANNELS.exportOpenFolder),
+  ttsConfigGet: () => ipcRenderer.invoke(VIDEO_CHANNELS.ttsConfigGet),
+  ttsConfigSet: (input: TtsConfigInput) => ipcRenderer.invoke(VIDEO_CHANNELS.ttsConfigSet, input),
+  ttsConfigClear: () => ipcRenderer.invoke(VIDEO_CHANNELS.ttsConfigClear),
+  videoMediaRead: (mediaId: string) => ipcRenderer.invoke(VIDEO_CHANNELS.mediaRead, mediaId),
 }
 
 contextBridge.exposeInMainWorld('desktop', desktop)

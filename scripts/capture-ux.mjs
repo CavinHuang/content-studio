@@ -9,6 +9,8 @@ const env = {
   ...process.env,
   STUDIO_SMOKE: '1',
   STUDIO_USER_DATA: await mkdtemp(join(tmpdir(), 'studio-ux-')),
+  // P5 真实导出：capture 环境不装渲染组件，用缺失的组合入口展示诚实失败态。
+  STUDIO_RENDER_ENTRY: join(tmpdir(), 'studio-ux-missing-entry.ts'),
 }
 delete env.ELECTRON_RUN_AS_NODE
 if (process.argv.includes('--dev')) env.ELECTRON_RENDERER_URL = 'http://127.0.0.1:5173/'
@@ -194,8 +196,9 @@ try {
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: '导出视频', exact: true }).click()
   await capture('23-export-dialog', '12-export-recovery.png', '导出设置确认')
-  await page.getByRole('button', { name: '演练一次失败与恢复', exact: true }).click()
-  await expect(page.getByText('演示导出未完成', { exact: true })).toBeVisible()
+  // P5 真实导出：任务化 MP4 渲染；本环境组合入口缺失 → 如实失败（诚实失败态）。
+  await page.getByRole('dialog').getByRole('button', { name: '开始导出', exact: true }).click()
+  await expect(page.getByText('导出未完成', { exact: true })).toBeVisible()
   await capture('24-export-recovery', '12-export-recovery.png', '导出失败与保留作品')
   await page.getByRole('button', { name: '返回作品预览', exact: true }).click()
   await page.getByRole('button', { name: '所有视频', exact: true }).click()

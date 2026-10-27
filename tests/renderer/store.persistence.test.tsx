@@ -28,6 +28,7 @@ function fakePersistence(workspace: StudioState | null) {
     ai: null,
     discovery: null,
     publish: null,
+    video: null,
     async load() {
       return { workspace }
     },
