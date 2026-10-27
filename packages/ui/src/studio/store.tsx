@@ -45,7 +45,7 @@ import {
   type Task,
   type Topic,
 } from './types'
-import type { AiEvent } from '../../../desktop/src/shared/desktop'
+import type { AiEvent } from './persistence'
 
 const KEY = WORKSPACE_KEY
 function readState(): StudioState {
@@ -198,6 +198,9 @@ export type Store = {
   answerAsk: (answer: string) => void
   cancelAi: () => void
   refreshAiConfig: () => void
+  saveAiConfig: (input: { name?: string; baseUrl: string; apiKey: string; modelId: string }) => Promise<{ ok: boolean; message: string }>
+  testAiConnection: (baseUrl: string, apiKey: string, modelId: string) => Promise<{ ok: boolean; message: string; latencyMs?: number } | null>
+  clearAiConfig: () => Promise<void>
   reference: (label: string, text: string) => void
 }
 const StudioContext = createContext<Store | null>(null)
@@ -963,6 +966,24 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   function refreshAiConfig() {
     void persistence.ai?.configGet().then((view) => setAiReady(Boolean(view)))
   }
+  async function saveAiConfig(input: { name?: string; baseUrl: string; apiKey: string; modelId: string }) {
+    const ai = persistence.ai
+    if (!ai) return { ok: false, message: '浏览器预览不支持 AI 服务配置，请在桌面应用中配置。' }
+    try {
+      await ai.configSet(input)
+      setAiReady(true)
+      return { ok: true, message: '模型配置已保存。' }
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : '保存失败。' }
+    }
+  }
+  async function testAiConnection(baseUrl: string, apiKey: string, modelId: string) {
+    return persistence.ai?.test(baseUrl, apiKey, modelId) ?? null
+  }
+  async function clearAiConfig() {
+    await persistence.ai?.configClear()
+    setAiReady(false)
+  }
   /** pi 对话：先落用户消息与空回复占位，再发送；事件按会话键回流（并发 1，一键一运行）。 */
   function sendAiMessage(text: string): void {
     const ai = persistence.ai
@@ -1328,6 +1349,9 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         answerAsk,
         cancelAi,
         refreshAiConfig,
+        saveAiConfig,
+        testAiConnection,
+        clearAiConfig,
         reference,
       }}
     >

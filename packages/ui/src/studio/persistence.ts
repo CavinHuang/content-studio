@@ -10,6 +10,8 @@ import type {
   TaskRecord,
   TaskSettle,
 } from '../../../desktop/src/shared/desktop'
+
+export type { AiEvent }
 import type { StudioState, Task } from './types'
 
 export const WORKSPACE_KEY = 'content-studio.mock-workspace.v2'

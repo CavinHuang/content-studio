@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input'
 import { NativeSelect } from '@/components/ui/native-select'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   ArrowDownToLine,
   ArrowLeft,
@@ -30,11 +30,37 @@ import { seedState } from '../studio/mock'
 import { recoverCreation } from '../studio/creation'
 import { PLATFORMS, type Platform, type StudioState } from '../studio/types'
 export function SettingsPage() {
-  const { state, setState, project, navigate, notify, retrySave, clearAgentDrafts } = useStudio()
+  const {
+    state,
+    setState,
+    project,
+    navigate,
+    notify,
+    retrySave,
+    clearAgentDrafts,
+    aiReady,
+    saveAiConfig,
+    testAiConnection,
+    clearAiConfig,
+  } = useStudio()
   const [tab, setTab] = useState('AI 服务')
-  const [testing, setTesting] = useState<string | null>(null)
-  const [key, setKey] = useState(''),
-    [showKey, setShowKey] = useState(false)
+  const [aiBaseUrl, setAiBaseUrl] = useState('')
+  const [aiModelId, setAiModelId] = useState('')
+  const [aiKey, setAiKey] = useState('')
+  const [aiKeyTail, setAiKeyTail] = useState('')
+  const [showKey, setShowKey] = useState(false)
+  const [aiSaving, setAiSaving] = useState(false)
+  const [aiTesting, setAiTesting] = useState(false)
+  const [aiTestMessage, setAiTestMessage] = useState('')
+  useEffect(() => {
+    void window.desktop?.aiConfigGet().then((view) => {
+      if (view) {
+        setAiBaseUrl(view.baseUrl)
+        setAiModelId(view.modelId)
+        setAiKeyTail(view.apiKeyTail)
+      }
+    })
+  }, [])
   const [reset, setReset] = useState(false)
   const [imported, setImported] = useState<StudioState | null>(null)
   const [importError, setImportError] = useState('')
@@ -96,113 +122,53 @@ export function SettingsPage() {
         <TabsContent value={tab} className="settings-content">
           {tab === 'AI 服务' && (
             <>
-              {/* E4：横幅所指的密钥输入默认折叠不可见，指引补「展开下方自定义连接」，
-                  分区名同步去掉「示意」二字，说明与可操作入口重新对上。 */}
-              <div className="inline-alert orange">
-                <Sparkles size={16} />
-                演示模式：连接测试仅更新状态显示，不请求模型服务。展开下方「自定义连接」可填写密钥，只留在本次输入框，不会保存。
-              </div>
-              <div className="service-cards">
-                {(
-                  [
-                    {
-                      id: 'text',
-                      title: '文字与思考',
-                      description: '选题、写作、修改建议与平台适配',
-                      icon: Sparkles,
-                    },
-                    {
-                      id: 'image',
-                      title: '图片与视觉',
-                      description: '文章配图、封面与分镜素材',
-                      icon: Image,
-                    },
-                    {
-                      id: 'voice',
-                      title: '配音与声音',
-                      description: '口播、语音预览与字幕对齐',
-                      icon: Mic,
-                    },
-                  ] as const
-                ).map((service) => (
-                  <Card className="service-card gap-3 p-3" key={service.id} role="article">
-                    <div className="service-heading mb-0">
-                      <span className="service-icon">
-                        <service.icon size={22} />
-                      </span>
-                      <div>
-                        <h3>{service.title}</h3>
-                        <p>{service.description}</p>
-                      </div>
-                      <Badge tone={preferences.connection[service.id] ? 'green' : 'neutral'}>
-                        {preferences.connection[service.id] ? '演示就绪' : '未启用'}
-                      </Badge>
-                    </div>
-                    <div className="service-controls">
-                      <Field label="默认服务">
-                        <NativeSelect
-                          value={preferences.services[service.id]}
-                          onChange={(e) =>
-                            patch({
-                              services: {
-                                ...preferences.services,
-                                [service.id]: e.target.value,
-                              },
-                            })
-                          }
-                        >
-                          <option>
-                            {service.id === 'text'
-                              ? '创作助手（Mock）'
-                              : service.id === 'image'
-                                ? '视觉助手（Mock）'
-                                : '自然叙述（Mock）'}
-                          </option>
-                          <option>自定义服务（演示）</option>
-                        </NativeSelect>
-                      </Field>
-                      <Button
-                        disabled={!!testing}
-                        onClick={() => {
-                          setTesting(service.id)
-                          setTimeout(() => {
-                            patch({
-                              connection: {
-                                ...preferences.connection,
-                                [service.id]: true,
-                              },
-                            })
-                            setTesting(null)
-                            notify('连接演示完成，未发送网络请求。')
-                          }, 750)
-                        }}
-                        variant="outline"
-                        size="default"
-                      >
-                        {testing === service.id ? '演示测试中…' : '测试连接'}
-                      </Button>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-              <details className="advanced-settings">
-                <summary>自定义连接</summary>
+              {!aiReady && (
+                <div className="inline-alert orange">
+                  <Sparkles size={16} />
+                  未配置模型：对话、建议与生成仍为本地演示。填写下方的服务地址与密钥后即可启用真实模型。
+                </div>
+              )}
+              {aiReady && (
+                <div className="inline-alert green">
+                  <Sparkles size={16} />
+                  已启用真实模型：对话、修改建议、母稿与平台稿生成由所配置服务驱动（pi agent）；未采用前不会改动正文。
+                </div>
+              )}
+              <Card className="service-card gap-3 p-3" role="article">
+                <div className="service-heading mb-0">
+                  <span className="service-icon">
+                    <Sparkles size={22} />
+                  </span>
+                  <div>
+                    <h3>模型服务</h3>
+                    <p>OpenAI 兼容接口；对话、建议、母稿与平台稿生成共用此配置</p>
+                  </div>
+                  <Badge tone={aiReady ? 'green' : 'neutral'}>{aiReady ? '已配置' : '未配置'}</Badge>
+                </div>
                 <div className="form-grid">
-                  <Field label="服务地址（不保存）">
-                    <Input placeholder="https://api.example.com/v1" />
+                  <Field label="服务地址">
+                    <Input
+                      placeholder="https://api.example.com/v1"
+                      value={aiBaseUrl}
+                      onChange={(e) => setAiBaseUrl(e.target.value)}
+                    />
                   </Field>
-                  <Field label="模型名称（不保存）">
-                    <Input placeholder="your-model" />
+                  <Field label="模型 ID">
+                    <Input
+                      placeholder="your-model"
+                      value={aiModelId}
+                      onChange={(e) => setAiModelId(e.target.value)}
+                    />
                   </Field>
                 </div>
-                <Field label="密钥（仅当前输入，不会保存或发送）">
+                <Field label="API Key（加密保存在本机，不会在界面回显）">
                   <div className="secret-field">
                     <Input
                       autoComplete="off"
                       type={showKey ? 'text' : 'password'}
-                      value={key}
-                      onChange={(e) => setKey(e.target.value)}
-                      placeholder="输入用于查看遮挡效果的示例值"
+                      value={aiKey}
+                      onChange={(e) => setAiKey(e.target.value)}
+                      placeholder={aiKeyTail ? `已保存，尾号 ${aiKeyTail}；留空则沿用` : 'sk-…'}
                     />
                     <Button
                       aria-label={showKey ? '隐藏密钥' : '显示密钥'}
@@ -214,7 +180,63 @@ export function SettingsPage() {
                     </Button>
                   </div>
                 </Field>
-              </details>
+                <div className="service-controls">
+                  <Button
+                    disabled={aiSaving || !aiBaseUrl.trim() || !aiModelId.trim() || (!aiKey.trim() && !aiKeyTail)}
+                    onClick={async () => {
+                      setAiSaving(true)
+                      const result = await saveAiConfig({
+                        baseUrl: aiBaseUrl,
+                        modelId: aiModelId,
+                        apiKey: aiKey.trim() ? aiKey : '__KEEP__',
+                      })
+                      setAiSaving(false)
+                      setAiKey('')
+                      notify(result.message)
+                    }}
+                    size="default"
+                  >
+                    {aiSaving ? '保存中…' : '保存配置'}
+                  </Button>
+                  <Button
+                    disabled={aiTesting || !aiBaseUrl.trim()}
+                    onClick={async () => {
+                      setAiTesting(true)
+                      setAiTestMessage('')
+                      const result = await testAiConnection(
+                        aiBaseUrl,
+                        aiKey.trim() || '__KEEP__',
+                        aiModelId,
+                      )
+                      setAiTesting(false)
+                      setAiTestMessage(result ? `${result.message}${result.latencyMs ? `（${result.latencyMs} 毫秒）` : ''}` : '浏览器预览不支持连接测试。')
+                    }}
+                    variant="outline"
+                    size="default"
+                  >
+                    {aiTesting ? '测试中…' : '测试连接'}
+                  </Button>
+                  {aiReady && (
+                    <Button
+                      variant="ghost"
+                      size="default"
+                      onClick={async () => {
+                        await clearAiConfig()
+                        setAiKeyTail('')
+                        setAiTestMessage('')
+                        notify('已清除模型配置，回到本地演示模式。')
+                      }}
+                    >
+                      清除配置
+                    </Button>
+                  )}
+                </div>
+                {aiTestMessage && <p className="service-note">{aiTestMessage}</p>}
+              </Card>
+              <div className="settings-section">
+                <h2>其他服务</h2>
+                <p>图片与视觉、配音与声音服务尚未接入；相关界面仍为本地演示，接入后将在此处配置。</p>
+              </div>
             </>
           )}
           {tab === '创作偏好' && (
