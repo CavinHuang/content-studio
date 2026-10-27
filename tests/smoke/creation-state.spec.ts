@@ -7,9 +7,9 @@ import {
   finishCreation,
   recoverCreation,
   stopCreationRun,
-} from '../../src/renderer/src/studio/creation'
-import { makeProject, seedState } from '../../src/renderer/src/studio/mock'
-import { makeDraft } from '../../src/renderer/src/studio/types'
+} from '../../packages/ui/src/studio/creation'
+import { makeProject, seedState } from '../../packages/ui/src/studio/mock'
+import { makeDraft } from '../../packages/ui/src/studio/types'
 
 const fixture = () => {
   const state = seedState()

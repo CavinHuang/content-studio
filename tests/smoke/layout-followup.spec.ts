@@ -26,7 +26,7 @@ test.beforeEach(async () => {
   delete env.ELECTRON_RUN_AS_NODE
   env.STUDIO_SMOKE = '1'
   env.STUDIO_USER_DATA = mkdtempSync(join(tmpdir(), 'studio-followup-fixed-'))
-  app = await electron.launch({ args: ['.'], env })
+  app = await electron.launch({ args: ['packages/desktop'], env })
   page = await app.firstWindow()
   errors = []
   page.on('pageerror', (e) => errors.push(e.message))

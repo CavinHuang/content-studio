@@ -4,7 +4,7 @@
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "paths": { "@/*": ["./src/renderer/src/*"] },
+    "paths": { "@/*": ["./packages/ui/src/*"] },
     "jsx": "react-jsx",
     "strict": true,
     "noUncheckedIndexedAccess": true,
@@ -17,5 +17,13 @@
     "allowImportingTsExtensions": true,
     "types": ["node", "vite/client"]
   },
-  "include": ["src", "tests", "config", "*.config.ts"]
+  "include": [
+    "packages/desktop/src",
+    "packages/desktop/*.config.ts",
+    "packages/ui/src",
+    "packages/ui/config",
+    "packages/ui/*.config.ts",
+    "tests",
+    "*.config.ts"
+  ]
 }

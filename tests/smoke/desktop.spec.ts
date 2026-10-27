@@ -14,7 +14,7 @@ test('desktop boots with its isolated preload bridge and editable React workspac
   const executablePath = process.env.STUDIO_TEST_EXECUTABLE
   const application = await electron.launch({
     executablePath,
-    args: executablePath ? [] : ['.'],
+    args: executablePath ? [] : ['packages/desktop'],
     env: environment,
   })
   try {

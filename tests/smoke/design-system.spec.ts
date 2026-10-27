@@ -13,7 +13,7 @@ test.beforeEach(async () => {
   delete env.ELECTRON_RUN_AS_NODE
   app = await electron.launch({
     executablePath: process.env.STUDIO_TEST_EXECUTABLE,
-    args: process.env.STUDIO_TEST_EXECUTABLE ? [] : ['.'],
+    args: process.env.STUDIO_TEST_EXECUTABLE ? [] : ['packages/desktop'],
     env: { ...env, STUDIO_SMOKE: '1', STUDIO_USER_DATA: mkdtempSync(join(tmpdir(), 'studio-design-')) },
   })
   page = await app.firstWindow()

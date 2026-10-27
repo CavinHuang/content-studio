@@ -7,6 +7,51 @@ settings:
 importers:
 
   .:
+    devDependencies:
+      '@playwright/test':
+        specifier: ^1.64.1
+        version: 1.64.1
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.2
+      prettier:
+        specifier: ^3.9.10
+        version: 3.9.10
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+
+  packages/desktop:
+    devDependencies:
+      '@content-studio/ui':
+        specifier: workspace:*
+        version: link:../ui
+      '@tailwindcss/vite':
+        specifier: ^4.3.3
+        version: 4.3.3(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0))
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.2
+      '@vitejs/plugin-react':
+        specifier: ^6.1.2
+        version: 6.1.2(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0))
+      electron:
+        specifier: 45.0.0
+        version: 45.0.0(supports-color@7.2.0)
+      electron-builder:
+        specifier: ^26.18.0
+        version: 26.18.0(electron-builder-squirrel-windows@26.18.0)(supports-color@7.2.0)
+      electron-vite:
+        specifier: ^6.0.0
+        version: 6.0.0(supports-color@7.2.0)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0))
+      tailwindcss:
+        specifier: ^4.3.3
+        version: 4.3.3
+      vite:
+        specifier: ^8.3.5
+        version: 8.3.5(@types/node@24.19.2)(jiti@2.7.0)
+
+  packages/ui:
     dependencies:
       '@shadcn/react':
         specifier: ^0.3.1
@@ -39,15 +84,9 @@ importers:
         specifier: ^3.7.0
         version: 3.7.0
     devDependencies:
-      '@playwright/test':
-        specifier: ^1.64.1
-        version: 1.64.1
       '@tailwindcss/vite':
         specifier: ^4.3.3
         version: 4.3.3(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0))
-      '@types/node':
-        specifier: ^24.0.0
-        version: 24.19.2
       '@types/react':
         specifier: ^19.0.0
         version: 19.3.0
@@ -57,18 +96,6 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^6.1.2
         version: 6.1.2(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0))
-      electron:
-        specifier: 45.0.0
-        version: 45.0.0(supports-color@7.2.0)
-      electron-builder:
-        specifier: ^26.18.0
-        version: 26.18.0(electron-builder-squirrel-windows@26.18.0)(supports-color@7.2.0)
-      electron-vite:
-        specifier: ^6.0.0
-        version: 6.0.0(supports-color@7.2.0)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0))
-      prettier:
-        specifier: ^3.9.10
-        version: 3.9.10
       shadcn:
         specifier: ^4.22.1
         version: 4.22.1(supports-color@7.2.0)
@@ -78,9 +105,6 @@ importers:
       tw-animate-css:
         specifier: ^1.4.0
         version: 1.4.0
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
       vite:
         specifier: ^8.3.5
         version: 8.3.5(@types/node@24.19.2)(jiti@2.7.0)

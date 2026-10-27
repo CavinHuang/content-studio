@@ -39,7 +39,7 @@ for (const [front, back] of [
   assert(ratio >= 4.5, `${front}/${back}: contrast below 4.5`)
   console.log(`${front}/${back}: ${ratio.toFixed(2)}:1`)
 }
-const root = 'src/renderer/src'
+const root = 'packages/ui/src'
 const entry = await readFile(`${root}/main.tsx`, 'utf8')
 assert(
   !/styles\.css|design-system\.css|page-details\.css|fontsource/.test(entry),

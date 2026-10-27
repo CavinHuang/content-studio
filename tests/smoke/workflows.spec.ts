@@ -15,7 +15,7 @@ test.beforeEach(async () => {
   env.STUDIO_USER_DATA = mkdtempSync(join(tmpdir(), 'studio-workflow-'))
   app = await electron.launch({
     executablePath: process.env.STUDIO_TEST_EXECUTABLE,
-    args: process.env.STUDIO_TEST_EXECUTABLE ? [] : ['.'],
+    args: process.env.STUDIO_TEST_EXECUTABLE ? [] : ['packages/desktop'],
     env,
   })
   page = await app.firstWindow()

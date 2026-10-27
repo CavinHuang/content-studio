@@ -2,7 +2,7 @@ import { test, expect, _electron as electron, type ElectronApplication, type Pag
 import { mkdtempSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { textDiff } from '../../src/renderer/src/studio/text-diff'
+import { textDiff } from '../../packages/ui/src/studio/text-diff'
 
 let app: ElectronApplication, page: Page
 let errors: string[]
@@ -22,7 +22,7 @@ test.beforeEach(async () => {
   delete env.ELECTRON_RUN_AS_NODE
   env.STUDIO_SMOKE = '1'
   env.STUDIO_USER_DATA = mkdtempSync(join(tmpdir(), 'studio-layout-fixed-'))
-  app = await electron.launch({ args: ['.'], env })
+  app = await electron.launch({ args: ['packages/desktop'], env })
   page = await app.firstWindow()
   errors = []
   page.on('pageerror', (e) => errors.push(e.message))

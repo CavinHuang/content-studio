@@ -10,7 +10,7 @@ export function rendererPlugins(): PluginOption[] {
     {
       name: 'renderer-alias',
       config: () => ({
-        resolve: { alias: { '@': fileURLToPath(new URL('../src/renderer/src', import.meta.url)) } },
+        resolve: { alias: { '@': fileURLToPath(new URL('../src', import.meta.url)) } },
       }),
     },
     {

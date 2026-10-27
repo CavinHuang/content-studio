@@ -1,6 +1,6 @@
 # Content Studio
 
-从零初始化的 Electron + React + TypeScript 桌面应用。UI/UX 设计与效果图保存在 [docs/ux](docs/ux/README.md)。
+pnpm monorepo：`@content-studio/desktop`（Electron 主进程/preload 壳）与 `@content-studio/ui`（React + Tailwind + shadcn 渲染端）两个工作区包。UI/UX 设计与效果图保存在 [docs/ux](docs/ux/README.md)。
 
 界面采用 **shadcn/ui + 官方 AI Elements 组合模式**，由 Tailwind CSS 4 与 Radix 驱动。配色遵循已确认设计稿，字体、间距和控件尺寸沿用 Tailwind / shadcn 默认规范，见 [设计系统](docs/ux/DESIGN-SYSTEM.md)；[可视化 Token 手册](docs/ux/design-system.html) 可离线查看。
 
@@ -44,13 +44,12 @@ pnpm dev
 ## 目录
 
 ```text
-src/
-  main/          Electron 主进程与受限 IPC
-  preload/       隔离上下文中的桌面 API
-  renderer/      React 入口、组件与样式
-  shared/        桌面 API 类型及 IPC 通道定义
+packages/
+  desktop/       @content-studio/desktop：Electron 主进程、preload 与打包配置
+  ui/            @content-studio/ui：React 入口、页面、组件与样式
 docs/ux/         当前设计总览、效果图与交互规范
 tests/smoke/     Electron 启动与核心编辑验证
+scripts/         设计 token 与门禁脚本
 resources/       应用图标的 SVG 源文件、PNG 与 Windows ICO
 ```
 

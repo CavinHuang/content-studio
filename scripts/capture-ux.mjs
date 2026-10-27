@@ -12,7 +12,7 @@ const env = {
 }
 delete env.ELECTRON_RUN_AS_NODE
 if (process.argv.includes('--dev')) env.ELECTRON_RENDERER_URL = 'http://127.0.0.1:5173/'
-const app = await electron.launch({ args: ['.'], env })
+const app = await electron.launch({ args: ['packages/desktop'], env })
 const errors = [],
   screens = []
 try {

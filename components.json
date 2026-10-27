@@ -5,7 +5,7 @@
   "tsx": true,
   "tailwind": {
     "config": "",
-    "css": "src/renderer/src/foundation.css",
+    "css": "packages/ui/src/foundation.css",
     "baseColor": "neutral",
     "cssVariables": true
   },

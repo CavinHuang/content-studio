@@ -16,7 +16,7 @@ test('legacy material and brief route stays usable through contextual tools', as
     }).filter((entry): entry is [string, string] => entry[1] !== undefined),
   )
   delete env.ELECTRON_RUN_AS_NODE
-  const app = await electron.launch({ args: ['.'], env })
+  const app = await electron.launch({ args: ['packages/desktop'], env })
   const page = await app.firstWindow()
   await page.setViewportSize({ width: 1480, height: 960 })
   const started = Date.now()
