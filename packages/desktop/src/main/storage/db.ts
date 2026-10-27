@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 
-export const DB_VERSION = 2
+export const DB_VERSION = 3
 
 export function openDatabase(path: string): DatabaseSync {
   const db = new DatabaseSync(path)
@@ -49,6 +49,39 @@ export function migrate(db: DatabaseSync): void {
         plain INTEGER NOT NULL DEFAULT 0,
         updated TEXT NOT NULL
       );
+    `)
+  }
+  if (current < 3) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS discovery_sources (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL,
+        category TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        status TEXT NOT NULL,
+        updated TEXT NOT NULL DEFAULT '',
+        url TEXT NOT NULL DEFAULT '',
+        builtin INTEGER NOT NULL DEFAULT 0,
+        createdAt TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS discovery_articles (
+        id TEXT PRIMARY KEY,
+        urlKey TEXT NOT NULL UNIQUE,
+        title TEXT NOT NULL,
+        url TEXT NOT NULL,
+        body TEXT NOT NULL DEFAULT '',
+        bodyState TEXT NOT NULL DEFAULT 'link-only',
+        published TEXT NOT NULL DEFAULT '',
+        collectedAt TEXT NOT NULL,
+        collectedDisplay TEXT NOT NULL DEFAULT '',
+        metricsJson TEXT NOT NULL DEFAULT '[]',
+        sourceIdsJson TEXT NOT NULL DEFAULT '[]',
+        sortIndex INTEGER NOT NULL DEFAULT 0,
+        groupJson TEXT,
+        updatedAt TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_discovery_articles_collected ON discovery_articles (collectedAt DESC);
     `)
   }
   db.exec(`PRAGMA user_version = ${DB_VERSION}`)

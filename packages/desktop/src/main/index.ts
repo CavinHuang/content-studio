@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, Menu, nativeTheme, shell, type IpcMainInvo
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { AI_CHANNELS, DESKTOP_CHANNELS, type AppInfo, type AiEvent } from '../shared/desktop'
+import { AI_CHANNELS, DESKTOP_CHANNELS, DISCOVERY_CHANNELS, type AppInfo, type AiEvent, type DiscoveryEvent } from '../shared/desktop'
 import { initServices } from './services'
 import { AgentService } from './ai/agent-service'
 import { buildAiHandlers } from './ai/handlers'
@@ -12,6 +12,10 @@ import { registerAiHandlers } from './ai/ipc'
 import { getModelConfig } from './ai/model-config'
 import { createPlatformRewriteExecutor, createMasterDraftExecutor } from './ai/generation-jobs'
 import type { CollectFn } from './ai/domain-tools'
+import { DiscoveryStore } from './discovery/store'
+import { DiscoveryService } from './discovery/service'
+import { buildDiscoveryHandlers } from './discovery/handlers'
+import { registerDiscoveryHandlers } from './discovery/ipc'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -124,6 +128,20 @@ void app.whenReady().then(() => {
     return Promise.resolve({ state: 'failed', detail: '未知的生成任务类型。' })
   })
   registerAiHandlers(buildAiHandlers({ db: services.db, crypto: aiCrypto, agent }), guard)
+  // 热点域装配：内置示例来源 seed（演示保留）+ 真实抓取执行器（kind 'source'）+ IPC。
+  const discoveryStore = new DiscoveryStore(services.db)
+  const discovery = new DiscoveryService({
+    store: discoveryStore,
+    emit: (event: DiscoveryEvent) => {
+      mainWindow?.webContents.send(DISCOVERY_CHANNELS.event, event)
+    },
+  })
+  discovery.ensureSeeded()
+  services.runner.registerExecutor('source', discovery.createTaskExecutor())
+  registerDiscoveryHandlers(
+    buildDiscoveryHandlers({ store: discoveryStore, service: discovery, runner: services.runner }),
+    guard,
+  )
   // 上一次会话中断的任务不允许保留假 running 状态。
   services.runner.recover()
   ipcMain.handle(DESKTOP_CHANNELS.dbLoad, (event) => {

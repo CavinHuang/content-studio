@@ -1,7 +1,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, expect, test, vi } from 'vitest'
-import type { TaskEvent, TaskRecord, TaskSettle } from '../../packages/desktop/src/shared/desktop'
+import type { DiscoveryEvent, DiscoverySnapshot, TaskEvent, TaskRecord, TaskSettle } from '../../packages/desktop/src/shared/desktop'
 import { seedState } from '../../packages/ui/src/studio/mock'
 import {
   __setPersistenceForTest,
@@ -26,6 +26,7 @@ function fakePersistence(workspace: StudioState | null) {
   const persistence: Persistence = {
     mode: 'local',
     ai: null,
+    discovery: null,
     async load() {
       return { workspace }
     },
@@ -119,7 +120,10 @@ test('空库首启：readState 引导结果写入权威存储，任务镜像就�
   expect(latest!.state.schema).toBe(3)
   expect(fake.saved.length).toBeGreaterThanOrEqual(1)
   expect(fake.saved[0]!.projects.length).toBeGreaterThan(0)
-  expect(latest!.state.tasks.map((t) => t.id)).toEqual(seedState().tasks.map((t) => t.id))
+  // 顺序不敏感：桥的时间戳与提交节奏无关，镜像只需全员就位
+  expect([...latest!.state.tasks.map((t) => t.id)].sort()).toEqual(
+    [...seedState().tasks.map((t) => t.id)].sort(),
+  )
 })
 
 test('权威库已有工作区：采用 DB 文档且不做引导写回', async () => {
@@ -173,4 +177,86 @@ test('任务事件快照整体替换镜像，未知运行任务被本地执行�
   expect(fake.settled).toEqual([
     ['retry-clone', { state: 'complete', detail: '演示任务已完成；未调用外部服务。' }],
   ])
+})
+
+test('discovery 桥：启动应用聚合快照，事件推送替换来源与话题', async () => {
+  const snapshot = {
+    sources: [
+      {
+        id: 'real',
+        name: '实时订阅',
+        type: 'RSS',
+        category: 'AI 科技',
+        enabled: true,
+        status: 'ready',
+        updated: '2026-10-27T10:00:00Z',
+        url: 'https://real.example.com/feed.xml',
+      },
+    ],
+    topics: [
+      {
+        id: 't_real_1',
+        title: '真实热点',
+        summary: '来自真实来源的聚合话题',
+        category: 'AI 科技',
+        tags: ['AI 科技'],
+        image: 'room',
+        articles: [
+          {
+            id: 'a_real_1',
+            title: '真实条目',
+            sourceIds: ['real'],
+            url: 'https://real.example.com/posts/1',
+            body: '正文摘要',
+            published: '10/27 18:00',
+            collected: '10/27 18:05',
+          },
+        ],
+        angles: [],
+        ageHours: 1,
+        updated: '2026-10-27T10:05:00Z',
+      },
+    ],
+    lastSyncAt: '2026-10-27T10:05:00Z',
+  } as const
+  const discoveryListeners: Array<(event: DiscoveryEvent) => void> = []
+  const refreshCalls: string[] = []
+  const fake = fakePersistence(makeState())
+  fake.persistence.discovery = {
+    snapshot: async () => snapshot as unknown as DiscoverySnapshot,
+    sourceSave: async () => {
+      throw new Error('not used')
+    },
+    sourceDelete: async () => ({ ok: true }),
+    sourceRefresh: async (id: string) => {
+      refreshCalls.push(id)
+      return { ok: true, taskId: 't-r' }
+    },
+    refreshAll: async () => {
+      refreshCalls.push('all')
+      return { ok: true, taskId: 't-all' }
+    },
+    onEvent: (listener) => {
+      discoveryListeners.push(listener)
+      return () => {}
+    },
+  }
+  __setPersistenceForTest(fake.persistence)
+  await mount()
+  expect(latest!.state.sources.map((s) => s.id)).toEqual(['real'])
+  expect(latest!.state.topics.map((t) => t.id)).toEqual(['t_real_1'])
+  expect(latest!.state.discoverySyncAt).toBe('2026-10-27T10:05:00Z')
+  await act(async () => {
+    discoveryListeners.forEach((listener) =>
+      listener({
+        type: 'snapshot',
+        snapshot: { ...snapshot, lastSyncAt: '2026-10-27T11:00:00Z' } as unknown as DiscoverySnapshot,
+      }),
+    )
+  })
+  expect(latest!.state.discoverySyncAt).toBe('2026-10-27T11:00:00Z')
+  act(() => {
+    latest!.refreshAllSources()
+  })
+  expect(refreshCalls).toEqual(['all'])
 })

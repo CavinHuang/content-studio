@@ -38,7 +38,6 @@ import {
   SegmentedControl,
 } from '../components/ui'
 import { useStudio } from '../studio/store'
-import { topics } from '../studio/mock'
 import { images } from '../studio/images'
 import {
   dateLabel,
@@ -52,18 +51,35 @@ import {
 const sourceIcon = (type: string) =>
   type === 'RSS' ? <Rss size={14} /> : type === '平台热榜' ? <Flame size={14} /> : <BookOpen size={14} />
 const stateLabels = {
-  ready: '可用 · 示例缓存',
+  ready: '可用 · 缓存可用',
   failed: '获取失败 · 已保留缓存',
   unconfigured: '未配置 · 待接入',
   stale: '缓存过期',
+  updating: '更新中…',
 }
 export function HotspotsPage() {
-  const { state, setState, navigate, project, createFromTopic, notify, task, reference } = useStudio()
+  const {
+    state,
+    setState,
+    navigate,
+    project,
+    createFromTopic,
+    notify,
+    reference,
+    refreshAllSources,
+    angleBusy,
+    suggestAngles,
+    aiReady,
+  } = useStudio()
   const [original, setOriginal] = useState<SourceArticle | null>(null)
   const [showRelated, setShowRelated] = useState<string | null>(null)
   const filters = state.hotspotFilters
+  const topics = state.topics
   const selected = topics.find((t) => t.id === state.selectedTopic)
   const enabled = state.sources.filter((s) => s.enabled)
+  // 仅内置示例来源在跑时保持演示徽标；接入真实来源后如实切换
+  const demoOnly = enabled.length > 0 && enabled.every((s) => s.builtin)
+  const failedEnabled = state.sources.filter((s) => s.enabled && s.status === 'failed')
   function filter(patch: Partial<typeof filters>) {
     setState((s) => ({
       ...s,
@@ -86,7 +102,7 @@ export function HotspotsPage() {
       topicDrafts: {
         ...s.topicDrafts,
         [topic.id]: s.topicDrafts[topic.id] ?? {
-          angle: topic.angles[0]!,
+          angle: topic.angles[0] ?? '',
           articleIds: topic.articles.map((a) => a.id),
           requirements: '',
         },
@@ -116,8 +132,7 @@ export function HotspotsPage() {
         : a.ageHours - b.ageHours,
     )
   function refresh() {
-    task('刷新热点来源', '演示获取已启用来源；失败项保留旧缓存…', 'source')
-    notify('正在演示刷新。话题均为示例，未请求实时榜单；失败来源已保留缓存。')
+    refreshAllSources()
   }
   return (
     <section className="workspace-page hotspot-page">
@@ -140,7 +155,7 @@ export function HotspotsPage() {
             description="汇集多个来源，再找到属于你的创作角度。"
             actions={
               <div className="discovery-header-actions">
-                <Badge tone="orange">示例话题 · 非实时</Badge>
+                {demoOnly && <Badge tone="orange">示例话题 · 非实时</Badge>}
                 <div className="discovery-actions">
                   <Button onClick={() => navigate('sources')} variant="outline" size="default">
                     <Settings2 size={15} />
@@ -172,10 +187,10 @@ export function HotspotsPage() {
               </div>
             }
           />
-          {state.sources.some((s) => s.enabled && s.status === 'failed') && (
+          {failedEnabled.length > 0 && (
             <div className="source-warning">
               <TriangleAlert size={15} />
-              <span>小红书话题获取失败 · 已保留缓存，正在显示已有内容。</span>
+              <span>{failedEnabled.map((s) => s.name).join('、')}获取失败 · 已保留缓存，正在显示已有内容。</span>
               <Button
                 onClick={() => navigate('sources')}
                 variant="ghost"
@@ -281,7 +296,10 @@ export function HotspotsPage() {
           </div>
           <div className="feed-summary">
             <span>{visible.length} 个聚合话题</span>
-            <span>{enabled.length} 个来源已启用 · 示例同步 10/25 09:40</span>
+            <span>
+              {enabled.length} 个来源已启用 ·{' '}
+              {state.discoverySyncAt ? `最近刷新 ${dateLabel(state.discoverySyncAt)}` : '尚未刷新'}
+            </span>
           </div>
           <div className="topic-list">
             {visible.map((topic) => {
@@ -302,7 +320,7 @@ export function HotspotsPage() {
                     <div className="topic-category">
                       {topic.category}
                       <span>·</span>
-                      示例收录 {dateLabel(topic.updated)}
+                      {demoOnly ? '示例收录' : '收录'} {dateLabel(topic.updated)}
                     </div>
                     <Button
                       className="topic-title h-auto justify-start p-0 text-left text-lg font-semibold whitespace-normal"
@@ -499,9 +517,11 @@ function TopicDetail({
   onOriginal: (a: SourceArticle) => void
   onCreate: () => void
 }) {
-  const { state, setState, reference } = useStudio()
+  const { state, setState, reference, suggestAngles, angleBusy, aiReady } = useStudio()
+  const suggestions = state.topicAngleSuggestions[topic.id] ?? []
+  const busy = Boolean(angleBusy[topic.id])
   const draft = state.topicDrafts[topic.id] ?? {
-    angle: topic.angles[0]!,
+    angle: topic.angles[0] ?? '',
     articleIds: topic.articles.map((a) => a.id),
     requirements: '',
   }
@@ -529,7 +549,7 @@ function TopicDetail({
       <div className="topic-detail-cover">
         <img src={images[topic.image]} alt="话题示意插画" />
         <div>
-          <Badge tone="orange">示例话题 · {topic.category}</Badge>
+          <Badge tone="orange">热点话题 · {topic.category}</Badge>
           <h1>{topic.title}</h1>
           <p>{topic.summary}</p>
         </div>
@@ -600,11 +620,27 @@ function TopicDetail({
       </div>
       <div className="section-heading angle-heading">
         <h2>找到属于你的切入点</h2>
-        <Badge tone="green">
-          <Sparkles size={12} />
-          Agent 提议 · 可修改
-        </Badge>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone="green">
+            <Sparkles size={12} />
+            Agent 提议 · 可修改
+          </Badge>
+          <Button
+            disabled={!aiReady || busy}
+            onClick={() => suggestAngles(topic)}
+            variant="outline"
+            size="sm"
+          >
+            <Sparkles size={13} />
+            {busy ? '正在生成角度…' : 'AI 建议角度'}
+          </Button>
+        </div>
       </div>
+      {!aiReady && (
+        <p className="feed-footnote" aria-live="polite">
+          <span>尚未配置模型：可到「设置 → AI 服务」配置后用 AI 建议角度；也可以直接在下方手动输入。</span>
+        </p>
+      )}
       <div className="angle-options">
         {topic.angles.map((angle, i) => (
           <Button
@@ -623,6 +659,29 @@ function TopicDetail({
           >
             <span>0{i + 1}</span>
             <p>{angle}</p>
+            {draft.angle === angle && <Check size={17} />}
+          </Button>
+        ))}
+        {suggestions.map((angle, i) => (
+          <Button
+            key={angle}
+            className={cn(
+              'h-auto justify-start whitespace-normal text-left',
+              draft.angle === angle && 'bg-[var(--selected-row)] hover:bg-[var(--selected-row)]',
+            )}
+            onClick={() =>
+              patch({
+                angle,
+              })
+            }
+            variant="ghost"
+            size="default"
+          >
+            <span>AI</span>
+            <p>
+              <Badge tone="green">建议 {i + 1} · 可改写</Badge>
+              <span className="block">{angle}</span>
+            </p>
             {draft.angle === angle && <Check size={17} />}
           </Button>
         ))}
@@ -685,29 +744,27 @@ function TopicDetail({
   )
 }
 export function SourcesPage() {
-  const { state, setState, navigate, notify, task } = useStudio()
+  const { state, navigate, notify, saveSource, deleteSource, refreshSource } = useStudio()
   const [type, setType] = useState('全部类型')
   const [query, setQuery] = useState('')
   const [editing, setEditing] = useState<Source | null>(null)
+  const [removing, setRemoving] = useState<Source | null>(null)
   const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
   const busy = state.tasks.some((t) => t.kind === 'source' && t.state === 'running')
-  const canSaveSource = !!editing?.name.trim() && !!editing?.url.trim()
-  function refresh(source: Source) {
-    task(`刷新 ${source.name}`, '演示更新此来源…', 'source', (s) => ({
-      ...s,
-      sources: s.sources.map((item) =>
-        item.id === source.id
-          ? {
-              ...item,
-              status: 'ready',
-              updated: now(),
-            }
-          : item,
-      ),
-    }))
-    notify('正在演示来源恢复；话题原文仍为本地示例内容。')
+  const canSaveSource = !!editing?.name.trim() && !!editing.url.trim()
+  const demoOnly = state.sources.length > 0 && state.sources.every((s) => s.builtin)
+  function updatingOf(source: Source): boolean {
+    return state.tasks.some((t) => {
+      if (t.kind !== 'source' || t.state !== 'running') return false
+      const payload = (t.payload ?? {}) as { sourceId?: string; all?: boolean }
+      return payload.all === true || payload.sourceId === source.id
+    })
   }
-  function save() {
+  function refresh(source: Source) {
+    refreshSource(source)
+  }
+  async function save() {
     if (!editing?.name.trim() || !editing.url.trim()) {
       setError('请填写来源名称与 URL。')
       return
@@ -718,27 +775,17 @@ export function SourcesPage() {
       setError('请输入 http 或 https 开头的有效地址。')
       return
     }
-    setState((s) => ({
-      ...s,
-      sources: s.sources.some((source) => source.id === editing.id)
-        ? s.sources.map((source) =>
-            source.id === editing.id
-              ? {
-                  ...editing,
-                  status: 'unconfigured',
-                }
-              : source,
-          )
-        : [
-            ...s.sources,
-            {
-              ...editing,
-              status: 'unconfigured',
-            },
-          ],
-    }))
-    setEditing(null)
-    notify('来源已保存。连接仍未配置，不会自动抓取数据。')
+    setSaving(true)
+    const ok = await saveSource({
+      id: editing.id,
+      name: editing.name,
+      type: editing.type,
+      category: editing.category,
+      enabled: editing.enabled,
+      url: editing.url,
+    })
+    setSaving(false)
+    if (ok) setEditing(null)
   }
   return (
     <section className="workspace-page sources-page">
@@ -790,7 +837,7 @@ export function SourcesPage() {
           <strong>{state.sources.filter((s) => s.status === 'failed').length}</strong>
           <span>需要留意</span>
         </div>
-        <Badge tone="orange">Mock · 来源管理</Badge>
+        <Badge tone="orange">{demoOnly ? '示例来源 · 演示数据' : '真实来源 · 已接入'}</Badge>
       </div>
       <SearchBox value={query} onChange={setQuery} placeholder="搜索来源名称…" />
       <Tabs
@@ -815,7 +862,9 @@ export function SourcesPage() {
         </div>
         {state.sources
           .filter((s) => (type === '全部类型' || s.type === type) && s.name.includes(query))
-          .map((source) => (
+          .map((source) => {
+            const updating = updatingOf(source)
+            return (
             <div className="source-card gap-3 p-3 grid" key={source.id} role="article">
               <div className={`source-type-icon ${source.type === 'RSS' ? 'rss' : ''}`}>
                 {sourceIcon(source.type)}
@@ -835,14 +884,16 @@ export function SourcesPage() {
                   tone={
                     !source.enabled
                       ? 'neutral'
-                      : source.status === 'failed'
-                        ? 'red'
-                        : source.status === 'ready'
-                          ? 'green'
-                          : 'orange'
+                      : updating
+                        ? 'orange'
+                        : source.status === 'failed'
+                          ? 'red'
+                          : source.status === 'ready'
+                            ? 'green'
+                            : 'orange'
                   }
                 >
-                  {!source.enabled ? '已停用 · 保留旧内容' : stateLabels[source.status]}
+                  {!source.enabled ? '已停用 · 保留旧内容' : updating ? stateLabels.updating : stateLabels[source.status]}
                 </Badge>
               </div>
               <div className="source-card-controls">
@@ -850,22 +901,19 @@ export function SourcesPage() {
                   checked={source.enabled}
                   aria-label={`启用${source.name}`}
                   onCheckedChange={() =>
-                    setState((s) => ({
-                      ...s,
-                      sources: s.sources.map((item) =>
-                        item.id === source.id
-                          ? {
-                              ...item,
-                              enabled: !item.enabled,
-                            }
-                          : item,
-                      ),
-                    }))
+                    void saveSource({
+                      id: source.id,
+                      name: source.name,
+                      type: source.type,
+                      category: source.category,
+                      enabled: !source.enabled,
+                      url: source.url,
+                    })
                   }
                 />
                 <Button
                   className=" text-muted-foreground"
-                  disabled={!source.enabled || busy || source.status === 'unconfigured'}
+                  disabled={!source.enabled || busy || updating || !source.url.trim()}
                   onClick={() => refresh(source)}
                   variant="ghost"
                   size="sm"
@@ -885,9 +933,18 @@ export function SourcesPage() {
                 >
                   设置
                 </Button>
+                <Button
+                  className=" text-muted-foreground"
+                  onClick={() => setRemoving(source)}
+                  variant="ghost"
+                  size="sm"
+                >
+                  删除
+                </Button>
               </div>
             </div>
-          ))}
+            )
+          })}
       </div>
       {!state.sources.some((s) => (type === '全部类型' || s.type === type) && s.name.includes(query)) && (
         <Empty title="没有找到来源" description="试试其他分类或名称，也可以添加自己的订阅。" />
@@ -896,10 +953,38 @@ export function SourcesPage() {
         <Link2 size={15} />
         停用只停止后续获取，已保存的原文、引用和创作快照继续保留。
       </div>
+      {removing && (
+        <Modal
+          title="移除这个来源？"
+          description="移除后不再获取它的更新；它贡献的原文缓存会一并清理，已创建内容的选题与来源快照不受影响。"
+          onClose={() => setRemoving(null)}
+          footer={
+            <>
+              <Button onClick={() => setRemoving(null)} variant="outline" size="default">
+                取消
+              </Button>
+              <Button
+                onClick={() => {
+                  void deleteSource(removing.id)
+                  setRemoving(null)
+                }}
+                variant="default"
+                size="default"
+              >
+                确认移除
+              </Button>
+            </>
+          }
+        >
+          <p className="text-muted-foreground">
+            内置示例来源不可移除；如不再需要演示内容，可以停用它。
+          </p>
+        </Modal>
+      )}
       {editing && (
         <Modal
           title={state.sources.some((s) => s.id === editing.id) ? '来源设置' : '添加来源'}
-          description="当前为演示配置界面，保存地址不会发起网络请求。"
+          description="地址以 http 或 https 开头；来源与发布平台分别配置。"
           onClose={() => setEditing(null)}
           footer={
             <>
@@ -909,8 +994,8 @@ export function SourcesPage() {
               <Button onClick={() => setEditing(null)} variant="outline" size="default">
                 取消
               </Button>
-              <Button disabled={!canSaveSource} onClick={save} variant="default" size="default">
-                保存来源
+              <Button disabled={!canSaveSource || saving} onClick={() => void save()} variant="default" size="default">
+                {saving ? '正在保存…' : '保存来源'}
               </Button>
             </>
           }
@@ -980,7 +1065,7 @@ export function SourcesPage() {
             </p>
           )}
           <p className="text-muted-foreground">
-            保存后来源显示「未配置 · 待接入」：接入实际来源服务后才会获取内容。
+            保存后来源状态为「未配置 · 待接入」，首次刷新成功后转为可用；刷新由本机应用发起请求。
           </p>
         </Modal>
       )}

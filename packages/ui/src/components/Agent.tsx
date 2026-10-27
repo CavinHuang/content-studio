@@ -41,7 +41,6 @@ import {
 } from './ui/dropdown-menu'
 import { useStudio } from '../studio/store'
 import { platformName, uid } from '../studio/types'
-import { topics } from '../studio/mock'
 import { requestSuggestionReview } from '../studio/suggestion-review'
 import { creationSnapshot } from '../studio/creation'
 
@@ -83,7 +82,8 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
     state.tasks.some(
       (t) => t.title === 'Agent 正在整理建议' && t.projectId === project.id && t.state === 'running',
     )
-  const topic = state.page === 'hotspots' ? topics.find((t) => t.id === state.selectedTopic) : undefined
+  const topic =
+    state.page === 'hotspots' ? state.topics.find((t) => t.id === state.selectedTopic) : undefined
   const contextLabel =
     context?.label ||
     (topic

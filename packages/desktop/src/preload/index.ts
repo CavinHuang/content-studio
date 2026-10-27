@@ -2,12 +2,15 @@ import { contextBridge, ipcRenderer } from 'electron'
 import {
   AI_CHANNELS,
   DESKTOP_CHANNELS,
+  DISCOVERY_CHANNELS,
   type AiConfigInput,
   type AiConfigView,
   type AiEvent,
   type AiSendResult,
   type AiTestResult,
   type DesktopAPI,
+  type DiscoveryEvent,
+  type DiscoverySourceInput,
   type TaskEvent,
 } from '../shared/desktop'
 
@@ -36,6 +39,17 @@ const desktop: DesktopAPI = {
     const handler = (_event: unknown, payload: AiEvent) => listener(payload)
     ipcRenderer.on(AI_CHANNELS.event, handler)
     return () => ipcRenderer.removeListener(AI_CHANNELS.event, handler)
+  },
+  discoverySnapshot: () => ipcRenderer.invoke(DISCOVERY_CHANNELS.snapshot),
+  discoverySourceList: () => ipcRenderer.invoke(DISCOVERY_CHANNELS.sourceList),
+  discoverySourceSave: (input: DiscoverySourceInput) => ipcRenderer.invoke(DISCOVERY_CHANNELS.sourceSave, input),
+  discoverySourceDelete: (id: string) => ipcRenderer.invoke(DISCOVERY_CHANNELS.sourceDelete, id),
+  discoverySourceRefresh: (id: string) => ipcRenderer.invoke(DISCOVERY_CHANNELS.sourceRefresh, id),
+  discoveryRefreshAll: () => ipcRenderer.invoke(DISCOVERY_CHANNELS.refreshAll),
+  onDiscoveryEvent: (listener: (event: DiscoveryEvent) => void) => {
+    const handler = (_event: unknown, payload: DiscoveryEvent) => listener(payload)
+    ipcRenderer.on(DISCOVERY_CHANNELS.event, handler)
+    return () => ipcRenderer.removeListener(DISCOVERY_CHANNELS.event, handler)
   },
 }
 

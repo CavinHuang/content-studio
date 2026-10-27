@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, expect, test } from 'vitest'
 import { KEEP_API_KEY } from '../../packages/desktop/src/shared/desktop'
-import { migrate, openDatabase } from '../../packages/desktop/src/main/storage/db'
+import { DB_VERSION, migrate, openDatabase } from '../../packages/desktop/src/main/storage/db'
 import {
   clearModelConfig,
   getModelConfig,
@@ -35,11 +35,11 @@ const passthrough: Crypto = {
   decrypt: (data) => (data && (data as ArrayLike<number>).length ? Buffer.from(data as ArrayLike<number>).toString('utf8') : ''),
 }
 
-test('v1 库迁移到 v2 后 ai_config 可用', () => {
+test('v1 库迁移到最新版后 ai_config 可用', () => {
   const path = join(mkdtempSync(join(tmpdir(), 'studio-ai-')), 'studio.db')
   const raw = new DatabaseSync(path)
   migrate(raw)
-  expect(Number((raw.prepare('PRAGMA user_version').get() as { user_version: number }).user_version)).toBe(2)
+  expect(Number((raw.prepare('PRAGMA user_version').get() as { user_version: number }).user_version)).toBe(DB_VERSION)
   raw.close()
 })
 

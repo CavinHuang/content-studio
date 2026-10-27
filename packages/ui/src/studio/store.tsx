@@ -10,11 +10,17 @@ import {
   type ReactNode,
   type SetStateAction,
 } from 'react'
-import { makeProject, platformContent, seedState, topics } from './mock'
+import {
+  makeProject,
+  platformContent,
+  seedState,
+  topics as demoTopics,
+} from './mock'
 import {
   resolvePersistence,
   taskFromRecord,
   WORKSPACE_KEY,
+  type DiscoverySnapshot,
   type Persistence,
 } from './persistence'
 import {
@@ -40,6 +46,8 @@ import {
   type Page,
   type Platform,
   type Project,
+  type Source,
+  type SourceType,
   type StudioState,
   type Suggestion,
   type Task,
@@ -65,6 +73,8 @@ function readState(): StudioState {
       return {
         ...saved,
         schema: 3,
+        topics: saved.topics ?? fallback.topics,
+        topicAngleSuggestions: saved.topicAngleSuggestions ?? {},
         projects: saved.projects.map((project) => ({
           ...project,
           creation: recoverCreation(project.creation),
@@ -131,6 +141,10 @@ type ContextReference = { label: string; text: string; platform?: Platform }
 function adoptWorkspace(workspace: StudioState): StudioState {
   return {
     ...workspace,
+    // 桌面模式文档不保存 topics/sources（权威在主进程 discovery 表），用演示副本兜底后由快照覆盖。
+    topics: workspace.topics ?? structuredClone(demoTopics),
+    topicAngleSuggestions: workspace.topicAngleSuggestions ?? {},
+    sources: workspace.sources ?? [],
     projects: workspace.projects.map((project) => ({
       ...project,
       creation: recoverCreation(project.creation),
@@ -202,6 +216,20 @@ export type Store = {
   testAiConnection: (baseUrl: string, apiKey: string, modelId: string) => Promise<{ ok: boolean; message: string; latencyMs?: number } | null>
   clearAiConfig: () => Promise<void>
   reference: (label: string, text: string) => void
+  saveSource: (input: SourceInput) => Promise<boolean>
+  deleteSource: (id: string) => Promise<void>
+  refreshSource: (source: Source) => void
+  refreshAllSources: () => void
+  suggestAngles: (topic: Topic) => void
+  angleBusy: Record<string, boolean>
+}
+export type SourceInput = {
+  id?: string
+  name: string
+  type: SourceType
+  category: string
+  enabled: boolean
+  url: string
 }
 const StudioContext = createContext<Store | null>(null)
 export function StudioProvider({ children }: { children: ReactNode }) {
@@ -222,8 +250,11 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   const [aiReady, setAiReady] = useState(false)
   const [aiBusy, setAiBusy] = useState(false)
   const [aiAsk, setAiAsk] = useState<{ questionId: string; question: string; options?: string[] } | null>(null)
+  const [angleBusy, setAngleBusy] = useState<Record<string, boolean>>({})
   // 会话键 → 流式目标（并发 1，一键一运行足够）。
   const aiRuns = useRef(new Map<string, AiRunTarget>())
+  // AI 建议角度的一次性会话：按会话键累积增量文本，run_end 时解析为候选角度。
+  const angleRuns = useRef(new Map<string, { topicId: string; buffer: string }>())
   const project =
     state.projects.find((p) => p.id === state.selectedProject && !p.trashed) ??
     state.projects.find((p) => !p.trashed) ??
@@ -275,6 +306,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   // 启动：权威存储载入；空库时用 localStorage/旧键引导（readState）并回写建立基线。
   useEffect(() => {
     let cancelled = false
+    let offDiscovery: (() => void) | undefined
     void (async () => {
       const { workspace } = await persistence.load()
       if (cancelled) return
@@ -305,6 +337,27 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       const tasks = await persistence.taskList()
       if (cancelled) return
       setState((s) => ({ ...s, tasks: mergeTaskLists(tasks, s.tasks) }))
+      // 热点域：桌面模式从主进程加载聚合快照并订阅变更（来源/话题权威在主进程）。
+      const discovery = persistence.discovery
+      if (discovery) {
+        const applySnapshot = (snapshot: DiscoverySnapshot) => {
+          if (cancelled) return
+          setState((s) => ({
+            ...s,
+            sources: snapshot.sources,
+            topics: snapshot.topics,
+            ...(snapshot.lastSyncAt ? { discoverySyncAt: snapshot.lastSyncAt } : {}),
+          }))
+        }
+        try {
+          applySnapshot(await discovery.snapshot())
+        } catch {
+          // 桥异常时保留本地演示数据，不阻塞启动
+        }
+        offDiscovery = discovery.onEvent((event) => {
+          if (event.type === 'snapshot') applySnapshot(event.snapshot)
+        })
+      }
       setReady(true)
       const info = await window.desktop?.getAppInfo().catch(() => undefined)
       if (!cancelled && (import.meta.env.DEV || info?.smoke)) {
@@ -347,6 +400,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
       off()
+      offDiscovery?.()
       delete window.__studio
     }
   }, [persistence])
@@ -406,6 +460,8 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     if (event.type === 'delta') {
       const target = aiRuns.current.get(event.sessionKey)
       if (target) mutateAiMessage(target, (text) => ({ text: text + event.text }))
+      const angleRun = angleRuns.current.get(event.sessionKey)
+      if (angleRun) angleRun.buffer += event.text
       return
     }
     if (event.type === 'ask') {
@@ -445,6 +501,41 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       mutateAiMessage(target, (text) => ({
         text: text || `（对话出错了：${event.error ?? '未知错误'}）`,
       }))
+    // AI 建议角度的一次性会话：解析为候选（供选择/改写，不自动采用）
+    const angleRun = angleRuns.current.get(event.sessionKey)
+    if (angleRun) {
+      angleRuns.current.delete(event.sessionKey)
+      setAngleBusy((busy) => ({ ...busy, [angleRun.topicId]: false }))
+      if (!event.ok) {
+        notify('角度生成失败；仍可在下方手动输入角度继续创作。')
+        return
+      }
+      const angles = parseAngleSuggestions(angleRun.buffer)
+      if (angles.length) {
+        setState((s) => ({
+          ...s,
+          topicAngleSuggestions: { ...s.topicAngleSuggestions, [angleRun.topicId]: angles },
+        }))
+        notify('AI 角度建议已生成；可任选一个或直接改写。')
+      } else {
+        notify('未能从模型输出解析出角度建议；可直接手动输入。')
+      }
+    }
+  }
+
+  /** 解析模型输出为至多 3 条角度候选：优先「角度：」行，退化为编号/符号列表行。 */
+  function parseAngleSuggestions(buffer: string): string[] {
+    const lines = buffer
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+    const marked = lines
+      .map((line) => /^角度[：:]\s*(.+)$/.exec(line)?.[1]?.trim() ?? null)
+      .filter((line): line is string => Boolean(line))
+    const pool = marked.length
+      ? marked
+      : lines.map((line) => /^(?:\d+[.、)]\s*|[-*·]\s*)(.+)$/.exec(line)?.[1]?.trim() ?? line)
+    return pool.filter((line) => line.length >= 6).slice(0, 3)
   }
   function applyMasterCandidate(projectId: string, title: string, body: string): void {
     setState((s) => {
@@ -745,7 +836,8 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   }
   function createFromTopic(topic: Topic) {
     const draft = state.topicDrafts[topic.id] ?? {
-      angle: topic.angles[0]!,
+      // 真实来源聚合的话题没有预置角度（AI 建议/手动输入补位）
+      angle: topic.angles[0] ?? '',
       articleIds: topic.articles.map((a) => a.id),
       requirements: '',
     }
@@ -955,6 +1047,125 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     setComposer((current) => (current.trim() ? current : '请结合这段内容，帮我继续梳理。'))
     window.dispatchEvent(new Event('studio:open-agent'))
   }
+  // —— 热点域动作：桌面模式走主进程（真实抓取/聚合），本地降级保持演示语义 ——
+  async function saveSource(input: SourceInput): Promise<boolean> {
+    const discovery = persistence.discovery
+    if (!discovery) {
+      setState((s) => ({
+        ...s,
+        sources: s.sources.some((source) => source.id === input.id)
+          ? s.sources.map((source) => (source.id === input.id ? { ...source, ...input } : source))
+          : [
+              ...s.sources,
+              { id: input.id ?? uid(), ...input, status: 'unconfigured', updated: '' },
+            ],
+      }))
+      notify('来源已保存（本地演示模式，不会发起网络请求）。')
+      return true
+    }
+    try {
+      const saved = await discovery.sourceSave(input)
+      setState((s) => ({
+        ...s,
+        sources: s.sources.some((source) => source.id === saved.id)
+          ? s.sources.map((source) => (source.id === saved.id ? saved : source))
+          : [...s.sources, saved],
+      }))
+      notify('来源已保存。')
+      return true
+    } catch (err) {
+      notify(err instanceof Error ? err.message : '来源保存失败，请重试。')
+      return false
+    }
+  }
+  async function deleteSource(id: string): Promise<void> {
+    const discovery = persistence.discovery
+    if (!discovery) {
+      setState((s) => ({ ...s, sources: s.sources.filter((source) => source.id !== id) }))
+      notify('来源已移除（本地演示模式）。')
+      return
+    }
+    try {
+      const result = await discovery.sourceDelete(id)
+      if (!result.ok) {
+        notify(result.message ?? '来源移除失败。')
+        return
+      }
+      setState((s) => ({ ...s, sources: s.sources.filter((source) => source.id !== id) }))
+      notify('来源已移除；它贡献的原文缓存已清理，已创建内容的选题快照不受影响。')
+    } catch (err) {
+      notify(err instanceof Error ? err.message : '来源移除失败。')
+    }
+  }
+  function refreshSource(source: Source): void {
+    const discovery = persistence.discovery
+    if (!discovery) {
+      task(`刷新 ${source.name}`, '本地演示：未发起网络请求…', 'source')
+      notify('本地演示模式：话题均为示例，刷新不会请求实时榜单。')
+      return
+    }
+    void discovery.sourceRefresh(source.id).then((result) => {
+      if (!result.ok) notify(result.message ?? '刷新任务创建失败。')
+      else notify(`正在刷新「${source.name}」；失败时会保留旧缓存。`)
+    })
+  }
+  function refreshAllSources(): void {
+    const discovery = persistence.discovery
+    if (!discovery) {
+      task('刷新热点来源', '本地演示：未发起网络请求…', 'source')
+      notify('本地演示模式：话题均为示例，未请求实时榜单。')
+      return
+    }
+    void discovery.refreshAll().then((result) => {
+      if (!result.ok) notify(result.message ?? '刷新任务创建失败。')
+      else notify('正在刷新已启用的来源；单个来源失败不影响其余来源。')
+    })
+  }
+  /** AI 建议角度：经 AgentService 一次性会话生成 3 个候选，供选择或改写（不自动采用）。 */
+  function suggestAngles(topic: Topic): void {
+    const ai = persistence.ai
+    if (!ai) {
+      notify('浏览器预览不支持 AI 建议角度，请在桌面应用中配置模型后使用。')
+      return
+    }
+    if (!aiReady) {
+      notify('尚未配置模型，请先到「设置 → AI 服务」配置。')
+      return
+    }
+    if (angleBusy[topic.id]) return
+    const sessionKey = `gen:angles-${topic.id.replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 48)}`
+    angleRuns.current.set(sessionKey, { topicId: topic.id, buffer: '' })
+    setAngleBusy((busy) => ({ ...busy, [topic.id]: true }))
+    const currentAngle = state.topicDrafts[topic.id]?.angle.trim()
+    const sourcesBlock = topic.articles
+      .slice(0, 6)
+      .map((article) => `· ${article.title}${article.body ? `——${article.body.slice(0, 160)}` : '（仅链接）'}`)
+      .join('\n')
+    const prompt = [
+      '你是选题角度顾问。基于下面的热点话题与来源原文，提出 3 个互不重叠的创作切入点。',
+      '要求：每个角度一句话、具体可执行；尊重原文事实，不虚构数据；可以建立在来源观点差异之上，但不得把推断当作原文事实。',
+      '输出恰好 3 行，每行以「角度：」开头，不要输出其他内容。',
+      '',
+      `话题：${topic.title}`,
+      topic.summary ? `概要：${topic.summary}` : '',
+      currentAngle ? `作者当前倾向：${currentAngle}` : '',
+      `来源原文（截选）：\n${sourcesBlock}`,
+    ]
+      .filter(Boolean)
+      .join('\n')
+    void ai.send(sessionKey, prompt).then((result) => {
+      if (result.ok) return
+      angleRuns.current.delete(sessionKey)
+      setAngleBusy((busy) => ({ ...busy, [topic.id]: false }))
+      const message =
+        result.code === 'NO_MODEL_CONFIG'
+          ? '尚未配置模型，请到「设置 → AI 服务」配置。'
+          : result.code === 'AGENT_BUSY'
+            ? '已有 AI 任务在运行，请等待完成或先取消。'
+            : (result.message ?? '角度生成失败；可直接手动输入。')
+      notify(message)
+    })
+  }
   function answerAsk(answer: string) {
     if (!aiAsk) return
     void persistence.ai?.answer(aiAsk.questionId, answer)
@@ -999,7 +1210,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     }
     const blocks: string[] = []
     if (discovery) {
-      const topic = topics.find((t) => t.id === state.selectedTopic)
+      const topic = stateRef.current.topics.find((t) => t.id === state.selectedTopic)
       const angle = topic ? state.topicDrafts[topic.id]?.angle : undefined
       if (topic) blocks.push(`当前热点：${topic.title}${angle ? `\n角度：${angle}` : ''}`)
     } else {
@@ -1070,7 +1281,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     }
     if (['hotspots', 'sources'].includes(state.page)) {
       const threadId = state.activeDiscovery
-      const topic = topics.find((t) => t.id === state.selectedTopic)
+      const topic = state.topics.find((t) => t.id === state.selectedTopic)
       const angle = topic ? state.topicDrafts[topic.id]?.angle : undefined
       const user = {
         id: uid(),
@@ -1099,7 +1310,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
                     role: 'assistant',
                     at: now(),
                     text: topic
-                      ? `这个话题可以先区分来源中的事实片段与作者的判断。\n\n建议角度：${angle || topic.angles[0]}\n\n你可以在中间改写角度、逐篇选择原文，再用这个角度开始一篇独立创作。没有读到正文的来源，只作为链接保留。`
+                      ? `这个话题可以先区分来源中的事实片段与作者的判断。\n\n建议角度：${angle || topic.angles[0] || '先用自己的话写下一句切入'}\n\n你可以在中间改写角度、逐篇选择原文，再用这个角度开始一篇独立创作。没有读到正文的来源，只作为链接保留。`
                       : '可以先从你关心的领域与订阅来源入手，再比较不同原文。选择一个热点进入详情，就能查看来源、修改角度，并创建独立内容。',
                   },
                 ],
@@ -1353,6 +1564,12 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         testAiConnection,
         clearAiConfig,
         reference,
+        saveSource,
+        deleteSource,
+        refreshSource,
+        refreshAllSources,
+        suggestAngles,
+        angleBusy,
       }}
     >
       {children}

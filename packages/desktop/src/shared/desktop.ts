@@ -97,6 +97,72 @@ export type AiEvent =
   | { type: 'run_end'; sessionKey: string; runId: string; ok: boolean; error?: string }
 export type AiSendResult = { ok: boolean; runId?: string; code?: string; message?: string }
 
+export const DISCOVERY_CHANNELS = {
+  sourceList: 'studio:discovery:source-list',
+  sourceSave: 'studio:discovery:source-save',
+  sourceDelete: 'studio:discovery:source-delete',
+  sourceRefresh: 'studio:discovery:source-refresh',
+  refreshAll: 'studio:discovery:refresh-all',
+  snapshot: 'studio:discovery:snapshot',
+  event: 'studio:discovery:event',
+} as const
+
+/** 来源四类型（UX-SPEC §20.6）；与目标发布平台分别配置。 */
+export type DiscoverySourceType = '平台热榜' | '新闻资讯' | 'RSS' | '自定义来源'
+/** 持久化状态；「更新中」由渲染端按运行中的刷新任务派生，不落库。 */
+export type DiscoverySourceStatus = 'ready' | 'failed' | 'unconfigured' | 'stale'
+export type DiscoverySource = {
+  id: string
+  name: string
+  type: DiscoverySourceType
+  category: string
+  enabled: boolean
+  status: DiscoverySourceStatus
+  updated: string
+  url: string
+  /** 内置示例来源：确定性演示数据；未配置真实来源时承担热点域演示（演示保留策略）。 */
+  builtin?: boolean
+}
+export type DiscoverySourceInput = {
+  id?: string
+  name: string
+  type: DiscoverySourceType
+  category: string
+  enabled: boolean
+  url: string
+}
+/** 聚合后的原文：同一规范化 URL 多源收录合并，sourceIds 保留全部收录方。 */
+export type DiscoveryArticle = {
+  id: string
+  title: string
+  sourceIds: string[]
+  url: string
+  body: string
+  published: string
+  collected: string
+  metric?: string
+}
+export type DiscoveryTopic = {
+  id: string
+  title: string
+  summary: string
+  category: string
+  tags: string[]
+  image: string
+  articles: DiscoveryArticle[]
+  angles: string[]
+  ageHours: number
+  updated: string
+}
+export type DiscoverySnapshot = {
+  sources: DiscoverySource[]
+  topics: DiscoveryTopic[]
+  /** 最近一次任一来源成功刷新的时间；空串表示从未成功过。 */
+  lastSyncAt: string
+}
+export type DiscoveryEvent = { type: 'snapshot'; snapshot: DiscoverySnapshot }
+export type DiscoveryRefreshResult = { ok: boolean; taskId?: string; message?: string }
+
 export interface DesktopAPI {
   getAppInfo(): Promise<AppInfo>
   openDesigns(): Promise<{ ok: boolean; message?: string }>
@@ -115,4 +181,11 @@ export interface DesktopAPI {
   aiCancel(sessionKey: string): Promise<{ ok: boolean }>
   aiAnswer(questionId: string, answer: string): Promise<{ ok: boolean }>
   onAiEvent(listener: (event: AiEvent) => void): () => void
+  discoverySnapshot(): Promise<DiscoverySnapshot>
+  discoverySourceList(): Promise<DiscoverySource[]>
+  discoverySourceSave(input: DiscoverySourceInput): Promise<DiscoverySource>
+  discoverySourceDelete(id: string): Promise<{ ok: boolean; message?: string }>
+  discoverySourceRefresh(id: string): Promise<DiscoveryRefreshResult>
+  discoveryRefreshAll(): Promise<DiscoveryRefreshResult>
+  onDiscoveryEvent(listener: (event: DiscoveryEvent) => void): () => void
 }

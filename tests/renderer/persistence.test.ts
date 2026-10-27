@@ -1,6 +1,8 @@
 import { beforeEach, expect, test } from 'vitest'
 import type {
   DesktopAPI,
+  DiscoveryEvent,
+  DiscoverySourceInput,
   TaskEvent,
   TaskRecord,
   TaskSettle,
@@ -97,6 +99,38 @@ class FakeBridge implements DesktopAPI {
   aiCancel: DesktopAPI['aiCancel'] = async () => ({ ok: true })
   aiAnswer: DesktopAPI['aiAnswer'] = async () => ({ ok: true })
   onAiEvent: DesktopAPI['onAiEvent'] = () => () => {}
+  // 热点域通道桩：记录调用并回放最小快照。
+  savedSources: DiscoverySourceInput[] = []
+  deletedSources: string[] = []
+  snapshot: DesktopAPI['discoverySnapshot'] extends () => Promise<infer T> ? T : never = {
+    sources: [],
+    topics: [],
+    lastSyncAt: '',
+  } as never
+  discoverySnapshot: DesktopAPI['discoverySnapshot'] = async function (this: FakeBridge) {
+    return this.snapshot
+  }
+  discoverySourceList: DesktopAPI['discoverySourceList'] = async () => []
+  discoverySourceSave: DesktopAPI['discoverySourceSave'] = async function (this: FakeBridge, input) {
+    this.savedSources.push(input)
+    return {
+      id: input.id ?? 's-new',
+      name: input.name,
+      type: input.type,
+      category: input.category,
+      enabled: input.enabled,
+      status: 'unconfigured',
+      updated: '',
+      url: input.url,
+    }
+  }
+  discoverySourceDelete: DesktopAPI['discoverySourceDelete'] = async function (this: FakeBridge, id) {
+    this.deletedSources.push(id)
+    return { ok: true }
+  }
+  discoverySourceRefresh: DesktopAPI['discoverySourceRefresh'] = async () => ({ ok: true, taskId: 't1' })
+  discoveryRefreshAll: DesktopAPI['discoveryRefreshAll'] = async () => ({ ok: true, taskId: 't2' })
+  onDiscoveryEvent: DesktopAPI['onDiscoveryEvent'] = (_listener: (event: DiscoveryEvent) => void) => () => {}
   private emit(event: TaskEvent) {
     for (const listener of this.listeners) listener(event)
   }
@@ -107,13 +141,16 @@ beforeEach(() => {
   __setPersistenceForTest(null)
 })
 
-test('desktop 模式：save 剥离 tasks，不写入任务到文档', async () => {
+test('desktop 模式：save 剥离 tasks 与热点聚合，不写入任务/来源/话题到文档', async () => {
   const bridge = new FakeBridge()
   const persistence = createDesktopPersistence(bridge)
   const result = await persistence.save(makeState())
   expect(result).toEqual({ ok: true })
   expect(bridge.savedDocs).toHaveLength(1)
-  expect((bridge.savedDocs[0] as { tasks: unknown[] }).tasks).toEqual([])
+  const doc = bridge.savedDocs[0] as { tasks: unknown[]; sources?: unknown; topics?: unknown }
+  expect(doc.tasks).toEqual([])
+  expect(doc.sources).toBeUndefined()
+  expect(doc.topics).toBeUndefined()
 })
 
 test('desktop 模式：load 接受合法工作区、拒绝不合法', async () => {
@@ -188,6 +225,31 @@ test('resolvePersistence：无桌面桥走 local，有桥走 desktop', () => {
   expect(resolvePersistence().mode).toBe('local')
   const bridge = new FakeBridge()
   ;(window as { desktop?: DesktopAPI }).desktop = bridge
-  expect(resolvePersistence().mode).toBe('desktop')
+  const persistence = resolvePersistence()
+  expect(persistence.mode).toBe('desktop')
   delete (window as { desktop?: DesktopAPI }).desktop
+})
+
+test('desktop 模式：discovery 桥映射保存/删除/刷新，local 模式为 null', async () => {
+  const bridge = new FakeBridge()
+  const desktop = createDesktopPersistence(bridge)
+  const discovery = desktop.discovery!
+  expect(createLocalPersistence().discovery).toBeNull()
+  expect(await discovery.snapshot()).toEqual(bridge.snapshot)
+  const saved = await discovery.sourceSave({
+    name: '我的订阅',
+    type: 'RSS',
+    category: '生活',
+    enabled: true,
+    url: 'https://example.com/feed',
+  })
+  expect(bridge.savedSources).toHaveLength(1)
+  expect(saved).toMatchObject({ name: '我的订阅', status: 'unconfigured' })
+  expect(await discovery.sourceDelete('s1')).toEqual({ ok: true })
+  expect(bridge.deletedSources).toEqual(['s1'])
+  expect(await discovery.sourceRefresh('s1')).toMatchObject({ ok: true, taskId: 't1' })
+  expect(await discovery.refreshAll()).toMatchObject({ ok: true, taskId: 't2' })
+  const off = discovery.onEvent(() => {})
+  expect(typeof off).toBe('function')
+  off()
 })

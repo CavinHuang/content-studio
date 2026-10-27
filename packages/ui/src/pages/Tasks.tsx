@@ -25,10 +25,14 @@ const labels = {
   complete: '已完成',
 }
 export function TasksPage() {
-  const { state, controlTask, selectProject, patchProject, notify } = useStudio()
+  const { state, controlTask, selectProject, patchProject, notify, navigate } = useStudio()
   const [filter, setFilter] = useState('all')
   const allTasksFilter = useRef<HTMLButtonElement>(null)
   function viewTask(task: Task) {
+    if (task.kind === 'source') {
+      navigate('sources')
+      return
+    }
     if (task.kind === 'creation') patchProject(task.projectId, (p) => ({ ...p, activePlatform: 'master' }))
     selectProject(task.projectId, task.videoId ? 'video' : 'article')
   }
@@ -127,9 +131,12 @@ export function TasksPage() {
               </div>
               <p>{task.detail}</p>
               <span className="small-meta">
-                《{state.projects.find((p) => p.id === task.projectId)?.title || '未命名内容'}》 ·{' '}
+                {task.kind === 'source'
+                  ? '热点来源 · '
+                  : `《${state.projects.find((p) => p.id === task.projectId)?.title || '未命名内容'}》 · `}
                 {dateLabel(task.at)}
-                {task.version ? ` · 固定采用 v${task.version}` : ''} · 本机演示
+                {task.version ? ` · 固定采用 v${task.version}` : ''}
+                {task.kind === 'source' ? ' · 来源刷新' : ' · 本机演示'}
               </span>
               {task.state === 'running' && (
                 <div
@@ -163,9 +170,9 @@ export function TasksPage() {
                     variant="ghost"
                     size="sm"
                   >
-                    <RefreshCw size={14} />
-                    {task.kind === 'creation' ? '继续整理' : '重试演示'}
-                  </Button>
+                      <RefreshCw size={14} />
+                      {task.kind === 'creation' ? '继续整理' : task.kind === 'source' ? '重试' : '重试演示'}
+                    </Button>
                 ) : (
                   task.kind === 'export' && (
                     <Button

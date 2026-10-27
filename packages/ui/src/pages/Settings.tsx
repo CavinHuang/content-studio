@@ -571,9 +571,13 @@ export function SettingsPage() {
                   <Button
                     onClick={() => {
                       clearAgentDrafts()
-                      setState({
+                      setState((current) => ({
                         ...imported,
                         schema: 3,
+                        // 热点域（来源/话题聚合）权威在主进程；备份缺失时保留当前值
+                        sources: imported.sources ?? current.sources,
+                        topics: imported.topics ?? current.topics,
+                        topicAngleSuggestions: imported.topicAngleSuggestions ?? {},
                         projects: imported.projects.map((p) => ({
                           ...p,
                           creation: recoverCreation(p.creation),
@@ -589,7 +593,7 @@ export function SettingsPage() {
                                 }
                               : t,
                           ),
-                      })
+                      }))
                       setImported(null)
                       notify('备份已恢复；未完成的演示任务已停止。')
                     }}
@@ -653,7 +657,8 @@ function validBackup(value: unknown): value is StudioState {
     s.discoveryConversations.length > 0 &&
     s.discoveryConversations.every((c) => Array.isArray(c.messages)) &&
     typeof s.activeDiscovery === 'string' &&
-    Array.isArray(s.sources) &&
+    // 热点域聚合（sources/topics）权威在主进程，桌面文档与备份可不带
+    (s.sources === undefined || Array.isArray(s.sources)) &&
     Array.isArray(s.tasks) &&
     Array.isArray(s.bookmarks) &&
     !!s.preferences?.services &&

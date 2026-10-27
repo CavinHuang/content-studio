@@ -5,6 +5,11 @@ import type {
   AiSendResult,
   AiTestResult,
   DesktopAPI,
+  DiscoveryEvent,
+  DiscoveryRefreshResult,
+  DiscoverySnapshot,
+  DiscoverySource,
+  DiscoverySourceInput,
   TaskEvent,
   TaskExtra,
   TaskRecord,
@@ -12,6 +17,7 @@ import type {
 } from '../../../desktop/src/shared/desktop'
 
 export type { AiEvent }
+export type { DiscoverySnapshot }
 import type { StudioState, Task } from './types'
 
 export const WORKSPACE_KEY = 'content-studio.mock-workspace.v2'
@@ -38,10 +44,22 @@ export type AiBridge = {
   onEvent(listener: (event: AiEvent) => void): () => void
 }
 
+/** 热点域桥：来源 CRUD/刷新（任务系统驱动）与聚合快照事件；本地降级模式为 null。 */
+export type DiscoveryBridge = {
+  snapshot(): Promise<DiscoverySnapshot>
+  sourceSave(input: DiscoverySourceInput): Promise<DiscoverySource>
+  sourceDelete(id: string): Promise<{ ok: boolean; message?: string }>
+  sourceRefresh(id: string): Promise<DiscoveryRefreshResult>
+  refreshAll(): Promise<DiscoveryRefreshResult>
+  onEvent(listener: (event: DiscoveryEvent) => void): () => void
+}
+
 export type Persistence = {
   mode: 'desktop' | 'local'
   /** dev:web 无桌面桥，AI 通道不存在（走本地演示路径）。 */
   ai: AiBridge | null
+  /** dev:web 无桌面桥，热点域走本地演示数据（不发起网络请求）。 */
+  discovery: DiscoveryBridge | null
   load(): Promise<{ workspace: StudioState | null }>
   save(state: StudioState): Promise<{ ok: boolean }>
   taskList(): Promise<Task[]>
@@ -62,6 +80,7 @@ function toTask(record: TaskRecord): Task {
     at: record.at,
   }
   if (record.executor) task.executor = record.executor
+  if (record.payload !== undefined) task.payload = record.payload
   if (record.extra?.version !== undefined) task.version = record.extra.version
   if (record.extra?.videoId !== undefined) task.videoId = record.extra.videoId
   if (record.extra?.snapshot !== undefined) task.snapshot = record.extra.snapshot as Task['snapshot']
@@ -90,14 +109,24 @@ export function createDesktopPersistence(desktop: DesktopAPI): Persistence {
       answer: (questionId, answer) => desktop.aiAnswer(questionId, answer),
       onEvent: (listener) => desktop.onAiEvent(listener),
     },
+    discovery: {
+      snapshot: () => desktop.discoverySnapshot(),
+      sourceSave: (input) => desktop.discoverySourceSave(input),
+      sourceDelete: (id) => desktop.discoverySourceDelete(id),
+      sourceRefresh: (id) => desktop.discoverySourceRefresh(id),
+      refreshAll: () => desktop.discoveryRefreshAll(),
+      onEvent: (listener) => desktop.onDiscoveryEvent(listener),
+    },
     async load() {
       const result = await desktop.dbLoad()
       return { workspace: result.exists && isWorkspace(result.workspace) ? result.workspace : null }
     },
     async save(state) {
       // creation 任务由渲染端编排，随文档保存；其余任务权威在主进程任务表。
+      // 来源与话题聚合权威在主进程 discovery 表，不写入文档（启动时以快照恢复）。
+      const { sources: _sources, topics: _topics, ...doc } = state
       const result = await desktop.dbSave({
-        ...state,
+        ...doc,
         tasks: state.tasks.filter((task) => task.kind === 'creation'),
       })
       return { ok: result.ok }
@@ -226,6 +255,7 @@ export function createLocalPersistence(): Persistence {
   return {
     mode: 'local',
     ai: null,
+    discovery: null,
     async load() {
       try {
         const saved = JSON.parse(localStorage.getItem(WORKSPACE_KEY) ?? 'null') as StudioState | null

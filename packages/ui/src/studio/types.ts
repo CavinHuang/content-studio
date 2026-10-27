@@ -172,6 +172,8 @@ export type Source = {
   status: 'ready' | 'failed' | 'unconfigured' | 'stale'
   updated: string
   url: string
+  /** 内置示例来源（确定性演示数据）；未配置真实来源时承担热点域演示。 */
+  builtin?: boolean
 }
 export type SourceArticle = {
   id: string
@@ -226,11 +228,15 @@ export type StudioState = {
   page: Page
   materials: Material[]
   sources: Source[]
+  /** 热点话题聚合结果（主进程 discovery 权威；本地降级用演示副本）。 */
+  topics: Topic[]
   bookmarks: string[]
   discoveryConversations: Conversation[]
   activeDiscovery: string
   selectedTopic?: string
   topicDrafts: Record<string, { angle: string; articleIds: string[]; requirements: string }>
+  /** AI 建议角度（按话题缓存；候选供选择/改写，不自动采用）。 */
+  topicAngleSuggestions: Record<string, string[]>
   hotspotFilters: {
     query: string
     category: string
@@ -240,6 +246,8 @@ export type StudioState = {
     sort: string
     saved: boolean
   }
+  /** 最近一次任一来源成功刷新的时间（桌面模式来自主进程快照）。 */
+  discoverySyncAt?: string
   tasks: Task[]
   preferences: Preferences
   layout: { left: number; right: number }
