@@ -2,6 +2,7 @@ import { test, expect, _electron as electron } from '@playwright/test'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 
@@ -10,8 +11,16 @@ import type { AddressInfo } from 'node:net'
 // - /editor：编辑器夹具页（标题/正文/发布按钮）→ 已登录注入路径
 // - POST /__publish-click：发布按钮点击上报专用端点——铁律断言收到的点击数为 0。
 //   （Playwright 的 ElectronApplication 无法窥视 WebContentsView 内容，断言走 UI 状态 + 夹具请求日志。）
-const editorHtml = readFileSync(join(__dirname, '..', 'fixtures', 'redbook-editor.html'), 'utf8')
-const loginHtml = readFileSync(join(__dirname, '..', 'fixtures', 'redbook-login.html'), 'utf8')
+// 根 package.json 为 "type": "module"，Playwright 以 ESM 加载本文件：
+// 夹具路径必须走 import.meta.url + fileURLToPath（__dirname 在 ESM 下是 ReferenceError）。
+const editorHtml = readFileSync(
+  fileURLToPath(new URL('../fixtures/redbook-editor.html', import.meta.url)),
+  'utf8',
+)
+const loginHtml = readFileSync(
+  fileURLToPath(new URL('../fixtures/redbook-login.html', import.meta.url)),
+  'utf8',
+)
 
 type FixtureState = { editorLoads: number; loginLoads: number; publishClicks: number }
 
