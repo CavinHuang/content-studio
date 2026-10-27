@@ -151,6 +151,20 @@ class FakeBridge implements DesktopAPI {
   publishCanInject: DesktopAPI['publishCanInject'] = async () => ({ ok: true, message: 'stub' })
   publishRenderHtml: DesktopAPI['publishRenderHtml'] = async () => ({ ok: true, html: '<p>stub</p>' })
   publishSaveDraft: DesktopAPI['publishSaveDraft'] = async () => ({ ok: true, taskId: 't3' })
+  // 小红书平台会话通道桩：记录调用并回放最小视图。
+  redbookCalls: string[] = []
+  publishRedbookOpenSession: DesktopAPI['publishRedbookOpenSession'] = async function (this: FakeBridge) {
+    this.redbookCalls.push('open')
+    return { ok: true, loginState: 'notLoggedIn', message: '尚未登录小红书。' }
+  }
+  publishRedbookLoginState: DesktopAPI['publishRedbookLoginState'] = async function (this: FakeBridge) {
+    this.redbookCalls.push('login')
+    return { ok: true, loginState: 'notLoggedIn' }
+  }
+  publishRedbookInjectDraft: DesktopAPI['publishRedbookInjectDraft'] = async function (this: FakeBridge) {
+    this.redbookCalls.push('inject')
+    return { ok: true, taskId: 't4' }
+  }
   private emit(event: TaskEvent) {
     for (const listener of this.listeners) listener(event)
   }
@@ -292,4 +306,23 @@ test('desktop 模式：publish 桥映射配置/探测/渲染/存草稿，local �
   })
   await publish.configClear()
   expect(await publish.configGet()).toBeNull()
+})
+
+test('desktop 模式：publish 桥映射小红书会话三通道，local 模式不可用', async () => {
+  const bridge = new FakeBridge()
+  const desktop = createDesktopPersistence(bridge)
+  const publish = desktop.publish!
+  expect(createLocalPersistence().publish).toBeNull()
+  await expect(publish.redbookLoginState()).resolves.toMatchObject({
+    ok: true,
+    loginState: 'notLoggedIn',
+  })
+  await expect(publish.redbookOpenSession()).resolves.toMatchObject({
+    ok: true,
+    loginState: 'notLoggedIn',
+  })
+  await expect(
+    publish.redbookInjectDraft({ projectId: 'p1', title: '标题', body: '正文', tags: '#话题' }),
+  ).resolves.toMatchObject({ ok: true, taskId: 't4' })
+  expect(bridge.redbookCalls).toEqual(['login', 'open', 'inject'])
 })

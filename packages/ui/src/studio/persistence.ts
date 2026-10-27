@@ -14,6 +14,9 @@ import type {
   TaskExtra,
   TaskRecord,
   TaskSettle,
+  RedbookDraftInput,
+  RedbookDraftResult,
+  RedbookSessionView,
   WechatConfigInput,
   WechatConfigView,
   WechatDraftInput,
@@ -70,6 +73,12 @@ export type PublishBridge = {
   canInject(): Promise<WechatProbeResult>
   renderHtml(body: string): Promise<WechatHtmlResult>
   saveDraft(input: WechatDraftInput): Promise<WechatDraftResult>
+  /** 小红书：打开平台页（可见）并探测登录态。 */
+  redbookOpenSession(): Promise<RedbookSessionView>
+  /** 小红书：登录态探测（会话未打开时隐藏打开）。 */
+  redbookLoginState(): Promise<RedbookSessionView>
+  /** 小红书：创建注入草稿任务（只填草稿，绝不点发布）。 */
+  redbookInjectDraft(input: RedbookDraftInput): Promise<RedbookDraftResult>
 }
 
 export type Persistence = {
@@ -145,6 +154,9 @@ export function createDesktopPersistence(desktop: DesktopAPI): Persistence {
       canInject: () => desktop.publishCanInject(),
       renderHtml: (body) => desktop.publishRenderHtml(body),
       saveDraft: (input) => desktop.publishSaveDraft(input),
+      redbookOpenSession: () => desktop.publishRedbookOpenSession(),
+      redbookLoginState: () => desktop.publishRedbookLoginState(),
+      redbookInjectDraft: (input) => desktop.publishRedbookInjectDraft(input),
     },
     async load() {
       const result = await desktop.dbLoad()

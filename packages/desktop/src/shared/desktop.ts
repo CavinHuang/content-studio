@@ -174,6 +174,9 @@ export const PUBLISH_CHANNELS = {
   canInject: 'studio:publish:can-inject',
   renderHtml: 'studio:publish:render-html',
   saveDraft: 'studio:publish:save-draft',
+  redbookOpenSession: 'studio:publish:redbook:open-session',
+  redbookLoginState: 'studio:publish:redbook:login-state',
+  redbookInjectDraft: 'studio:publish:redbook:inject-draft',
 } as const
 
 /** 渲染端回显不出密钥：未改 secret 就保存时传该占位，沿用已存值。 */
@@ -200,6 +203,28 @@ export type WechatDraftInput = {
   assets?: Record<string, string>
 }
 export type WechatDraftResult = { ok: boolean; taskId?: string; code?: string; message?: string }
+
+/** 小红书登录态（探测结果）。 */
+export type RedbookLoginState = 'loggedIn' | 'notLoggedIn'
+/**
+ * 小红书平台会话视图：openSession/loginState 的统一返回。
+ * ok=true 时 loginState 给出探测结论；ok=false 时 code/message 说明原因（地址不合法/白名单拦截/网络等）。
+ */
+export type RedbookSessionView = {
+  ok: boolean
+  loginState?: RedbookLoginState
+  code?: string
+  message?: string
+}
+/** 小红书注入任务入参：tags 为批次快照的话题标签原始串（如「#个人创作 #创作习惯」或逗号分隔）。 */
+export type RedbookDraftInput = {
+  projectId: string
+  batchId?: string
+  title: string
+  body: string
+  tags?: string
+}
+export type RedbookDraftResult = { ok: boolean; taskId?: string; code?: string; message?: string }
 
 export interface DesktopAPI {
   getAppInfo(): Promise<AppInfo>
@@ -232,4 +257,7 @@ export interface DesktopAPI {
   publishCanInject(): Promise<WechatProbeResult>
   publishRenderHtml(body: string): Promise<WechatHtmlResult>
   publishSaveDraft(input: WechatDraftInput): Promise<WechatDraftResult>
+  publishRedbookOpenSession(): Promise<RedbookSessionView>
+  publishRedbookLoginState(): Promise<RedbookSessionView>
+  publishRedbookInjectDraft(input: RedbookDraftInput): Promise<RedbookDraftResult>
 }

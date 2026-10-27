@@ -60,6 +60,10 @@ const desktop: DesktopAPI = {
   publishRenderHtml: (body: string) => ipcRenderer.invoke(PUBLISH_CHANNELS.renderHtml, body),
   publishSaveDraft: (input: Parameters<DesktopAPI['publishSaveDraft']>[0]) =>
     ipcRenderer.invoke(PUBLISH_CHANNELS.saveDraft, input),
+  publishRedbookOpenSession: () => ipcRenderer.invoke(PUBLISH_CHANNELS.redbookOpenSession),
+  publishRedbookLoginState: () => ipcRenderer.invoke(PUBLISH_CHANNELS.redbookLoginState),
+  publishRedbookInjectDraft: (input: Parameters<DesktopAPI['publishRedbookInjectDraft']>[0]) =>
+    ipcRenderer.invoke(PUBLISH_CHANNELS.redbookInjectDraft, input),
 }
 
 contextBridge.exposeInMainWorld('desktop', desktop)

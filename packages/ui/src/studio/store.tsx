@@ -233,6 +233,19 @@ export type Store = {
     digest?: string
     assets?: Record<string, string>
   }) => Promise<{ ok: boolean; message: string }>
+  /** 小红书登录态：unknown=未检测（含检测失败，message 说明原因）。 */
+  redbookLogin: { state: 'unknown' | 'loggedIn' | 'notLoggedIn'; message?: string }
+  /** 探测小红书登录态（会话未打开时在主进程隐藏打开；本地降级无动作）。 */
+  checkRedbookLogin(): Promise<void>
+  /** 打开小红书平台页（可见，供扫码登录/查看草稿）并更新登录态。 */
+  openRedbookSession(): Promise<void>
+  /** 注入小红书草稿：任务系统驱动（kind 'publish' / executor 'main'），只填草稿绝不点发布。 */
+  injectRedbookDraft: (input: {
+    batchId?: string
+    title: string
+    body: string
+    tags?: string
+  }) => Promise<{ ok: boolean; message: string }>
   reference: (label: string, text: string) => void
   saveSource: (input: SourceInput) => Promise<boolean>
   deleteSource: (id: string) => Promise<void>
@@ -272,6 +285,9 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   const [aiAsk, setAiAsk] = useState<{ questionId: string; question: string; options?: string[] } | null>(null)
   const [angleBusy, setAngleBusy] = useState<Record<string, boolean>>({})
   const [wechatConfig, setWechatConfig] = useState<WechatConfigView | null>(null)
+  const [redbookLogin, setRedbookLogin] = useState<{ state: 'unknown' | 'loggedIn' | 'notLoggedIn'; message?: string }>(
+    { state: 'unknown' },
+  )
   // 会话键 → 流式目标（并发 1，一键一运行足够）。
   const aiRuns = useRef(new Map<string, AiRunTarget>())
   // AI 建议角度的一次性会话：按会话键累积增量文本，run_end 时解析为候选角度。
@@ -1304,6 +1320,54 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     notify(outcome.message)
     return outcome
   }
+  // —— 小红书平台会话动作：登录态探测/打开平台页/注入草稿（只填草稿，绝不点发布） ——
+  async function checkRedbookLogin() {
+    const publish = persistence.publish
+    if (!publish) return
+    try {
+      const view = await publish.redbookLoginState()
+      setRedbookLogin(
+        view.ok && view.loginState ? { state: view.loginState } : { state: 'unknown', message: view.message },
+      )
+    } catch {
+      setRedbookLogin({ state: 'unknown', message: '登录检测失败，请稍后重试。' })
+    }
+  }
+  async function openRedbookSession() {
+    const publish = persistence.publish
+    if (!publish) return
+    try {
+      const view = await publish.redbookOpenSession()
+      if (view.ok && view.loginState) setRedbookLogin({ state: view.loginState })
+      notify(
+        view.ok
+          ? view.loginState === 'loggedIn'
+            ? '已打开小红书平台页。'
+            : '已打开小红书平台页；请扫码完成登录后重试注入。'
+          : `打开小红书平台页失败：${view.message ?? '请稍后重试。'}`,
+      )
+    } catch {
+      notify('打开小红书平台页失败，请稍后重试。')
+    }
+  }
+  async function injectRedbookDraft(input: {
+    batchId?: string
+    title: string
+    body: string
+    tags?: string
+  }): Promise<{ ok: boolean; message: string }> {
+    const publish = persistence.publish
+    if (!publish) return { ok: false, message: '浏览器预览不支持小红书注入，请使用桌面应用或继续复制交付。' }
+    const result = await publish
+      .redbookInjectDraft({ projectId: project.id, ...input })
+      .catch(() => ({ ok: false as const, message: '注入任务创建失败，请重试。' }))
+    const outcome = {
+      ok: result.ok,
+      message: result.message ?? (result.ok ? '已创建注入任务。' : '注入任务创建失败。'),
+    }
+    notify(outcome.message)
+    return outcome
+  }
   /** pi 对话：先落用户消息与空回复占位，再发送；事件按会话键回流（并发 1，一键一运行）。 */
   function sendAiMessage(text: string): void {
     const ai = persistence.ai
@@ -1681,6 +1745,10 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         probeWechat,
         renderWechatHtml,
         saveWechatDraft,
+        redbookLogin,
+        checkRedbookLogin,
+        openRedbookSession,
+        injectRedbookDraft,
         reference,
         saveSource,
         deleteSource,

@@ -79,6 +79,10 @@ export function PublishPage() {
     probeWechat,
     renderWechatHtml,
     saveWechatDraft,
+    redbookLogin,
+    checkRedbookLogin,
+    openRedbookSession,
+    injectRedbookDraft,
   } = useStudio()
   const [selected, setSelected] = useState<Platform[]>([])
   const [videoId, setVideoId] = useState('')
@@ -95,6 +99,10 @@ export function PublishPage() {
   const [savingConfig, setSavingConfig] = useState(false)
   const [probing, setProbing] = useState(false)
   const [probeMessage, setProbeMessage] = useState('')
+  const [checkingRedbook, setCheckingRedbook] = useState(false)
+  const [openingRedbook, setOpeningRedbook] = useState(false)
+  const [injectOpen, setInjectOpen] = useState(false)
+  const [injectConfirmed, setInjectConfirmed] = useState(false)
   const settledNoticeRef = useRef('')
   useEffect(() => {
     pageRef.current?.scrollTo({ top: 0 })
@@ -110,7 +118,19 @@ export function PublishPage() {
           (task) =>
             task.kind === 'publish' &&
             task.executor === 'main' &&
-            (task.payload as { batchId?: string } | undefined)?.batchId === batch?.id,
+            (task.payload as { batchId?: string; platform?: string } | undefined)?.batchId === batch?.id &&
+            (task.payload as { platform?: string } | undefined)?.platform === 'wechat',
+        )
+      : undefined
+  // 本批次小红书注入任务（kind 'publish' / executor 'main' / payload.platform 'redbook'）。
+  const redbookTask =
+    current?.platform === 'redbook'
+      ? state.tasks.find(
+          (task) =>
+            task.kind === 'publish' &&
+            task.executor === 'main' &&
+            (task.payload as { batchId?: string; platform?: string } | undefined)?.batchId === batch?.id &&
+            (task.payload as { platform?: string } | undefined)?.platform === 'redbook',
         )
       : undefined
   useEffect(() => {
@@ -120,6 +140,13 @@ export function PublishPage() {
     else if (draftTask.state === 'failed')
       notify(`存入草稿箱失败：${draftTask.error ?? draftTask.detail}`)
   }, [draftTask, notify])
+  useEffect(() => {
+    if (!redbookTask || redbookTask.state === 'running' || settledNoticeRef.current === redbookTask.id) return
+    settledNoticeRef.current = redbookTask.id
+    if (redbookTask.state === 'complete') notify('已注入小红书草稿；请在平台页检查后手动发布。')
+    else if (redbookTask.state === 'failed')
+      notify(`注入失败：${redbookTask.error ?? redbookTask.detail}`)
+  }, [redbookTask, notify])
   useEffect(() => {
     if (!wechatFormOpen) return
     setAppIdInput(wechatConfig?.appId ?? appIdInput)
@@ -306,6 +333,29 @@ export function PublishPage() {
       body: current.snapshot.body,
       assets,
     })
+  }
+  async function probeRedbookLogin() {
+    setCheckingRedbook(true)
+    await checkRedbookLogin()
+    setCheckingRedbook(false)
+  }
+  async function openRedbook() {
+    setOpeningRedbook(true)
+    await openRedbookSession()
+    setOpeningRedbook(false)
+  }
+  async function submitRedbookInject() {
+    if (!batch || !current?.snapshot.body) return
+    const result = await injectRedbookDraft({
+      batchId: batch.id,
+      title: current.snapshot.title,
+      body: current.snapshot.body,
+      tags: current.snapshot.tags,
+    })
+    if (result.ok) {
+      setInjectOpen(false)
+      setInjectConfirmed(false)
+    }
   }
   function markPublished() {
     if (!marking || !confirmed) return
@@ -816,6 +866,110 @@ export function PublishPage() {
                       )}
                     </section>
                   )}
+                  {current.platform === 'redbook' && (
+                    <section
+                      aria-label="小红书草稿注入"
+                      className="mt-3 grid gap-2 rounded-xl border bg-card p-4"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="flex items-center gap-1.5 text-sm font-medium">
+                          <Send size={15} />
+                          小红书 · 平台草稿注入
+                        </span>
+                        <Badge
+                          tone={
+                            !publishAvailable
+                              ? 'neutral'
+                              : redbookLogin.state === 'loggedIn'
+                                ? 'green'
+                                : redbookLogin.state === 'notLoggedIn'
+                                  ? 'orange'
+                                  : 'neutral'
+                          }
+                        >
+                          {!publishAvailable
+                            ? '浏览器预览'
+                            : redbookLogin.state === 'loggedIn'
+                              ? '已登录'
+                              : redbookLogin.state === 'notLoggedIn'
+                                ? '未登录'
+                                : '未检测登录'}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        只把标题、正文与话题填进小红书编辑器并停在草稿；不会自动点击发布，正式发布由你在平台完成。登录态保存在本机独立会话中。
+                      </p>
+                      {!publishAvailable ? (
+                        <p className="small-meta">
+                          浏览器预览不支持平台注入；可继续使用复制正文与下载文稿完成人工交付。
+                        </p>
+                      ) : (
+                        <>
+                          {redbookLogin.state === 'notLoggedIn' && (
+                            <div className="inline-alert orange">
+                              <TriangleAlert size={16} />
+                              尚未登录小红书；点击「打开登录」后在右侧平台页扫码完成登录，再回来注入草稿。
+                            </div>
+                          )}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              disabled={!current.snapshot.body || redbookTask?.state === 'running'}
+                              onClick={() => {
+                                setInjectOpen(true)
+                                setInjectConfirmed(false)
+                              }}
+                              variant="default"
+                              size="sm"
+                            >
+                              <Send size={14} />
+                              {redbookTask?.state === 'running' ? '正在注入草稿…' : '打开并注入草稿'}
+                            </Button>
+                            <Button
+                              disabled={openingRedbook}
+                              onClick={() => void openRedbook()}
+                              variant={redbookLogin.state === 'notLoggedIn' ? 'outline' : 'ghost'}
+                              size="sm"
+                            >
+                              <ExternalLink size={14} />
+                              {redbookLogin.state === 'notLoggedIn'
+                                ? openingRedbook
+                                  ? '正在打开…'
+                                  : '打开登录'
+                                : openingRedbook
+                                  ? '正在打开…'
+                                  : '打开平台页'}
+                            </Button>
+                            <Button
+                              disabled={checkingRedbook}
+                              onClick={() => void probeRedbookLogin()}
+                              variant="outline"
+                              size="sm"
+                            >
+                              <ShieldCheck size={14} />
+                              {checkingRedbook ? '正在检测…' : '检测登录'}
+                            </Button>
+                          </div>
+                          {redbookTask && (
+                            <p
+                              className={cn(
+                                'small-meta',
+                                redbookTask.state === 'failed' && 'text-destructive',
+                              )}
+                            >
+                              {redbookTask.state === 'complete'
+                                ? redbookTask.detail
+                                : redbookTask.state === 'failed'
+                                  ? `注入失败：${redbookTask.error ?? redbookTask.detail}`
+                                  : redbookTask.detail}
+                            </p>
+                          )}
+                          {redbookLogin.state === 'unknown' && redbookLogin.message && (
+                            <p className="small-meta">{redbookLogin.message}</p>
+                          )}
+                        </>
+                      )}
+                    </section>
+                  )}
                   {current.link && (
                     <div className="published-link">
                       <Link2 size={14} />
@@ -883,6 +1037,38 @@ export function PublishPage() {
             我已在对应平台手动完成发布
           </CheckOption>
           {error && <p className="form-error">{error}</p>}
+        </Modal>
+      )}
+      {injectOpen && current && (
+        <Modal
+          title="小红书 · 注入草稿确认"
+          description="只把标题、正文与话题填入小红书编辑器，不会自动点击发布。"
+          onClose={() => setInjectOpen(false)}
+          footer={
+            <>
+              <span className="text-muted-foreground sm:mr-auto">
+                {injectConfirmed ? '已确认注入范围，可以开始。' : '勾选确认后可注入'}
+              </span>
+              <Button onClick={() => setInjectOpen(false)} variant="outline" size="default">
+                取消
+              </Button>
+              <Button
+                disabled={!injectConfirmed}
+                onClick={() => void submitRedbookInject()}
+                variant="default"
+                size="default"
+              >
+                确认注入草稿
+              </Button>
+            </>
+          }
+        >
+          <p className="small-meta">
+            即将把《{current.snapshot.title}》填入小红书编辑器：标题（超过 20 字自动截断）、正文与话题标签。注入完成后停留在草稿状态。
+          </p>
+          <CheckOption checked={injectConfirmed} onChange={setInjectConfirmed}>
+            我了解本次操作只填写草稿，不会自动点击发布；正式发布由我在小红书平台手动完成。
+          </CheckOption>
         </Modal>
       )}
       {showHistory && (

@@ -21,6 +21,11 @@ import { getWechatConfig } from './publish/wechat-config'
 import { createWechatDraftExecutor } from './publish/draft-job'
 import { buildPublishHandlers } from './publish/handlers'
 import { registerPublishHandlers } from './publish/ipc'
+import { buildRedbookHandlers } from './publish/redbook/handlers'
+import { createRedbookInjectExecutor } from './publish/redbook/inject-job'
+import { resolveRedbookEditorConfig } from './publish/redbook/policy'
+import { createRedbookService } from './publish/redbook/service'
+import { RedbookSession } from './publish/redbook/session'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -154,12 +159,24 @@ void app.whenReady().then(() => {
   // 公众号发布链装配：safeStorage 凭证 + 存草稿执行器（kind 'publish' / executor 'main'）+ IPC。
   // STUDIO_WECHAT_API_BASE：e2e/本地 stub 钩子，覆盖官方 baseUrl（生产不设即走官方地址）。
   const publishBaseUrl = process.env.STUDIO_WECHAT_API_BASE || undefined
-  services.runner.registerExecutor(
-    'publish',
-    createWechatDraftExecutor({
-      getConfig: () => getWechatConfig(services.db, aiCrypto),
-      ...(publishBaseUrl ? { baseUrl: publishBaseUrl } : {}),
-    }),
+  const wechatExecutor = createWechatDraftExecutor({
+    getConfig: () => getWechatConfig(services.db, aiCrypto),
+    ...(publishBaseUrl ? { baseUrl: publishBaseUrl } : {}),
+  })
+  // 小红书平台会话装配：persist:redbook partition 登录态由平台写入（应用不落明文）；
+  // 注入只填草稿绝不点发布（inject-job 铁律）。STUDIO_REDBOOK_EDITOR_URL：e2e/本地联调显式覆盖编辑器地址。
+  const redbookConfig = resolveRedbookEditorConfig(process.env.STUDIO_REDBOOK_EDITOR_URL)
+  const redbookSession = new RedbookSession({
+    ...redbookConfig,
+    getWindow: () => mainWindow,
+    appName: app.name,
+  })
+  const redbookExecutor = createRedbookInjectExecutor(redbookSession)
+  // kind 'publish' 按 payload.platform 分派：redbook=平台注入，缺省=公众号草稿。
+  services.runner.registerExecutor('publish', (task, ctx) =>
+    (task.payload as { platform?: string } | undefined)?.platform === 'redbook'
+      ? redbookExecutor(task, ctx)
+      : wechatExecutor(task, ctx),
   )
   registerPublishHandlers(
     buildPublishHandlers({
@@ -168,8 +185,10 @@ void app.whenReady().then(() => {
       runner: services.runner,
       ...(publishBaseUrl ? { baseUrl: publishBaseUrl } : {}),
     }),
+    buildRedbookHandlers({ runner: services.runner, service: createRedbookService(redbookSession) }),
     guard,
   )
+  app.on('will-quit', () => redbookSession.close())
   // 上一次会话中断的任务不允许保留假 running 状态。
   services.runner.recover()
   ipcMain.handle(DESKTOP_CHANNELS.dbLoad, (event) => {
