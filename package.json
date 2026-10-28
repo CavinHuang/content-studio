@@ -1,7 +1,7 @@
 {
   "name": "content-studio",
   "productName": "Content Studio",
-  "version": "0.1.0",
+  "version": "0.0.1-alpha.1",
   "description": "A thoughtful creative workspace for independent creators",
   "private": true,
   "type": "module",
