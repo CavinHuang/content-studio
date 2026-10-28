@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { AI_CHANNELS, DESKTOP_CHANNELS, DISCOVERY_CHANNELS, type AppInfo, type AiEvent, type DiscoveryEvent } from '../shared/desktop'
 import { initServices } from './services'
+import { initStartupLog, startupLog } from './startup-log'
 import { AgentService } from './ai/agent-service'
 import { buildAiHandlers } from './ai/handlers'
 import { safeStorageCrypto } from './ai/crypto'
@@ -72,8 +73,24 @@ function createWindow(): void {
   window.webContents.on('will-navigate', (event, url) => {
     if (!isAppUrl(url)) event.preventDefault()
   })
+  window.webContents.on('did-start-loading', () => startupLog('renderer did-start-loading'))
+  window.webContents.on('did-finish-load', () => startupLog('renderer did-finish-load'))
+  window.webContents.on('did-fail-load', (_event, code, description, url) =>
+    startupLog('renderer did-fail-load', { code, description, url }),
+  )
+  // 渲染端的报错与未捕获异常经 console 透出（黑匣子）；信息级不记。
+  window.webContents.on('console-message', (_event, level, message, lineNumber, sourceId) => {
+    if (level >= 2) startupLog('renderer-console', { level, message, sourceId, lineNumber })
+  })
+  window.webContents.on('render-process-gone', (_event, details) =>
+    startupLog('render-process-gone', details),
+  )
+  app.on('child-process-gone', (_event, details) =>
+    startupLog('child-process-gone', { type: details.type, reason: details.reason, exitCode: details.exitCode }),
+  )
 
   window.once('ready-to-show', () => {
+    startupLog('ready-to-show')
     if (process.env.STUDIO_SMOKE !== '1') window.show()
   })
   window.on('closed', () => { mainWindow = null })
@@ -84,8 +101,13 @@ function createWindow(): void {
 
 app.setName('Content Studio')
 if (process.env.STUDIO_USER_DATA) app.setPath('userData', process.env.STUDIO_USER_DATA)
+initStartupLog(app.getPath('userData'))
+startupLog('boot', { version: app.getVersion(), packaged: app.isPackaged, userData: app.getPath('userData') })
+process.on('uncaughtException', (error) => startupLog('uncaughtException', { message: error.message, stack: error.stack?.slice(0, 2000) }))
+process.on('unhandledRejection', (reason) => startupLog('unhandledRejection', { reason: String(reason).slice(0, 2000) }))
 
 void app.whenReady().then(() => {
+  startupLog('whenReady')
   nativeTheme.themeSource = 'light'
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { label: '编辑', submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }] },
@@ -290,6 +312,7 @@ void app.whenReady().then(() => {
   })
 
   createWindow()
+  startupLog('createWindow called')
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
 })
 
