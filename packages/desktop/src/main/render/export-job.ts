@@ -1,18 +1,19 @@
 /**
  * P5 视频导出执行器（kind 'export' / executor 'main'）：
- * Remotion bundle → selectComposition → renderMedia（真实帧级进度 → ctx.progress、
- * 任务停止 → cancelSignal）→ 产物写入 userData/exports。
+ * Remotion bundle → 配音资源拷入 bundle public（F02）→ selectComposition → renderMedia
+ * （真实帧级进度 → ctx.progress、任务停止 → cancelSignal）→ 产物写入 userData/exports。
  * 渲染链事实全部来自本机 spike 验证（docs/superpowers/ref/p5-spike-report.md）：
  * - bundle() 产物必须由调用方清理（坑 4）；取消以 'got cancelled' 文案判定（坑 3）；
  * - ESM 具名导入不可靠，统一 namespace + default 解包（坑 2）；
  * - 渲染环境缺失（组合入口/依赖不存在，如精简安装包）时如实失败，绝不伪成功。
  */
 import { existsSync } from 'node:fs'
-import { mkdir, rm, stat } from 'node:fs/promises'
+import { copyFile, mkdir, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { TaskRecord, VideoExportPayload } from '../../shared/desktop'
+import type { TaskRecord, VideoExportPayload, VideoExportShot } from '../../shared/desktop'
 import type { MainExecutor } from '../tasks/runner'
-import { COMPOSITION_ID, sanitizeFileName } from './composition'
+import { COMPOSITION_ID, sanitizeFileName, voicePublicPath, VOICE_PUBLIC_DIR, type CompositionShot } from './composition'
+import { audioFilePath } from './media-store'
 
 /** IPC 契约里的导出任务入参在执行器侧同源使用。 */
 export type { VideoExportPayload }
@@ -51,6 +52,59 @@ export type RenderApi = {
     onProgress?: (progress: RenderMediaProgress) => void
   }): Promise<unknown>
   makeCancelSignal(): { cancelSignal: unknown; cancel: () => void }
+}
+
+/** 配音资源解析产物：absolutePath 用于拷入 bundle，publicPath 是组合内 staticFile 引用。 */
+export type VoiceAssetFile = { mediaId: string; absolutePath: string; publicPath: string }
+export type VoiceAssetResolution =
+  | { ok: true; shots: CompositionShot[]; files: VoiceAssetFile[] }
+  | { ok: false; error: string }
+
+/**
+ * mediaId → 渲染资源（纯函数，F02 修复）：
+ * - 携带 voiceAudio 的分镜解析出 voiceSrc（public 相对路径）传给组合；
+ * - 非法引用（非 UUID / 音频文件缺失）如实失败——成片以「有配音」为已采用快照的承诺，
+ *   静默丢弃会复刻 F02 的无声交付；错误文案不落盘面路径；
+ * - 无配音分镜原样透传（组合与历史行为完全一致），mediaId 去重避免重复拷贝。
+ * Windows 绝对路径不能直接进 <Audio src>：@remotion/renderer 的资源下载器只接受
+ * http(s)（dist/assets/read-file.js 明确拒绝 file://），staticFile 也拒绝盘符路径——
+ * 因此执行器把 mp3 拷入 <bundle>/public/，组合用 staticFile 经渲染器本地 HTTP 服务取用
+ * （serve-handler 逐请求从磁盘读 bundle 目录，bundle 后拷入的文件可被 renderMedia 命中）。
+ */
+export function resolveVoiceAssets(
+  shots: VideoExportShot[],
+  mediaDir: string,
+  fileExists: (path: string) => boolean = existsSync,
+): VoiceAssetResolution {
+  const files: VoiceAssetFile[] = []
+  const seen = new Set<string>()
+  const resolved: CompositionShot[] = []
+  for (const shot of shots) {
+    const mediaId = shot.voiceAudio?.mediaId
+    if (!mediaId) {
+      resolved.push(shot)
+      continue
+    }
+    const absolutePath = audioFilePath(mediaDir, mediaId)
+    if (!absolutePath) {
+      return {
+        ok: false,
+        error: `分镜「${shot.title}」的配音引用无效，无法合成音轨；请在该镜头重新生成配音后再导出。`,
+      }
+    }
+    if (!fileExists(absolutePath)) {
+      return {
+        ok: false,
+        error: `分镜「${shot.title}」的配音音频在本机已不存在（可能被清理），请重新生成配音后再导出。`,
+      }
+    }
+    resolved.push({ ...shot, voiceSrc: voicePublicPath(mediaId) })
+    if (!seen.has(mediaId)) {
+      seen.add(mediaId)
+      files.push({ mediaId, absolutePath, publicPath: voicePublicPath(mediaId) })
+    }
+  }
+  return { ok: true, shots: resolved, files }
 }
 
 /**
@@ -116,6 +170,8 @@ function summarizeError(err: unknown): string {
 export function createExportExecutor(deps: {
   entryPoint(): string
   exportsDir(): string
+  /** 配音媒体目录（userData/media，与 voice 执行器同源）：payload 的 mediaId 在这里解析为 mp3。 */
+  mediaDir(): string
   /** 测试注入假渲染器；缺省动态加载 Remotion。 */
   loadApi?: () => Promise<RenderApi>
   /** 打包形态传入随包浏览器；缺省让 Remotion 自行定位/下载（开发形态行为不变）。 */
@@ -141,6 +197,15 @@ export function createExportExecutor(deps: {
         detail: '当前应用缺少视频渲染组件，无法导出 MP4。请重新安装应用后再试；下载制作清单不受影响。',
       }
     }
+    // F02：先把已采用快照的配音引用解析成渲染资源（在打包前如实失败，不做无用渲染）。
+    const voice = resolveVoiceAssets(payload.shots, deps.mediaDir())
+    if (!voice.ok) return { state: 'failed', detail: voice.error }
+    const inputProps = {
+      fps: payload.fps,
+      width: payload.width,
+      height: payload.height,
+      shots: voice.shots,
+    }
     let api: RenderApi
     try {
       api = await loadApi()
@@ -150,12 +215,6 @@ export function createExportExecutor(deps: {
     const { cancelSignal, cancel } = api.makeCancelSignal()
     ctx.signal.addEventListener('abort', cancel)
     const stoppedDetail = '导出已停止，未生成视频文件；作品与已采用版本保留。'
-    const inputProps = {
-      fps: payload.fps,
-      width: payload.width,
-      height: payload.height,
-      shots: payload.shots,
-    }
     let serveUrl: string | undefined
     try {
       await mkdir(deps.exportsDir(), { recursive: true })
@@ -165,6 +224,16 @@ export function createExportExecutor(deps: {
       }
       ctx.progress('正在打包视频组合…')
       serveUrl = await api.bundle({ entryPoint: entry, rootDir: resolveRootDir() })
+      if (voice.files.length > 0) {
+        // F02：配音 mp3 拷入 bundle 的 public/<VOICE_PUBLIC_DIR>/（serve-handler 逐请求读盘，
+        // bundle 后拷入的文件 renderMedia 可命中）；组合用 staticFile 经本地 HTTP 取用。
+        // 临时目录随 finally 的 bundle 清理一起删除，无需单独回收。
+        const voiceDir = join(serveUrl, 'public', VOICE_PUBLIC_DIR)
+        await mkdir(voiceDir, { recursive: true })
+        await Promise.all(
+          voice.files.map((file) => copyFile(file.absolutePath, join(voiceDir, `${file.mediaId}.mp3`))),
+        )
+      }
       const composition = await api.selectComposition({
         serveUrl,
         id: COMPOSITION_ID,

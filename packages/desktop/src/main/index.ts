@@ -238,6 +238,7 @@ void app.whenReady().then(() => {
     createExportExecutor({
       entryPoint: () => renderEntry,
       exportsDir,
+      mediaDir,
       ...(renderBrowser ? { browserExecutable: () => renderBrowser } : {}),
       ...(app.isPackaged ? { bundleRootDir: () => app.getPath('userData') } : {}),
       ...(renderBinaries ? { binariesDirectory: () => renderBinaries } : {}),

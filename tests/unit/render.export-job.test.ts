@@ -10,9 +10,11 @@ import { TaskRunner } from '../../packages/desktop/src/main/tasks/runner'
 import type { MainExecutor } from '../../packages/desktop/src/main/tasks/runner'
 import {
   createExportExecutor,
+  resolveVoiceAssets,
   type RenderApi,
   type VideoExportPayload,
 } from '../../packages/desktop/src/main/render/export-job'
+import { audioFilePath } from '../../packages/desktop/src/main/render/media-store'
 
 let db: DatabaseSync | undefined
 const tempDirs: string[] = []
@@ -144,7 +146,12 @@ test('全链路（经 TaskRunner）：真实进度 → complete 带产物 → bu
   writeFileSync(entry, '// entry')
   const fake = fakeRenderApi(root)
   const { runner } = makeRunner(
-    createExportExecutor({ entryPoint: () => entry, exportsDir: () => exportsDir, loadApi: async () => fake.api }),
+    createExportExecutor({
+      entryPoint: () => entry,
+      exportsDir: () => exportsDir,
+      mediaDir: () => join(root, 'media'),
+      loadApi: async () => fake.api,
+    }),
   )
   const settled = await runToSettled(runner, {
     id: '01234567-89ab-cdef-0123-456789abcdef',
@@ -184,6 +191,7 @@ test('进度步骤：帧级进度去重 + 封装阶段提示（真实帧数非�
   const executor = createExportExecutor({
     entryPoint: () => entry,
     exportsDir: () => join(root, 'exports'),
+    mediaDir: () => join(root, 'media'),
     loadApi: async () => fake.api,
   })
   const steps: string[] = []
@@ -206,6 +214,7 @@ test('渲染环境缺失：任务如实失败并给出可理解原因，不触�
   const executor = createExportExecutor({
     entryPoint: () => join(root, 'missing', 'index.tsx'),
     exportsDir: () => join(root, 'exports'),
+    mediaDir: () => join(root, 'media'),
     loadApi: async () => fake.api,
   })
   const outcome = await executor(exportTaskRecord(), {
@@ -225,6 +234,7 @@ test('分镜数据不完整：入队即失败，不发起渲染', async () => {
   const executor = createExportExecutor({
     entryPoint: () => entry,
     exportsDir: () => join(root, 'exports'),
+    mediaDir: () => join(root, 'media'),
     loadApi: async () => fake.api,
   })
   const outcome = await executor(exportTaskRecord({ payload: payload({ shots: [] }) }), {
@@ -247,7 +257,12 @@ test('渲染中途取消：任务不得伪 complete，无输出文件，bundle �
     },
   })
   const { runner } = makeRunner(
-    createExportExecutor({ entryPoint: () => entry, exportsDir: () => join(root, 'exports'), loadApi: async () => fake.api }),
+    createExportExecutor({
+      entryPoint: () => entry,
+      exportsDir: () => join(root, 'exports'),
+      mediaDir: () => join(root, 'media'),
+      loadApi: async () => fake.api,
+    }),
   )
   const settled = await runToSettled(runner, {
     kind: 'export',
@@ -272,6 +287,7 @@ test('执行器侧中止：ctx.signal abort 时调用渲染器 cancel 并如实�
   const executor = createExportExecutor({
     entryPoint: () => entry,
     exportsDir: () => join(root, 'exports'),
+    mediaDir: () => join(root, 'media'),
     loadApi: async () => fake.api,
   })
   const outcomePromise = executor(exportTaskRecord(), {
@@ -297,6 +313,7 @@ test('渲染器异常：错误信息脱敏（不泄漏本机路径）后如实�
   const executor = createExportExecutor({
     entryPoint: () => entry,
     exportsDir: () => join(root, 'exports'),
+    mediaDir: () => join(root, 'media'),
     loadApi: async () => fake.api,
   })
   const outcome = await executor(exportTaskRecord(), {
@@ -318,6 +335,7 @@ test('随包浏览器与渲染根目录：browserExecutable/rootDir/binariesDire
   const executor = createExportExecutor({
     entryPoint: () => entry,
     exportsDir: () => join(root, 'exports'),
+    mediaDir: () => join(root, 'media'),
     loadApi: async () => fake.api,
     browserExecutable: () => browser,
     bundleRootDir: () => root,
@@ -345,6 +363,7 @@ test('loadRemotionApi 装配：渲染路径选项缺省为 null 时按 Remotion 
   const executor = createExportExecutor({
     entryPoint: () => entry,
     exportsDir: () => join(root, 'exports'),
+    mediaDir: () => join(root, 'media'),
     loadApi: async () => fake.api,
   })
   const outcome = await executor(exportTaskRecord(), {
@@ -357,4 +376,181 @@ test('loadRemotionApi 装配：渲染路径选项缺省为 null 时按 Remotion 
   expect(fake.selectComposition.mock.calls[0]![0].binariesDirectory).toBeNull()
   expect(fake.renderMedia.mock.calls[0]![0].browserExecutable).toBeNull()
   expect(fake.renderMedia.mock.calls[0]![0].binariesDirectory).toBeNull()
+})
+
+// ─── F02：已生成并保存的配音进入成片音轨 ────────────────────────────────────
+
+const VOICE_ID = '12345678-90ab-4cde-8f12-345678901234'
+
+function voicePayload(over: Partial<VideoExportPayload> = {}): VideoExportPayload {
+  return payload({
+    shots: [
+      { id: 's1', title: '有配音的镜头', voiceAudio: { mediaId: VOICE_ID }, durationMs: 6000 },
+      { id: 's2', title: '无配音的镜头', durationMs: 12000 },
+    ],
+    ...over,
+  })
+}
+
+test('audioFilePath：合法 UUID → 媒体目录内 mp3 绝对路径；非法引用（目录穿越等）拒绝', () => {
+  const dir = join('media', 'dir')
+  expect(audioFilePath(dir, VOICE_ID)).toBe(join(dir, `${VOICE_ID}.mp3`))
+  expect(audioFilePath(dir, '../../evil')).toBeNull()
+  expect(audioFilePath(dir, '')).toBeNull()
+  expect(audioFilePath(dir, undefined as unknown as string)).toBeNull()
+})
+
+test('resolveVoiceAssets：voiceAudio → voiceSrc；无配音分镜原样透传；同一 mediaId 去重', () => {
+  const resolved = resolveVoiceAssets(
+    [
+      { id: 'a', title: '有配音', durationMs: 1000, voiceAudio: { mediaId: VOICE_ID } },
+      { id: 'b', title: '无配音', durationMs: 2000 },
+      { id: 'c', title: '复用同一段配音', durationMs: 3000, voiceAudio: { mediaId: VOICE_ID } },
+    ],
+    join('media'),
+    () => true,
+  )
+  expect(resolved.ok).toBe(true)
+  if (!resolved.ok) return
+  expect(resolved.shots[0]).toMatchObject({ id: 'a', voiceSrc: `studio-voice/${VOICE_ID}.mp3` })
+  expect(resolved.shots[1]).toEqual({ id: 'b', title: '无配音', durationMs: 2000 })
+  expect('voiceSrc' in resolved.shots[1]!).toBe(false)
+  expect(resolved.shots[2]).toMatchObject({ id: 'c', voiceSrc: `studio-voice/${VOICE_ID}.mp3` })
+  expect(resolved.files).toEqual([
+    { mediaId: VOICE_ID, absolutePath: join('media', `${VOICE_ID}.mp3`), publicPath: `studio-voice/${VOICE_ID}.mp3` },
+  ])
+})
+
+test('resolveVoiceAssets：非法引用与音频缺失分别如实失败（不静默出无声成片）', () => {
+  const invalid = resolveVoiceAssets(
+    [{ id: 'a', title: '镜头甲', durationMs: 1000, voiceAudio: { mediaId: '../evil' } }],
+    join('media'),
+  )
+  expect(invalid).toMatchObject({ ok: false, error: expect.stringContaining('配音引用无效') })
+  const missing = resolveVoiceAssets(
+    [{ id: 'a', title: '镜头甲', durationMs: 1000, voiceAudio: { mediaId: VOICE_ID } }],
+    join('media'),
+    () => false,
+  )
+  expect(missing).toMatchObject({ ok: false, error: expect.stringContaining('配音音频') })
+})
+
+test('F02 全链路：配音 mp3 拷入 bundle public/studio-voice，组合 props 携带 voiceSrc', async () => {
+  const root = tempDir('export-voice-ok')
+  const media = join(root, 'media')
+  mkdirSync(media, { recursive: true })
+  writeFileSync(join(media, `${VOICE_ID}.mp3`), 'voice-mp3-bytes')
+  const entry = join(root, 'index.tsx')
+  writeFileSync(entry, '// entry')
+  // bundle 目录在执行器 finally 中被清理：拷贝断言必须在渲染进行中捕获。
+  let staged: { exists: boolean; bytes: string | null } = { exists: false, bytes: null }
+  let publicDirExisted = true
+  const fake = fakeRenderApi(root, {
+    render: async (options) => {
+      const voiceFile = join(options.serveUrl, 'public', 'studio-voice', `${VOICE_ID}.mp3`)
+      staged = { exists: existsSync(voiceFile), bytes: existsSync(voiceFile) ? readFileSync(voiceFile, 'utf8') : null }
+      publicDirExisted = existsSync(join(options.serveUrl, 'public'))
+      writeFileSync(options.outputLocation, 'fake-mp4-bytes')
+    },
+  })
+  const executor = createExportExecutor({
+    entryPoint: () => entry,
+    exportsDir: () => join(root, 'exports'),
+    mediaDir: () => media,
+    loadApi: async () => fake.api,
+  })
+  const outcome = await executor(exportTaskRecord({ payload: voicePayload() }), {
+    progress: () => {},
+    signal: new AbortController().signal,
+  })
+  expect(outcome.state).toBe('complete')
+  // 渲染期内 mp3 已在 bundle 的 public/studio-voice/ 下、字节与媒体目录一致
+  expect(staged).toEqual({ exists: true, bytes: 'voice-mp3-bytes' })
+  // 组合 props：mediaId → voiceSrc（public 相对路径）；voiceAudio 引用保留，无配音分镜不变
+  expect(fake.selectComposition.mock.calls[0]![0].inputProps).toEqual({
+    fps: 30,
+    width: 1080,
+    height: 1920,
+    shots: [
+      {
+        id: 's1',
+        title: '有配音的镜头',
+        voiceAudio: { mediaId: VOICE_ID },
+        voiceSrc: `studio-voice/${VOICE_ID}.mp3`,
+        durationMs: 6000,
+      },
+      { id: 's2', title: '无配音的镜头', durationMs: 12000 },
+    ],
+  })
+})
+
+test('F02 回归：无配音导出行为完全不变（bundle 内不建 public 目录）', async () => {
+  const root = tempDir('export-voice-none')
+  const entry = join(root, 'index.tsx')
+  writeFileSync(entry, '// entry')
+  let publicDirExisted = true
+  const fake = fakeRenderApi(root, {
+    render: async (options) => {
+      publicDirExisted = existsSync(join(options.serveUrl, 'public'))
+      writeFileSync(options.outputLocation, 'fake-mp4-bytes')
+    },
+  })
+  const executor = createExportExecutor({
+    entryPoint: () => entry,
+    exportsDir: () => join(root, 'exports'),
+    mediaDir: () => join(root, 'media'),
+    loadApi: async () => fake.api,
+  })
+  const outcome = await executor(exportTaskRecord(), {
+    progress: () => {},
+    signal: new AbortController().signal,
+  })
+  expect(outcome.state).toBe('complete')
+  expect(publicDirExisted).toBe(false)
+  expect(fake.selectComposition.mock.calls[0]![0].inputProps).toMatchObject({ shots: payload().shots })
+})
+
+test('F02 失败路径：配音音频缺失 → 打包前如实失败，不发起渲染', async () => {
+  const root = tempDir('export-voice-missing')
+  mkdirSync(join(root, 'media'), { recursive: true }) // 目录在、mp3 不在（如本机清理过媒体目录）
+  const entry = join(root, 'index.tsx')
+  writeFileSync(entry, '// entry')
+  const fake = fakeRenderApi(root)
+  const executor = createExportExecutor({
+    entryPoint: () => entry,
+    exportsDir: () => join(root, 'exports'),
+    mediaDir: () => join(root, 'media'),
+    loadApi: async () => fake.api,
+  })
+  const outcome = await executor(exportTaskRecord({ payload: voicePayload() }), {
+    progress: () => {},
+    signal: new AbortController().signal,
+  })
+  expect(outcome.state).toBe('failed')
+  expect(outcome.detail).toContain('配音音频')
+  expect(fake.bundle).not.toHaveBeenCalled()
+})
+
+test('F02 失败路径：非法 mediaId（目录穿越）→ 如实失败，不发起渲染', async () => {
+  const root = tempDir('export-voice-invalid')
+  const entry = join(root, 'index.tsx')
+  writeFileSync(entry, '// entry')
+  const fake = fakeRenderApi(root)
+  const executor = createExportExecutor({
+    entryPoint: () => entry,
+    exportsDir: () => join(root, 'exports'),
+    mediaDir: () => join(root, 'media'),
+    loadApi: async () => fake.api,
+  })
+  const outcome = await executor(
+    exportTaskRecord({
+      payload: voicePayload({
+        shots: [{ id: 's1', title: '坏的引用', voiceAudio: { mediaId: '..\\evil.mp3' }, durationMs: 6000 }],
+      }),
+    }),
+    { progress: () => {}, signal: new AbortController().signal },
+  )
+  expect(outcome.state).toBe('failed')
+  expect(outcome.detail).toContain('配音引用无效')
+  expect(fake.bundle).not.toHaveBeenCalled()
 })

@@ -155,6 +155,74 @@ test('buildExportPayload（storyboard 无版本快照）：回退当前分镜', 
   expect(payload.shots[0]).toMatchObject({ title: '当前编辑中的镜头', durationMs: 6000 })
 })
 
+test('buildExportPayload：已采用版本快照的配音引用随分镜冻结（F02）', () => {
+  const video = makeVideo({
+    versions: [
+      makeVersion({
+        number: 2,
+        shots: [
+          {
+            id: 's1',
+            title: '留存快照的镜头标题',
+            visual: '',
+            narration: '',
+            subtitle: '',
+            seconds: 6,
+            start: 0,
+            end: 6,
+            image: '',
+            voiceDirty: false,
+            voiceAudio: { mediaId: '11111111-2222-4333-8444-555555555555', bytes: 1024, at: '2026-10-27T00:00:00Z' },
+          },
+          {
+            id: 's2',
+            title: '快照第二镜',
+            visual: '',
+            narration: '',
+            subtitle: '',
+            seconds: 12,
+            start: 6,
+            end: 18,
+            image: '',
+            voiceDirty: false,
+          },
+        ],
+      }),
+    ],
+    // 当前编辑态后来换了一段新配音：导出必须用快照里冻结的旧引用，不读编辑态。
+    shots: [
+      { ...makeVideo().shots[0]!, voiceAudio: { mediaId: '99999999-8888-4777-8666-555555555555', bytes: 2048, at: '2026-10-28T00:00:00Z' } },
+      makeVideo().shots[1]!,
+    ],
+  })
+  const payload = buildExportPayload(video, materials)
+  expect(payload.shots[0]!.voiceAudio).toEqual({ mediaId: '11111111-2222-4333-8444-555555555555' })
+  expect(payload.shots[0]!.voiceAudio).not.toMatchObject({ mediaId: '99999999-8888-4777-8666-555555555555' })
+})
+
+test('buildExportPayload：快照无配音时不偷当前编辑态的配音；无配音镜头不产生该字段（F02）', () => {
+  const video = makeVideo({
+    versions: [
+      makeVersion({
+        number: 2,
+        shots: [
+          { ...makeVideo().shots[0]!, voiceDirty: false }, // 快照里没有 voiceAudio
+          makeVideo().shots[1]!,
+        ],
+      }),
+    ],
+    // 当前编辑态加了配音：快照语义下导出不得携带它
+    shots: [
+      { ...makeVideo().shots[0]!, voiceAudio: { mediaId: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', bytes: 1, at: '2026-10-28T00:00:00Z' } },
+      makeVideo().shots[1]!,
+    ],
+  })
+  const payload = buildExportPayload(video, materials)
+  expect(payload.shots[0]!.voiceAudio).toBeUndefined()
+  expect('voiceAudio' in payload.shots[0]!).toBe(false)
+  expect('voiceAudio' in payload.shots[1]!).toBe(false)
+})
+
 test('buildExportPayload（code）：当前分镜 + 采用版本的场景标题（与预览一致）', () => {
   const video = makeVideo({
     mode: 'code',

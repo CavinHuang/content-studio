@@ -29,3 +29,13 @@ export function readAudio(dir: string, mediaId: string): { data: Buffer; mime: s
     return null
   }
 }
+
+/**
+ * 导出链（F02 修复）：mediaId → 媒体目录内 mp3 的绝对路径。
+ * 与 readAudio 同一条严格 UUID 校验（目录穿越等非法 id 返回 null）；
+ * 文件是否存在由调用方判定（导出执行器据此如实失败，绝不静默出无声成片）。
+ */
+export function audioFilePath(dir: string, mediaId: string): string | null {
+  if (typeof mediaId !== 'string' || !MEDIA_ID_RE.test(mediaId)) return null
+  return join(dir, `${mediaId}.mp3`)
+}

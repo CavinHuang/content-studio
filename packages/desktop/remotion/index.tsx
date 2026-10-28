@@ -3,15 +3,19 @@
  * - 数据形状与取整策略见 src/main/render/composition.ts（三方共享契约，勿在此重复实现）；
  * - 组合 ID、时长（calculateMetadata 按分镜数据计算）、尺寸与帧率全部由 inputProps 决定；
  * - webpack 在运行时由 @remotion/bundler 打包本文件（不进 electron-vite 主 bundle）；
- * - 图片只接受 data URL（渲染端已把内置插画/素材快照冻结进 inputProps）。
+ * - 图片只接受 data URL（渲染端已把内置插画/素材快照冻结进 inputProps）；
+ * - 配音（F02）：分镜的 voiceSrc 由主进程解析（mp3 已拷入 bundle 的 public/studio-voice/），
+ *   组合用 staticFile 引用——渲染期资源经 renderMedia 的本地 HTTP 服务分发。
  */
 import {
   AbsoluteFill,
+  Audio,
   Composition,
   Img,
   Sequence,
   interpolate,
   registerRoot,
+  staticFile,
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion'
@@ -129,6 +133,13 @@ function StudioVideo(props: StudioVideoProps) {
         const sequence = (
           <Sequence key={shot.id} from={from} durationInFrames={durationInFrames} name={shot.title}>
             <ShotScene shot={shot} index={index} />
+            {shot.voiceSrc ? (
+              // F02：配音与画面同轨——Audio 放进镜头 Sequence 内，随镜头起点开始、
+              // 在镜头边界被 Sequence 截断（Remotion 语义），无配音分镜完全不受影响。
+              // src 必须走 staticFile（public 相对路径）：file:/// 绝对路径会被
+              // @remotion/renderer 的资源下载器拒绝（只接受 http(s)），渲染期拿不到音轨。
+              <Audio src={staticFile(shot.voiceSrc)} />
+            ) : null}
           </Sequence>
         )
         from += durationInFrames

@@ -2,7 +2,8 @@
  * P5 视频导出数据映射（纯函数）：作品 + 已采用版本 → Remotion 组合 inputProps。
  * 快照语义（§12）：分镜取已采用版本的冻结快照（storyboard）或当前分镜叠加采用版本
  * 的场景标题（code）；图片冻结为 data URL——内置插画内联，素材图取素材库快照，
- * 未知引用退化为纯文字分镜，绝不伪造图片。
+ * 未知引用退化为纯文字分镜，绝不伪造图片；配音冻结为已采用版本分镜里的
+ * voiceAudio.mediaId 引用（F02 修复，主进程解析为渲染资源），不读当前编辑态。
  */
 import type { VideoExportPayload } from '../../../desktop/src/shared/desktop'
 import { imageDataUrls } from './images'
@@ -49,6 +50,9 @@ function toExportShot(
     title: (video.mode === 'code' ? version?.sceneTitles?.[index] : undefined) || shot.title,
     ...(shot.subtitle ? { subtitle: shot.subtitle } : {}),
     ...(resolveShotImage(shot.image, materials) ? { image: resolveShotImage(shot.image, materials) } : {}),
+    // 配音引用随分镜快照冻结（只带 mediaId，bytes/at 是界面元数据不进导出负载）；
+    // 无配音的镜头不产生该字段，导出行为与历史一致。
+    ...(shot.voiceAudio?.mediaId ? { voiceAudio: { mediaId: shot.voiceAudio.mediaId } } : {}),
     durationMs: Math.round(shot.seconds * 1000),
   }
 }

@@ -242,6 +242,11 @@ export type VideoExportShot = {
   subtitle?: string
   /** 图片 data URL（内置插画或素材图）；缺省为纯文字分镜。 */
   image?: string
+  /**
+   * 已采用版本冻结的配音引用（F02 修复）：mediaId 指向主进程媒体目录的 mp3，
+   * 由导出执行器解析为渲染资源；缺省为无配音分镜（导出行为与历史完全一致）。
+   */
+  voiceAudio?: { mediaId: string }
   /** 分镜时长（毫秒）。 */
   durationMs: number
 }

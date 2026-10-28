@@ -10,9 +10,21 @@ export const COMPOSITION_ID = 'studio-video'
 
 /**
  * 组合输入分镜：由渲染端按已采用版本与素材快照冻结后随任务传入（§12 快照语义）。
- * 类型与 IPC 契约（shared/desktop.ts VideoExportShot）同源，主进程不改写数据。
+ * 类型基于 IPC 契约（shared/desktop.ts VideoExportShot）；主进程唯一改写是 F02 的
+ * 配音解析：把冻结的 voiceAudio.mediaId 解析成 voiceSrc（渲染资源相对路径）后传给组合。
  */
-export type CompositionShot = VideoExportShot
+export type CompositionShot = VideoExportShot & {
+  /** 主进程解析出的配音资源（bundle 内 public 相对路径，组合用 staticFile 引用）；无配音缺省。 */
+  voiceSrc?: string
+}
+
+/** bundle 内 public 目录下的配音资源目录：执行器拷贝目标 = <bundle>/public/<VOICE_PUBLIC_DIR>。 */
+export const VOICE_PUBLIC_DIR = 'studio-voice'
+
+/** mediaId → 组合内 staticFile 引用的 public 相对路径（执行器与组合共享的映射契约）。 */
+export function voicePublicPath(mediaId: string): string {
+  return `${VOICE_PUBLIC_DIR}/${mediaId}.mp3`
+}
 
 /** 组合 inputProps：尺寸/帧率/时长全部由数据决定（spike §5 实证）。 */
 export type StudioVideoProps = {
