@@ -5,13 +5,15 @@ import {
   ChevronRight,
   Copy,
   FileText,
+  HelpCircle,
   Leaf,
   Paperclip,
   Plus,
   RefreshCw,
+  Send,
+  Square,
   SquarePen,
   X,
-  Send,
 } from 'lucide-react'
 import { Brand, copyText, IconButton } from './ui'
 import { Button } from './ui/button'
@@ -38,8 +40,7 @@ import {
   DropdownMenuSeparator,
 } from './ui/dropdown-menu'
 import { useStudio } from '../studio/store'
-import { platformName, uid } from '../studio/types'
-import { topics } from '../studio/mock'
+import { messageSuggestions, platformName, uid } from '../studio/types'
 import { requestSuggestionReview } from '../studio/suggestion-review'
 import { creationSnapshot } from '../studio/creation'
 
@@ -54,6 +55,10 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
     context,
     setContext,
     sendMessage,
+    aiBusy,
+    aiAsk,
+    answerAsk,
+    cancelAi,
     reference,
     navigate,
     setPlatformsOpen,
@@ -73,10 +78,12 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
     conversations[0]!
   const busy =
     project.creation?.status === 'running' ||
+    aiBusy ||
     state.tasks.some(
       (t) => t.title === 'Agent 正在整理建议' && t.projectId === project.id && t.state === 'running',
     )
-  const topic = state.page === 'hotspots' ? topics.find((t) => t.id === state.selectedTopic) : undefined
+  const topic =
+    state.page === 'hotspots' ? state.topics.find((t) => t.id === state.selectedTopic) : undefined
   const contextLabel =
     context?.label ||
     (topic
@@ -219,7 +226,12 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
                 </div>
               ) : (
                 <>
-                  {thread.messages.map((message) => (
+                  {thread.messages.map((message) => {
+                    // F06：一条回复可携带多条建议；会话卡片跳到第一条待确认建议。
+                    const suggestions = messageSuggestions(message)
+                    const cardSuggestion =
+                      suggestions.find((s) => s.status === 'pending') ?? suggestions[0]
+                    return (
                     <MessageScrollerItem
                       key={message.id}
                       messageId={message.id}
@@ -275,17 +287,17 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
                               onClick={() => {
                                 if (message.action === 'platforms') setPlatformsOpen(true)
                                 else {
-                                  if (message.suggestion)
+                                  if (cardSuggestion) {
                                     patchProject(project.id, (p) => ({
                                       ...p,
-                                      activePlatform: message.suggestion!.platform,
+                                      activePlatform: cardSuggestion.platform,
                                     }))
-                                  if (message.suggestion)
                                     requestSuggestionReview({
                                       projectId: project.id,
-                                      platform: message.suggestion.platform,
-                                      id: message.suggestion.id,
+                                      platform: cardSuggestion.platform,
+                                      id: cardSuggestion.id,
                                     })
+                                  }
                                   navigate(
                                     message.action === 'plan'
                                       ? 'plan'
@@ -301,7 +313,7 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
                               </span>
                               <div>
                                 <strong>
-                                  {message.suggestion
+                                  {cardSuggestion
                                     ? '段落修改建议'
                                     : message.action === 'plan'
                                       ? '创作方案'
@@ -312,8 +324,8 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
                                           : '当前文稿'}
                                 </strong>
                                 <small>
-                                  {message.suggestion
-                                    ? `${platformName(message.suggestion.platform)} · ${message.suggestion.status === 'accepted' ? '已采用' : message.suggestion.status === 'pending' ? '待你确认' : '已处理'}`
+                                  {cardSuggestion
+                                    ? `${platformName(cardSuggestion.platform)} · ${cardSuggestion.status === 'accepted' ? '已采用' : cardSuggestion.status === 'pending' ? '待你确认' : '已处理'}`
                                     : '在中间继续调整'}
                                 </small>
                               </div>
@@ -323,7 +335,8 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
                         </MessageContent>
                       </Message>
                     </MessageScrollerItem>
-                  ))}
+                    )
+                  })}
                 </>
               )}
               {busy && (
@@ -338,6 +351,23 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
         </MessageScroller>
       </MessageScrollerProvider>
       <div className="composer-area">
+        {aiAsk && (
+          <div className="context-chip agent-ask" role="group" aria-label="Agent 问询">
+            <HelpCircle size={12} />
+            <span>{aiAsk.question}</span>
+            {(aiAsk.options ?? []).map((option) => (
+              <Button
+                key={option}
+                size="sm"
+                variant="outline"
+                onClick={() => answerAsk(option)}
+                aria-label={`回答：${option}`}
+              >
+                {option}
+              </Button>
+            ))}
+          </div>
+        )}
         <InputGroup aria-label="发送创作指令">
           <InputGroupAddon align="block-start">
             <div className="context-chip">
@@ -456,6 +486,15 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
                   </PopoverContent>
                 </Popover>
               </div>
+              {aiBusy && (
+                <InputGroupButton
+                  size="icon-sm"
+                  aria-label="停止当前对话"
+                  onClick={cancelAi}
+                >
+                  <Square size={15} />
+                </InputGroupButton>
+              )}
               <InputGroupButton
                 variant="default"
                 size="icon-sm"

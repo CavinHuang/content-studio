@@ -84,10 +84,8 @@ test('prototype: same raw task, editable master and exact Markdown export with f
     .poll(() => app.evaluate(() => (globalThis as unknown as { creationDownload: string }).creationDownload))
     .toBe('completed')
   expect(readFileSync(destination, 'utf8')).toBe(`# ${idea}\n\n${await body().inputValue()}`)
-  const saved = await page.evaluate(() =>
-    JSON.parse(localStorage.getItem('content-studio.mock-workspace.v2')!),
-  )
-  expect(saved.projects.find((p: { id: string }) => p.id === saved.selectedProject).batches).toEqual([])
+  const saved = await page.evaluate(() => window.__studio!.get())
+  expect(saved.projects.find((p) => p.id === saved.selectedProject)!.batches).toEqual([])
   const clicks = steps.filter((s) => s.action === 'click').length
   const inputOperations = steps.filter((s) => s.action === 'fill').length
   const baseline = JSON.parse(readFileSync('docs/ux/research/creation/baseline-before.json', 'utf8'))

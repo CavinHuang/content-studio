@@ -13,6 +13,8 @@ test.beforeEach(async () => {
   delete env.ELECTRON_RUN_AS_NODE
   env.STUDIO_SMOKE = '1'
   env.STUDIO_USER_DATA = mkdtempSync(join(tmpdir(), 'studio-workflow-'))
+  // P5 真实导出：e2e 用缺失的组合入口验证诚实失败态（渲染环境缺失 → 任务如实失败）。
+  env.STUDIO_RENDER_ENTRY = join(tmpdir(), 'studio-missing-render-entry.ts')
   app = await electron.launch({
     executablePath: process.env.STUDIO_TEST_EXECUTABLE,
     args: process.env.STUDIO_TEST_EXECUTABLE ? [] : ['packages/desktop'],
@@ -30,7 +32,9 @@ test.beforeEach(async () => {
 })
 test.afterEach(async ({}, info) => {
   try {
-    await page.screenshot({ path: info.outputPath('workspace.png') })
+    // 诊断截图 best-effort：打包形态下隐藏窗口的 CDP 截图偶发挂起（基线包同样复现，
+    // 与断言无关）；失败时 Playwright trace 仍会带现场，不作为门禁。
+    await page.screenshot({ path: info.outputPath('workspace.png'), timeout: 10_000 }).catch(() => {})
     expect(errors).toEqual([])
   } finally {
     await app.close()
@@ -207,9 +211,11 @@ test('video routes stay independent and animation parameters become adoptable ca
   await expect(page.getByText('配音待更新', { exact: true })).toHaveCount(1)
   await page.getByRole('tab', { name: '成片预览', exact: true }).click()
   await page.getByRole('button', { name: '导出视频', exact: true }).click()
-  await page.getByRole('dialog').getByRole('button', { name: '演练一次失败与恢复', exact: true }).click()
+  // P5 真实导出：创建 kind 'export' 主进程任务；本环境组合入口缺失 → 任务如实失败。
+  await page.getByRole('dialog').getByRole('button', { name: '开始导出', exact: true }).click()
   const result = page.getByRole('region', { name: '视频导出状态', exact: true })
-  await expect(result.getByText('演示导出未完成', { exact: true })).toBeVisible()
+  await expect(result.getByText('导出未完成', { exact: true })).toBeVisible()
+  await expect(result.getByText(/当前应用缺少视频渲染组件/)).toBeVisible()
   await expect(
     result.getByText('当前作品与已采用版本保留，可以返回继续修改。', { exact: true }),
   ).toBeVisible()
@@ -223,9 +229,8 @@ test('video routes stay independent and animation parameters become adoptable ca
     '只修改素材路线的这一段口播。',
   )
   await page.getByRole('button', { name: /任务中心/ }).click()
-  await expect(
-    page.getByText('模拟失败：配乐资源不可用。作品与之前的输出快照均已保留。', { exact: true }),
-  ).toBeVisible()
+  // 任务中心如实展示导出失败原因（不是演示文案，也不是伪成功）
+  await expect(page.getByText(/当前应用缺少视频渲染组件/).first()).toBeVisible()
 })
 
 test('mobile layout stays single-column with usable navigation, capture and agent', async () => {
@@ -293,7 +298,7 @@ test('real downloads contain the fixed draft, current subtitles and a restorable
     .poll(() => app.evaluate(() => (globalThis as unknown as { studioDownload: string }).studioDownload))
     .toBe('completed')
   const data = JSON.parse(readFileSync(backup, 'utf8'))
-  expect(data.schema).toBe(2)
+  expect(data.schema).toBe(3)
   expect(data.projects).toHaveLength(3)
   expect(data.projects[0].drafts.master.body).toContain('先留住那些不起眼的念头')
   expect(data.discoveryConversations).toHaveLength(1)

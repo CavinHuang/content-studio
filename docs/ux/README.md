@@ -1,6 +1,6 @@
 # Content Studio · UI/UX 设计交付 v2
 
-设计日期：2026-10-25。用途：设计评审、当前 Mock 界面实现与后续开发依据。
+设计日期：2026-10-25。用途：设计评审、当前界面实现与后续开发依据。
 
 当前设计统一保存在 `docs/ux/`，总览入口为 `docs/ux/index.html`。`assets/` 包含全部当前效果图及保留的历史修订，其他文件保存交互规范、屏幕清单、生成提示词与检查记录。
 
@@ -12,7 +12,7 @@
 - [连续操作遗漏修复](./LAYOUT-FOLLOWUP-FIXES-2026-10-26.md)：统一方案生成、阻断恢复、视频工具、手机平台创建与真实整理任务。
 - [屏幕与素材清单](./screens.json)：效果图、对应流程、确认状态及源文件映射。
 - [图像生成提示词](./prompts.json)：内置 imagegen 生成与修订的可用提示词记录。
-- [Mock 界面实现与体验路径](./IMPLEMENTATION.md)：可操作的 React 工作区、演示边界与实际界面截图。
+- [界面实现与体验路径](./IMPLEMENTATION.md)：可操作的 React 工作区、真实与演示边界及实际界面截图。
 - [设计系统与组件规范](./DESIGN-SYSTEM.md)：冻结的语义 token、尺寸、状态与验收依据。
 - [可视化 Token 手册](./design-system.html)：离线查看色板、字体、间距与组件选型。
 - [组件迁移说明](./COMPONENTS.md)：shadcn/ui 与 AI Elements 的实际使用位置、来源和维护规则。

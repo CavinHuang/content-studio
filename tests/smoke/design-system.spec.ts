@@ -2,6 +2,7 @@ import { test, expect, _electron as electron, type ElectronApplication, type Pag
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { StudioState } from '../../packages/ui/src/studio/types'
 
 let app: ElectronApplication, page: Page
 let errors: string[]
@@ -28,7 +29,9 @@ test.beforeEach(async () => {
 })
 test.afterEach(async ({}, info) => {
   try {
-    await page.screenshot({ path: info.outputPath('workspace.png') })
+    // 诊断截图 best-effort：打包形态下隐藏窗口的 CDP 截图偶发挂起（基线包同样复现，
+    // 与断言无关）；失败时 Playwright trace 仍会带现场，不作为门禁。
+    await page.screenshot({ path: info.outputPath('workspace.png'), timeout: 10_000 }).catch(() => {})
     expect(errors).toEqual([])
   } finally {
     await app.close()
@@ -119,9 +122,7 @@ test('tokens, keyboard tabs, typography sliders, dialog focus and resize persist
     .toBeGreaterThan(before)
   const after = await page.locator('.sidebar').evaluate((el) => el.getBoundingClientRect().width)
   await expect
-    .poll(() =>
-      page.evaluate(() => JSON.parse(localStorage.getItem('content-studio.mock-workspace.v2')!).layout.left),
-    )
+    .poll(() => page.evaluate(() => window.__studio!.get().layout.left))
     .toBeCloseTo(after, 0)
   await page.reload()
   await expect
@@ -145,7 +146,11 @@ test('artifact tabs keep mouse selection clean and keyboard focus visible', asyn
   await expect(article).toHaveAttribute('aria-selected', 'true')
   await expect(article).toHaveCSS('outline-style', 'solid')
   await expect
-    .poll(() => article.evaluate((element) => parseFloat(getComputedStyle(element).outlineOffset)))
+    .poll(
+      () => article.evaluate((element) => parseFloat(getComputedStyle(element).outlineOffset)),
+      // 高负载下焦点样式重算可能滞后；给足确定性窗口（曾在本机满载时超 5 秒）。
+      { timeout: 15_000 },
+    )
     .toBeLessThan(0)
   await page.keyboard.press('Tab')
   await expect(article).not.toBeFocused()
@@ -239,21 +244,21 @@ test('form controls retain upstream typography and borders across business layou
 
 test('conversation menus handle long labels, keyboard selection and focus recovery', async ({}, info) => {
   await expect
-    .poll(() => page.evaluate(() => localStorage.getItem('content-studio.mock-workspace.v2')))
-    .not.toBeNull()
-  await page.addInitScript(() => {
-    const key = 'content-studio.mock-workspace.v2',
-      state = JSON.parse(localStorage.getItem(key)!)
-    const project = state.projects.find((p: { id: string }) => p.id === state.selectedProject)
-    project.conversations[0].title = '这是一段用于验证长会话标题不会撑破菜单的文字'.repeat(5)
+    .poll(() => page.evaluate(() => window.__studio?.get().selectedProject))
+    .toBeTruthy()
+  await page.evaluate(() => {
+    const state = JSON.parse(JSON.stringify(window.__studio!.get())) as StudioState
+    const project = state.projects.find((p) => p.id === state.selectedProject)!
+    project.conversations[0]!.title = '这是一段用于验证长会话标题不会撑破菜单的文字'.repeat(5)
     project.conversations = [
-      project.conversations[0],
+      project.conversations[0]!,
       { id: 'keyboard-conversation', title: '键盘切换测试', messages: [] },
     ]
-    const material = state.materials.find((m: { id: string }) => project.materialIds.includes(m.id))
+    const material = state.materials.find((m) => project.materialIds.includes(m.id))!
     material.title = '这是一份用于验证素材选择器宽度与省略显示的长标题'.repeat(5)
-    localStorage.setItem(key, JSON.stringify(state))
+    window.__studio!.replace(state)
   })
+  await page.evaluate(() => window.__studio!.save())
   await page.reload()
   await page.getByRole('button', { name: '展开 Agent', exact: true }).click()
   const trigger = page.getByRole('button', { name: /^切换对话：/ })
@@ -368,24 +373,12 @@ test('save failures offer a retry while successful saves remain a status', async
   const status = page.getByRole('status', { name: '保存文稿状态' })
   await expect(status).toContainText('已保存')
   await expect(page.getByRole('button', { name: '保存文稿状态' })).toHaveCount(0)
-  await page.evaluate(() => {
-    const original = Storage.prototype.setItem
-    Storage.prototype.setItem = function (key, value) {
-      if (key === 'content-studio.mock-workspace.v2') {
-        Storage.prototype.setItem = original
-        throw new DOMException('Test storage quota', 'QuotaExceededError')
-      }
-      original.call(this, key, value)
-    }
-  })
+  await page.evaluate(() => window.__studio!.__failNextSave())
   await page.getByRole('textbox', { name: '文稿标题', exact: true }).fill('保存恢复验证')
   await page.getByRole('button', { name: '保存失败，重试保存', exact: true }).click()
   await expect(status).toContainText('已保存')
   expect(
-    await page.evaluate(
-      () =>
-        JSON.parse(localStorage.getItem('content-studio.mock-workspace.v2')!).projects[0].drafts.master.title,
-    ),
+    await page.evaluate(() => window.__studio!.get().projects[0]!.drafts.master!.title),
   ).toBe('保存恢复验证')
 })
 
@@ -492,7 +485,10 @@ test('workspace survives responsive layout changes and long material dialogs sta
   await expect(detail.getByRole('button', { name: '关闭弹窗', exact: true })).toBeInViewport({ ratio: 1 })
   const scroll = detail.locator('.modal-scroll')
   expect(await scroll.evaluate((el) => el.scrollHeight > el.clientHeight && el.clientHeight > 0)).toBe(true)
-  await page.screenshot({ path: info.outputPath('long-material-dialog.png') })
+  // 诊断截图 best-effort（同本文件 afterEach 注：打包形态隐藏窗口偶发挂起，不作为门禁）。
+  if (!process.env.STUDIO_TEST_EXECUTABLE) {
+    await page.screenshot({ path: info.outputPath('long-material-dialog.png') })
+  }
   await detail.getByRole('button', { name: '删除原素材', exact: true }).click()
   const confirm = page.getByRole('dialog', { name: '将原素材移入回收站？', exact: true })
   await expect(confirm).toBeVisible()

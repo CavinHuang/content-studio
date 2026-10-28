@@ -66,7 +66,8 @@ export function StudioSidebar({
     `${item.title || '未命名内容'}${item.brief.point}`.toLowerCase().includes(search.toLowerCase()),
   )
   const pending = state.tasks.filter((task) => ['queued', 'running'].includes(task.state)).length
-  const attention = state.tasks.filter((task) => ['failed', 'stopped'].includes(task.state)).length
+  // 部分完成（§12）有失败项待处理：计入「需要留意」，与任务中心页首统计一致
+  const attention = state.tasks.filter((task) => ['failed', 'stopped', 'partial'].includes(task.state)).length
   const shortcut = /Mac/.test(navigator.platform) ? '⌘' : 'Ctrl'
 
   return (
@@ -218,7 +219,7 @@ export function StudioSidebar({
         </SidebarMenu>
         <div className="flex min-w-0 items-center gap-2 px-2 text-xs text-muted-foreground">
           <span className="size-1.5 shrink-0 rounded-full bg-primary" />
-          <span className="min-w-0 flex-1 truncate">本机工作区 · Mock 演示</span>
+          <span className="min-w-0 flex-1 truncate">本机工作区</span>
           <Button variant="ghost" size="icon-xs" aria-label="打开设计总览" onClick={onOpenDesigns}>
             <CircleHelp />
           </Button>

@@ -44,9 +44,16 @@ export type Message = {
   role: 'user' | 'assistant'
   text: string
   at: string
+  /** 同一次生成可返回多条建议；suggestion 是历史单值字段，仅为旧文档保留读取兼容。 */
+  suggestions?: Suggestion[]
   suggestion?: Suggestion
   action?: 'plan' | 'article' | 'video' | 'platforms'
   context?: CreationSnapshot
+}
+/** 读取一条消息的全部建议：优先多条列表，退回历史单值字段（旧文档兼容）。 */
+export function messageSuggestions(message: Message): Suggestion[] {
+  if (message.suggestions?.length) return message.suggestions
+  return message.suggestion ? [message.suggestion] : []
 }
 export type Conversation = { id: string; title: string; messages: Message[] }
 export type Shot = {
@@ -60,6 +67,8 @@ export type Shot = {
   end: number
   image: string
   voiceDirty: boolean
+  /** P5 语音配音：已生成音频的引用（音频文件存主进程媒体目录，时长已回填 seconds）。 */
+  voiceAudio?: { mediaId: string; bytes: number; at: string }
 }
 export type VideoVersion = {
   number: number
@@ -144,7 +153,15 @@ export type Project = {
   activeConversation: string
   batches: Batch[]
   creation?: CreationFlow
-  source?: { topicId: string; title: string; angle: string; articleIds: string[]; at: string }
+  source?: {
+    topicId: string
+    title: string
+    angle: string
+    articleIds: string[]
+    at: string
+    /** §20.4 已补充进项目的新文章记录；创建时快照（articleIds）永不改写。 */
+    supplementedArticleIds?: string[]
+  }
   trashed?: boolean
   updated: string
 }
@@ -172,6 +189,10 @@ export type Source = {
   status: 'ready' | 'failed' | 'unconfigured' | 'stale'
   updated: string
   url: string
+  /** 内置示例来源（确定性演示数据）；未配置真实来源时承担热点域演示。 */
+  builtin?: boolean
+  /** 自动刷新间隔（分钟）；0 或缺省 = 仅手动刷新。 */
+  refreshMinutes?: number
 }
 export type SourceArticle = {
   id: string
@@ -200,12 +221,20 @@ export type Task = {
   title: string
   detail: string
   projectId: string
-  state: 'queued' | 'running' | 'failed' | 'stopped' | 'complete'
-  kind: 'agent' | 'export' | 'source' | 'creation'
+  /** UX-SPEC §12 六态：partial＝部分完成（已完成产物可用；可重试失败项）。 */
+  state: 'queued' | 'running' | 'partial' | 'failed' | 'stopped' | 'complete'
+  kind: 'agent' | 'export' | 'source' | 'creation' | 'publish' | 'voice'
   at: string
   version?: number
   videoId?: string
   snapshot?: Video
+  executor?: 'main' | 'renderer'
+  payload?: unknown
+  result?: unknown
+  /** 主进程执行器上报的真实进度（如「已渲染 N/总帧」；无伪百分比）。 */
+  progress?: string
+  /** 主进程执行器如实回传的失败原因（kind 'publish' 等真实任务）。 */
+  error?: string
 }
 export type Preferences = {
   platforms: Platform[]
@@ -217,17 +246,23 @@ export type Preferences = {
   connection: Record<string, boolean>
 }
 export type StudioState = {
-  schema: 2
+  schema: 3
   projects: Project[]
   selectedProject: string
   page: Page
   materials: Material[]
   sources: Source[]
+  /** 热点话题聚合结果（主进程 discovery 权威；本地降级用演示副本）。 */
+  topics: Topic[]
   bookmarks: string[]
   discoveryConversations: Conversation[]
   activeDiscovery: string
   selectedTopic?: string
   topicDrafts: Record<string, { angle: string; articleIds: string[]; requirements: string }>
+  /** AI 建议角度（按话题缓存；候选供选择/改写，不自动采用）。 */
+  topicAngleSuggestions: Record<string, string[]>
+  /** AI 话题概览（按话题缓存；与原文来源分开显示，§20.2/§20.3）。 */
+  topicOverviews: Record<string, { text: string; at: string }>
   hotspotFilters: {
     query: string
     category: string
@@ -237,6 +272,8 @@ export type StudioState = {
     sort: string
     saved: boolean
   }
+  /** 最近一次任一来源成功刷新的时间（桌面模式来自主进程快照）。 */
+  discoverySyncAt?: string
   tasks: Task[]
   preferences: Preferences
   layout: { left: number; right: number }

@@ -1,6 +1,6 @@
 {
   "name": "@content-studio/desktop",
-  "version": "0.1.0",
+  "version": "0.0.1-alpha.1",
   "private": true,
   "description": "Content Studio desktop shell (Electron main + preload)",
   "type": "module",
@@ -9,8 +9,9 @@
     "dev": "electron-vite dev",
     "start": "electron-vite preview",
     "build": "electron-vite build",
-    "package:dir": "pnpm build && electron-builder --dir",
-    "package:win": "pnpm build && electron-builder --win"
+    "prepare:render-browser": "node scripts/prepare-render-browser.mjs",
+    "package:dir": "pnpm build && pnpm prepare:render-browser && electron-builder --dir",
+    "package:win": "pnpm build && pnpm prepare:render-browser && electron-builder --win"
   },
   "devDependencies": {
     "@content-studio/ui": "workspace:*",
@@ -22,5 +23,17 @@
     "electron-vite": "^6.0.0",
     "tailwindcss": "^4.3.3",
     "vite": "^8.3.5"
+  },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "1.4.0",
+    "@mozilla/readability": "^0.6.0",
+    "@remotion/bundler": "4.0.539",
+    "@remotion/renderer": "4.0.539",
+    "fast-xml-parser": "^5.11.2",
+    "linkedom": "^0.18.14",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "remotion": "4.0.539",
+    "typebox": "1.3.27"
   }
 }

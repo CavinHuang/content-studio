@@ -1,0 +1,49 @@
+# alpha/beta 发布通道（2026-10-28）：推送 v* tag 触发，Windows 构建便携版并创建 GitHub Release。
+# 与 ci.yml 的分工：ci.yml 管main 的质量门禁（ubuntu 冒烟）；本工作流只做发布构建——
+# 门禁由推送 tag 前的本地验证与 main 的 CI 保证，此处失败即发布失败，不带病出包。
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions: { contents: write }
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v7
+        with: { node-version: 22.19.0, cache: pnpm }
+      # 渲染浏览器（chrome-headless-shell，约 283MB）按脚本版本缓存，避免每次发布重下：
+      - name: 渲染浏览器缓存
+        uses: actions/cache@v4
+        with:
+          path: packages/desktop/.render-browser
+          key: render-browser-${{ hashFiles('packages/desktop/scripts/prepare-render-browser.mjs') }}
+      - name: pnpm install（锁件安装）
+        run: pnpm install --frozen-lockfile
+      - name: 构建便携版（typecheck + electron-vite build + 预置渲染浏览器 + electron-builder）
+        run: pnpm package:win
+      - name: 断言产物存在
+        shell: bash
+        run: |
+          exe=$(ls packages/desktop/release/Content-Studio-*-x64.exe)
+          echo "artifact: $exe"
+          test -s "$exe"
+          echo "exe=$exe" >> "$GITHUB_ENV"
+      - name: 创建 GitHub Release 并附便携版
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          notes=$(node -e "
+            const text = require('fs').readFileSync('CHANGELOG.md', 'utf8');
+            const start = text.indexOf('## [' + version + ']');
+            const next = text.indexOf('\n## [', start + 1);
+            process.stdout.write(start < 0 ? '见 CHANGELOG.md' : text.slice(start, next < 0 ? undefined : next).trim());
+          ")
+          gh release create "$GITHUB_REF_NAME" "$exe" \
+            --title "Content Studio $GITHUB_REF_NAME" \
+            --notes "$notes"

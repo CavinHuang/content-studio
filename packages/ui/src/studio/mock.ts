@@ -11,6 +11,12 @@ import {
   type Video,
 } from './types'
 
+// 演示 sources/topics 的权威副本在共享层（主进程内置示例来源与渲染端同源引用），
+// 经 demo-data 转接导出，既有 import 与种子内容保持不变。
+import { demoSources, demoTopics } from './demo-data'
+export const sources = demoSources
+export const topics = demoTopics
+
 export const SAMPLE_BODY = `> 创作不是等待灵感，而是给日常的念头，一个慢慢生长的地方。
 
 ## 一、先留住那些不起眼的念头
@@ -38,223 +44,6 @@ export const SAMPLE_BODY = `> 创作不是等待灵感，而是给日常的念�
 每天留一点，周末写成一篇。让记录、整理和表达成为一个轻盈的循环，而不是一项让人疲惫的任务。
 
 你不需要等到准备好一切才开始。今天记下的那个念头，也许就是下一篇作品的第一句话。`
-
-export const sources: Source[] = [
-  {
-    id: 'zhihu',
-    name: '知乎热榜',
-    type: '平台热榜',
-    category: '综合',
-    enabled: true,
-    status: 'ready',
-    updated: '2026-10-25T01:40:00Z',
-    url: 'https://example.com/zhihu',
-  },
-  {
-    id: 'sspai',
-    name: '少数派',
-    type: '新闻资讯',
-    category: 'AI 科技',
-    enabled: true,
-    status: 'ready',
-    updated: '2026-10-25T01:35:00Z',
-    url: 'https://example.com/sspai',
-  },
-  {
-    id: 'rss',
-    name: '我的数字花园',
-    type: 'RSS',
-    category: '生活',
-    enabled: true,
-    status: 'ready',
-    updated: '2026-10-25T01:30:00Z',
-    url: 'https://example.com/garden.xml',
-  },
-  {
-    id: 'redbook',
-    name: '小红书话题',
-    type: '平台热榜',
-    category: '生活',
-    enabled: true,
-    status: 'failed',
-    updated: '2026-10-24T06:00:00Z',
-    url: 'https://example.com/redbook',
-  },
-  {
-    id: 'news',
-    name: '创作观察',
-    type: '新闻资讯',
-    category: '文化',
-    enabled: false,
-    status: 'stale',
-    updated: '2026-10-23T08:00:00Z',
-    url: 'https://example.com/news',
-  },
-  {
-    id: 'custom',
-    name: '我的自定义来源',
-    type: '自定义来源',
-    category: '综合',
-    enabled: false,
-    status: 'unconfigured',
-    updated: '',
-    url: '',
-  },
-]
-export const topics: Topic[] = [
-  {
-    id: 'ai-creation',
-    title: 'AI 工具，能帮普通人持续创作吗？',
-    summary: '工具越来越多，但从一个想法到一篇作品，仍然需要自己的判断。',
-    category: 'AI 科技',
-    tags: ['个人创作', '工具与方法', '创作习惯'],
-    image: 'room',
-    ageHours: 2,
-    updated: '2026-10-25T00:30:00Z',
-    angles: [
-      '从「收集很多、输出很少」的困境，讨论 AI 应该帮创作者做什么。',
-      '不追工具清单，整理一套从记录、形成观点到发布的创作方法。',
-      '观点分析：当每个人都能生成内容，个人经验与判断为什么更重要？',
-    ],
-    articles: [
-      {
-        id: 'ai-1',
-        title: '工具替我们省下的时间，去了哪里？',
-        sourceIds: ['sspai', 'rss'],
-        url: 'https://example.com/articles/creative-tools',
-        body: '【演示原文】工具可以帮助整理记录、比较结构和发现遗漏。持续创作的关键，仍是创作者选择什么问题、作出什么判断。不同工具的价值应结合具体流程评估。',
-        published: '10/25 08:30',
-        collected: '10/25 09:35',
-      },
-      {
-        id: 'ai-2',
-        title: '如何在 AI 时代保留自己的表达？',
-        sourceIds: ['zhihu'],
-        url: 'https://example.com/articles/own-voice',
-        body: '【演示原文】讨论者提出两种看法：一种强调效率，另一种担心表达趋同。两种观点都认为，直接发布未经审阅的生成内容并不能替代创作者的判断。',
-        published: '10/25 07:50',
-        collected: '10/25 09:40',
-        metric: '热榜第 12 位（示例）',
-      },
-      {
-        id: 'ai-3',
-        title: '一人创作工作流，正在变轻',
-        sourceIds: ['redbook'],
-        url: 'https://example.com/articles/solo-creator',
-        body: '',
-        published: '10/25 08:10',
-        collected: '10/24 14:00',
-        metric: '话题讨论 · 已保留缓存',
-      },
-    ],
-  },
-  {
-    id: 'paper-notes',
-    title: '越来越多人，用纸质笔记找回专注',
-    summary: '在数字记录之外，重新理解书写、留白和注意力。',
-    category: '生活',
-    tags: ['专注力', '生活方式', '数字与纸质'],
-    image: 'notebook',
-    ageHours: 5,
-    updated: '2026-10-24T22:00:00Z',
-    angles: [
-      '不比较工具优劣，讨论什么样的记录方式能让思考继续。',
-      '整理一个低负担的每周笔记回顾方法。',
-      '从注意力出发，分析「写下来」和「存起来」的区别。',
-    ],
-    articles: [
-      {
-        id: 'paper-1',
-        title: '在纸上重新建立思考的节奏',
-        sourceIds: ['sspai'],
-        url: 'https://example.com/articles/paper',
-        body: '【演示原文】手写的速度让人有机会筛选信息。纸质和数字笔记可以互补：前者承载思考的过程，后者帮助检索和整理。',
-        published: '10/25 06:00',
-        collected: '10/25 09:35',
-      },
-      {
-        id: 'paper-2',
-        title: '我的每周回顾：少记录一点，多想一步',
-        sourceIds: ['rss'],
-        url: 'https://example.com/articles/review',
-        body: '【演示原文】每周挑出三条仍想继续讨论的记录，为每条写下一个问题，再选一条整理成短文。',
-        published: '10/24 22:00',
-        collected: '10/25 09:30',
-      },
-    ],
-  },
-  {
-    id: 'commute',
-    title: '通勤时间，怎样变成自己的时间？',
-    summary: '不必填满每一分钟，也可以为观察和思考留一个小角落。',
-    category: '职场',
-    tags: ['时间管理', '通勤生活', '轻量创作'],
-    image: 'city',
-    ageHours: 8,
-    updated: '2026-10-24T21:30:00Z',
-    angles: [
-      '把通勤当成观察生活的窗口，给创作留下十分钟。',
-      '从时间碎片到观点积累：设计一套可持续的轻创作流程。',
-      '不把所有空闲都变成生产力，讨论休息和创作的边界。',
-    ],
-    articles: [
-      {
-        id: 'commute-1',
-        title: '如何安排每天的通勤？',
-        sourceIds: ['zhihu'],
-        url: 'https://example.com/articles/commute',
-        body: '【演示原文】有人听书，有人放空，也有人记录沿途观察。没有适合所有人的安排，重要的是让这段时间服务自己的需要。',
-        published: '10/25 05:30',
-        collected: '10/25 09:40',
-        metric: '热榜第 28 位（示例）',
-      },
-      {
-        id: 'commute-2',
-        title: '碎片时间里的一点创造',
-        sourceIds: ['rss'],
-        url: 'https://example.com/articles/small-moments',
-        body: '【演示原文】短时间适合收集和追问，连续时间适合搭建结构。把两种时间分开安排，可以减轻创作的负担。',
-        published: '10/24 19:00',
-        collected: '10/25 09:30',
-      },
-    ],
-  },
-  {
-    id: 'small-work',
-    title: '普通人的小作品，为什么值得被看见',
-    summary: '从真实的问题开始，让表达成为人与人之间的连接。',
-    category: '文化',
-    tags: ['个人成长', '创作者故事', '内容价值'],
-    image: 'garden',
-    ageHours: 30,
-    updated: '2026-10-24T00:00:00Z',
-    angles: [
-      '讨论「有用」之外，个人表达如何带来共鸣。',
-      '为刚开始创作的人，整理一份不追逐数字的作品清单。',
-      '从读者的一个具体问题出发，找到一篇小作品的价值。',
-    ],
-    articles: [
-      {
-        id: 'work-1',
-        title: '给创作者的一个小提醒',
-        sourceIds: ['rss', 'news'],
-        url: 'https://example.com/articles/small-work',
-        body: '【演示原文】一份观察、一段方法、一个讲清楚的故事，都可能帮助某个具体的人。作品的价值不只来自浏览量。',
-        published: '10/24 08:00',
-        collected: '10/24 09:30',
-      },
-      {
-        id: 'work-2',
-        title: '从一个很小的问题开始',
-        sourceIds: ['redbook'],
-        url: 'https://example.com/articles/first-work',
-        body: '',
-        published: '10/24 09:00',
-        collected: '10/24 14:00',
-      },
-    ],
-  },
-]
 
 export function makeBrief(title = ''): Brief {
   return {
@@ -474,7 +263,7 @@ export function seedState(): StudioState {
   third.brief = { ...makeBrief(third.title), point: '不追求读得更多，而是让一本书留下一个可以实践的想法。' }
   const discoveryId = uid()
   return {
-    schema: 2,
+    schema: 3,
     projects: [first, second, third],
     selectedProject: first.id,
     page: 'article',
@@ -565,8 +354,11 @@ export function seedState(): StudioState {
       },
     ],
     sources: structuredClone(sources),
+    topics: structuredClone(topics),
     bookmarks: ['paper-notes'],
     topicDrafts: {},
+    topicAngleSuggestions: {},
+    topicOverviews: {},
     hotspotFilters: {
       query: '',
       category: '综合',

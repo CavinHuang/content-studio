@@ -19,6 +19,7 @@
   },
   "include": [
     "packages/desktop/src",
+    "packages/desktop/remotion",
     "packages/desktop/*.config.ts",
     "packages/ui/src",
     "packages/ui/config",

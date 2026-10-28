@@ -6,5 +6,14 @@ allowBuilds:
   esbuild: true
   '@swc/core': true
   electron-winstaller: false
+  '@google/genai': false
+  protobufjs: false
+
+# Remotion（@remotion/bundler → webpack → jest-worker@27）把 supports-color@8 引入图后，
+# electron 的 peer 身份从 (supports-color@7.2.0) 翻转到 (supports-color@8.1.1)，
+# pnpm 需要整体替换 node_modules/electron；jest-worker 只用 supports-color 判断
+# 是否着色（7/8 的 .stdout API 兼容），钉回 7.2.0 保持 electron 身份与既有安装稳定。
+overrides:
+  'jest-worker>supports-color': 7.2.0
 
 nodeLinker: hoisted

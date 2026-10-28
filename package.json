@@ -1,7 +1,7 @@
 {
   "name": "content-studio",
   "productName": "Content Studio",
-  "version": "0.1.0",
+  "version": "0.0.1-alpha.1",
   "description": "A thoughtful creative workspace for independent creators",
   "private": true,
   "type": "module",
@@ -15,6 +15,7 @@
     "start": "pnpm --filter @content-studio/desktop start",
     "dev:web": "pnpm --filter @content-studio/ui dev:web",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "tokens:generate": "node scripts/design-tokens.mjs",
     "tokens:check": "node scripts/design-tokens.mjs --check",
     "design:check": "pnpm tokens:check && node scripts/check-design.mjs",
@@ -28,7 +29,9 @@
   "devDependencies": {
     "@playwright/test": "^1.64.1",
     "@types/node": "^24.0.0",
+    "jsdom": "29.1.1",
     "prettier": "^3.9.10",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "5.0.5"
   }
 }

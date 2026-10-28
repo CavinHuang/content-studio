@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>小红书笔记编辑器（本地测试夹具）</title>
+  </head>
+  <body>
+    <!--
+      小红书编辑器本地夹具页：选择器对照注入脚本的多级降级（标题 placeholder 含「标题」、
+      正文 .ql-editor[contenteditable]）。发布按钮带点击上报——注入脚本铁律断言
+      「发布按钮点击数为 0」（jsdom 单测读 window.__publishClicks；e2e 读夹具服务器计数）。
+    -->
+    <main class="editor-page">
+      <input class="d-text" placeholder="填写标题会有更多赞哦" maxlength="20" aria-label="笔记标题" />
+      <div
+        class="ql-editor"
+        contenteditable="true"
+        role="textbox"
+        data-placeholder="填写更多笔记内容…"
+        aria-label="笔记正文"
+      ></div>
+      <div class="footer-bar">
+        <button class="publish-btn" type="button">发布</button>
+      </div>
+    </main>
+    <script>
+      window.__publishClicks = 0
+      document.querySelector('.publish-btn').addEventListener('click', function () {
+        window.__publishClicks += 1
+        try {
+          window.fetch('/__publish-click', { method: 'POST', body: 'publish' })
+        } catch (error) {
+          /* jsdom 环境无 fetch 时仅计数 */
+        }
+      })
+    </script>
+  </body>
+</html>

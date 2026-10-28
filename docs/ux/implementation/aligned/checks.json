@@ -1,5 +1,5 @@
 {
-  "date": "2026-10-27",
+  "date": "2026-10-28",
   "mode": "production",
   "errors": [],
   "screens": [
@@ -1752,6 +1752,10 @@
         },
         "fieldMargins": [
           "0px",
+          "0px",
+          "0px",
+          "0px",
+          "0px",
           "0px"
         ]
       },
@@ -2023,6 +2027,10 @@
           "margin": "0px 0px 12px"
         },
         "fieldMargins": [
+          "0px",
+          "0px",
+          "0px",
+          "0px",
           "0px",
           "0px"
         ]

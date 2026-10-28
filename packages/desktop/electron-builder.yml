@@ -5,6 +5,10 @@ directories:
 files:
   - out/**/*
   - package.json
+  # P5 渲染链：组合入口与其依赖的共享契约源码随包（@remotion/bundler 在运行时用 webpack
+  # 编译入口，node_modules 里的 remotion/react 等由生产依赖收集自动入 asar）。
+  - remotion/**/*
+  - src/main/render/composition.ts
 extraResources:
   - from: ../../packages/ui/src/components/ui/LICENSE.md
     to: licenses/shadcn-ui.md
@@ -12,6 +16,10 @@ extraResources:
     to: icon.png
   - from: ../../docs/ux
     to: ux
+  # Chrome Headless Shell（Remotion 渲染浏览器）：脚本预置到 .render-browser（见
+  # package.json prepare 步骤），原样拷入 resources。asar 内可读不可执行 → 放 resources。
+  - from: .render-browser/chrome-headless-shell-win64
+    to: chrome-headless-shell
 asar: true
 npmRebuild: false
 win:

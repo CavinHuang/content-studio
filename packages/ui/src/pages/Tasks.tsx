@@ -5,6 +5,7 @@ import { useRef, useState } from 'react'
 import {
   ArrowRight,
   Check,
+  CircleCheckBig,
   Clock3,
   Download,
   Pause,
@@ -20,15 +21,28 @@ import { dateLabel, type Task } from '../studio/types'
 const labels = {
   queued: '排队中',
   running: '运行中',
+  partial: '部分完成',
   failed: '失败',
   stopped: '已停止',
   complete: '已完成',
 }
+/**
+ * kind 'publish' 自 a3aeeaa 起跨平台共用：公众号存草稿与小红书注入都以该 kind 入任务中心。
+ * 平台归属只能看 payload.platform（'redbook' = 小红书网页会话注入；
+ * 其余含未标注的历史任务一律视为公众号，与主进程 platformOfTask 的缺省一致）。
+ */
+function isRedbookPublish(task: Task) {
+  return (task.payload as { platform?: unknown } | undefined)?.platform === 'redbook'
+}
 export function TasksPage() {
-  const { state, controlTask, selectProject, patchProject, notify } = useStudio()
+  const { state, controlTask, selectProject, patchProject, notify, navigate } = useStudio()
   const [filter, setFilter] = useState('all')
   const allTasksFilter = useRef<HTMLButtonElement>(null)
   function viewTask(task: Task) {
+    if (task.kind === 'source') {
+      navigate('sources')
+      return
+    }
     if (task.kind === 'creation') patchProject(task.projectId, (p) => ({ ...p, activePlatform: 'master' }))
     selectProject(task.projectId, task.videoId ? 'video' : 'article')
   }
@@ -47,8 +61,8 @@ export function TasksPage() {
     <section className="workspace-page">
       <PageTitle
         title="作品，正在慢慢成形。"
-        description="查看本机演示任务。失败或已停止，都不会抹掉已经完成的内容。"
-        actions={<Badge tone="orange">Mock · 任务中心</Badge>}
+        description="查看本机任务。失败或已停止，都不会抹掉已经完成的内容。"
+        actions={<Badge tone="green">任务中心</Badge>}
       />
       {/* F3 页首统计统一版式：复用热点页 40 的行内式 source-stats 块，
           替换原先居中分栏带竖分隔线的卡片式，两域共用同一 CSS 版式。 */}
@@ -62,7 +76,7 @@ export function TasksPage() {
           <span>已完成</span>
         </div>
         <div>
-          <strong>{state.tasks.filter((t) => ['failed', 'stopped'].includes(t.state)).length}</strong>
+          <strong>{state.tasks.filter((t) => ['failed', 'stopped', 'partial'].includes(t.state)).length}</strong>
           <span>需要留意</span>
         </div>
       </div>
@@ -79,6 +93,10 @@ export function TasksPage() {
           {
             id: 'complete',
             name: '已完成',
+          },
+          {
+            id: 'partial',
+            name: '部分完成',
           },
           {
             id: 'failed',
@@ -111,6 +129,8 @@ export function TasksPage() {
                 <TriangleAlert size={20} />
               ) : task.state === 'complete' ? (
                 <Check size={20} />
+              ) : task.state === 'partial' ? (
+                <CircleCheckBig size={20} />
               ) : (
                 <Pause size={20} />
               )}
@@ -120,17 +140,45 @@ export function TasksPage() {
                 <h3 className="min-w-0">{task.title}</h3>
                 <Badge
                   className="shrink-0"
-                  tone={task.state === 'failed' ? 'red' : task.state === 'complete' ? 'green' : 'neutral'}
+                  tone={
+                    task.state === 'failed'
+                      ? 'red'
+                      : task.state === 'complete'
+                        ? 'green'
+                        : task.state === 'partial'
+                          ? 'orange'
+                          : 'neutral'
+                  }
                 >
                   {labels[task.state]}
                 </Badge>
               </div>
               <p>{task.detail}</p>
               <span className="small-meta">
-                《{state.projects.find((p) => p.id === task.projectId)?.title || '未命名内容'}》 ·{' '}
+                {task.kind === 'source'
+                  ? '热点来源 · '
+                  : task.kind === 'publish'
+                    ? isRedbookPublish(task)
+                      ? '小红书 · '
+                      : '公众号草稿箱 · '
+                    : `《${state.projects.find((p) => p.id === task.projectId)?.title || '未命名内容'}》 · `}
                 {dateLabel(task.at)}
-                {task.version ? ` · 固定采用 v${task.version}` : ''} · 本机演示
+                {task.version ? ` · 固定采用 v${task.version}` : ''}
+                {task.kind === 'source'
+                  ? ' · 来源刷新'
+                  : task.kind === 'publish'
+                    ? isRedbookPublish(task)
+                      ? ' · 平台草稿注入'
+                      : ' · 官方草稿箱'
+                    : task.kind === 'export'
+                      ? ' · 视频导出'
+                      : task.kind === 'voice'
+                        ? ' · 语音配音'
+                        : ' · 本机演示'}
               </span>
+              {task.error && task.state === 'failed' && task.error !== task.detail && (
+                <p className="small-meta text-destructive">{task.error}</p>
+              )}
               {task.state === 'running' && (
                 <div
                   className="mt-4 h-[3px] overflow-hidden rounded-full bg-success-background"
@@ -151,7 +199,7 @@ export function TasksPage() {
                     <Pause size={14} />
                     停止
                   </Button>
-                ) : ['failed', 'stopped'].includes(task.state) && !needsInput(task) ? (
+                ) : ['failed', 'stopped', 'partial'].includes(task.state) && !needsInput(task) ? (
                   <Button
                     className=" text-muted-foreground"
                     onClick={() => controlTask(task.id, 'retry')}
@@ -164,8 +212,12 @@ export function TasksPage() {
                     size="sm"
                   >
                     <RefreshCw size={14} />
-                    {task.kind === 'creation' ? '继续整理' : '重试演示'}
-                  </Button>
+                    {task.kind === 'creation'
+                      ? '继续整理'
+                      : task.kind === 'source' || task.kind === 'publish' || task.kind === 'export' || task.kind === 'voice'
+                        ? '重试'
+                        : '重试演示'}
+                    </Button>
                 ) : (
                   task.kind === 'export' && (
                     <Button
@@ -173,15 +225,14 @@ export function TasksPage() {
                       onClick={() => {
                         const video = task.snapshot
                         if (!video) {
-                          notify('这条历史演示没有完整快照，请从视频工作区重新导出制作清单。')
+                          notify('这条任务没有完整快照，请从视频工作区重新导出制作清单。')
                           return
                         }
                         download(
-                          `${video.title}-演示任务-${new Date().toISOString().slice(0, 10)}.json`,
+                          `${video.title}-制作清单-${new Date().toISOString().slice(0, 10)}.json`,
                           JSON.stringify(
                             {
-                              mock: true,
-                              note: '制作清单，未生成 MP4。',
+                              note: '视频制作清单（脚本、镜头与设置快照）；MP4 成片见导出目录。',
                               task,
                               video,
                             },

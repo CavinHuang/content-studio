@@ -738,6 +738,66 @@
     color: var(--muted-foreground);
     @apply mt-3 text-xs;
   }
+  /* §20.4 热点后续变化：按项目罗列快照之外的新文章，勾选补充为素材引用 */
+  .topic-update-panel {
+    border: 1px solid var(--border);
+    background: var(--secondary);
+    @apply mt-0 mx-0 mb-4 p-3 rounded-lg;
+  }
+  .topic-update-panel .section-heading {
+    @apply mt-0 mb-2;
+  }
+  .topic-update-project + .topic-update-project {
+    border-top: 1px solid var(--border);
+    @apply mt-3 pt-3;
+  }
+  .topic-update-lead {
+    color: var(--foreground);
+    @apply m-0 mb-2 text-sm font-medium;
+  }
+  .topic-update-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    @apply gap-2 pt-2;
+  }
+  .topic-update-footer > small {
+    color: var(--muted-foreground);
+  }
+  /* §20.2/§20.3 AI 概览：与原文来源分栏显示（1100px 以上双栏，以下堆叠） */
+  .topic-sources-layout {
+    display: grid;
+    @apply gap-3;
+  }
+  .topic-overview {
+    border: 1px solid var(--border);
+    background: var(--secondary);
+    align-self: start;
+    @apply p-3 rounded-lg;
+  }
+  .topic-overview-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    @apply gap-2;
+  }
+  .topic-overview-body {
+    color: var(--foreground);
+    white-space: pre-wrap;
+    @apply my-2.5 text-sm leading-relaxed;
+  }
+  .topic-overview-note {
+    color: var(--muted-foreground);
+    @apply m-0 text-xs;
+  }
+  @media (min-width: 1100px) {
+    .topic-sources-layout.has-overview {
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+      align-items: start;
+    }
+  }
   .source-url {
     color: var(--muted-foreground);
     background: var(--secondary);
@@ -3419,6 +3479,11 @@
   .task-symbol.failed {
     color: var(--destructive);
     background: color-mix(in srgb, var(--destructive) 10%, var(--card));
+  }
+  /* §12 部分完成：产物可用但存在失败项（warning 语义，区别于完成/失败） */
+  .task-symbol.partial {
+    color: var(--warning);
+    background: var(--warning-background);
   }
   .workspace-page {
     flex: 1;

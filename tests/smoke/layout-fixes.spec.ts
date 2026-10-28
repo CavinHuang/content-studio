@@ -76,11 +76,11 @@ test('new creation has one input and no premature publish; agent resumes the sam
   await expect(body()).toHaveValue(/存了 12 条，只重读 2 条/)
   await expect(page.locator('.chat-artifact').last()).toContainText('当前文稿')
   const snapshot = await page.evaluate(() => {
-    const s = JSON.parse(localStorage.getItem('content-studio.mock-workspace.v2')!)
-    const p = s.projects.find((p: { id: string }) => p.id === s.selectedProject)
-    return p.conversations[0].messages.find((m: { role: string }) => m.role === 'user')?.context
+    const s = window.__studio!.get()
+    const p = s.projects.find((p) => p.id === s.selectedProject)!
+    return p.conversations[0]!.messages.find((m) => m.role === 'user')?.context
   })
-  expect(snapshot.input).toBe(raw)
+  expect(snapshot?.input).toBe(raw)
   await page.getByRole('button', { name: '收起 Agent', exact: true }).click()
   await page.getByRole('tab', { name: '预览', exact: true }).click()
   await expect(page.getByLabel('文稿标题', { exact: true })).not.toBeEditable()
@@ -166,21 +166,21 @@ test('one project navigation, contextual tools preserve editing, global pages hi
   await expect
     .poll(() =>
       page.evaluate(() => {
-        const s = JSON.parse(localStorage.getItem('content-studio.mock-workspace.v2')!)
-        return s.projects.find((p: { id: string }) => p.id === s.selectedProject)?.materialIds
+        const s = window.__studio!.get()
+        return s.projects.find((p) => p.id === s.selectedProject)?.materialIds
       }),
     )
     .toContain('m1')
   const targets = await page.evaluate(() => {
-    const s = JSON.parse(localStorage.getItem('content-studio.mock-workspace.v2')!)
+    const s = window.__studio!.get()
     return {
-      selected: s.projects.find((p: { id: string }) => p.id === s.selectedProject),
-      first: s.projects[0],
+      selected: s.projects.find((p) => p.id === s.selectedProject)!,
+      first: s.projects[0]!,
     }
   })
   expect(targets.selected.title).toBe('把碎片时间，变成创作的起点')
   expect(targets.selected.materialIds).toContain('m1')
-  expect(targets.first.drafts.master.body).toBe('辅助工具打开时也应保留这段正文。')
+  expect(targets.first.drafts.master!.body).toBe('辅助工具打开时也应保留这段正文。')
   await page.getByRole('button', { name: '任务中心', exact: true }).click()
   await expect(page.getByRole('button', { name: '展开 Agent', exact: true })).toHaveCount(0)
 })

@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { NativeSelect } from '@/components/ui/native-select'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import {
   ArrowLeft,
   ArrowRight,
@@ -20,6 +20,7 @@ import {
   Download,
   Film,
   FileText,
+  FolderOpen,
   History,
   Save,
   Maximize2,
@@ -43,6 +44,7 @@ import { Badge, copyText, download, Empty, Field, IconButton, Modal, PageTitle }
 import { useStudio } from '../studio/store'
 import { makeVideo } from '../studio/mock'
 import { images } from '../studio/images'
+import { buildExportPayload } from '../studio/video-export'
 import { dateLabel, now, uid, type Shot, type Video, type VideoVersion } from '../studio/types'
 function timeLabel(seconds: number) {
   return `${Math.floor(seconds / 60)
@@ -291,7 +293,21 @@ export function VideosPage() {
   )
 }
 function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => void; onNew: () => void }) {
-  const { project, patchProject, reference, state, task, notify, controlTask } = useStudio()
+  const {
+    project,
+    patchProject,
+    reference,
+    state,
+    task,
+    submitMainTask,
+    notify,
+    controlTask,
+    videoAvailable,
+    ttsReady,
+    ttsConfig,
+    openExportsFolder,
+    readVideoMedia,
+  } = useStudio()
   const [tab, setTab] = useState(video.mode === 'code' ? 'preview' : 'shots')
   const [previewNumber, setPreviewNumber] = useState(video.candidate ?? video.adopted)
   const [settings, setSettings] = useState(false)
@@ -302,11 +318,19 @@ function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => 
   const [shotHistory, setShotHistory] = useState(false)
   // D5：播放器上报的当前镜头，驱动时间轴节点随播放进度联动高亮；未播放时回退到手选镜头。
   const [playbackScene, setPlaybackScene] = useState<number | null>(null)
+  // P5：导出/配音任务结果只应用一次（防重渲染重复回写）。
+  const appliedExportRef = useRef<Set<string>>(new Set())
+  const appliedVoiceRef = useRef<Set<string>>(new Set())
+  // P5：配音音频的 objectURL 缓存（mediaId → URL）。
+  const audioUrlsRef = useRef(new Map<string, string>())
   const previewVersion = video.versions.find((v) => v.number === previewNumber) ?? video.versions.at(-1)
   const shot = video.shots.find((s) => s.id === video.selectedShot) ?? video.shots[0]!
   const total = video.shots.reduce((s, shot) => s + shot.seconds, 0)
   const running = state.tasks.some((t) => t.state === 'running' && t.videoId === video.id)
   const exportTask = state.tasks.find((t) => t.kind === 'export' && t.videoId === video.id)
+  const voiceTask = state.tasks.find(
+    (t) => t.kind === 'voice' && t.videoId === video.id && (t.payload as { shotId?: string } | undefined)?.shotId === video.selectedShot,
+  )
   const isCandidate = previewVersion?.number !== video.adopted
   // S7 一屏一个实心主按钮：内容区已存在 primary 动作的屏（19 创作说明、20 版本、13 配音、
   // 候选预览的「采用此版」）里，底部「导出视频」降为 outline。
@@ -521,11 +545,10 @@ function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => 
   }
   function exportManifest() {
     download(
-      `${video.title}-v${video.adopted}-演示导出清单-${new Date().toISOString().slice(0, 10)}.json`,
+      `${video.title}-v${video.adopted}-制作清单-${new Date().toISOString().slice(0, 10)}.json`,
       JSON.stringify(
         {
-          mock: true,
-          note: '这是视频制作清单，未渲染 MP4 文件。',
+          note: '视频制作清单（脚本、镜头与设置快照）；MP4 成片请通过「导出视频」生成本机文件。',
           snapshot: video,
           exportedAt: now(),
         },
@@ -534,77 +557,110 @@ function VideoWorkspace({ video, onBack, onNew }: { video: Video; onBack: () => 
       ),
       'application/json',
     )
-    notify('已下载制作清单 JSON。演示界面不会生成 MP4。')
+    notify('已下载制作清单 JSON；MP4 成片请通过「导出视频」生成。')
   }
-  function simulateExport(fail = false) {
-    const projectId = project.id,
-      videoId = video.id,
-      version = video.adopted
+  /** 真实导出（P5）：分镜按已采用版本与素材快照冻结进 payload，主进程渲染 MP4。 */
+  function startExport() {
+    const payload = buildExportPayload(video, state.materials)
     const snapshot = {
       ...structuredClone(video),
-      versions: video.versions.filter((v) => v.number === version),
+      versions: video.versions.filter((v) => v.number === video.adopted),
       candidate: undefined,
     }
-    const id = task(
-      `视频导出 · ${video.title}`,
-      '正在演示视频导出队列，不会执行真实编码…',
-      'export',
-      (s) => ({
-        ...s,
-        projects: fail
-          ? s.projects
-          : s.projects.map((p) =>
-              p.id === projectId
-                ? {
-                    ...p,
-                    videos: p.videos.map((v) =>
-                      v.id === videoId
-                        ? {
-                            ...v,
-                            lastExport: {
-                              version,
-                              at: now(),
-                            },
-                          }
-                        : v,
-                    ),
-                  }
-                : p,
-            ),
-      }),
-      {
-        videoId,
-        version,
-        snapshot,
-      },
-    )
-    if (fail) {
-      // Failure is a deliberately selectable demo outcome; a stopped task cannot be completed later.
-      setTimeout(() => {
-        // Only update this explicit task, preserving all other tasks and existing video output.
-        patchFailure(id)
-      }, 450)
-    }
+    submitMainTask({
+      kind: 'export',
+      title: `视频导出 · ${video.title}`,
+      detail: '正在准备导出…',
+      payload,
+      extra: { videoId: video.id, version: video.adopted, snapshot },
+    })
     setExporting(false)
     setExportStatus(true)
-    notify('演示任务已加入任务中心，可在那里停止或检查结果。')
+    notify('已创建导出任务；进度见任务中心，完成后可打开导出文件夹。')
   }
-  const { setState } = useStudio()
-  function patchFailure(id: string) {
-    setState((s) => ({
-      ...s,
-      tasks: s.tasks.map((t) =>
-        t.id === id && t.state === 'running'
-          ? {
-              ...t,
-              state: 'failed',
-              detail: '模拟失败：配乐资源不可用。作品与之前的输出快照均已保留。',
-            }
-          : t,
-      ),
-    }))
+  // P5 配音：读取音频字节 → objectURL（真实播放）。
+  async function objectUrlFor(mediaId: string): Promise<string | null> {
+    const cached = audioUrlsRef.current.get(mediaId)
+    if (cached) return cached
+    const media = await readVideoMedia(mediaId)
+    if (!media || !media.ok) return null
+    // 拷贝一次把 IPC 字节收窄为 Uint8Array<ArrayBuffer>，再交给 Blob。
+    const url = URL.createObjectURL(new Blob([new Uint8Array(media.data)], { type: media.mime }))
+    audioUrlsRef.current.set(mediaId, url)
+    return url
   }
-  const codeSnippet = `// Mock composition — read-only illustration
+  async function playShotAudio(item: Shot) {
+    if (!item.voiceAudio) return
+    const url = await objectUrlFor(item.voiceAudio.mediaId)
+    if (!url) {
+      notify('配音音频读取失败，可重新生成后再试。')
+      return
+    }
+    void new Audio(url)
+      .play()
+      .catch(() => notify('当前运行环境暂不支持播放音频。'))
+  }
+  /** 无 ffmpeg 时用渲染端 Audio 解码测时长（loadedmetadata），失败返回 null 由调用方如实提示。 */
+  function measureAudioDuration(url: string): Promise<number | null> {
+    return new Promise((resolve) => {
+      const audio = new Audio()
+      let settled = false
+      const done = (value: number | null) => {
+        if (settled) return
+        settled = true
+        window.clearTimeout(timer)
+        resolve(value)
+      }
+      const timer = window.setTimeout(() => done(null), 5000)
+      audio.addEventListener('loadedmetadata', () => {
+        done(Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : null)
+      })
+      audio.addEventListener('error', () => done(null))
+      audio.src = url
+    })
+  }
+  // P5：导出任务完成后回写 lastExport（只应用一次）。
+  useEffect(() => {
+    if (
+      exportTask?.state === 'complete' &&
+      exportTask.executor === 'main' &&
+      !appliedExportRef.current.has(exportTask.id)
+    ) {
+      appliedExportRef.current.add(exportTask.id)
+      patch({ lastExport: { version: exportTask.version ?? video.adopted, at: now() } })
+      const result = exportTask.result as { fileName?: string } | undefined
+      notify(result?.fileName ? `视频已导出：${result.fileName}。` : '视频导出完成。')
+    }
+  }, [exportTask])
+  // P5：配音任务完成后回填镜头（音频引用 + 时长按音频回填；测量失败如实提示）。
+  useEffect(() => {
+    for (const item of state.tasks) {
+      if (item.kind !== 'voice' || item.videoId !== video.id || item.state !== 'complete') continue
+      if (appliedVoiceRef.current.has(item.id)) continue
+      appliedVoiceRef.current.add(item.id)
+      void applyVoiceResult(item)
+    }
+  }, [state.tasks])
+  async function applyVoiceResult(item: (typeof state.tasks)[number]) {
+    const result = item.result as { mediaId?: string; bytes?: number } | undefined
+    const shotId = (item.payload as { shotId?: string } | undefined)?.shotId
+    if (!result?.mediaId || !shotId) return
+    if (!video.shots.some((s) => s.id === shotId)) return
+    const url = await objectUrlFor(result.mediaId)
+    const duration = url ? await measureAudioDuration(url) : null
+    const seconds = duration ? Math.max(1, Math.round(duration)) : null
+    patchShot(shotId, {
+      ...(seconds ? { seconds } : {}),
+      voiceDirty: false,
+      voiceAudio: { mediaId: result.mediaId, bytes: result.bytes ?? 0, at: now() },
+    })
+    notify(
+      seconds
+        ? `配音已生成，镜头时长已按音频回填为 ${seconds} 秒。`
+        : '配音已生成；音频时长测量失败，请手动核对镜头时长。',
+    )
+  }
+  const codeSnippet = `// 组合示意 — 只读视图
 const composition = {
   title: ${JSON.stringify(previewVersion?.title)},
   aspectRatio: ${JSON.stringify(video.ratio)},
@@ -613,8 +669,8 @@ const composition = {
   scenes: ${JSON.stringify(previewVersion?.sceneTitles, null, 2)}
 };
 
-// The rendering engine will be integrated separately.
-// No external compilation or encoding is performed.`
+// 导出由本机渲染链执行：分镜数据驱动组合，MP4 保存在导出目录。
+// 界面不执行用户输入的代码；动画预览由本地组件呈现。`
   const labels =
     video.mode === 'code'
       ? [
@@ -752,19 +808,19 @@ const composition = {
                 }
               >
                 {exportTask?.state === 'failed'
-                  ? '演示导出未完成'
+                  ? '导出未完成'
                   : exportTask?.state === 'complete'
-                    ? '演示流程已完成'
+                    ? '导出完成'
                     : exportTask?.state === 'stopped'
-                      ? '演示已停止'
-                      : '演示任务进行中'}
+                      ? '已停止'
+                      : '正在导出'}
               </Badge>
             </div>
             <div className={`export-result-card ${exportTask?.state === 'failed' ? 'failed' : ''}`}>
               <div className="export-result-title">
                 <Film size={24} />
                 <strong>本次固定快照 v{exportTask?.version ?? video.adopted}</strong>
-                <Badge>演示 · 未生成 MP4</Badge>
+                <Badge>{exportTask?.state === 'complete' ? 'MP4 · 本机渲染' : 'MP4 · 真实导出'}</Badge>
               </div>
               <ol className="export-phases">
                 <li className="done">
@@ -773,25 +829,44 @@ const composition = {
                     保留作品快照<small>文稿与修改均已保留</small>
                   </span>
                 </li>
-                <li className={exportTask?.state === 'failed' ? 'failed' : ''}>
-                  {exportTask?.state === 'failed' ? <TriangleAlert size={18} /> : <RefreshCw size={18} />}
+                <li
+                  className={
+                    exportTask?.state === 'failed'
+                      ? 'failed'
+                      : exportTask?.state === 'complete'
+                        ? 'done'
+                        : ''
+                  }
+                >
+                  {exportTask?.state === 'failed' ? (
+                    <TriangleAlert size={18} />
+                  ) : exportTask?.state === 'complete' ? (
+                    <Check size={18} />
+                  ) : (
+                    <RefreshCw size={18} />
+                  )}
                   <span>
-                    演示导出流程
+                    本机渲染 MP4
                     <small>
                       {exportTask?.state === 'failed'
-                        ? '配乐资源不可用'
+                        ? '渲染失败'
                         : exportTask?.state === 'complete'
-                          ? '状态演示完成'
+                          ? '编码完成'
                           : exportTask?.state === 'stopped'
                             ? '已停止'
-                            : '等待任务结果'}
+                            : (exportTask?.progress ?? '等待渲染结果')}
                     </small>
                   </span>
                 </li>
-                <li>
+                <li className={exportTask?.state === 'complete' ? 'done' : ''}>
                   <Film size={18} />
                   <span>
-                    真实文件编码<small>尚未接入编码器</small>
+                    保存到导出目录
+                    <small>
+                      {exportTask?.state === 'complete'
+                        ? ((exportTask.result as { fileName?: string } | undefined)?.fileName ?? '已保存')
+                        : '完成后可打开所在文件夹'}
+                    </small>
                   </span>
                 </li>
               </ol>
@@ -810,7 +885,13 @@ const composition = {
                 {exportTask && ['failed', 'stopped'].includes(exportTask.state) && (
                   <Button variant="default" onClick={() => controlTask(exportTask.id, 'retry')}>
                     <RefreshCw size={15} />
-                    重试演示
+                    重试导出
+                  </Button>
+                )}
+                {exportTask?.state === 'complete' && (
+                  <Button variant="default" onClick={() => void openExportsFolder()}>
+                    <FolderOpen size={15} />
+                    打开导出文件夹
                   </Button>
                 )}
                 <Button
@@ -837,8 +918,8 @@ const composition = {
               <div className="previous-export">
                 <FileText size={28} />
                 <div>
-                  <h3>上次演示快照 v{video.lastExport.version}</h3>
-                  <p>{dateLabel(video.lastExport.at)} · 仅记录任务演示，不是可播放的成片</p>
+                  <h3>上次导出 v{video.lastExport.version}</h3>
+                  <p>{dateLabel(video.lastExport.at)} · MP4 保存在本机导出目录</p>
                 </div>
               </div>
             )}
@@ -1128,7 +1209,7 @@ const composition = {
               ) : video.mode === 'storyboard' && tab === 'voice' ? (
                 <>
                   <div className="voice-settings">
-                    <Field label="声音（示例）">
+                    <Field label={ttsReady ? '声音（语音服务）' : '声音（示例）'}>
                       <NativeSelect
                         value={video.voice}
                         onChange={(e) =>
@@ -1165,14 +1246,29 @@ const composition = {
                       </NativeSelect>
                     </Field>
                     <Button
-                      onClick={() => notify('试听交互演示：尚未连接语音服务，本次不会播放真实配音。')}
+                      onClick={() => {
+                        if (shot.voiceAudio) {
+                          void playShotAudio(shot)
+                          return
+                        }
+                        notify(
+                          ttsReady
+                            ? '这个镜头还没有生成配音，可先用「更新所选镜头配音」生成。'
+                            : '试听交互演示：尚未连接语音服务，本次不会播放真实配音。',
+                        )
+                      }}
                       variant="outline"
                       size="default"
                     >
                       <Volume2 size={15} />
-                      试听示例
+                      {shot.voiceAudio ? '试听本镜头配音' : '试听示例'}
                     </Button>
                   </div>
+                  <p className="inline-note">
+                    {ttsReady
+                      ? `已配置语音服务（音色「${ttsConfig?.voice}」）：生成的是真实配音，时长按音频回填镜头。`
+                      : '尚未配置语音服务：配音为本地演示；可在「设置 → AI 服务」配置后生成真实配音。'}
+                  </p>
                   <p className="inline-note">口播变化后，配音标记为待更新；你修改的字幕文字会保留。</p>
                   <div className="section-heading subtitle-section-heading">
                     <h2>字幕校对</h2>
@@ -1220,9 +1316,9 @@ const composition = {
                             </span>
                             <span className="subtitle-shot-title">{item.title}</span>
                           </Button>
-                          <Badge tone={item.voiceDirty ? 'orange' : 'green'}>
-                            {item.voiceDirty ? '配音待更新' : '示例已就绪'}
-                          </Badge>
+                        <Badge tone={item.voiceDirty ? 'orange' : 'green'}>
+                          {item.voiceDirty ? '配音待更新' : item.voiceAudio ? '配音已就绪' : '示例已就绪'}
+                        </Badge>
                         </header>
                         <details className="subtitle-narration">
                           <summary>编辑口播 · {item.title}</summary>
@@ -1301,9 +1397,13 @@ const composition = {
                           <span>秒</span>
                         </div>
                         <IconButton
-                          icon={Play}
-                          label={`预览字幕片段 ${index + 1}`}
+                          icon={item.voiceAudio ? Volume2 : Play}
+                          label={item.voiceAudio ? `试听镜头 ${index + 1} 配音` : `预览字幕片段 ${index + 1}`}
                           onClick={() => {
+                            if (item.voiceAudio) {
+                              void playShotAudio(item)
+                              return
+                            }
                             patch({ selectedShot: item.id, selectedScene: index })
                             notify(`已选中镜头 ${index + 1}，成片预览可查看对应画面；配音尚未生成。`)
                           }}
@@ -1327,8 +1427,28 @@ const composition = {
                       导出 SRT
                     </Button>
                     <Button
-                      disabled={running}
+                      disabled={
+                        running ||
+                        (ttsReady && (!shot.narration.trim() || voiceTask?.state === 'running'))
+                      }
                       onClick={() => {
+                        // 已配置语音服务：真实生成（任务化，音频存本机媒体目录，时长回填镜头）。
+                        if (ttsReady && videoAvailable) {
+                          submitMainTask({
+                            kind: 'voice',
+                            title: '更新所选镜头配音',
+                            detail: '正在生成配音…',
+                            payload: {
+                              job: 'shot-voice',
+                              shotId: shot.id,
+                              text: shot.narration,
+                              speed: Number(video.speed) || 1,
+                            },
+                            extra: { videoId: video.id },
+                          })
+                          notify('正在生成所选镜头的配音；完成后可试听，时长将按音频回填。')
+                          return
+                        }
                         const projectId = project.id,
                           shotId = video.selectedShot,
                           videoId = video.id
@@ -1601,7 +1721,9 @@ const composition = {
                   </NativeSelect>
                 </Field>
               </div>
-              <div className="inline-alert">这些是导出参数的演示选项，尚未连接真实编码器或音乐资源。</div>
+              <div className="inline-alert">
+                画面比例、分辨率与帧率按本机渲染真实执行；背景音乐仍是演示选项，暂不混入成片。
+              </div>
             </Modal>
           )}
           {exporting && (
@@ -1616,10 +1738,12 @@ const composition = {
                     <Download size={15} />
                     下载制作清单
                   </Button>
-                  <Button onClick={() => simulateExport()} variant="default" size="default">
-                    {/* D21：主按钮以用户任务命名，演示属性交由说明区交代。 */}
-                    开始导出（演示）
-                  </Button>
+                  {/* D21：主按钮以用户任务命名；未接桌面桥（浏览器预览）时如实不可导出。 */}
+                  {videoAvailable && (
+                    <Button onClick={startExport} variant="default" size="default">
+                      开始导出
+                    </Button>
+                  )}
                 </>
               }
             >
@@ -1632,20 +1756,17 @@ const composition = {
                   </p>
                 </div>
               </div>
-              <div className="inline-alert orange">
-                演示只运行任务状态，不生成 MP4。可以下载包含脚本、镜头和设置的制作清单，SRT 从字幕页单独导出。
-              </div>
-              {/* D20：演练入口是演示功能不是危险操作，改链接样式（下划线 + 中性色 + 警示图标），
-              destructive 红只留给真实危险操作。 */}
-              <Button
-                className=" text-muted-foreground underline underline-offset-2"
-                onClick={() => simulateExport(true)}
-                variant="ghost"
-                size="sm"
-              >
-                <TriangleAlert size={14} />
-                演练一次失败与恢复
-              </Button>
+              {videoAvailable ? (
+                <div className="inline-alert orange">
+                  导出将在本机渲染 MP4 并保存到应用的导出目录，进度可在任务中心查看、随时停止。首次导出需要下载渲染用浏览器（约
+                  120 MB），之后可离线导出；SRT 从字幕页单独导出。
+                </div>
+              ) : (
+                <div className="inline-alert orange">
+                  浏览器预览不支持视频导出，请在桌面应用中导出 MP4。仍可下载包含脚本、镜头和设置的制作清单，SRT
+                  从字幕页单独导出。
+                </div>
+              )}
             </Modal>
           )}
           {shotHistory && (
@@ -1762,7 +1883,7 @@ const composition = {
           <div className="video-bottom-bar mt-auto">
             <span className="small-meta">
               {video.lastExport
-                ? `上次演示快照 v${video.lastExport.version}${video.lastExport.version !== video.adopted ? ' · 未包含最新修改' : ''}`
+                ? `上次导出 v${video.lastExport.version}${video.lastExport.version !== video.adopted ? ' · 未包含最新修改' : ''}`
                 : '预览不等于已导出文件'}
             </span>
             <Button onClick={exportManifest} variant="outline" size="default">
