@@ -80,6 +80,38 @@ test('平台改写：逐平台会话经 collect 收集产物，skip 平台跳过
   expect(prompts[0]).toContain('write_master_draft')
 })
 
+test('平台改写部分失败：结算 partial（§12 部分完成），成功平台产物可用、失败项列明', async () => {
+  const { runner } = makeRunner()
+  const platformExecutor = createPlatformRewriteExecutor({
+    createSession: async (_key, _ask, collect) =>
+      scriptedSession(collect ?? (() => {}), (session, collect) => {
+        session.promptImpl = async (text) => {
+          const platform = /「(\w+)」平台版本/.exec(text)?.[1] ?? 'wechat'
+          if (platform === 'zhihu') return // zhihu 会话未提交候选 → 失败项
+          collect({ kind: 'draft', payload: { title: `${platform} 标题`, body: `${platform} 正文`, note: platform } as AiDraftPayload })
+        }
+      }),
+    getConfig: () => config,
+  })
+  runner.registerExecutor('agent', platformExecutor)
+  const task = runner.submit({
+    kind: 'agent',
+    executor: 'main',
+    title: '准备平台版本',
+    detail: '',
+    projectId: 'p1',
+    payload: { job: 'platforms', platforms: ['wechat', 'zhihu'], masterTitle: '母', masterBody: '正文' },
+  })
+  await new Promise((r) => setTimeout(r, 30))
+  const done = runner.get(task.id)!
+  expect(done.state).toBe('partial')
+  expect(done.detail).toContain('已生成 1 个平台版本')
+  expect(done.detail).toContain('失败：zhihu')
+  const result = done.result as { drafts: Record<string, { title: string }>; failed: string[] }
+  expect(result.drafts.wechat).toMatchObject({ title: 'wechat 标题' })
+  expect(result.failed).toEqual(['zhihu'])
+})
+
 test('母稿候选：无产出判失败；停止拒绝迟到结算', async () => {
   const { runner } = makeRunner()
   const masterExecutor = createMasterDraftExecutor({

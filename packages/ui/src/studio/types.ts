@@ -206,7 +206,8 @@ export type Task = {
   title: string
   detail: string
   projectId: string
-  state: 'queued' | 'running' | 'failed' | 'stopped' | 'complete'
+  /** UX-SPEC §12 六态：partial＝部分完成（已完成产物可用；可重试失败项）。 */
+  state: 'queued' | 'running' | 'partial' | 'failed' | 'stopped' | 'complete'
   kind: 'agent' | 'export' | 'source' | 'creation' | 'publish' | 'voice'
   at: string
   version?: number

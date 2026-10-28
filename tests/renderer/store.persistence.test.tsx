@@ -262,3 +262,37 @@ test('discovery 桥：启动应用聚合快照，事件推送替换来源与话�
   })
   expect(refreshCalls).toEqual(['all'])
 })
+
+test('部分完成的平台生成任务：成功草稿照常落位（§12 已完成产物可用），通知列明可重试', async () => {
+  const fake = fakePersistence(makeState())
+  __setPersistenceForTest(fake.persistence)
+  await mount()
+  let projectId = ''
+  act(() => {
+    latest!.newProject()
+  })
+  projectId = latest!.state.projects[0]!.id
+  const partialEvent: Task = {
+    id: 'gen-partial-1',
+    title: '准备平台版本',
+    detail: '已生成 1 个平台版本；失败：zhihu。',
+    projectId,
+    state: 'partial',
+    kind: 'agent',
+    executor: 'main',
+    at: new Date().toISOString(),
+    payload: { job: 'platforms', platforms: ['douyin', 'zhihu'] },
+    result: {
+      drafts: { douyin: { title: '抖音版标题', body: '抖音版正文', tags: '', question: '' } },
+      failed: ['zhihu'],
+    },
+  }
+  await act(async () => {
+    fake.emit({ type: 'updated', task: partialEvent as unknown as TaskRecord })
+  })
+  // 成功平台的草稿必须落位：部分完成不丢已完成产物
+  const project = latest!.state.projects.find((p) => p.id === projectId)!
+  expect(project.drafts.douyin).toMatchObject({ title: '抖音版标题' })
+  expect(latest!.state.tasks.find((t) => t.id === 'gen-partial-1')?.state).toBe('partial')
+  expect(latest!.notice).toContain('重试')
+})

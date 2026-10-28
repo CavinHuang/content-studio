@@ -10,10 +10,14 @@ export type TaskSubmitInput = TaskSubmitPayload
  * 防止”已停止”被覆盖成”已完成”。
  * P2 扩展：executor='main' 且已注册执行器的任务由主进程驱动（进度/中止/结算）。
  */
+/**
+ * 执行器结算：complete/partial/failed。partial（§12 部分完成）＝部分产物已可用，
+ * detail 需列明失败项；重试沿用既有 retry 克隆。
+ */
 export type MainExecutor = (
   task: TaskRecord,
   ctx: { progress: (step: string) => void; signal: AbortSignal },
-) => Promise<{ state: 'complete' | 'failed'; detail?: string; result?: unknown }>
+) => Promise<{ state: 'complete' | 'partial' | 'failed'; detail?: string; result?: unknown }>
 
 export class TaskRunner {
   private readonly executors = new Map<string, MainExecutor>()

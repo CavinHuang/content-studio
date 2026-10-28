@@ -173,3 +173,105 @@ test('recover 把活动任务降级为 stopped 并发出 snapshot', () => {
   expect(runner.recover()).toEqual([])
   expect(events).toEqual([])
 })
+
+// —— §12 第六态「部分完成」：已完成产物可用；可重试失败项 ——
+
+test('主进程执行器返回 partial：如实落库为部分完成并外发事件', async () => {
+  const { runner, events } = makeRunner()
+  runner.registerExecutor('source', async () => ({
+    state: 'partial',
+    detail: '已更新 1 个来源；失败：坏来源（已保留缓存）。',
+    result: { updated: 1, failed: ['坏来源'] },
+  }))
+  const task = runner.submit({
+    kind: 'source',
+    title: '刷新热点来源',
+    detail: '正在刷新…',
+    projectId: 'discovery',
+    executor: 'main',
+  })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  expect(runner.get(task.id)).toMatchObject({
+    state: 'partial',
+    detail: '已更新 1 个来源；失败：坏来源（已保留缓存）。',
+    result: { updated: 1, failed: ['坏来源'] },
+  })
+  expect(events.at(-1)).toMatchObject({ type: 'updated', task: { id: task.id, state: 'partial' } })
+})
+
+test('partial 是终态：迟到的 settle（含渲染端兜底）一律拒绝', async () => {
+  const { runner } = makeRunner()
+  runner.registerExecutor('source', async () => ({ state: 'partial', detail: '部分完成。' }))
+  const task = runner.submit({
+    kind: 'source',
+    title: '刷新热点来源',
+    detail: '正在刷新…',
+    projectId: 'discovery',
+    executor: 'main',
+  })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  expect(runner.get(task.id)!.state).toBe('partial')
+  expect(runner.settle(task.id, { state: 'complete', detail: '演示任务已完成；未调用外部服务。' })).toBeNull()
+  expect(runner.get(task.id)!.state).toBe('partial')
+})
+
+test('控制停止优先：stop 置 stopped 后，执行器迟到的 partial 结算被拒绝', async () => {
+  const { runner } = makeRunner()
+  let release: (() => void) | undefined
+  runner.registerExecutor('source', async () => {
+    await new Promise<void>((resolve) => {
+      release = resolve
+    })
+    return { state: 'partial', detail: '已更新 1 个来源；失败：坏来源（已保留缓存）。' }
+  })
+  const task = runner.submit({
+    kind: 'source',
+    title: '刷新热点来源',
+    detail: '正在刷新…',
+    projectId: 'discovery',
+    executor: 'main',
+  })
+  expect(runner.control(task.id, 'stop')).toEqual({ ok: true })
+  release!()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  expect(runner.get(task.id)).toMatchObject({
+    state: 'stopped',
+    detail: '已停止，之前的文稿与作品保持可用。',
+  })
+})
+
+test('partial 任务重试沿用既有克隆：新任务 running 且携带 executor，再跑由执行器结算', async () => {
+  const { runner } = makeRunner()
+  let runs = 0
+  runner.registerExecutor('source', async () => {
+    runs += 1
+    return runs === 1
+      ? { state: 'partial', detail: '已更新 1 个来源；失败：坏来源（已保留缓存）。', result: { updated: 1, failed: ['坏来源'] } }
+      : { state: 'complete', detail: '重试成功，已更新 2 个来源。' }
+  })
+  const task = runner.submit({
+    kind: 'source',
+    title: '刷新热点来源',
+    detail: '正在刷新…',
+    projectId: 'discovery',
+    executor: 'main',
+    payload: { all: true },
+  })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  expect(runner.get(task.id)!.state).toBe('partial')
+  expect(runner.control(task.id, 'retry')).toEqual({ ok: true })
+  const clone = runner.list().find((t) => t.id !== task.id && t.kind === 'source')!
+  expect(clone).toMatchObject({ executor: 'main', state: 'running', payload: { all: true } })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  expect(runner.get(clone.id)).toMatchObject({ state: 'complete', detail: '重试成功，已更新 2 个来源。' })
+  // 原记录保持部分完成，不被重试覆盖
+  expect(runner.get(task.id)!.state).toBe('partial')
+})
+
+test('渲染端 settle 支持 partial：本地任务可部分完成结算，且此后不再可结算', () => {
+  const { runner } = makeRunner()
+  const task = runner.submit({ kind: 'export', title: '导出', detail: '', projectId: 'p1' })
+  const settled = runner.settle(task.id, { state: 'partial', detail: '清单已导出；MP4 未生成。' })
+  expect(settled).toMatchObject({ state: 'partial', detail: '清单已导出；MP4 未生成。' })
+  expect(runner.settle(task.id, { state: 'complete' })).toBeNull()
+})

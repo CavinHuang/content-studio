@@ -5,6 +5,7 @@ import { useRef, useState } from 'react'
 import {
   ArrowRight,
   Check,
+  CircleCheckBig,
   Clock3,
   Download,
   Pause,
@@ -20,6 +21,7 @@ import { dateLabel, type Task } from '../studio/types'
 const labels = {
   queued: '排队中',
   running: '运行中',
+  partial: '部分完成',
   failed: '失败',
   stopped: '已停止',
   complete: '已完成',
@@ -74,7 +76,7 @@ export function TasksPage() {
           <span>已完成</span>
         </div>
         <div>
-          <strong>{state.tasks.filter((t) => ['failed', 'stopped'].includes(t.state)).length}</strong>
+          <strong>{state.tasks.filter((t) => ['failed', 'stopped', 'partial'].includes(t.state)).length}</strong>
           <span>需要留意</span>
         </div>
       </div>
@@ -91,6 +93,10 @@ export function TasksPage() {
           {
             id: 'complete',
             name: '已完成',
+          },
+          {
+            id: 'partial',
+            name: '部分完成',
           },
           {
             id: 'failed',
@@ -123,6 +129,8 @@ export function TasksPage() {
                 <TriangleAlert size={20} />
               ) : task.state === 'complete' ? (
                 <Check size={20} />
+              ) : task.state === 'partial' ? (
+                <CircleCheckBig size={20} />
               ) : (
                 <Pause size={20} />
               )}
@@ -132,7 +140,15 @@ export function TasksPage() {
                 <h3 className="min-w-0">{task.title}</h3>
                 <Badge
                   className="shrink-0"
-                  tone={task.state === 'failed' ? 'red' : task.state === 'complete' ? 'green' : 'neutral'}
+                  tone={
+                    task.state === 'failed'
+                      ? 'red'
+                      : task.state === 'complete'
+                        ? 'green'
+                        : task.state === 'partial'
+                          ? 'orange'
+                          : 'neutral'
+                  }
                 >
                   {labels[task.state]}
                 </Badge>
@@ -183,7 +199,7 @@ export function TasksPage() {
                     <Pause size={14} />
                     停止
                   </Button>
-                ) : ['failed', 'stopped'].includes(task.state) && !needsInput(task) ? (
+                ) : ['failed', 'stopped', 'partial'].includes(task.state) && !needsInput(task) ? (
                   <Button
                     className=" text-muted-foreground"
                     onClick={() => controlTask(task.id, 'retry')}

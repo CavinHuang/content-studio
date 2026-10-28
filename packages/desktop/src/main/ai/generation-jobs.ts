@@ -78,13 +78,14 @@ export function createPlatformRewriteExecutor(deps: {
     const result = { drafts, failed }
     if (!targets.length) return { state: 'complete', detail: '所选平台均已存在版本，未生成新内容。', result }
     if (failed.length === targets.length) return { state: 'failed', detail: `全部平台生成失败（${failed.join('、')}）。`, result }
-    return {
-      state: 'complete',
-      detail: failed.length
-        ? `已生成 ${Object.keys(drafts).length} 个平台版本；失败：${failed.join('、')}。`
-        : `已生成 ${Object.keys(drafts).length} 个平台版本。`,
-      result,
-    }
+    if (failed.length)
+      return {
+        // §12 部分完成：成功平台草稿可用，失败项列明、可重试
+        state: 'partial',
+        detail: `已生成 ${Object.keys(drafts).length} 个平台版本；失败：${failed.join('、')}。`,
+        result,
+      }
+    return { state: 'complete', detail: `已生成 ${Object.keys(drafts).length} 个平台版本。`, result }
   }
 }
 

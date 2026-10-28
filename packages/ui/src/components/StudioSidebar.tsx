@@ -66,7 +66,8 @@ export function StudioSidebar({
     `${item.title || '未命名内容'}${item.brief.point}`.toLowerCase().includes(search.toLowerCase()),
   )
   const pending = state.tasks.filter((task) => ['queued', 'running'].includes(task.state)).length
-  const attention = state.tasks.filter((task) => ['failed', 'stopped'].includes(task.state)).length
+  // 部分完成（§12）有失败项待处理：计入「需要留意」，与任务中心页首统计一致
+  const attention = state.tasks.filter((task) => ['failed', 'stopped', 'partial'].includes(task.state)).length
   const shortcut = /Mac/.test(navigator.platform) ? '⌘' : 'Ctrl'
 
   return (

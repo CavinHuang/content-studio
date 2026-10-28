@@ -153,7 +153,8 @@ test('任务系统接线：refreshAll 走 kind source / executor main，进度�
     }, 25)
   })
   const settled = runner.get(task.id)!
-  expect(settled.state).toBe('complete')
+  // §12 部分完成：成功来源的产物可用，失败项列明、可在任务中心重试
+  expect(settled.state).toBe('partial')
   expect(settled.detail).toContain('坏来源')
   expect(settled.detail).toContain('失败')
   const snap = service.snapshot()

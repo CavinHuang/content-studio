@@ -452,7 +452,11 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         startedRuns.current.add(task.id)
         scheduleCompletion(task.id)
       }
-      if (task.executor === 'main' && task.kind === 'agent' && (task.state === 'complete' || task.state === 'failed')) {
+      if (
+        task.executor === 'main' &&
+        task.kind === 'agent' &&
+        (task.state === 'complete' || task.state === 'partial' || task.state === 'failed')
+      ) {
         applyGenerationOutcome(task)
       }
     })
@@ -657,7 +661,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   }
   function applyGenerationOutcome(task: Task): void {
     const payload = task.payload as { job?: string } | undefined
-    if (payload?.job === 'platforms' && task.state === 'complete') {
+    if (payload?.job === 'platforms' && (task.state === 'complete' || task.state === 'partial')) {
       const result = task.result as
         | { drafts?: Record<string, { title: string; body: string }> }
         | undefined
@@ -680,7 +684,12 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           return { ...p, drafts, updated: now() }
         }),
       }))
-      notify('平台版本已生成；已有平台稿不会被覆盖。')
+      // §12 部分完成：成功草稿照常落位（已完成产物可用），失败项可回任务中心重试
+      notify(
+        task.state === 'partial'
+          ? '部分平台版本已生成；失败的平台可在任务中心重试。'
+          : '平台版本已生成；已有平台稿不会被覆盖。',
+      )
       return
     }
     if (payload?.job === 'master' && task.state === 'complete') {

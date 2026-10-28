@@ -18,7 +18,8 @@ export interface AppInfo {
   smoke: boolean
 }
 
-export type TaskState = 'queued' | 'running' | 'failed' | 'stopped' | 'complete'
+/** UX-SPEC §12 六态：排队/运行/部分完成/失败/已停止/完成。partial＝已完成产物可用；可重试失败项。 */
+export type TaskState = 'queued' | 'running' | 'partial' | 'failed' | 'stopped' | 'complete'
 export type TaskExtra = { version?: number; videoId?: string; snapshot?: unknown }
 export type TaskRecord = {
   id: string
@@ -36,7 +37,7 @@ export type TaskRecord = {
   extra?: TaskExtra
   executor?: 'main' | 'renderer'
 }
-export type TaskSettle = { state: 'complete' | 'failed' | 'stopped'; detail?: string; result?: unknown }
+export type TaskSettle = { state: 'complete' | 'partial' | 'failed' | 'stopped'; detail?: string; result?: unknown }
 export type TaskSubmitPayload = {
   id?: string
   kind: string

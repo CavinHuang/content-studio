@@ -181,13 +181,14 @@ export class DiscoveryService {
         const result = { updated, failed }
         if (failed.length === targets.length)
           return { state: 'failed', detail: `全部来源刷新失败（${failed.join('、')}）；已保留旧缓存。`, result }
-        return {
-          state: 'complete',
-          detail: failed.length
-            ? `已更新 ${updated} 个来源；失败：${failed.join('、')}（已保留缓存）。`
-            : `已更新 ${updated} 个来源。`,
-          result,
-        }
+        if (failed.length)
+          return {
+            // §12 部分完成：成功来源的新数据可用，失败项列明、可重试（重试沿用既有 retry 克隆）
+            state: 'partial',
+            detail: `已更新 ${updated} 个来源；失败：${failed.join('、')}（已保留缓存）。`,
+            result,
+          }
+        return { state: 'complete', detail: `已更新 ${updated} 个来源。`, result }
       } finally {
         this.refreshing = false
       }

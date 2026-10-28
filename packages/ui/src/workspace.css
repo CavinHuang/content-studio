@@ -3420,6 +3420,11 @@
     color: var(--destructive);
     background: color-mix(in srgb, var(--destructive) 10%, var(--card));
   }
+  /* §12 部分完成：产物可用但存在失败项（warning 语义，区别于完成/失败） */
+  .task-symbol.partial {
+    color: var(--warning);
+    background: var(--warning-background);
+  }
   .workspace-page {
     flex: 1;
     min-height: 0;
