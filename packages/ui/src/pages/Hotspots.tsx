@@ -38,6 +38,7 @@ import {
   SegmentedControl,
 } from '../components/ui'
 import { useStudio } from '../studio/store'
+import { topicNewArticles } from '../studio/hotspot-followup'
 import { images } from '../studio/images'
 import {
   dateLabel,
@@ -517,7 +518,17 @@ function TopicDetail({
   onOriginal: (a: SourceArticle) => void
   onCreate: () => void
 }) {
-  const { state, setState, reference, suggestAngles, angleBusy, aiReady } = useStudio()
+  const {
+    state,
+    setState,
+    reference,
+    suggestAngles,
+    angleBusy,
+    aiReady,
+    supplementTopicArticles,
+    generateTopicOverview,
+    overviewBusy,
+  } = useStudio()
   const suggestions = state.topicAngleSuggestions[topic.id] ?? []
   const busy = Boolean(angleBusy[topic.id])
   const draft = state.topicDrafts[topic.id] ?? {
@@ -526,6 +537,14 @@ function TopicDetail({
     requirements: '',
   }
   const [sourceFilter, setSourceFilter] = useState('all')
+  // §20.4：按项目记录勾选的新文章（projectId → articleIds）
+  const [updatePicks, setUpdatePicks] = useState<Record<string, string[]>>({})
+  const updates = state.projects
+    .filter((p) => !p.trashed && p.source?.topicId === topic.id)
+    .map((project) => ({ project, fresh: topicNewArticles(topic, project) }))
+    .filter((row) => row.fresh.length > 0)
+  const overview = state.topicOverviews[topic.id]
+  const overviewRunning = Boolean(overviewBusy[topic.id])
   function patch(value: Partial<typeof draft>) {
     setState((s) => ({
       ...s,
@@ -554,11 +573,88 @@ function TopicDetail({
           <p>{topic.summary}</p>
         </div>
       </div>
+      {updates.length > 0 && (
+        <section aria-label="热点后续变化" className="topic-update-panel">
+          <div className="section-heading">
+            <h2>热点有后续变化</h2>
+            <span>补充新文章为素材，不静默改写旧稿</span>
+          </div>
+          {updates.map(({ project, fresh }) => {
+            const picks = updatePicks[project.id] ?? []
+            return (
+              <div className="topic-update-project" key={project.id}>
+                <p className="topic-update-lead">
+                  「{project.title}」创建后，本热点有 {fresh.length} 篇新文章
+                </p>
+                <div className="topic-article-list">
+                  {fresh.map((article) => (
+                    <div className="source-article" key={article.id}>
+                      <CheckOption
+                        checked={picks.includes(article.id)}
+                        onChange={(checked) =>
+                          setUpdatePicks((current) => ({
+                            ...current,
+                            [project.id]: checked
+                              ? [...(current[project.id] ?? []), article.id]
+                              : (current[project.id] ?? []).filter((id) => id !== article.id),
+                          }))
+                        }
+                      >
+                        <strong>{article.title}</strong>
+                        <span className="small-meta">
+                          发布 {article.published} · 收录 {article.collected}
+                          {article.body ? '' : ' · 仅链接，未读正文'}
+                        </span>
+                      </CheckOption>
+                      <Button
+                        className=" text-muted-foreground"
+                        onClick={() => onOriginal(article)}
+                        variant="ghost"
+                        size="sm"
+                      >
+                        {article.body ? '查看片段' : '仅链接'}
+                        <ArrowUpRight size={13} />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                <div className="topic-update-footer">
+                  <small>保存为素材并引用到该项目；母稿正文不会被改动，改稿仍经修改建议采用。</small>
+                  <Button
+                    disabled={!picks.length}
+                    onClick={() => {
+                      supplementTopicArticles(topic.id, project.id, picks)
+                      setUpdatePicks((current) => ({ ...current, [project.id]: [] }))
+                    }}
+                    variant="default"
+                    size="sm"
+                  >
+                    补充所选（{picks.length}）
+                  </Button>
+                </div>
+              </div>
+            )
+          })}
+        </section>
+      )}
       <div className="section-heading">
         <h2>先看看，大家在讨论什么</h2>
-        <span>
-          {allSources.length} 个来源 · {topic.articles.length} 篇去重原文
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span>
+            {allSources.length} 个来源 · {topic.articles.length} 篇去重原文
+          </span>
+          {aiReady && (
+            <Button
+              disabled={overviewRunning}
+              onClick={() => generateTopicOverview(topic)}
+              variant="outline"
+              size="sm"
+            >
+              <Sparkles size={13} />
+              {overviewRunning ? '正在归纳…' : overview ? '重新归纳' : 'AI 概览'}
+            </Button>
+          )}
+        </div>
       </div>
       <div className="filter-chips source-detail-filter">
         <Button
@@ -581,42 +677,57 @@ function TopicDetail({
           </Button>
         ))}
       </div>
-      <div className="topic-article-list">
-        {topic.articles
-          .filter((a) => sourceFilter === 'all' || a.sourceIds.includes(sourceFilter))
-          .map((article) => (
-            <div className="source-article" key={article.id}>
-              <CheckOption
-                checked={draft.articleIds.includes(article.id)}
-                onChange={(checked) =>
-                  patch({
-                    articleIds: checked
-                      ? [...draft.articleIds, article.id]
-                      : draft.articleIds.filter((id) => id !== article.id),
-                  })
-                }
-              >
-                <span className="article-source-label">
-                  {article.sourceIds.map((id) => state.sources.find((s) => s.id === id)?.name).join(' / ')}
-                  {article.sourceIds.length > 1 && ' · 同一原文多源收录'}
-                </span>
-                <strong>{article.title}</strong>
-                <span className="small-meta">
-                  发布 {article.published} · 收录 {article.collected}
-                  {article.metric && ` · ${article.metric}`}
-                </span>
-              </CheckOption>
-              <Button
-                className=" text-muted-foreground"
-                onClick={() => onOriginal(article)}
-                variant="ghost"
-                size="sm"
-              >
-                {article.body ? '查看片段' : '仅链接'}
-                <ArrowUpRight size={13} />
-              </Button>
+      <div className={cn('topic-sources-layout', overview && 'has-overview')}>
+        <div className="topic-article-list">
+          {topic.articles
+            .filter((a) => sourceFilter === 'all' || a.sourceIds.includes(sourceFilter))
+            .map((article) => (
+              <div className="source-article" key={article.id}>
+                <CheckOption
+                  checked={draft.articleIds.includes(article.id)}
+                  onChange={(checked) =>
+                    patch({
+                      articleIds: checked
+                        ? [...draft.articleIds, article.id]
+                        : draft.articleIds.filter((id) => id !== article.id),
+                    })
+                  }
+                >
+                  <span className="article-source-label">
+                    {article.sourceIds.map((id) => state.sources.find((s) => s.id === id)?.name).join(' / ')}
+                    {article.sourceIds.length > 1 && ' · 同一原文多源收录'}
+                  </span>
+                  <strong>{article.title}</strong>
+                  <span className="small-meta">
+                    发布 {article.published} · 收录 {article.collected}
+                    {article.metric && ` · ${article.metric}`}
+                  </span>
+                </CheckOption>
+                <Button
+                  className=" text-muted-foreground"
+                  onClick={() => onOriginal(article)}
+                  variant="ghost"
+                  size="sm"
+                >
+                  {article.body ? '查看片段' : '仅链接'}
+                  <ArrowUpRight size={13} />
+                </Button>
+              </div>
+            ))}
+        </div>
+        {overview && (
+          <aside aria-label="AI 概览，与原文分开" className="topic-overview">
+            <div className="topic-overview-heading">
+              <Badge tone="green">
+                <Sparkles size={12} />
+                AI 概览
+              </Badge>
+              <span className="small-meta">归纳于 {dateLabel(overview.at)}</span>
             </div>
-          ))}
+            <p className="topic-overview-body">{overview.text}</p>
+            <p className="topic-overview-note">AI 归纳，与原文分开；只依据所给来源正文，未读正文的来源不生成确定口吻摘要。</p>
+          </aside>
+        )}
       </div>
       <div className="section-heading angle-heading">
         <h2>找到属于你的切入点</h2>

@@ -358,6 +358,7 @@ export function seedState(): StudioState {
     bookmarks: ['paper-notes'],
     topicDrafts: {},
     topicAngleSuggestions: {},
+    topicOverviews: {},
     hotspotFilters: {
       query: '',
       category: '综合',

@@ -146,7 +146,15 @@ export type Project = {
   activeConversation: string
   batches: Batch[]
   creation?: CreationFlow
-  source?: { topicId: string; title: string; angle: string; articleIds: string[]; at: string }
+  source?: {
+    topicId: string
+    title: string
+    angle: string
+    articleIds: string[]
+    at: string
+    /** §20.4 已补充进项目的新文章记录；创建时快照（articleIds）永不改写。 */
+    supplementedArticleIds?: string[]
+  }
   trashed?: boolean
   updated: string
 }
@@ -246,6 +254,8 @@ export type StudioState = {
   topicDrafts: Record<string, { angle: string; articleIds: string[]; requirements: string }>
   /** AI 建议角度（按话题缓存；候选供选择/改写，不自动采用）。 */
   topicAngleSuggestions: Record<string, string[]>
+  /** AI 话题概览（按话题缓存；与原文来源分开显示，§20.2/§20.3）。 */
+  topicOverviews: Record<string, { text: string; at: string }>
   hotspotFilters: {
     query: string
     category: string

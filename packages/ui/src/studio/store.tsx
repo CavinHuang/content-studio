@@ -35,6 +35,7 @@ import {
   stopCreationRun,
   syncCreationTask,
 } from './creation'
+import { supplementArticlesToProject, topicNewArticles } from './hotspot-followup'
 import {
   makeDraft,
   now,
@@ -78,6 +79,7 @@ function readState(): StudioState {
         schema: 3,
         topics: saved.topics ?? fallback.topics,
         topicAngleSuggestions: saved.topicAngleSuggestions ?? {},
+        topicOverviews: saved.topicOverviews ?? {},
         projects: saved.projects.map((project) => ({
           ...project,
           creation: recoverCreation(project.creation),
@@ -147,6 +149,7 @@ function adoptWorkspace(workspace: StudioState): StudioState {
     // 桌面模式文档不保存 topics/sources（权威在主进程 discovery 表），用演示副本兜底后由快照覆盖。
     topics: workspace.topics ?? structuredClone(demoTopics),
     topicAngleSuggestions: workspace.topicAngleSuggestions ?? {},
+    topicOverviews: workspace.topicOverviews ?? {},
     sources: workspace.sources ?? [],
     projects: workspace.projects.map((project) => ({
       ...project,
@@ -274,6 +277,11 @@ export type Store = {
   refreshAllSources: () => void
   suggestAngles: (topic: Topic) => void
   angleBusy: Record<string, boolean>
+  /** §20.4：把选中的新文章补充为项目素材引用（不改母稿正文；改稿仍经建议/候选流）。 */
+  supplementTopicArticles: (topicId: string, projectId: string, articleIds: string[]) => void
+  /** §20.2/§20.3 AI 话题概览：一次性会话生成，结果与原文来源分开显示。 */
+  generateTopicOverview: (topic: Topic) => void
+  overviewBusy: Record<string, boolean>
 }
 export type SourceInput = {
   id?: string
@@ -305,6 +313,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   const [aiBusy, setAiBusy] = useState(false)
   const [aiAsk, setAiAsk] = useState<{ questionId: string; question: string; options?: string[] } | null>(null)
   const [angleBusy, setAngleBusy] = useState<Record<string, boolean>>({})
+  const [overviewBusy, setOverviewBusy] = useState<Record<string, boolean>>({})
   const [wechatConfig, setWechatConfig] = useState<WechatConfigView | null>(null)
   const [ttsConfig, setTtsConfig] = useState<TtsConfigView | null>(null)
   const [redbookLogin, setRedbookLogin] = useState<{ state: 'unknown' | 'loggedIn' | 'notLoggedIn'; message?: string }>(
@@ -314,6 +323,8 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   const aiRuns = useRef(new Map<string, AiRunTarget>())
   // AI 建议角度的一次性会话：按会话键累积增量文本，run_end 时解析为候选角度。
   const angleRuns = useRef(new Map<string, { topicId: string; buffer: string }>())
+  // AI 话题概览的一次性会话：按会话键累积增量文本，run_end 时整段落位 topicOverviews。
+  const overviewRuns = useRef(new Map<string, { topicId: string; buffer: string }>())
   const project =
     state.projects.find((p) => p.id === state.selectedProject && !p.trashed) ??
     state.projects.find((p) => !p.trashed) ??
@@ -559,6 +570,8 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       if (target) mutateAiMessage(target, (text) => ({ text: text + event.text }))
       const angleRun = angleRuns.current.get(event.sessionKey)
       if (angleRun) angleRun.buffer += event.text
+      const overviewRun = overviewRuns.current.get(event.sessionKey)
+      if (overviewRun) overviewRun.buffer += event.text
       return
     }
     if (event.type === 'ask') {
@@ -616,6 +629,26 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         notify('AI 角度建议已生成；可任选一个或直接改写。')
       } else {
         notify('未能从模型输出解析出角度建议；可直接手动输入。')
+      }
+    }
+    // AI 话题概览的一次性会话：整段落位并与原文分开显示；失败/空输出如实通知
+    const overviewRun = overviewRuns.current.get(event.sessionKey)
+    if (overviewRun) {
+      overviewRuns.current.delete(event.sessionKey)
+      setOverviewBusy((busy) => ({ ...busy, [overviewRun.topicId]: false }))
+      if (!event.ok) {
+        notify('概览生成失败；原文来源不受影响。')
+        return
+      }
+      const text = overviewRun.buffer.trim()
+      if (text) {
+        setState((s) => ({
+          ...s,
+          topicOverviews: { ...s.topicOverviews, [overviewRun.topicId]: { text, at: now() } },
+        }))
+        notify('AI 概览已生成；与原文来源分开显示。')
+      } else {
+        notify('模型没有返回概览内容；原文来源不受影响。')
       }
     }
   }
@@ -1331,6 +1364,68 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       notify(message)
     })
   }
+  /** §20.4 补充动作：选中文章保存为素材并引用到对应项目；不改母稿正文，改稿仍经建议/候选流。 */
+  function supplementTopicArticles(topicId: string, projectId: string, articleIds: string[]): void {
+    const topic = stateRef.current.topics.find((t) => t.id === topicId)
+    const project = stateRef.current.projects.find((p) => p.id === projectId && !p.trashed)
+    if (!topic || !project?.source || project.source.topicId !== topicId || !articleIds.length) {
+      notify('请先选择要补充的新文章。')
+      return
+    }
+    const fresh = topicNewArticles(topic, project).filter((article) => articleIds.includes(article.id))
+    if (!fresh.length) {
+      notify('所选文章已补充过，或不在该热点的新文章列表中。')
+      return
+    }
+    setState((s) => supplementArticlesToProject(s, topicId, projectId, fresh.map((a) => a.id)))
+    notify(`已补充 ${fresh.length} 篇新进展素材，可在 Agent 中生成修改建议。`)
+  }
+  /** AI 话题概览（§20.2/§20.3）：一次性会话生成；只依据来源正文，未读正文不生成确定口吻摘要。 */
+  function generateTopicOverview(topic: Topic): void {
+    const ai = persistence.ai
+    if (!ai) {
+      notify('浏览器预览不支持 AI 概览，请在桌面应用中配置模型后使用。')
+      return
+    }
+    if (!aiReady) {
+      notify('尚未配置模型，请先到「设置 → AI 服务」配置。')
+      return
+    }
+    if (overviewBusy[topic.id]) return
+    const sessionKey = `gen:overview-${topic.id.replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 44)}`
+    overviewRuns.current.set(sessionKey, { topicId: topic.id, buffer: '' })
+    setOverviewBusy((busy) => ({ ...busy, [topic.id]: true }))
+    const sourcesBlock = topic.articles
+      .slice(0, 6)
+      .map(
+        (article) =>
+          `· ${article.title}${article.body ? `——${article.body.slice(0, 200)}` : '（仅链接，未读正文）'}`,
+      )
+      .join('\n')
+    const prompt = [
+      '你是热点研究助理。基于下面的热点话题与来源正文，写一段话题概览与背景归纳。',
+      '要求：只依据所给来源正文；未读正文的来源不得生成确定口吻摘要，只能说明「仅链接，未读正文」；来源观点不一致时分别简述，不抹平差异；不虚构数据、引语或事实。',
+      '输出一段 150 至 300 字的连贯归纳，不要使用列表，不要输出其他内容。',
+      '',
+      `话题：${topic.title}`,
+      topic.summary ? `概要：${topic.summary}` : '',
+      `来源正文（截选）：\n${sourcesBlock}`,
+    ]
+      .filter(Boolean)
+      .join('\n')
+    void ai.send(sessionKey, prompt).then((result) => {
+      if (result.ok) return
+      overviewRuns.current.delete(sessionKey)
+      setOverviewBusy((busy) => ({ ...busy, [topic.id]: false }))
+      const message =
+        result.code === 'NO_MODEL_CONFIG'
+          ? '尚未配置模型，请到「设置 → AI 服务」配置。'
+          : result.code === 'AGENT_BUSY'
+            ? '已有 AI 任务在运行，请等待完成或先取消。'
+            : (result.message ?? '概览生成失败；原文来源不受影响。')
+      notify(message)
+    })
+  }
   function answerAsk(answer: string) {
     if (!aiAsk) return
     void persistence.ai?.answer(aiAsk.questionId, answer)
@@ -1911,6 +2006,9 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         refreshAllSources,
         suggestAngles,
         angleBusy,
+        supplementTopicArticles,
+        generateTopicOverview,
+        overviewBusy,
       }}
     >
       {children}
