@@ -307,3 +307,54 @@ test('渲染器异常：错误信息脱敏（不泄漏本机路径）后如实�
   expect(outcome.detail).toContain('视频渲染失败')
   expect(outcome.detail).not.toContain('secret')
 })
+
+test('随包浏览器与渲染根目录：browserExecutable/rootDir/binariesDirectory 进入各渲染调用', async () => {
+  const root = tempDir('export-browser')
+  const entry = join(root, 'index.tsx')
+  writeFileSync(entry, '// entry')
+  const fake = fakeRenderApi(root)
+  const browser = join(root, 'chrome-headless-shell', 'chrome-headless-shell.exe')
+  const binaries = join(root, 'app.asar.unpacked', 'compositor-win32-x64-msvc')
+  const executor = createExportExecutor({
+    entryPoint: () => entry,
+    exportsDir: () => join(root, 'exports'),
+    loadApi: async () => fake.api,
+    browserExecutable: () => browser,
+    bundleRootDir: () => root,
+    binariesDirectory: () => binaries,
+  })
+  const outcome = await executor(exportTaskRecord(), {
+    progress: () => {},
+    signal: new AbortController().signal,
+  })
+  expect(outcome.state).toBe('complete')
+  // rootDir：打包形态下 bundler 的 chdir/缓存落点必须是真实目录（asar 内会 ENOENT）。
+  expect(fake.bundle.mock.calls[0]![0].rootDir).toBe(root)
+  expect(fake.selectComposition.mock.calls[0]![0].browserExecutable).toBe(browser)
+  expect(fake.selectComposition.mock.calls[0]![0].binariesDirectory).toBe(binaries)
+  expect(fake.renderMedia.mock.calls[0]![0].browserExecutable).toBe(browser)
+  expect(fake.renderMedia.mock.calls[0]![0].binariesDirectory).toBe(binaries)
+})
+
+test('loadRemotionApi 装配：渲染路径选项缺省为 null 时按 Remotion 默认行为传递', async () => {
+  // 不真正加载 Remotion（单测无 Electron 环境）：只验证缺省闭包形态不改变已注入 loadApi 的执行器契约。
+  const root = tempDir('export-loadapi')
+  const entry = join(root, 'index.tsx')
+  writeFileSync(entry, '// entry')
+  const fake = fakeRenderApi(root)
+  const executor = createExportExecutor({
+    entryPoint: () => entry,
+    exportsDir: () => join(root, 'exports'),
+    loadApi: async () => fake.api,
+  })
+  const outcome = await executor(exportTaskRecord(), {
+    progress: () => {},
+    signal: new AbortController().signal,
+  })
+  expect(outcome.state).toBe('complete')
+  expect(fake.bundle.mock.calls[0]![0].rootDir).toBeNull()
+  expect(fake.selectComposition.mock.calls[0]![0].browserExecutable).toBeNull()
+  expect(fake.selectComposition.mock.calls[0]![0].binariesDirectory).toBeNull()
+  expect(fake.renderMedia.mock.calls[0]![0].browserExecutable).toBeNull()
+  expect(fake.renderMedia.mock.calls[0]![0].binariesDirectory).toBeNull()
+})

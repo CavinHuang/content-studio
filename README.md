@@ -66,7 +66,7 @@ resources/       应用图标的 SVG 源文件、PNG 与 Windows ICO
 - 母稿与五个平台版本独立保存、排版；Agent 建议先对照再采用，可撤销；源文稿变化会标记建议过期。版本恢复创建新快照。
 - 热点支持搜索、领域、具体来源、时间与排序筛选，收藏、多源去重原文、来源启停和设置；可添加 RSS/Atom 订阅与热榜 JSON 来源真实抓取，来源支持手动刷新与定时刷新，抓取失败如实标注并保留缓存；选择角度与来源后创建独立项目。
 - 全局素材支持文字、链接、图片和文件，区分项目引用、对话引用与插入文稿；原素材删除进入回收站。
-- 视频分别提供素材分镜和代码动画工作台：镜头排序、配图、口播与字幕修改、SRT 导出、本地动画播放、参数候选与采用；「导出视频」经本机 Remotion 渲染真实 MP4，任务中心可见帧级进度、可停止、失败可重试，完成后可打开导出文件夹（渲染组件随开发环境安装；便携版安装包不含渲染组件，导出会如实提示未安装）。
+- 视频分别提供素材分镜和代码动画工作台：镜头排序、配图、口播与字幕修改、SRT 导出、本地动画播放、参数候选与采用；「导出视频」经本机 Remotion 渲染真实 MP4，任务中心可见帧级进度、可停止、失败可重试，完成后可打开导出文件夹（渲染组件与 Chrome Headless Shell 随便携版安装包预置，离线可导出；安装缺损时导出会如实提示未安装）。
 - 发布先明确选择平台，再固定本批次内容快照；公众号可经官方接口存入草稿箱（富文本复制仍可用），小红书可将标题、正文与话题注入平台编辑器并停在草稿，知乎/抖音/X 走复制与 Markdown/JSON 下载；应用只到草稿，绝不自动发布，发布由用户在平台手动完成后回来标记。
 - 设置支持创作偏好、模型与语音服务配置及连接测试、全部备份导入/导出、项目导出与回收站恢复。
 
@@ -96,12 +96,14 @@ resources/       应用图标的 SVG 源文件、PNG 与 Windows ICO
 
 Electron 使用上下文隔离、沙盒与受限 preload API；React 渲染进程不直接访问 Node.js。运行时输出在 `out/`，打包输出在 `release/`，均不纳入版本控制。
 
-Windows 打包默认生成未签名的便携版。也可以先执行 `pnpm package:dir`，再在 PowerShell 中验证分发目录：
+Windows 打包默认生成未签名的便携版。安装包随附 AI 与视频渲染运行时：pi/typebox 与 Remotion 等生产依赖进入应用包（asar），原生合成器（remotion.exe、ffmpeg.exe、ffprobe.exe）与 esbuild 解包到 `app.asar.unpacked`，渲染浏览器 Chrome Headless Shell（约 283 MB）随包预置——首次打包会从 Chrome for Testing 官方存储下载（约 120 MB）并缓存到 `packages/desktop/.render-browser`（git 忽略），视频导出全程离线可用；分发目录约 960 MB。也可以先执行 `pnpm package:dir`，再在 PowerShell 中验证分发目录：
 
 ```powershell
 $env:STUDIO_TEST_EXECUTABLE = "$PWD/release/win-unpacked/Content Studio.exe"
 pnpm exec playwright test
 Remove-Item Env:STUDIO_TEST_EXECUTABLE
 ```
+
+设置 `STUDIO_TEST_EXECUTABLE` 后会额外运行打包形态的真实视频导出用例（`tests/smoke/export-packaged.spec.ts`，未设置时自动跳过）。
 
 界面规范以 [docs/ux/DESIGN-SYSTEM.md](docs/ux/DESIGN-SYSTEM.md) v2.2 为准：设计稿配色 + Tailwind CSS 4 / shadcn/ui 默认字体和控件尺寸；业务间距使用 Tailwind 刻度做紧凑组合，见 [间距校准](docs/ux/SPACING-AUDIT.md)。旧自定义字体和覆盖样式已移除。

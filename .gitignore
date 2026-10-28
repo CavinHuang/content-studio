@@ -2,6 +2,8 @@ node_modules/
 out/
 dist/
 release/
+# 打包预置的 Chrome Headless Shell 缓存（约 283 MB，构建时由脚本下载/解压）
+packages/desktop/.render-browser/
 playwright-report/
 test-results/
 .env
@@ -10,3 +12,4 @@ test-results/
 *.log
 .DS_Store
 .zcode/
+.tmp-pack/

@@ -211,9 +211,37 @@ void app.whenReady().then(() => {
   const renderEntry = process.env.STUDIO_RENDER_ENTRY || join(app.getAppPath(), 'remotion', 'index.tsx')
   const exportsDir = () => join(app.getPath('userData'), 'exports')
   const mediaDir = () => join(app.getPath('userData'), 'media')
+  // 打包形态：Remotion 的浏览器按 cwd 自动下载不可控（spike §7.1），改用随包预置的
+  // Chrome Headless Shell（extraResources → resources/chrome-headless-shell），离线可用；
+  // 缺失（如精简安装）则回落 Remotion 默认行为，由执行器如实失败。
+  // 渲染根目录同理：组合入口在 asar 内，bundler 的 process.chdir 进不去（实测 ENOENT），
+  // 指到用户数据目录（真实可写，webpack 缓存也落在那里）。
+  // 原生二进制：electron-builder 已把 esbuild 与 Remotion 合成器解包到 app.asar.unpacked，
+  // 但子进程无法从 asar 虚拟路径 spawn（实测 ENOENT）——esbuild 走官方 ESBUILD_BINARY_PATH
+  // 覆盖，合成器（remotion.exe/ffmpeg.exe/ffprobe.exe）走 renderMedia/selectComposition
+  // 的 binariesDirectory 指到解包目录。
+  const unpacked = (relative: string) => join(process.resourcesPath, 'app.asar.unpacked', relative)
+  const packagedBrowser = app.isPackaged
+    ? join(process.resourcesPath, 'chrome-headless-shell', 'chrome-headless-shell.exe')
+    : null
+  const renderBrowser = packagedBrowser && existsSync(packagedBrowser) ? packagedBrowser : null
+  const esbuildBinary = app.isPackaged
+    ? unpacked(join('node_modules', '@esbuild', 'win32-x64', 'esbuild.exe'))
+    : null
+  if (esbuildBinary && existsSync(esbuildBinary)) process.env.ESBUILD_BINARY_PATH = esbuildBinary
+  const compositorDir = app.isPackaged
+    ? unpacked(join('node_modules', '@remotion', 'compositor-win32-x64-msvc'))
+    : null
+  const renderBinaries = compositorDir && existsSync(join(compositorDir, 'remotion.exe')) ? compositorDir : null
   services.runner.registerExecutor(
     'export',
-    createExportExecutor({ entryPoint: () => renderEntry, exportsDir }),
+    createExportExecutor({
+      entryPoint: () => renderEntry,
+      exportsDir,
+      ...(renderBrowser ? { browserExecutable: () => renderBrowser } : {}),
+      ...(app.isPackaged ? { bundleRootDir: () => app.getPath('userData') } : {}),
+      ...(renderBinaries ? { binariesDirectory: () => renderBinaries } : {}),
+    }),
   )
   services.runner.registerExecutor(
     'voice',

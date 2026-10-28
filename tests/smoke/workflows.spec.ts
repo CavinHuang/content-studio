@@ -32,7 +32,9 @@ test.beforeEach(async () => {
 })
 test.afterEach(async ({}, info) => {
   try {
-    await page.screenshot({ path: info.outputPath('workspace.png') })
+    // 诊断截图 best-effort：打包形态下隐藏窗口的 CDP 截图偶发挂起（基线包同样复现，
+    // 与断言无关）；失败时 Playwright trace 仍会带现场，不作为门禁。
+    await page.screenshot({ path: info.outputPath('workspace.png'), timeout: 10_000 }).catch(() => {})
     expect(errors).toEqual([])
   } finally {
     await app.close()

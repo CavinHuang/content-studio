@@ -29,7 +29,9 @@ test.beforeEach(async () => {
 })
 test.afterEach(async ({}, info) => {
   try {
-    await page.screenshot({ path: info.outputPath('workspace.png') })
+    // 诊断截图 best-effort：打包形态下隐藏窗口的 CDP 截图偶发挂起（基线包同样复现，
+    // 与断言无关）；失败时 Playwright trace 仍会带现场，不作为门禁。
+    await page.screenshot({ path: info.outputPath('workspace.png'), timeout: 10_000 }).catch(() => {})
     expect(errors).toEqual([])
   } finally {
     await app.close()
@@ -483,7 +485,10 @@ test('workspace survives responsive layout changes and long material dialogs sta
   await expect(detail.getByRole('button', { name: '关闭弹窗', exact: true })).toBeInViewport({ ratio: 1 })
   const scroll = detail.locator('.modal-scroll')
   expect(await scroll.evaluate((el) => el.scrollHeight > el.clientHeight && el.clientHeight > 0)).toBe(true)
-  await page.screenshot({ path: info.outputPath('long-material-dialog.png') })
+  // 诊断截图 best-effort（同本文件 afterEach 注：打包形态隐藏窗口偶发挂起，不作为门禁）。
+  if (!process.env.STUDIO_TEST_EXECUTABLE) {
+    await page.screenshot({ path: info.outputPath('long-material-dialog.png') })
+  }
   await detail.getByRole('button', { name: '删除原素材', exact: true }).click()
   const confirm = page.getByRole('dialog', { name: '将原素材移入回收站？', exact: true })
   await expect(confirm).toBeVisible()
