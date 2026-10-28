@@ -46,6 +46,9 @@ test('send 校验 sessionKey 形态', async () => {
   expect(await handlers.send('../evil', 'hi')).toMatchObject({ ok: false, code: 'BAD_SESSION' })
   expect(await handlers.send('p:project-1', 'hi')).toMatchObject({ ok: true, runId: 'r1' })
   expect(await handlers.send('gen:r_abc', 'hi')).toMatchObject({ ok: true })
+  // F07：项目会话键含对话身份（p:<项目>:<对话>），新建对话不复用同一项目的模型历史。
+  expect(await handlers.send('p:project-1:conv-9', 'hi')).toMatchObject({ ok: true })
+  expect(await handlers.send('p:../evil:x', 'hi')).toMatchObject({ ok: false, code: 'BAD_SESSION' })
 })
 
 test('testOpenAiEndpoint：成功/401/超时', async () => {

@@ -44,9 +44,16 @@ export type Message = {
   role: 'user' | 'assistant'
   text: string
   at: string
+  /** 同一次生成可返回多条建议；suggestion 是历史单值字段，仅为旧文档保留读取兼容。 */
+  suggestions?: Suggestion[]
   suggestion?: Suggestion
   action?: 'plan' | 'article' | 'video' | 'platforms'
   context?: CreationSnapshot
+}
+/** 读取一条消息的全部建议：优先多条列表，退回历史单值字段（旧文档兼容）。 */
+export function messageSuggestions(message: Message): Suggestion[] {
+  if (message.suggestions?.length) return message.suggestions
+  return message.suggestion ? [message.suggestion] : []
 }
 export type Conversation = { id: string; title: string; messages: Message[] }
 export type Shot = {

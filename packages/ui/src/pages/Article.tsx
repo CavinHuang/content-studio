@@ -45,6 +45,7 @@ import { useStudio } from '../studio/store'
 import {
   defaultTypography,
   makeDraft,
+  messageSuggestions,
   platformName,
   PLATFORMS,
   type Draft,
@@ -148,6 +149,11 @@ export function ArticlePage() {
     navigate,
     setCaptureOpen,
     stopCreation,
+    aiReady,
+    regeneratePlatform,
+    platformCandidate,
+    adoptPlatformCandidate,
+    discardPlatformCandidate,
   } = useStudio()
   const platform = project.activePlatform
   const draft = project.drafts[platform] ?? project.drafts.master ?? makeDraft(project.title)
@@ -192,7 +198,10 @@ export function ArticlePage() {
     setComparisonOpen(project.creation?.status === 'candidate')
   }, [project.id, project.creation?.status, project.creation?.runId])
   const [candidate, setCandidate] = useState<{
-    content: ReturnType<typeof platformContent>
+    title: string
+    body: string
+    tags: string
+    question: string
     base: string
     master: string
     version: number
@@ -212,13 +221,12 @@ export function ArticlePage() {
   const parentChanged = platform !== 'master' && draft.sourceBody !== project.drafts.master?.body
   const suggestions = project.conversations
     .flatMap((c) => c.messages)
-    .flatMap((m) =>
-      m.suggestion &&
-      m.suggestion.platform === platform &&
-      m.suggestion.status !== 'rejected' &&
-      m.suggestion.status !== 'undone'
-        ? [m.suggestion]
-        : [],
+    .flatMap((m) => messageSuggestions(m))
+    .filter(
+      (suggestion) =>
+        suggestion.platform === platform &&
+        suggestion.status !== 'rejected' &&
+        suggestion.status !== 'undone',
     )
   const selectedHistory = draft.versions.find((v) => v.id === selectedVersion) ?? latest
   const style = {
@@ -259,9 +267,14 @@ export function ArticlePage() {
     })
   }
   function startCandidate() {
+    if (aiReady) {
+      // F01：已配置模型走真实重新适配，产出候选经比较采用；未配置回退示例模板。
+      regeneratePlatform(platform)
+      return
+    }
     const master = project.drafts.master!
     setCandidate({
-      content: platformContent(platform, master.title, master.body),
+      ...platformContent(platform, master.title, master.body),
       base: draft.body,
       master: master.body,
       version: master.versions.at(-1)?.number ?? 1,
@@ -965,54 +978,86 @@ export function ArticlePage() {
               </div>
             </Modal>
           )}
-          {candidate && (
-            <Modal
-              wide
-              title={`重新适配 · ${platformName(platform)}`}
-              description="当前平台稿会一直保留，采用前请对照。以下是示例候选内容。"
-              onClose={() => setCandidate(null)}
-              footer={
-                <>
-                  <Button onClick={() => setCandidate(null)} variant="outline" size="default">
-                    保留当前稿
-                  </Button>
-                  <Button
-                    disabled={draft.body !== candidate.base}
-                    onClick={() => {
-                      patchDraft(
-                        {
-                          ...candidate.content,
-                          sourceBody: candidate.master,
-                          sourceVersion: candidate.version,
-                        },
-                        '采用重新适配候选（示例）',
-                      )
-                      setCandidate(null)
-                      notify('已采用候选，手改内容保存在历史版本中。')
-                    }}
-                    variant="default"
-                    size="default"
-                  >
-                    采用候选版本
-                  </Button>
-                </>
-              }
-            >
-              <div className="candidate-comparison">
-                <div>
-                  <Badge>当前手稿</Badge>
-                  <Markdown body={draft.body} />
+          {(() => {
+            // 真实重新适配候选（store，transient）优先；示例候选为本地状态。两者共用同一比较/采用形态。
+            const realCandidate =
+              platformCandidate &&
+              platformCandidate.projectId === project.id &&
+              platformCandidate.platform === platform
+                ? platformCandidate
+                : null
+            const activeCandidate = realCandidate ?? candidate
+            if (!activeCandidate) return null
+            return (
+              <Modal
+                wide
+                title={`重新适配 · ${platformName(platform)}`}
+                description={
+                  realCandidate
+                    ? '以下是模型基于当前母稿生成的候选内容。当前平台稿会一直保留，采用前请对照。'
+                    : '当前平台稿会一直保留，采用前请对照。以下是示例候选内容。'
+                }
+                onClose={() => {
+                  setCandidate(null)
+                  if (realCandidate) discardPlatformCandidate()
+                }}
+                footer={
+                  <>
+                    <Button
+                      onClick={() => {
+                        setCandidate(null)
+                        if (realCandidate) discardPlatformCandidate()
+                      }}
+                      variant="outline"
+                      size="default"
+                    >
+                      保留当前稿
+                    </Button>
+                    <Button
+                      disabled={draft.body !== activeCandidate.base}
+                      onClick={() => {
+                        if (realCandidate) {
+                          adoptPlatformCandidate()
+                        } else if (candidate) {
+                          patchDraft(
+                            {
+                              title: candidate.title,
+                              body: candidate.body,
+                              tags: candidate.tags,
+                              question: candidate.question,
+                              sourceBody: candidate.master,
+                              sourceVersion: candidate.version,
+                            },
+                            '采用重新适配候选（示例）',
+                          )
+                          setCandidate(null)
+                          notify('已采用候选，手改内容保存在历史版本中。')
+                        }
+                      }}
+                      variant="default"
+                      size="default"
+                    >
+                      采用候选版本
+                    </Button>
+                  </>
+                }
+              >
+                <div className="candidate-comparison">
+                  <div>
+                    <Badge>当前手稿</Badge>
+                    <Markdown body={draft.body} />
+                  </div>
+                  <div>
+                    <Badge tone="green">候选版本</Badge>
+                    <Markdown body={activeCandidate.body} />
+                  </div>
                 </div>
-                <div>
-                  <Badge tone="green">候选版本</Badge>
-                  <Markdown body={candidate.content.body} />
-                </div>
-              </div>
-              {draft.body !== candidate.base && (
-                <div className="inline-alert red">当前稿已变化，请关闭后重新生成候选。</div>
-              )}
-            </Modal>
-          )}
+                {draft.body !== activeCandidate.base && (
+                  <div className="inline-alert red">当前稿已变化，请关闭后重新生成候选。</div>
+                )}
+              </Modal>
+            )
+          })()}
         </TabsContent>
       </div>
     </Tabs>

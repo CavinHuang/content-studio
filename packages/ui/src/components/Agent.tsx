@@ -40,7 +40,7 @@ import {
   DropdownMenuSeparator,
 } from './ui/dropdown-menu'
 import { useStudio } from '../studio/store'
-import { platformName, uid } from '../studio/types'
+import { messageSuggestions, platformName, uid } from '../studio/types'
 import { requestSuggestionReview } from '../studio/suggestion-review'
 import { creationSnapshot } from '../studio/creation'
 
@@ -226,7 +226,12 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
                 </div>
               ) : (
                 <>
-                  {thread.messages.map((message) => (
+                  {thread.messages.map((message) => {
+                    // F06：一条回复可携带多条建议；会话卡片跳到第一条待确认建议。
+                    const suggestions = messageSuggestions(message)
+                    const cardSuggestion =
+                      suggestions.find((s) => s.status === 'pending') ?? suggestions[0]
+                    return (
                     <MessageScrollerItem
                       key={message.id}
                       messageId={message.id}
@@ -282,17 +287,17 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
                               onClick={() => {
                                 if (message.action === 'platforms') setPlatformsOpen(true)
                                 else {
-                                  if (message.suggestion)
+                                  if (cardSuggestion) {
                                     patchProject(project.id, (p) => ({
                                       ...p,
-                                      activePlatform: message.suggestion!.platform,
+                                      activePlatform: cardSuggestion.platform,
                                     }))
-                                  if (message.suggestion)
                                     requestSuggestionReview({
                                       projectId: project.id,
-                                      platform: message.suggestion.platform,
-                                      id: message.suggestion.id,
+                                      platform: cardSuggestion.platform,
+                                      id: cardSuggestion.id,
                                     })
+                                  }
                                   navigate(
                                     message.action === 'plan'
                                       ? 'plan'
@@ -308,7 +313,7 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
                               </span>
                               <div>
                                 <strong>
-                                  {message.suggestion
+                                  {cardSuggestion
                                     ? '段落修改建议'
                                     : message.action === 'plan'
                                       ? '创作方案'
@@ -319,8 +324,8 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
                                           : '当前文稿'}
                                 </strong>
                                 <small>
-                                  {message.suggestion
-                                    ? `${platformName(message.suggestion.platform)} · ${message.suggestion.status === 'accepted' ? '已采用' : message.suggestion.status === 'pending' ? '待你确认' : '已处理'}`
+                                  {cardSuggestion
+                                    ? `${platformName(cardSuggestion.platform)} · ${cardSuggestion.status === 'accepted' ? '已采用' : cardSuggestion.status === 'pending' ? '待你确认' : '已处理'}`
                                     : '在中间继续调整'}
                                 </small>
                               </div>
@@ -330,7 +335,8 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
                         </MessageContent>
                       </Message>
                     </MessageScrollerItem>
-                  ))}
+                    )
+                  })}
                 </>
               )}
               {busy && (

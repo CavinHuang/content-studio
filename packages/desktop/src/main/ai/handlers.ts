@@ -35,7 +35,8 @@ export async function testOpenAiEndpoint(
   }
 }
 
-const SESSION_KEY_PATTERN = /^(p|d|gen):[A-Za-z0-9_-]{1,64}$/
+// F07：项目会话键为 p:<项目>:<对话>（两段冒号）；d/gen 键与旧的 p:<项目> 保持兼容。
+const SESSION_KEY_PATTERN = /^(p|d|gen):[A-Za-z0-9_-]{1,64}(?::[A-Za-z0-9_-]{1,64})?$/
 
 export interface AiHandlerDeps {
   db: DatabaseSync

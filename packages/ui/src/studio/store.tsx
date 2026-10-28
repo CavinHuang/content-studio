@@ -29,6 +29,7 @@ import {
 import {
   applyCreation,
   beginCreation,
+  creationProblem,
   creationSnapshot,
   finishCreation,
   recoverCreation,
@@ -38,6 +39,7 @@ import {
 import { supplementArticlesToProject, topicNewArticles } from './hotspot-followup'
 import {
   makeDraft,
+  messageSuggestions,
   now,
   platformName,
   uid,
@@ -45,8 +47,10 @@ import {
   type Artifact,
   type Conversation,
   type CreationFlow,
+  type CreationSnapshot,
   type Draft,
   type Material,
+  type Message,
   type Page,
   type Platform,
   type Project,
@@ -170,7 +174,26 @@ function mergeTaskLists(mainTasks: Task[], current: Task[]): Task[] {
   return [...mainTasks, ...creation].sort((a, b) => (a.at < b.at ? 1 : -1))
 }
 type AgentDraft = { composer: string; context: ContextReference | null }
-type AiRunTarget = { discovery: boolean; projectId: string; conversationId: string; messageId: string }
+type AiRunTarget = {
+  discovery: boolean
+  projectId: string
+  conversationId: string
+  messageId: string
+  /** F03：发起请求时冻结的各平台文稿正文与版本号；建议到达以此作 baseBody。 */
+  bases?: Partial<Record<Platform, { body: string; version: number }>>
+}
+/** 真实重新适配产出的平台候选（transient，不写入文档）；比较采用前现有平台稿不动。 */
+export type PlatformCandidate = {
+  projectId: string
+  platform: Platform
+  title: string
+  body: string
+  /** 候选产出时的平台稿正文；采用前正文变化则候选过期。 */
+  base: string
+  /** F08：构造生成请求时实际使用的母稿正文与版本号。 */
+  master: string
+  version: number
+}
 export type Store = {
   state: StudioState
   setState: Dispatch<SetStateAction<StudioState>>
@@ -200,6 +223,12 @@ export type Store = {
   undoCreation: () => void
   createFromTopic: (topic: Topic) => void
   generatePlatforms: (platforms: Platform[]) => void
+  /** F01：单平台重新适配（已配置模型时走真实生成，产出候选）；未配置时由页面回退示例候选。 */
+  regeneratePlatform: (platform: Platform) => void
+  /** 真实重新适配的平台候选（transient，不写入文档）；null = 无待比较候选。 */
+  platformCandidate: PlatformCandidate | null
+  adoptPlatformCandidate: () => void
+  discardPlatformCandidate: () => void
   generateArticle: () => void
   sendMessage: () => void
   resolveSuggestion: (id: string, action: 'accept' | 'reject' | 'undo') => void
@@ -316,6 +345,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   const [overviewBusy, setOverviewBusy] = useState<Record<string, boolean>>({})
   const [wechatConfig, setWechatConfig] = useState<WechatConfigView | null>(null)
   const [ttsConfig, setTtsConfig] = useState<TtsConfigView | null>(null)
+  const [platformCandidate, setPlatformCandidate] = useState<PlatformCandidate | null>(null)
   const [redbookLogin, setRedbookLogin] = useState<{ state: 'unknown' | 'loggedIn' | 'notLoggedIn'; message?: string }>(
     { state: 'unknown' },
   )
@@ -532,7 +562,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   }, [persistence])
   function mutateAiMessage(
     target: AiRunTarget,
-    mutate: (text: string) => { text?: string; suggestion?: Suggestion },
+    mutate: (message: Message) => { text?: string; suggestions?: Suggestion[] },
   ): void {
     setState((s) => {
       const mapConversation = (c: Conversation) =>
@@ -541,11 +571,11 @@ export function StudioProvider({ children }: { children: ReactNode }) {
               ...c,
               messages: c.messages.map((m) => {
                 if (m.id !== target.messageId) return m
-                const next = mutate(m.text)
+                const next = mutate(m)
                 return {
                   ...m,
                   ...(next.text !== undefined ? { text: next.text } : {}),
-                  ...(next.suggestion ? { suggestion: next.suggestion } : {}),
+                  ...(next.suggestions ? { suggestions: next.suggestions } : {}),
                 }
               }),
             }
@@ -567,7 +597,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     }
     if (event.type === 'delta') {
       const target = aiRuns.current.get(event.sessionKey)
-      if (target) mutateAiMessage(target, (text) => ({ text: text + event.text }))
+      if (target) mutateAiMessage(target, (m) => ({ text: m.text + event.text }))
       const angleRun = angleRuns.current.get(event.sessionKey)
       if (angleRun) angleRun.buffer += event.text
       const overviewRun = overviewRuns.current.get(event.sessionKey)
@@ -582,19 +612,20 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       const target = aiRuns.current.get(event.sessionKey)
       if (!target || target.discovery) return
       const platform = event.suggestion.platform as Platform
-      const draftBody = stateRef.current.projects
-        .find((p) => p.id === target.projectId)
-        ?.drafts[platform]?.body
-      if (draftBody === undefined) return
+      // F03：baseBody 取发起请求时冻结的文稿，而不是事件到达时的正文；
+      // 发起时该平台稿不存在（未冻结基线）则无法建立过期比对，忽略该建议。
+      const base = target.bases?.[platform]
+      if (!base) return
       const suggestion: Suggestion = {
         id: uid(),
         platform,
         original: event.suggestion.original,
         replacement: event.suggestion.replacement,
-        baseBody: draftBody,
+        baseBody: base.body,
         status: 'pending',
       }
-      mutateAiMessage(target, () => ({ suggestion }))
+      // F06：同一次生成的多条建议逐条保留，追加而不是覆盖。
+      mutateAiMessage(target, (m) => ({ suggestions: [...messageSuggestions(m), suggestion] }))
       return
     }
     if (event.type === 'draft') {
@@ -608,8 +639,8 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     const target = aiRuns.current.get(event.sessionKey)
     aiRuns.current.delete(event.sessionKey)
     if (target && !event.ok)
-      mutateAiMessage(target, (text) => ({
-        text: text || `（对话出错了：${event.error ?? '未知错误'}）`,
+      mutateAiMessage(target, (m) => ({
+        text: m.text || `（对话出错了：${event.error ?? '未知错误'}）`,
       }))
     // AI 建议角度的一次性会话：解析为候选（供选择/改写，不自动采用）
     const angleRun = angleRuns.current.get(event.sessionKey)
@@ -667,17 +698,23 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       : lines.map((line) => /^(?:\d+[.、)]\s*|[-*·]\s*)(.+)$/.exec(line)?.[1]?.trim() ?? line)
     return pool.filter((line) => line.length >= 6).slice(0, 3)
   }
-  function applyMasterCandidate(projectId: string, title: string, body: string): void {
+  function applyMasterCandidate(
+    projectId: string,
+    title: string,
+    body: string,
+    options?: { snapshot?: CreationSnapshot; source?: 'input' | 'plan' },
+  ): void {
     setState((s) => {
       const current = s.projects.find((p) => p.id === projectId)
       if (!current) return s
       const master = current.drafts.master ?? makeDraft(current.title)
       const creation: CreationFlow = {
         ...(current.creation ?? { input: '', status: 'idle' as const }),
-        source: 'plan',
+        source: options?.source ?? 'plan',
         status: 'candidate',
         candidate: { title, body, baseTitle: master.title, baseBody: master.body },
-        snapshot: creationSnapshot(s, current),
+        // F01：优先用发起任务时冻结的快照，采用时才能检出整理期间的方向/素材修改。
+        snapshot: options?.snapshot ?? creationSnapshot(s, current),
         message: 'AI 已生成母稿候选；比较后采用，现有正文保留。',
       }
       return syncCreationTask(
@@ -693,12 +730,55 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     notify('母稿候选已生成，可在文稿页比较后采用。')
   }
   function applyGenerationOutcome(task: Task): void {
-    const payload = task.payload as { job?: string } | undefined
+    const payload = task.payload as
+      | {
+          job?: string
+          platforms?: string[]
+          masterBody?: string
+          sourceVersion?: number
+          regenerate?: boolean
+          snapshot?: CreationSnapshot
+          creationSource?: string
+        }
+      | undefined
     if (payload?.job === 'platforms' && (task.state === 'complete' || task.state === 'partial')) {
       const result = task.result as
         | { drafts?: Record<string, { title: string; body: string }> }
         | undefined
       if (!result?.drafts || !Object.keys(result.drafts).length) return
+      // F08：来源标注取发起任务时冻结的母稿快照与版本号，而不是落位时的当前母稿。
+      const masterBody = payload.masterBody
+      const sourceVersion = payload.sourceVersion
+      if (payload.regenerate) {
+        // F01 单平台重新适配：产出只落候选，比较采用，不直接覆盖现有平台稿。
+        const current = stateRef.current.projects.find((p) => p.id === task.projectId)
+        let landed = false
+        for (const [platform, content] of Object.entries(result.drafts)) {
+          const key = platform as Platform
+          const draft = current?.drafts[key]
+          if (!current || !draft || !masterBody) continue
+          setPlatformCandidate({
+            projectId: task.projectId,
+            platform: key,
+            title: content.title,
+            body: content.body,
+            base: draft.body,
+            master: masterBody,
+            version:
+              typeof sourceVersion === 'number'
+                ? sourceVersion
+                : (current.drafts.master?.versions.at(-1)?.number ?? 1),
+          })
+          landed = true
+          break
+        }
+        notify(
+          landed
+            ? '平台候选已生成，比较后可采用；现有平台稿保持原样。'
+            : '平台候选已生成，但对应平台稿已不存在，请重新发起适配。',
+        )
+        return
+      }
       setState((s) => ({
         ...s,
         projects: s.projects.map((p) => {
@@ -710,8 +790,11 @@ export function StudioProvider({ children }: { children: ReactNode }) {
             if (drafts[key]) continue
             drafts[key] = {
               ...makeDraft(content.title, content.body, 'AI 适配'),
-              sourceBody: master?.body,
-              sourceVersion: master?.versions.at(-1)?.number ?? 1,
+              sourceBody: masterBody ?? master?.body,
+              sourceVersion:
+                typeof sourceVersion === 'number'
+                  ? sourceVersion
+                  : (master?.versions.at(-1)?.number ?? 1),
             }
           }
           return { ...p, drafts, updated: now() }
@@ -727,7 +810,13 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     }
     if (payload?.job === 'master' && task.state === 'complete') {
       const draft = task.result as { title: string; body: string } | undefined
-      if (draft) applyMasterCandidate(task.projectId, draft.title, draft.body)
+      if (draft)
+        applyMasterCandidate(task.projectId, draft.title, draft.body, {
+          snapshot: payload.snapshot,
+          ...(payload.creationSource === 'input' || payload.creationSource === 'plan'
+            ? { source: payload.creationSource }
+            : {}),
+        })
     }
   }
   useEffect(() => {
@@ -983,6 +1072,49 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   }
   function runCreation() {
     const id = project.id
+    if (aiReady && persistence.ai) {
+      // F01 真实生成：主进程 master 任务（executor:'main'），产出只落候选（applyMasterCandidate）。
+      // 快照在发起时冻结，采用时才能检出整理期间的方向/素材修改；未配置模型走演示路径。
+      const current = stateRef.current.projects.find((p) => p.id === id && !p.trashed)
+      if (!current) return
+      const snapshot = creationSnapshot(stateRef.current, current)
+      const problem = creationProblem(snapshot)
+      if (problem) {
+        notify(problem)
+        return
+      }
+      const input = snapshot.input.trim()
+      const plan = snapshot.plan
+      const briefText = [
+        `主题：${snapshot.title}`,
+        snapshot.point.trim() && `核心观点：${snapshot.point}`,
+        snapshot.tone.trim() && `表达：${snapshot.tone}`,
+        plan?.audience && `写给：${plan.audience}`,
+        plan?.length && `篇幅建议：${plan.length}`,
+        plan?.outline.length &&
+          `大纲：\n${plan.outline.map((line, index) => `${index + 1}. ${line}`).join('\n')}`,
+        input && `原始记录：\n${input.slice(0, 6000)}`,
+      ]
+        .filter(Boolean)
+        .join('\n')
+      const materialsText = snapshot.materials
+        .map((m) => `【${m.title}】\n${m.body ? m.body.slice(0, 800) : '（未读取原文，仅保留链接）'}`)
+        .join('\n\n')
+      submitMainTask({
+        kind: 'agent',
+        title: '按当前方向生成母稿候选',
+        detail: '正在把原始记录与素材整理成母稿候选；现有正文保留。',
+        payload: {
+          job: 'master',
+          briefText,
+          materialsText: materialsText || undefined,
+          snapshot,
+          creationSource: current.creation?.source ?? 'input',
+        },
+      })
+      notify('正在把原始记录与素材整理成母稿候选；现有正文保留，生成后可比较采用。')
+      return
+    }
     setState((s) => beginCreation(s, id).state)
   }
   function stopCreation() {
@@ -1200,6 +1332,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
             platforms: todo,
             masterTitle: master.title,
             masterBody: master.body,
+            sourceVersion: master.versions.at(-1)?.number ?? 1,
             skip: platforms.filter((p) => project.drafts[p]),
             tone: state.preferences.tone,
           },
@@ -1239,6 +1372,70 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     }))
     setPlatformsOpen(false)
     notify('正在创建所选平台的示例版本，已有平台稿会保留。')
+  }
+  /** F01：单平台重新适配（已配置模型走真实生成）。产出只落候选，比较采用，不直接覆盖现有平台稿。 */
+  function regeneratePlatform(platform: Platform) {
+    if (!persistence.ai || !aiReady) {
+      notify('尚未配置模型，请先到「设置 → AI 服务」配置；当前可继续使用示例候选。')
+      return
+    }
+    const master = structuredClone(project.drafts.master ?? makeDraft(project.title))
+    if (!master.body.trim()) {
+      notify('请先写一些母稿内容，再重新适配平台版本。')
+      return
+    }
+    submitMainTask({
+      kind: 'agent',
+      title: `重新适配${platformName(platform)}版本`,
+      detail: '正在基于当前母稿生成平台候选；现有平台稿保留。',
+      payload: {
+        job: 'platforms',
+        platforms: [platform],
+        skip: [],
+        masterTitle: master.title,
+        masterBody: master.body,
+        sourceVersion: master.versions.at(-1)?.number ?? 1,
+        regenerate: true,
+        tone: state.preferences.tone,
+      },
+    })
+    notify(`正在基于当前母稿重新生成${platformName(platform)}候选；现有平台稿保留。`)
+  }
+  /** 采用真实重新适配候选：正文与发起时一致才落位；来源标注用发起时的母稿快照（F08）。 */
+  function adoptPlatformCandidate() {
+    const candidate = platformCandidate
+    if (!candidate || candidate.projectId !== project.id) return
+    const draft = project.drafts[candidate.platform]
+    if (!draft || draft.body !== candidate.base) {
+      notify('当前平台稿已变化，这条候选已过期。请重新生成候选。')
+      setPlatformCandidate(null)
+      return
+    }
+    patchProject(project.id, (p) => {
+      const current = p.drafts[candidate.platform]
+      if (!current || current.body !== candidate.base) return p
+      return {
+        ...p,
+        drafts: {
+          ...p.drafts,
+          [candidate.platform]: versioned(
+            current,
+            {
+              title: candidate.title,
+              body: candidate.body,
+              sourceBody: candidate.master,
+              sourceVersion: candidate.version,
+            },
+            '采用重新适配候选',
+          ),
+        },
+      }
+    })
+    setPlatformCandidate(null)
+    notify('已采用候选，手改内容保存在历史版本中。')
+  }
+  function discardPlatformCandidate() {
+    setPlatformCandidate(null)
   }
   function reference(label: string, text: string) {
     setContext({ label, text, platform: project.activePlatform })
@@ -1616,12 +1813,8 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     const discovery = ['hotspots', 'sources'].includes(state.page)
     const conversationId = discovery ? state.activeDiscovery : project.activeConversation
     const messageId = uid()
-    const target: AiRunTarget = {
-      discovery,
-      projectId: discovery ? '' : project.id,
-      conversationId,
-      messageId,
-    }
+    let bases: AiRunTarget['bases'] | undefined
+    let materialsTruncated = false
     const blocks: string[] = []
     if (discovery) {
       const topic = stateRef.current.topics.find((t) => t.id === state.selectedTopic)
@@ -1637,9 +1830,30 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         blocks.push(`原始记录：\n${project.creation.input.slice(0, 1200)}`)
       if (context) blocks.push(`引用（${context.label}）：\n${context.text.slice(0, 800)}`)
       if (project.brief.point.trim()) blocks.push(`核心观点：${project.brief.point}`)
+      // F05：请求真实带入本篇素材（与界面「已带入 N 份本篇素材」口径一致），有截断在尾部说明。
+      const materials = project.materialIds.flatMap((mid) =>
+        stateRef.current.materials.filter((m) => m.id === mid && !m.trashed),
+      )
+      if (materials.length) {
+        materialsTruncated = materials.some((m) => m.body.length > 800)
+        blocks.push(
+          `本篇素材（${materials.length} 份）：\n${materials
+            .map((m) => `【${m.title}】\n${m.body ? m.body.slice(0, 800) : '（未读取原文，仅保留链接）'}`)
+            .join('\n\n')}`,
+        )
+      }
+      // F03：冻结各平台文稿正文与版本号；建议到达时以冻结值作 baseBody，生成期间的手改不会进入基线。
+      bases = Object.fromEntries(
+        Object.entries(project.drafts)
+          .filter((entry): entry is [Platform, Draft] => !!entry[1])
+          .map(([platform, d]) => [platform, { body: d.body, version: d.versions.at(-1)?.number ?? 1 }]),
+      )
     }
-    const prompt = [...blocks, text].join('\n\n')
-    const sessionKey = discovery ? `d:${conversationId}` : `p:${project.id}`
+    let prompt = [...blocks, text].join('\n\n')
+    if (materialsTruncated)
+      prompt += '\n\n（以上素材正文为截选：每份仅保留前 800 字；全文保存在本机素材库中。）'
+    // F07：项目会话键包含对话身份，新建对话不再复用同一项目的模型历史。
+    const sessionKey = discovery ? `d:${conversationId}` : `p:${project.id}:${conversationId}`
     const userMessage = {
       id: uid(),
       role: 'user' as const,
@@ -1671,6 +1885,13 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     setComposer('')
     setContext(null)
     setAiBusy(true)
+    const target: AiRunTarget = {
+      discovery,
+      projectId: discovery ? '' : project.id,
+      conversationId,
+      messageId,
+      ...(bases ? { bases } : {}),
+    }
     aiRuns.current.set(sessionKey, target)
     void ai.send(sessionKey, prompt).then((result) => {
       if (result.ok) return
@@ -1805,7 +2026,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           text: '',
           at: now(),
           action: undefined as 'plan' | 'article' | 'video' | 'platforms' | undefined,
-          suggestion: undefined as import('./types').Suggestion | undefined,
+          suggestions: [] as Suggestion[],
         }
         if (wantsPlan) {
           response.text =
@@ -1843,14 +2064,16 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           response.text =
             '我为当前范围整理了一个更简洁的表达，原文和建议都放在文稿中。你可以逐条采用或保留原文。（演示）'
           response.action = 'article'
-          response.suggestion = {
-            id: uid(),
-            platform,
-            original,
-            replacement: `把想法先留下，再多问一句为什么。${original.replace(/，/g, '，').slice(0, 80)}让每一次整理，都向自己的判断再走一步。`,
-            baseBody: sourceDraft.body,
-            status: 'pending',
-          }
+          response.suggestions = [
+            {
+              id: uid(),
+              platform,
+              original,
+              replacement: `把想法先留下，再多问一句为什么。${original.replace(/，/g, '，').slice(0, 80)}让每一次整理，都向自己的判断再走一步。`,
+              baseBody: sourceDraft.body,
+              status: 'pending',
+            },
+          ]
         }
         return {
           ...p,
@@ -1861,10 +2084,38 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       }),
     }))
   }
+  /** F06：采用/撤销一条建议后，同平台原文仍完整存在的待定建议基线跟随新正文（不相交建议继续可用）。 */
+  function rebasePendingSuggestions(
+    project: Project,
+    platform: Platform,
+    body: string,
+    changedId: string,
+  ): Project {
+    return {
+      ...project,
+      conversations: project.conversations.map((c) => ({
+        ...c,
+        messages: c.messages.map((m) => {
+          const list = messageSuggestions(m)
+          if (!list.some((s) => s.id !== changedId && s.platform === platform && s.status === 'pending'))
+            return m
+          return {
+            ...m,
+            suggestions: list.map((s) =>
+              s.id !== changedId && s.platform === platform && s.status === 'pending' && body.includes(s.original)
+                ? { ...s, baseBody: body }
+                : s,
+            ),
+          }
+        }),
+      })),
+    }
+  }
   function resolveSuggestion(id: string, action: 'accept' | 'reject' | 'undo') {
     const requested = project.conversations
       .flatMap((c) => c.messages)
-      .find((m) => m.suggestion?.id === id)?.suggestion
+      .flatMap((m) => messageSuggestions(m))
+      .find((s) => s.id === id)
     const currentDraft = requested ? project.drafts[requested.platform] : undefined
     if (!requested || !currentDraft) return
     if (action === 'accept' && (requested.status !== 'pending' || currentDraft.body !== requested.baseBody)) {
@@ -1879,9 +2130,10 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       return
     }
     patchProject(project.id, (p) => {
-      const suggestion = p.conversations
-        .flatMap((c) => c.messages)
-        .find((m) => m.suggestion?.id === id)?.suggestion
+      const found = p.conversations
+        .flatMap((c) => c.messages.map((m) => ({ m, list: messageSuggestions(m) })))
+        .find((entry) => entry.list.some((s) => s.id === id))
+      const suggestion = found?.list.find((s) => s.id === id)
       if (!suggestion) return p
       const draft = p.drafts[suggestion.platform]
       if (!draft) return p
@@ -1896,7 +2148,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
             ? suggestion.baseBody
             : draft.body
       const status = action === 'accept' ? 'accepted' : action === 'undo' ? 'undone' : 'rejected'
-      return {
+      const next: Project = {
         ...p,
         drafts: {
           ...p.drafts,
@@ -1907,20 +2159,32 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         },
         conversations: p.conversations.map((c) => ({
           ...c,
-          messages: c.messages.map((m) =>
-            m.suggestion?.id === id
-              ? {
-                  ...m,
-                  suggestion: {
-                    ...m.suggestion,
-                    status,
-                    resultBody: action === 'accept' ? body : m.suggestion.resultBody,
-                  },
-                }
-              : m,
-          ),
+          messages: c.messages.map((m) => {
+            const list = messageSuggestions(m)
+            if (!list.some((s) => s.id === id)) return m
+            return {
+              ...m,
+              // 旧文档的单值字段同步更新，避免残留与列表不一致的历史建议状态。
+              ...(m.suggestion?.id === id && m.suggestion
+                ? {
+                    suggestion: {
+                      ...m.suggestion,
+                      status,
+                      ...(action === 'accept' ? { resultBody: body } : {}),
+                    },
+                  }
+                : {}),
+              suggestions: list.map((s) =>
+                s.id === id
+                  ? { ...s, status, ...(action === 'accept' ? { resultBody: body } : {}) }
+                  : s,
+              ),
+            }
+          }),
         })),
       }
+      if (action === 'reject') return next
+      return rebasePendingSuggestions(next, suggestion.platform, body, id)
     })
     notify(
       action === 'accept'
@@ -1962,6 +2226,10 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         undoCreation,
         createFromTopic,
         generatePlatforms,
+        regeneratePlatform,
+        platformCandidate,
+        adoptPlatformCandidate,
+        discardPlatformCandidate,
         generateArticle,
         sendMessage,
         resolveSuggestion,
