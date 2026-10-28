@@ -36,9 +36,10 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ env.version }}
         run: |
-          version="${GITHUB_REF_NAME#v}"
           notes=$(node -e "
+            const version = process.env.RELEASE_VERSION;
             const text = require('fs').readFileSync('CHANGELOG.md', 'utf8');
             const start = text.indexOf('## [' + version + ']');
             const next = text.indexOf('\n## [', start + 1);
